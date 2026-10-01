@@ -1,0 +1,16 @@
+{
+  "name": "@spicehub/kitchen-kds-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3003 --host",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@spicehub/api-client": "*",
+    "@spicehub/shared-types": "*",
+    "@spicehub/ui": "*"
+  }
+}

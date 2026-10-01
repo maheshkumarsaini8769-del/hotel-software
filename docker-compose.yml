@@ -1,0 +1,41 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: spicehub_mongodb
+    restart: unless-stopped
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: spicehub_dev
+    volumes:
+      - spicehub_mongo_data:/data/db
+    networks:
+      - spicehub_network
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'rs.status().ok || rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"localhost:27017\"}]}).ok' | mongosh --quiet | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: spicehub_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - spicehub_redis_data:/data
+    networks:
+      - spicehub_network
+
+volumes:
+  spicehub_mongo_data:
+    name: spicehub_mongo_data
+  spicehub_redis_data:
+    name: spicehub_redis_data
+
+networks:
+  spicehub_network:
+    name: spicehub_network
+    driver: bridge

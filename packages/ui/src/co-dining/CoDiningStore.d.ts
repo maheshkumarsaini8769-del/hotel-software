@@ -1,0 +1,33 @@
+import { CommunityTableDTO, SeatStatus } from './types';
+type Listener = () => void;
+export declare class CoDiningStore {
+    private tables;
+    private selectedTable;
+    private selectedSeatNumbers;
+    private filterSection;
+    private filterMinSeats;
+    private isLoading;
+    private errorMessage;
+    private listeners;
+    constructor(initialTables?: CommunityTableDTO[]);
+    subscribe(listener: Listener): () => void;
+    private notify;
+    getTables(): CommunityTableDTO[];
+    getFilteredTables(): CommunityTableDTO[];
+    getSelectedTable(): CommunityTableDTO | null;
+    getSelectedSeatNumbers(): number[];
+    getFilterSection(): string;
+    getFilterMinSeats(): number;
+    getIsLoading(): boolean;
+    getErrorMessage(): string | null;
+    setLoading(loading: boolean): void;
+    setError(error: string | null): void;
+    setTables(tables: CommunityTableDTO[]): void;
+    selectTable(table: CommunityTableDTO | null): void;
+    toggleSeatSelection(seatNumber: number): void;
+    clearSeatSelection(): void;
+    setFilterSection(section: string): void;
+    setFilterMinSeats(count: number): void;
+    updateSeatStatus(tableId: string, seatNumber: number, status: SeatStatus, guestName?: string): void;
+}
+export {};

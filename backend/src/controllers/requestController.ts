@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Types } from 'mongoose';
 import { ServiceRequest, ServiceRequestStatus } from '../models/ServiceRequest';
+import { TableSession } from '../models/TableSession';
 import { SmartRoutingService } from '../services/SmartRoutingService';
 import { TenantRequest } from '../types';
 import { io } from '../index';
@@ -13,6 +14,17 @@ export const createServiceRequest = async (req: Request, res: Response): Promise
     if (!hotelId || !requestType) {
       res.status(400).json({ success: false, errorCode: 'INVALID_REQUEST', message: 'Missing hotelId or requestType' });
       return;
+    }
+
+    if (tableSessionId) {
+      const session = await TableSession.findOne({
+        _id: new Types.ObjectId(tableSessionId),
+        hotelId: new Types.ObjectId(hotelId),
+      });
+      if (!session) {
+        res.status(404).json({ success: false, errorCode: 'INVALID_SESSION', message: 'Table session not found for this hotel' });
+        return;
+      }
     }
 
     // Create raw request
@@ -44,8 +56,11 @@ export const acceptServiceRequest = async (req: TenantRequest, res: Response): P
   try {
     const { requestId } = req.params;
     const waiterId = req.user?.userId;
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    const filter: any = { _id: new Types.ObjectId(String(requestId)) };
+    if (hotelId) filter.hotelId = hotelId;
 
-    const request = await ServiceRequest.findById(requestId);
+    const request = await ServiceRequest.findOne(filter);
     if (!request) {
       res.status(404).json({ success: false, errorCode: 'REQUEST_NOT_FOUND' });
       return;
@@ -87,8 +102,11 @@ export const completeServiceRequest = async (req: TenantRequest, res: Response):
   try {
     const { requestId } = req.params;
     const waiterId = req.user?.userId;
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    const filter: any = { _id: new Types.ObjectId(String(requestId)) };
+    if (hotelId) filter.hotelId = hotelId;
 
-    const request = await ServiceRequest.findById(requestId);
+    const request = await ServiceRequest.findOne(filter);
     if (!request) {
       res.status(404).json({ success: false, errorCode: 'REQUEST_NOT_FOUND' });
       return;

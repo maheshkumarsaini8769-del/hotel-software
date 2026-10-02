@@ -52,7 +52,7 @@ const CashierShiftFloatSchema = new Schema<ICashierShiftFloat>(
     totalCityLedgerCollected: { type: Number, default: 0, min: 0 },
     totalChangeReturned: { type: Number, default: 0, min: 0 },
     expectedCashInDrawer: { type: Number, default: 0 },
-    actualCashCounted: { type: Number },
+    actualCashCounted: { type: Number, min: 0 },
     cashVariance: { type: Number },
     settlementCount: { type: Number, default: 0, min: 0 },
     notes: { type: String },

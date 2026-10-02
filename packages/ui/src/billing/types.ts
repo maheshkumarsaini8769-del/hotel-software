@@ -1,4 +1,4 @@
-export type CurrencyDenomination = 500 | 200 | 100 | 50 | 20 | 10 | 5 | 1;
+export type CurrencyDenomination = 2000 | 500 | 200 | 100 | 50 | 20 | 10 | 5 | 1;
 
 export interface DenominationItem {
   denomination: CurrencyDenomination;

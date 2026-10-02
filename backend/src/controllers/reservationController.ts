@@ -93,10 +93,9 @@ export const createTableReservation = async (req: TenantRequest, res: Response):
 
     await reservation.save();
 
-    // Mark assigned tables as RESERVED
     if (tableIds.length > 0) {
       await DiningTable.updateMany(
-        { _id: { $in: tableIds } },
+        { _id: { $in: tableIds }, currentStatus: TableStatus.AVAILABLE },
         { currentStatus: TableStatus.RESERVED }
       );
     }

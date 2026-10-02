@@ -133,9 +133,12 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
       if (res.ok) {
         store.setActiveModal(null);
         fetchOrders();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || 'Failed to create Purchase Order. Please review inputs.');
       }
-    } catch {
-      store.setActiveModal(null);
+    } catch (err: any) {
+      alert(err?.message || 'Network error while creating Purchase Order.');
     } finally {
       store.setLoading(false);
     }
@@ -145,13 +148,18 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
   const handleApprovePo = async (poId: string) => {
     try {
       store.setLoading(true);
-      await fetch(`${apiBaseUrl}/inventory-po/orders/${poId}/approve`, {
+      const res = await fetch(`${apiBaseUrl}/inventory-po/orders/${poId}/approve`, {
         method: 'PATCH',
         headers: authHeaders(),
       });
-      fetchOrders();
-    } catch {
-      // Fallback
+      if (res.ok) {
+        fetchOrders();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || 'Failed to approve PO.');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Network error while approving PO.');
     } finally {
       store.setLoading(false);
     }
@@ -171,9 +179,12 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
         store.setActiveModal(null);
         fetchOrders();
         fetchGrns();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || 'Failed to create GRN.');
       }
-    } catch {
-      store.setActiveModal(null);
+    } catch (err: any) {
+      alert(err?.message || 'Network error while creating GRN.');
     } finally {
       store.setLoading(false);
     }
@@ -192,9 +203,12 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
       if (res.ok) {
         store.setActiveModal(null);
         fetchVendors();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || 'Failed to create vendor.');
       }
-    } catch {
-      store.setActiveModal(null);
+    } catch (err: any) {
+      alert(err?.message || 'Network error while creating vendor.');
     } finally {
       store.setLoading(false);
     }

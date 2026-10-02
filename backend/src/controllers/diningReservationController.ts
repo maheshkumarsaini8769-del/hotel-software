@@ -90,6 +90,28 @@ export const createDiningReservation = async (
     }
     await guestProfile.save();
 
+    let tableObjectIds: Types.ObjectId[] = [];
+    if (assignedTableIds && Array.isArray(assignedTableIds) && assignedTableIds.length > 0) {
+      tableObjectIds = assignedTableIds.map((id: string) => new Types.ObjectId(id));
+      const validTables = await DiningTable.find({ _id: { $in: tableObjectIds }, hotelId });
+      if (validTables.length !== tableObjectIds.length) {
+        res.status(404).json({ success: false, errorCode: 'TABLES_NOT_FOUND', message: 'One or more tables not found for this hotel' });
+        return;
+      }
+
+      const conflict = await TableReservation.findOne({
+        hotelId,
+        reservationDate: new Date(reservationDate),
+        timeSlot,
+        assignedTableIds: { $in: tableObjectIds },
+        status: { $in: [ReservationStatus.CONFIRMED, ReservationStatus.SEATED] },
+      });
+      if (conflict) {
+        res.status(409).json({ success: false, errorCode: 'TABLE_SLOT_CONFLICT', message: `Table is already reserved for ${timeSlot}` });
+        return;
+      }
+    }
+
     const reservation = new TableReservation({
       hotelId,
       reservationNumber,
@@ -113,7 +135,7 @@ export const createDiningReservation = async (
       depositAmount: Number(depositAmount) || 0,
       depositStatus: Number(depositAmount) > 0 ? DepositStatus.PAID : DepositStatus.NONE,
       status: ReservationStatus.CONFIRMED,
-      assignedTableIds: assignedTableIds.map((id: string) => new Types.ObjectId(id)),
+      assignedTableIds: tableObjectIds,
     });
 
     await reservation.save();
@@ -279,10 +301,26 @@ export const updateDiningReservationStatus = async (
       return;
     }
 
+    if (reservation.status === ReservationStatus.SEATED && status === ReservationStatus.CANCELLED) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'CANNOT_CANCEL_SEATED',
+        message: 'Seated reservation cannot be cancelled directly; please complete dining session',
+      });
+      return;
+    }
+
     reservation.status = status;
     if (status === ReservationStatus.CANCELLED) {
       reservation.cancelledAt = new Date();
       reservation.cancellationReason = cancellationReason;
+
+      if (reservation.assignedTableIds && reservation.assignedTableIds.length > 0) {
+        await DiningTable.updateMany(
+          { _id: { $in: reservation.assignedTableIds }, hotelId, currentStatus: TableStatus.RESERVED },
+          { currentStatus: TableStatus.AVAILABLE }
+        );
+      }
     } else if (status === ReservationStatus.COMPLETED) {
       reservation.completedAt = new Date();
     }

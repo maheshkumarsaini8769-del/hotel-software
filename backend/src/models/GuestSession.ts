@@ -27,4 +27,6 @@ const GuestSessionSchema = new Schema<IGuestSession>(
   { timestamps: true }
 );
 
+GuestSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 export const GuestSession = mongoose.model<IGuestSession>('GuestSession', GuestSessionSchema);

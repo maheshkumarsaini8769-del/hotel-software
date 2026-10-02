@@ -339,7 +339,14 @@ export const postBanquetExtraCharge = async (req: TenantRequest, res: Response):
       return;
     }
 
-    const subtotal = Number(rate) * Number(quantity);
+    const numRate = Number(rate);
+    const numQty = Number(quantity);
+    if (isNaN(numRate) || numRate <= 0 || isNaN(numQty) || numQty <= 0) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_AMOUNT', message: 'Rate and quantity must be positive numbers' });
+      return;
+    }
+
+    const subtotal = numRate * numQty;
     const taxAmount = Math.round(subtotal * Number(taxRate));
     const netAmount = subtotal + taxAmount;
 
@@ -350,8 +357,8 @@ export const postBanquetExtraCharge = async (req: TenantRequest, res: Response):
         folioId: booking.masterFolioId,
         department,
         description: `[Banquet: ${booking.bookingCode}] ${description}`,
-        rate: Number(rate),
-        quantity: Number(quantity),
+        rate: numRate,
+        quantity: numQty,
         taxRate: Number(taxRate),
         taxAmount,
         netAmount,
@@ -392,13 +399,19 @@ export const settleBanquetFolio = async (req: TenantRequest, res: Response): Pro
     const bookingId = String(req.params.bookingId);
     const { amount, paymentMethod = 'BANK_TRANSFER' } = req.body;
 
+    const numAmount = Number(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_AMOUNT', message: 'Settlement amount must be greater than zero' });
+      return;
+    }
+
     const booking = await BanquetBooking.findOne({ _id: new Types.ObjectId(bookingId), hotelId });
     if (!booking) {
       res.status(404).json({ success: false, errorCode: 'EVENT_NOT_FOUND', message: 'Banquet event not found' });
       return;
     }
 
-    const settleAmount = Math.min(Number(amount), booking.dueAmount);
+    const settleAmount = Math.min(numAmount, booking.dueAmount);
     booking.paidAmount += settleAmount;
     booking.dueAmount = Math.max(0, booking.totalEstimatedAmount - booking.advanceDepositPaid - booking.paidAmount);
 

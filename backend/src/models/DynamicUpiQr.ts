@@ -119,7 +119,6 @@ const DynamicUpiQrSchema = new Schema<IDynamicUpiQr>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
     },
     paidAt: {
       type: Date,
@@ -154,5 +153,6 @@ const DynamicUpiQrSchema = new Schema<IDynamicUpiQr>(
 
 DynamicUpiQrSchema.index({ hotelId: 1, tableNumber: 1, status: 1 });
 DynamicUpiQrSchema.index({ hotelId: 1, billId: 1 });
+DynamicUpiQrSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export const DynamicUpiQr = mongoose.model<IDynamicUpiQr>('DynamicUpiQr', DynamicUpiQrSchema);

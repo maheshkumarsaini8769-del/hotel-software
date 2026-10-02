@@ -24,6 +24,7 @@ export enum ItemProductionStatus {
 }
 
 export interface IOrderItem {
+  _id?: Types.ObjectId;
   menuItemId: Types.ObjectId;
   kitchenStationId: Types.ObjectId;
   name: string;
@@ -35,7 +36,7 @@ export interface IOrderItem {
   seatNumber?: number; // Person/seat assignment
   specialInstructions?: string;
   itemStatus: ItemProductionStatus;
-  // Shift 47: Allergen & Dietary safety properties
+  // Allergen & Dietary safety properties
   allergens?: string[];
   dietaryType?: string;
   allergenNotes?: string;
@@ -113,7 +114,7 @@ const OrderItemSchema = new Schema<IOrderItem>(
     acknowledgedChefName: { type: String },
     acknowledgedAt: { type: Date },
   },
-  { _id: false }
+  { _id: true }
 );
 
 const RestaurantOrderSchema = new Schema<IRestaurantOrder>(

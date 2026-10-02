@@ -75,7 +75,7 @@ const SeatAllocationSchema = new Schema<ISeatAllocation>(
 const DiningTableSchema = new Schema<IDiningTable>(
   {
     hotelId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
-    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', index: true },
+    branchId: { type: Schema.Types.ObjectId, ref: 'Tenant', index: true },
     tableNumber: { type: String, required: true, trim: true },
     floorLevel: { type: String, default: 'Ground Floor', trim: true, index: true },
     section: { type: String, default: 'MAIN_HALL', trim: true, index: true },

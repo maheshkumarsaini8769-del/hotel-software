@@ -380,7 +380,7 @@ export const inspectTask = async (req: TenantRequest, res: Response): Promise<vo
 
     if (isApproved) {
       task.status = HousekeepingTaskStatus.INSPECTED_PASSED;
-      room.status = RoomStatus.AVAILABLE;
+      room.status = room.currentStayId ? RoomStatus.OCCUPIED : RoomStatus.AVAILABLE;
     } else {
       task.status = HousekeepingTaskStatus.INSPECTED_FAILED;
       room.status = RoomStatus.DIRTY; // Revert to dirty for rework

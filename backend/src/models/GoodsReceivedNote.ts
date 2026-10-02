@@ -49,7 +49,7 @@ const GrnReceivedItemSchema = new Schema<IGrnReceivedItem>(
     rejectionReason: { type: String, trim: true },
     unit: { type: String, required: true },
     unitPrice: { type: Number, required: true, min: 0 },
-    taxRate: { type: Number, default: 5 },
+    taxRate: { type: Number, default: 5, min: 0 },
     lineTotal: { type: Number, required: true, min: 0 },
   },
   { _id: false }

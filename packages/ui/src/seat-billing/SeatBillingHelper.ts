@@ -11,10 +11,10 @@ export class SeatBillingHelper {
     grandTotal: number;
   } {
     const discountedBase = Math.max(0, subTotal - discountAmount);
-    const cgstAmount = Math.round(discountedBase * 0.025);
-    const sgstAmount = Math.round(discountedBase * 0.025);
-    const totalTax = cgstAmount + sgstAmount;
-    const grandTotal = discountedBase + totalTax;
+    const cgstAmount = Math.round(discountedBase * 0.025 * 100) / 100;
+    const sgstAmount = Math.round(discountedBase * 0.025 * 100) / 100;
+    const totalTax = Math.round((cgstAmount + sgstAmount) * 100) / 100;
+    const grandTotal = Math.round((discountedBase + totalTax) * 100) / 100;
 
     return {
       cgstAmount,

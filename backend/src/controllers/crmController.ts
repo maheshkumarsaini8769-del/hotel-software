@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 import { GuestProfile, VIPTier } from '../models/GuestProfile';
 import { LoyaltyTransaction } from '../models/LoyaltyTransaction';
 import { Stay } from '../models/Stay';
+import { Booking } from '../models/Booking';
 import { RestaurantOrder } from '../models/RestaurantOrder';
 import { TenantRequest } from '../types';
 import { escapeRegex } from '../utils/security';
@@ -95,8 +96,13 @@ export const getGuestProfile360 = async (req: TenantRequest, res: Response): Pro
       guestProfileId: profile._id,
     }).sort({ createdAt: -1 }).limit(10);
 
-    // Recent hotel stays (matching guest phone or profile)
-    const recentStays = await Stay.find({ hotelId })
+    // Recent hotel stays (matching this specific guest's bookings only)
+    const guestBookings = await Booking.find({ hotelId, guestPhone: profile.phone }).select('_id');
+    const bookingIds = guestBookings.map((b) => b._id);
+    const recentStays = await Stay.find({
+      hotelId,
+      bookingId: { $in: bookingIds },
+    })
       .populate('roomId', 'roomNumber')
       .sort({ createdAt: -1 })
       .limit(5);

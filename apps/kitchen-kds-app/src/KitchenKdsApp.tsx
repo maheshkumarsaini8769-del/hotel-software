@@ -91,6 +91,13 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
 
           currentTime += t.durationMs / 1000 + 0.05;
         });
+
+        const totalPlaybackMs = (currentTime - ctx.currentTime) * 1000 + 300;
+        setTimeout(() => {
+          if (ctx.state !== 'closed') {
+            ctx.close().catch(() => {});
+          }
+        }, totalPlaybackMs);
       } catch (err) {
         // Fallback or muted browser policies
       }

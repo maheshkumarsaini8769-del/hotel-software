@@ -121,7 +121,7 @@ const BanquetBookingSchema = new Schema<IBanquetBooking>(
     status: {
       type: String,
       enum: Object.values(BanquetBookingStatus),
-      default: BanquetBookingStatus.CONFIRMED,
+      default: BanquetBookingStatus.ENQUIRY,
       index: true,
     },
     organizerName: { type: String, required: true, trim: true },

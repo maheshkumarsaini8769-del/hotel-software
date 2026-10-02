@@ -156,6 +156,7 @@ export class KdsStore {
   public markOrderPreparing(orderId: string): void {
     const existing = this.orders.get(orderId);
     if (!existing) return;
+    if (existing.orderStatus === 'SERVED' || existing.orderStatus === 'CANCELLED') return;
     if (KdsHelper.isOrderBlockedByAllergen(existing)) {
       throw new Error(`Safety Lock Active: Order ${existing.orderNumber} has unacknowledged allergen/dietary warnings!`);
     }
@@ -169,6 +170,7 @@ export class KdsStore {
   public markOrderReady(orderId: string): void {
     const existing = this.orders.get(orderId);
     if (!existing) return;
+    if (existing.orderStatus === 'SERVED' || existing.orderStatus === 'CANCELLED') return;
     if (KdsHelper.isOrderBlockedByAllergen(existing)) {
       throw new Error(`Safety Lock Active: Order ${existing.orderNumber} has unacknowledged allergen/dietary warnings!`);
     }
@@ -183,6 +185,7 @@ export class KdsStore {
   public markOrderServed(orderId: string): void {
     const existing = this.orders.get(orderId);
     if (!existing) return;
+    if (existing.orderStatus === 'CANCELLED') return;
     existing.orderStatus = 'SERVED';
     existing.servedAt = new Date().toISOString();
     existing.items.forEach((item) => {
@@ -203,19 +206,22 @@ export class KdsStore {
       item.itemStatus = status;
     }
 
-    const allReady = order.items.every((i) => i.itemStatus === 'READY');
-    if (allReady) {
-      order.orderStatus = 'READY';
-      order.readyAt = new Date().toISOString();
-    } else {
-      order.orderStatus = 'PREPARING';
+    const hasItems = order.items.length > 0;
+    const allReady = hasItems && order.items.every((i) => i.itemStatus === 'READY');
+    if (order.orderStatus !== 'SERVED' && order.orderStatus !== 'CANCELLED') {
+      if (allReady) {
+        order.orderStatus = 'READY';
+        order.readyAt = new Date().toISOString();
+      } else {
+        order.orderStatus = 'PREPARING';
+      }
     }
 
     this.notify();
   }
 
   /**
-   * Shift 47: Acknowledge allergen for a specific item (local optimistic update)
+   * Acknowledge allergen for a specific item (local optimistic update)
    */
   public acknowledgeItemAllergen(orderId: string, itemIndex: number, chefName: string): boolean {
     const order = this.orders.get(orderId);
@@ -230,7 +236,7 @@ export class KdsStore {
   }
 
   /**
-   * Shift 47: Acknowledge all pending allergens for an entire order
+   * Acknowledge all pending allergens for an entire order
    */
   public acknowledgeAllOrderAllergens(orderId: string, chefName: string): number {
     const order = this.orders.get(orderId);

@@ -32,6 +32,14 @@ export const resolvePermanentRoomQR = async (req: Request, res: Response): Promi
       return;
     }
 
+    if (qrToken) {
+      const qrHash = crypto.createHash('sha256').update(String(qrToken)).digest('hex');
+      if (room.permanentQrCodeHash && qrHash !== room.permanentQrCodeHash && String(qrToken) !== room.permanentQrCodeHash) {
+        res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Invalid or forged room QR security token' });
+        return;
+      }
+    }
+
     // Check if room has an ACTIVE stay
     if (!room.currentStayId) {
       res.status(200).json({
@@ -186,15 +194,27 @@ export const placeRoomServiceOrder = async (req: Request, res: Response): Promis
       return;
     }
 
-    const stay = await Stay.findById(stayId);
-    if (!stay || stay.stayStatus !== StayStatus.ACTIVE) {
+    const stay = await Stay.findOne({
+      _id: new Types.ObjectId(stayId),
+      hotelId: new Types.ObjectId(hotelId),
+      stayStatus: StayStatus.ACTIVE,
+    });
+    if (!stay) {
       res.status(400).json({ success: false, errorCode: 'INVALID_STAY', message: 'Active stay not found' });
       return;
     }
 
-    const room = await Room.findById(roomId);
+    const room = await Room.findOne({
+      _id: new Types.ObjectId(roomId),
+      hotelId: new Types.ObjectId(hotelId),
+    });
     if (!room) {
-      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND' });
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: 'Physical room not found' });
+      return;
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ success: false, errorCode: 'EMPTY_ORDER', message: 'Order must contain at least one item' });
       return;
     }
 
@@ -203,7 +223,20 @@ export const placeRoomServiceOrder = async (req: Request, res: Response): Promis
     let orderSubtotal = 0;
 
     for (const item of items) {
-      const dbDish = await MenuItem.findById(item.menuItemId);
+      const qty = Number(item.quantity);
+      if (!Number.isInteger(qty) || qty <= 0) {
+        res.status(400).json({
+          success: false,
+          errorCode: 'INVALID_QUANTITY',
+          message: `Quantity for item must be a positive integer, received: ${item.quantity}`,
+        });
+        return;
+      }
+
+      const dbDish = await MenuItem.findOne({
+        _id: new Types.ObjectId(item.menuItemId),
+        hotelId: new Types.ObjectId(hotelId),
+      });
       if (!dbDish || !dbDish.isAvailable) {
         res.status(400).json({
           success: false,
@@ -213,7 +246,7 @@ export const placeRoomServiceOrder = async (req: Request, res: Response): Promis
         return;
       }
 
-      const itemTotal = dbDish.basePrice * item.quantity;
+      const itemTotal = dbDish.basePrice * qty;
       orderSubtotal += itemTotal;
 
       validatedItems.push({
@@ -221,7 +254,7 @@ export const placeRoomServiceOrder = async (req: Request, res: Response): Promis
         kitchenStationId: dbDish.kitchenStationId,
         name: dbDish.name,
         unitPrice: dbDish.basePrice,
-        quantity: item.quantity,
+        quantity: qty,
         subtotal: itemTotal,
         specialInstructions: item.specialInstructions,
         itemStatus: ItemProductionStatus.PENDING,

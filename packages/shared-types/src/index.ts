@@ -279,7 +279,7 @@ export interface SocketEventMap {
 }
 
 // ==========================================
-// SHIFT 50: KOT LOCK & MANAGER VOID TYPES
+// KOT LOCK & MANAGER VOID TYPES
 // ==========================================
 
 export enum KotVoidReason {

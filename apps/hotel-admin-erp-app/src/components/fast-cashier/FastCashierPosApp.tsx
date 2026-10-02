@@ -163,17 +163,11 @@ export const FastCashierPosApp: React.FC<FastCashierPosAppProps> = ({
         store.setActiveModal('RECEIPT');
         fetchCallingQueue();
       } else {
-        // Fallback simulate success in demo
-        const fakeToken = (callingQueue.totalActiveTakeaways || 0) + 1;
-        const fakeOrder = { orderNumber: `TKW-${Date.now().toString().slice(-5)}` };
-        store.setLastCompletedOrder(fakeOrder, fakeToken);
-        store.setActiveModal('RECEIPT');
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.message || 'Failed to place takeaway order. Please check backend connection.');
       }
-    } catch {
-      const fakeToken = (callingQueue.totalActiveTakeaways || 0) + 1;
-      const fakeOrder = { orderNumber: `TKW-${Date.now().toString().slice(-5)}` };
-      store.setLastCompletedOrder(fakeOrder, fakeToken);
-      store.setActiveModal('RECEIPT');
+    } catch (err: any) {
+      alert(err?.message || 'Network error occurred while placing takeaway order.');
     } finally {
       store.setLoading(false);
     }

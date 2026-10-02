@@ -84,7 +84,7 @@ export class BillingCalculatorHelper {
     total: number;
     breakdown: DenominationItem[];
   } {
-    const standardDenominations: CurrencyDenomination[] = [500, 200, 100, 50, 20, 10, 5, 1];
+    const standardDenominations: CurrencyDenomination[] = [2000, 500, 200, 100, 50, 20, 10, 5, 1];
     let total = 0;
     const breakdown: DenominationItem[] = [];
 

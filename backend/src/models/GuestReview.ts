@@ -80,7 +80,7 @@ const ServiceRecoverySchema = new Schema<IServiceRecovery>(
     assignedManagerId: { type: Schema.Types.ObjectId, ref: 'User' },
     assignedManagerName: { type: String },
     recoveryAction: { type: String },
-    discountPercentage: { type: Number, default: 0 },
+    discountPercentage: { type: Number, default: 0, min: 0, max: 100 },
     recoveryNotes: { type: String },
     triggeredAt: { type: Date },
     resolvedAt: { type: Date },

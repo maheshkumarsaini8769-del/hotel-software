@@ -154,10 +154,11 @@ if (rootElement) {
               items: cartItems.map((ci) => ({ menuItemId: ci.menuItemId, quantity: ci.quantity })),
               idempotencyKey,
             });
+            socket.emit('order:placed', { table: 'Table 4', idempotencyKey, instructions });
           } catch (e) {
-            console.warn('POS placeOrder via HTTP failed, notifying via socket', e);
+            console.error('POS placeOrder failed:', e);
+            throw e;
           }
-          socket.emit('order:placed', { table: 'Table 4', idempotencyKey, instructions });
         }}
       />
     </React.StrictMode>

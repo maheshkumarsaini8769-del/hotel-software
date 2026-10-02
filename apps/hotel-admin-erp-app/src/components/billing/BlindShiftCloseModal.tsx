@@ -28,6 +28,7 @@ export const BlindShiftCloseModal: React.FC<BlindShiftCloseModalProps> = ({
 }) => {
   const [openingFloat, setOpeningFloat] = useState<number>(2000);
   const [notesRecord, setNotesRecord] = useState<Record<CurrencyDenomination, number>>({
+    2000: 0,
     500: 0,
     200: 0,
     100: 0,
@@ -105,7 +106,7 @@ export const BlindShiftCloseModal: React.FC<BlindShiftCloseModalProps> = ({
               </div>
 
               <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-200 dark:border-slate-700">
-                {([500, 200, 100, 50, 20, 10] as CurrencyDenomination[]).map((denom) => (
+                {([2000, 500, 200, 100, 50, 20, 10, 5, 1] as CurrencyDenomination[]).map((denom) => (
                   <div key={denom} className="flex items-center space-x-2 bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-200/80 dark:border-slate-700/80 text-xs">
                     <span className="w-12 font-bold text-slate-700 dark:text-slate-300">₹{denom} ×</span>
                     <input

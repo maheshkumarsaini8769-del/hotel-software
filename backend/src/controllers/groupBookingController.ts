@@ -441,6 +441,12 @@ export const settleCorporateFolio = async (req: TenantRequest, res: Response): P
     const groupBookingId = String(req.params.groupBookingId);
     const { amount, paymentMethod = 'BANK_TRANSFER' } = req.body;
 
+    const numAmount = Number(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_AMOUNT', message: 'Settlement amount must be greater than zero' });
+      return;
+    }
+
     const groupBooking = await GroupBooking.findOne({ _id: new Types.ObjectId(groupBookingId), hotelId });
     if (!groupBooking) {
       res.status(404).json({ success: false, errorCode: 'GROUP_BOOKING_NOT_FOUND', message: 'Group booking not found' });
@@ -453,7 +459,7 @@ export const settleCorporateFolio = async (req: TenantRequest, res: Response): P
       return;
     }
 
-    const settleAmount = Math.min(Number(amount), masterFolio.dueAmount);
+    const settleAmount = Math.min(numAmount, masterFolio.dueAmount);
     masterFolio.paidAmount += settleAmount;
     masterFolio.dueAmount = Math.max(0, masterFolio.netAmountPayable - masterFolio.advancePaid - masterFolio.paidAmount);
 
@@ -482,6 +488,12 @@ export const settleIndividualFolio = async (req: TenantRequest, res: Response): 
     const folioId = String(req.body.folioId);
     const { amount, paymentMethod = 'UPI' } = req.body;
 
+    const numAmount = Number(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_AMOUNT', message: 'Settlement amount must be greater than zero' });
+      return;
+    }
+
     const groupBooking = await GroupBooking.findOne({ _id: new Types.ObjectId(groupBookingId), hotelId });
     if (!groupBooking) {
       res.status(404).json({ success: false, errorCode: 'GROUP_BOOKING_NOT_FOUND', message: 'Group booking not found' });
@@ -494,7 +506,7 @@ export const settleIndividualFolio = async (req: TenantRequest, res: Response): 
       return;
     }
 
-    const settleAmount = Math.min(Number(amount), folio.dueAmount);
+    const settleAmount = Math.min(numAmount, folio.dueAmount);
     folio.paidAmount += settleAmount;
     folio.dueAmount = Math.max(0, folio.netAmountPayable - folio.advancePaid - folio.paidAmount);
 

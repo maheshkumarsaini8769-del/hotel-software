@@ -27,7 +27,7 @@ const StaySchema = new Schema<IStay>(
   {
     hotelId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
     bookingId: { type: Schema.Types.ObjectId, ref: 'Booking', required: true, index: true },
-    guestId: { type: Schema.Types.ObjectId, ref: 'Guest' },
+    guestId: { type: Schema.Types.ObjectId, ref: 'GuestProfile' },
     roomId: { type: Schema.Types.ObjectId, ref: 'Room', required: true, index: true },
     checkInTimestamp: { type: Date, default: Date.now },
     expectedCheckOutTimestamp: { type: Date, required: true },

@@ -110,8 +110,17 @@ export const createRoomBooking = async (req: Request, res: Response): Promise<vo
     const checkIn = new Date(checkInDate);
     const checkOut = new Date(checkOutDate);
 
+    if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime()) || checkOut <= checkIn) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_DATES',
+        message: 'checkOutDate must be strictly after checkInDate',
+      });
+      return;
+    }
+
     // Atomic Availability Check before creating booking
-    const type = await RoomType.findById(roomTypeId);
+    const type = await RoomType.findOne({ _id: new Types.ObjectId(roomTypeId), hotelId: new Types.ObjectId(hotelId) });
     if (!type) {
       res.status(404).json({ success: false, errorCode: 'ROOM_TYPE_NOT_FOUND' });
       return;
@@ -222,15 +231,36 @@ export const receptionCheckIn = async (req: TenantRequest, res: Response): Promi
       return;
     }
 
-    const booking = await Booking.findById(bookingId);
+    const booking = await Booking.findOne({
+      _id: new Types.ObjectId(bookingId),
+      hotelId: new Types.ObjectId(hotelId),
+    });
     if (!booking || booking.bookingStatus !== BookingStatus.CONFIRMED) {
       res.status(400).json({ success: false, errorCode: 'INVALID_BOOKING', message: 'Booking is not confirmed or not found' });
       return;
     }
 
+    const targetRoom = await Room.findOne({
+      _id: new Types.ObjectId(physicalRoomId),
+      hotelId: new Types.ObjectId(hotelId),
+    });
+    if (!targetRoom) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: 'Physical room not found' });
+      return;
+    }
+
+    if (targetRoom.roomTypeId.toString() !== booking.roomTypeId.toString()) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'ROOM_TYPE_MISMATCH',
+        message: 'Physical room does not match booking room type',
+      });
+      return;
+    }
+
     // Atomically lock and acquire physical room (Compare-And-Swap)
     const room = await Room.findOneAndUpdate(
-      { _id: physicalRoomId, status: RoomStatus.AVAILABLE },
+      { _id: targetRoom._id, hotelId: new Types.ObjectId(hotelId), status: RoomStatus.AVAILABLE },
       { $set: { status: RoomStatus.OCCUPIED } },
       { new: true }
     );
@@ -609,10 +639,28 @@ export const assignRoom = async (req: TenantRequest, res: Response): Promise<voi
       return;
     }
 
+    if (booking.bookingStatus === BookingStatus.CANCELLED || booking.bookingStatus === BookingStatus.CHECKED_OUT) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_BOOKING_STATUS',
+        message: 'Cannot assign room to cancelled or checked out booking',
+      });
+      return;
+    }
+
     if (roomId) {
       const room = await Room.findOne({ _id: roomId, hotelId });
       if (!room) {
         res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: 'Target room not found' });
+        return;
+      }
+
+      if (room.roomTypeId.toString() !== booking.roomTypeId.toString()) {
+        res.status(400).json({
+          success: false,
+          errorCode: 'ROOM_TYPE_MISMATCH',
+          message: 'Selected room does not match booking room type',
+        });
         return;
       }
 
@@ -671,10 +719,32 @@ export const updateBookingStatus = async (req: TenantRequest, res: Response): Pr
       return;
     }
 
-    booking.bookingStatus = status;
-    if (status === BookingStatus.CANCELLED || status === BookingStatus.NO_SHOW) {
+    if (!Object.values(BookingStatus).includes(status)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_STATUS', message: 'Invalid booking status' });
+      return;
+    }
+
+    if (booking.bookingStatus === BookingStatus.CANCELLED && status !== BookingStatus.CANCELLED) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_TRANSITION', message: 'Cancelled booking cannot be reopened' });
+      return;
+    }
+
+    if (booking.bookingStatus === BookingStatus.CHECKED_IN && (status === BookingStatus.NO_SHOW || status === BookingStatus.CONFIRMED)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_TRANSITION', message: 'Checked-in booking cannot be changed to No-Show or Confirmed' });
+      return;
+    }
+
+    // If cancelling a booking that held a room, free the room if not currently occupied by another stay
+    if ((status === BookingStatus.CANCELLED || status === BookingStatus.NO_SHOW) && booking.allocatedRoomId) {
+      const room = await Room.findOne({ _id: booking.allocatedRoomId, hotelId });
+      if (room && !room.currentStayId && room.status === RoomStatus.OCCUPIED) {
+        room.status = RoomStatus.AVAILABLE;
+        await room.save();
+      }
       booking.allocatedRoomId = undefined;
     }
+
+    booking.bookingStatus = status;
     await booking.save();
 
     io.to(`${hotelId}_admin`).to(`${hotelId}_pms`).emit('booking:status_changed', {

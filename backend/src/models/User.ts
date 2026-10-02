@@ -30,7 +30,7 @@ const UserSchema = new Schema<IUser>(
         return this.role !== UserRole.SUPERADMIN;
       },
     },
-    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', index: true },
+    branchId: { type: Schema.Types.ObjectId, ref: 'Tenant', index: true },
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, lowercase: true, trim: true },
     phone: { type: String, required: true, trim: true },

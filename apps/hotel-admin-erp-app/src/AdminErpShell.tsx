@@ -76,6 +76,9 @@ export const AdminErpShell: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const matrixStore = MatrixStore.getInstance();
 
+  const token = typeof window !== 'undefined' ? (localStorage.getItem('spicehub_token') || localStorage.getItem('token') || '') : '';
+  const hotelId = typeof window !== 'undefined' ? (localStorage.getItem('spicehub_hotel_id') || localStorage.getItem('hotelId') || '') : '';
+
   const currentMod = MODULE_REGISTRY.find((m) => m.key === activeModule) || MODULE_REGISTRY[0];
 
   const renderActiveModule = () => {
@@ -85,40 +88,63 @@ export const AdminErpShell: React.FC = () => {
           <PmsReservationMatrixApp
             store={matrixStore}
             onConfirmBooking={async (booking) => {
-              console.log(`🏨 [Hotel Admin] Created quick booking:`, booking);
+              console.log(`🏨 [Hotel Admin] Creating quick booking:`, booking);
+              try {
+                const res = await fetch('http://localhost:5000/api/v1/pms/quick-reserve', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                    'x-hotel-id': hotelId,
+                  },
+                  body: JSON.stringify({
+                    hotelId,
+                    ...booking,
+                  }),
+                });
+                if (!res.ok) {
+                  const errJson = await res.json().catch(() => null);
+                  alert(errJson?.message || 'Failed to create reservation');
+                } else {
+                  alert('Quick reservation confirmed successfully!');
+                }
+              } catch (err: any) {
+                console.error('Booking creation error:', err);
+                alert(`Error saving booking: ${err?.message || 'Network error'}`);
+              }
             }}
           />
         );
       case 'FAST_CASHIER':
-        return <FastCashierPosApp />;
+        return <FastCashierPosApp token={token} />;
       case 'HOUSEKEEPING':
         return <HousekeepingTurnaroundApp />;
       case 'RESERVATIONS':
         return <LiveReservationManagerApp />;
       case 'BANQUETS':
-        return <BanquetManagementApp />;
+        return <BanquetManagementApp token={token} hotelId={hotelId} />;
       case 'CORPORATE':
-        return <CorporateMasterFolioApp />;
+        return <CorporateMasterFolioApp token={token} hotelId={hotelId} />;
       case 'INVENTORY_PO':
-        return <InventoryPoApp />;
+        return <InventoryPoApp token={token} />;
       case 'STORE_REQUISITION':
-        return <StoreRequisitionApp />;
+        return <StoreRequisitionApp token={token} />;
       case 'INVENTORY_AUDIT':
         return <InventoryAuditApp />;
       case 'MENU_ENGINEERING':
         return <MenuEngineeringApp />;
       case 'RECIPE_COSTING':
-        return <RecipeCostingApp />;
+        return <RecipeCostingApp token={token} />;
       case 'STAFF_ROSTER':
         return <StaffRosterApp />;
       case 'NIGHT_AUDIT':
-        return <NightAuditApp />;
+        return <NightAuditApp token={token} hotelId={hotelId} />;
       case 'REVENUE_MANAGER':
-        return <RevenueManagerApp />;
+        return <RevenueManagerApp token={token} hotelId={hotelId} />;
       case 'SEAT_BILLING':
         return <SeatBillingApp />;
       case 'KOT_VOID':
-        return <KotVoidAuditApp />;
+        return <KotVoidAuditApp hotelId={hotelId} />;
       default:
         return <div>Select a module from the sidebar</div>;
     }

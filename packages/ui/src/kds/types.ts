@@ -25,7 +25,7 @@ export interface KdsOrderItemModel {
   variantName?: string;
   specialInstructions?: string;
   itemStatus: KdsItemProductionStatus;
-  // Shift 47: Allergen & Dietary safety properties
+  // Allergen and dietary safety properties
   allergens?: string[];
   dietaryType?: string;
   allergenNotes?: string;

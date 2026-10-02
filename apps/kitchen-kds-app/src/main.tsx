@@ -95,6 +95,7 @@ if (rootElement) {
         store={store}
         onStartPreparing={(orderId) => {
           console.log(`🍳 [KDS] Cooking started: ${orderId}`);
+          socket.emit('kds:order_preparing', { orderId, hotelId: 'tenant-1' });
         }}
         onMarkReady={(orderId) => {
           console.log(`🔔 [KDS] Order ready: ${orderId}`);

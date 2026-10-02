@@ -32,6 +32,19 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
       return;
     }
 
+    // Verify QR token if table has a registered qrTokenHash
+    if (table.qrTokenHash) {
+      if (!token) {
+        res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Missing required QR security token' });
+        return;
+      }
+      const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
+      if (tokenHash !== table.qrTokenHash && String(token) !== table.qrTokenHash) {
+        res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Invalid or forged QR token' });
+        return;
+      }
+    }
+
     // If table is merged into a parent table, resolve to primary table
     let effectiveTable = table;
     if (table.currentStatus === TableStatus.MERGED && table.mergedIntoTableId) {
@@ -65,7 +78,6 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
       // Update table to OCCUPIED and bind session
       effectiveTable.currentStatus = effectiveTable.currentStatus === TableStatus.MERGED ? TableStatus.MERGED : TableStatus.OCCUPIED;
       effectiveTable.activeSessionId = session._id as Types.ObjectId;
-      effectiveTable.qrTokenHash = tokenHash;
       await effectiveTable.save();
 
       res.status(200).json({
@@ -157,7 +169,10 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
       return;
     }
 
-    const session = await TableSession.findById(tableSessionId);
+    const session = await TableSession.findOne({
+      _id: new Types.ObjectId(tableSessionId),
+      hotelId: new Types.ObjectId(hotelId),
+    });
     if (!session || session.status !== SessionStatus.ACTIVE) {
       res.status(400).json({ success: false, errorCode: 'INVALID_SESSION', message: 'Table session is not active or closed' });
       return;
@@ -168,7 +183,20 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
     let orderSubtotal = 0;
 
     for (const item of items) {
-      const dbMenuItem = await MenuItem.findById(item.menuItemId);
+      const qty = Number(item.quantity);
+      if (!Number.isInteger(qty) || qty <= 0) {
+        res.status(400).json({
+          success: false,
+          errorCode: 'INVALID_QUANTITY',
+          message: `Item quantity must be a positive integer, received: ${item.quantity}`,
+        });
+        return;
+      }
+
+      const dbMenuItem = await MenuItem.findOne({
+        _id: new Types.ObjectId(item.menuItemId),
+        hotelId: new Types.ObjectId(hotelId),
+      });
       if (!dbMenuItem || !dbMenuItem.isAvailable) {
         const dishName = dbMenuItem ? dbMenuItem.name : (item.name || 'Selected dish');
         const reasonText = dbMenuItem?.outOfStockReason ? ` Reason: ${dbMenuItem.outOfStockReason}.` : '';
@@ -196,7 +224,7 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
       const itemTotal = price * item.quantity;
       orderSubtotal += itemTotal;
 
-      // Shift 47: Allergen & Dietary Metadata Extraction
+      // Allergen & Dietary Metadata Extraction
       const allergens = item.allergens || dbMenuItem.allergens || [];
       const dietaryType = item.dietaryType || dbMenuItem.dietaryType || (dbMenuItem.foodType === FoodType.VEG ? 'VEG' : 'NON_VEG');
       const allergenNotes = item.allergenNotes || undefined;
@@ -294,14 +322,22 @@ export const updateKDSOrderStatus = async (req: TenantRequest, res: Response): P
   try {
     const { orderId } = req.params;
     const { status, itemId } = req.body;
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    const filter: any = { _id: new Types.ObjectId(String(orderId)) };
+    if (hotelId) filter.hotelId = hotelId;
 
-    const order = await RestaurantOrder.findById(orderId);
+    const order = await RestaurantOrder.findOne(filter);
     if (!order) {
       res.status(404).json({ success: false, errorCode: 'ORDER_NOT_FOUND', message: 'Order not found' });
       return;
     }
 
-    // Shift 47: Mandatory Chef Tap Safety Lock Check
+    if (order.orderStatus === OverallOrderStatus.CANCELLED) {
+      res.status(400).json({ success: false, errorCode: 'ORDER_CANCELLED', message: 'Cannot update a cancelled order' });
+      return;
+    }
+
+    // Chef Allergen Safety Check
     if (itemId) {
       // Item-level status update
       const item = order.items.find((i) => (i as any)._id?.toString() === itemId || i.menuItemId.toString() === itemId);
@@ -325,10 +361,15 @@ export const updateKDSOrderStatus = async (req: TenantRequest, res: Response): P
       if (allReady) {
         order.orderStatus = OverallOrderStatus.READY;
         order.readyAt = new Date();
-      } else {
+      } else if (order.orderStatus !== OverallOrderStatus.SERVED) {
         order.orderStatus = OverallOrderStatus.PREPARING;
       }
     } else {
+      if (order.orderStatus === OverallOrderStatus.SERVED && status !== OverallOrderStatus.SERVED) {
+        res.status(400).json({ success: false, errorCode: 'INVALID_STATUS_TRANSITION', message: 'Served order cannot be reverted' });
+        return;
+      }
+
       // Overall order status update
       if (status === OverallOrderStatus.PREPARING || status === OverallOrderStatus.READY) {
         const unackItem = order.items.find((i) => i.hasAllergenAlert && !i.chefAllergenAcknowledged);
@@ -376,7 +417,7 @@ export const updateKDSOrderStatus = async (req: TenantRequest, res: Response): P
   }
 };
 
-// Shift 47: Mandatory Chef Tap to Acknowledge Allergen for Single Item
+// Acknowledge Allergen for Single Item
 export const acknowledgeKdsItemAllergen = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
     const { orderId, itemIndex } = req.params;
@@ -439,7 +480,7 @@ export const acknowledgeKdsItemAllergen = async (req: TenantRequest, res: Respon
   }
 };
 
-// Shift 47: Chef Acknowledge All Allergens in Order
+// Acknowledge All Allergens in Order
 export const acknowledgeAllKdsOrderAllergens = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
     const { orderId } = req.params;
@@ -587,6 +628,12 @@ export const updateTableStatus = async (req: TenantRequest, res: Response): Prom
 
     table.currentStatus = status;
     if (status === TableStatus.AVAILABLE) {
+      if (table.activeSessionId) {
+        await TableSession.updateOne(
+          { _id: table.activeSessionId, status: { $in: [SessionStatus.ACTIVE, SessionStatus.BILLING] } },
+          { status: SessionStatus.CLOSED, closedAt: new Date() }
+        );
+      }
       table.activeSessionId = undefined;
       table.qrTokenHash = undefined;
     }

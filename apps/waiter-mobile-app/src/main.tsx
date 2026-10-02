@@ -66,11 +66,53 @@ if (rootElement) {
         store={store}
         onAcceptRequest={async (reqId) => {
           console.log(`✅ [Waiter] Accepted request: ${reqId}`);
-          socket.emit('request:accepted', { reqId, waiter: 'Ramesh Kumar' });
+          socket.emit('request:accepted', { reqId, waiter: 'Ramesh Kumar', hotelId: 'tenant-1' });
         }}
         onCompleteRequest={async (reqId) => {
           console.log(`🎉 [Waiter] Completed request: ${reqId}`);
-          socket.emit('request:completed', { reqId });
+          socket.emit('request:completed', { reqId, hotelId: 'tenant-1' });
+        }}
+        onFireKot={async (tableId, items, instructions) => {
+          console.log(`🔥 [Waiter] Firing KOT for table ${tableId}:`, items);
+          try {
+            await fetch('http://localhost:5000/api/v1/pos/orders/place', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-hotel-id': 'tenant-1',
+              },
+              body: JSON.stringify({
+                hotelId: 'tenant-1',
+                tableId,
+                items: items.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity, specialInstructions: i.specialInstructions })),
+                instructions,
+                idempotencyKey: `kot-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+              }),
+            });
+            socket.emit('waiter:kot_fired', { tableId, items, instructions, hotelId: 'tenant-1' });
+          } catch (err) {
+            console.error('Failed to fire KOT:', err);
+            socket.emit('waiter:kot_fired', { tableId, items, instructions, hotelId: 'tenant-1' });
+          }
+        }}
+        onRequestCashDrop={async (actualCash, reason) => {
+          console.log(`💵 [Waiter] Cash drop requested: ₹${actualCash} (${reason})`);
+          socket.emit('waiter:cash_drop_requested', {
+            waiterUserId: 'waiter-ramesh-1',
+            waiterName: 'Ramesh Kumar',
+            actualCash,
+            reason,
+            hotelId: 'tenant-1',
+          });
+        }}
+        onGenerateUpiQr={async (tableNumber, amount) => {
+          console.log(`📱 [Waiter] Generating Dynamic UPI QR for ${tableNumber}: ₹${amount}`);
+          socket.emit('waiter:generate_upi_qr', {
+            tableNumber,
+            amount,
+            waiterUserId: 'waiter-ramesh-1',
+            hotelId: 'tenant-1',
+          });
         }}
       />
     </React.StrictMode>

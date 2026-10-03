@@ -1,7 +1,6 @@
-import http from 'http';
 import mongoose, { Types } from 'mongoose';
 import argon2 from 'argon2';
-import { app } from '../index';
+import { app, server } from '../index';
 import { SpiceHubClient } from '@spicehub/api-client';
 import {
   KotVoidStore,
@@ -24,14 +23,12 @@ import { RestaurantOrder, OverallOrderStatus, OrderType, ItemProductionStatus } 
 import { RestaurantBill, BillStatus } from '../models/RestaurantBill';
 import { KotVoidAudit } from '../models/KotVoidAudit';
 
-const TEST_PORT = 5146;
-const TEST_SERVER_URL = `http://localhost:${TEST_PORT}`;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/spicehub_test';
+const MONGODB_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/spicehub_dev';
 
 describe('--- SHIFT 50 GATE: KOT LOCK & MANAGER SECURITY PIN VOID TESTS ---', () => {
-  let server: http.Server;
   let tenantAId: string;
   let tenantBId: string;
+  let testServerUrl: string;
   let clientA: SpiceHubClient;
   let clientB: SpiceHubClient;
 
@@ -54,10 +51,13 @@ describe('--- SHIFT 50 GATE: KOT LOCK & MANAGER SECURITY PIN VOID TESTS ---', ()
       await mongoose.connect(MONGODB_URI);
     }
 
-    server = http.createServer(app);
-    await new Promise<void>((resolve) => {
-      server.listen(TEST_PORT, () => resolve());
-    });
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
+      });
+    }
+    const addr = server.address() as any;
+    testServerUrl = `http://localhost:${addr.port}`;
 
     // 1. Create Tenant A
     const tenantA = await Tenant.create({
@@ -171,8 +171,8 @@ describe('--- SHIFT 50 GATE: KOT LOCK & MANAGER SECURITY PIN VOID TESTS ---', ()
     });
 
     // 8. Setup Clients & Logins
-    clientA = new SpiceHubClient({ baseUrl: TEST_SERVER_URL, hotelId: tenantAId });
-    clientB = new SpiceHubClient({ baseUrl: TEST_SERVER_URL, hotelId: tenantBId });
+    clientA = new SpiceHubClient({ baseUrl: testServerUrl, hotelId: tenantAId });
+    clientB = new SpiceHubClient({ baseUrl: testServerUrl, hotelId: tenantBId });
 
     const waiterLogin = await clientA.auth.login({
       email: waiterUser.email,
@@ -208,12 +208,7 @@ describe('--- SHIFT 50 GATE: KOT LOCK & MANAGER SECURITY PIN VOID TESTS ---', ()
       await RestaurantOrder.deleteMany({ hotelId: tenantAId });
       await RestaurantBill.deleteMany({ hotelId: tenantAId });
       await KotVoidAudit.deleteMany({ hotelId: tenantAId });
-      await mongoose.disconnect();
     }
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   // TEST 1: UI Store and Helper verification

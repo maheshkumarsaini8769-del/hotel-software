@@ -37,6 +37,7 @@ export interface INightAuditSession extends Document {
   activeLateDinersQuarantinedCount: number;
   
   // Audit Verification & Security
+  dayLockCertificateNumber?: string;
   performedByUserId?: Types.ObjectId;
   performedByUserName?: string;
   notes?: string;
@@ -73,6 +74,7 @@ const NightAuditSessionSchema = new Schema<INightAuditSession>(
     roomsAutoPostedCount: { type: Number, default: 0, min: 0 },
     unpostedChargesCleanedCount: { type: Number, default: 0, min: 0 },
     activeLateDinersQuarantinedCount: { type: Number, default: 0, min: 0 },
+    dayLockCertificateNumber: { type: String, trim: true, index: true },
     performedByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
     performedByUserName: { type: String, trim: true },
     notes: { type: String, trim: true },

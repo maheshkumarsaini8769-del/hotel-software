@@ -1,6 +1,6 @@
 import request from 'supertest';
 import mongoose, { Types } from 'mongoose';
-import { app, server } from '../index';
+import { app } from '../index';
 import { Tenant } from '../models/Tenant';
 import { DiningTable, TableStatus } from '../models/DiningTable';
 import { RestaurantOrder, OverallOrderStatus, OrderType } from '../models/RestaurantOrder';
@@ -27,12 +27,6 @@ describe('--- SHIFT 41 / GATE 41: MULTI-TENDER SPLIT PAYMENT & CASHIER SHIFT FLO
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5127; // Port 5127 for Gate 41 Tier 1
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
-      });
-    });
 
     // 1. Setup Tenant A
     const tenantA = await Tenant.create({
@@ -121,7 +115,6 @@ describe('--- SHIFT 41 / GATE 41: MULTI-TENDER SPLIT PAYMENT & CASHIER SHIFT FLO
     await MasterFolio.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await MultiTenderSettlement.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await CashierShiftFloat.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
-    await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
   it('1. POST /api/v1/multi-tender/shift/open - Cashier opens shift with ₹2,000 cash float', async () => {

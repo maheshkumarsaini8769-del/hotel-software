@@ -15,9 +15,6 @@ import {
 } from '../models/NotificationPreference';
 
 describe('--- SHIFT 46 / GATE 46: IN-APP 5-STAR RATING & INSTANT NEGATIVE REVIEW MANAGER ALERT ---', () => {
-  let server: http.Server;
-  const port = 5137; // Dedicated Port 5137 for Gate 46 Tier 1
-
   let tenantAId: string;
   let tenantBId: string;
   let adminAToken: string;
@@ -31,11 +28,6 @@ describe('--- SHIFT 46 / GATE 46: IN-APP 5-STAR RATING & INSTANT NEGATIVE REVIEW
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(mongoUri);
     }
-
-    server = http.createServer(app);
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => resolve());
-    });
 
     const jwtSecret = process.env.JWT_SECRET || 'dev_secret_key_12345';
 
@@ -132,14 +124,10 @@ describe('--- SHIFT 46 / GATE 46: IN-APP 5-STAR RATING & INSTANT NEGATIVE REVIEW
     await GuestReview.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await AdminAlertEvent.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await NotificationPreference.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   it('1. POST /api/v1/guest-reviews/submit - Submits a 5-star positive review with Google Review boost prompted', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/guest-reviews/submit')
       .set('Authorization', `Bearer ${adminAToken}`)
       .send({
@@ -170,7 +158,7 @@ describe('--- SHIFT 46 / GATE 46: IN-APP 5-STAR RATING & INSTANT NEGATIVE REVIEW
   });
 
   it('2. POST /api/v1/guest-reviews/submit - Submits a 1-star negative review triggering Service Recovery', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/guest-reviews/submit')
       .set('Authorization', `Bearer ${adminAToken}`)
       .send({
@@ -228,7 +216,7 @@ describe('--- SHIFT 46 / GATE 46: IN-APP 5-STAR RATING & INSTANT NEGATIVE REVIEW
   });
 
   it('5. In-Room Stay Negative Review: Submits 2-star review from Room 302 and verifies Room context', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/guest-reviews/submit')
       .set('Authorization', `Bearer ${adminAToken}`)
       .send({
@@ -251,7 +239,7 @@ describe('--- SHIFT 46 / GATE 46: IN-APP 5-STAR RATING & INSTANT NEGATIVE REVIEW
   });
 
   it('6. GET /api/v1/guest-reviews - Returns paginated review feed with calculated CSAT summary metrics', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .get('/api/v1/guest-reviews')
       .set('Authorization', `Bearer ${adminAToken}`);
 
@@ -265,7 +253,7 @@ describe('--- SHIFT 46 / GATE 46: IN-APP 5-STAR RATING & INSTANT NEGATIVE REVIEW
   });
 
   it('7. PATCH /api/v1/guest-reviews/:reviewId/recovery - Manager transitions status to MANAGER_VISITING', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .patch(`/api/v1/guest-reviews/${negativeReviewId}/recovery`)
       .set('Authorization', `Bearer ${adminAToken}`)
       .send({
@@ -281,7 +269,7 @@ describe('--- SHIFT 46 / GATE 46: IN-APP 5-STAR RATING & INSTANT NEGATIVE REVIEW
   });
 
   it('8. PATCH /api/v1/guest-reviews/:reviewId/recovery - Manager offers complimentary item & resolves recovery atomically', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .patch(`/api/v1/guest-reviews/${negativeReviewId}/recovery`)
       .set('Authorization', `Bearer ${adminAToken}`)
       .send({
@@ -312,7 +300,7 @@ describe('--- SHIFT 46 / GATE 46: IN-APP 5-STAR RATING & INSTANT NEGATIVE REVIEW
       isNegative: false,
     });
 
-    const res = await request(server)
+    const res = await request(app)
       .post(`/api/v1/guest-reviews/${positiveReview!._id}/track-google`)
       .set('Authorization', `Bearer ${adminAToken}`);
 
@@ -323,7 +311,7 @@ describe('--- SHIFT 46 / GATE 46: IN-APP 5-STAR RATING & INSTANT NEGATIVE REVIEW
 
   it('10. Strict Multi-Tenant Isolation: Tenant B cannot access or update Tenant A reviews or CSAT metrics', async () => {
     // Tenant B attempts to update Tenant A review recovery
-    const unauthUpdate = await request(server)
+    const unauthUpdate = await request(app)
       .patch(`/api/v1/guest-reviews/${negativeReviewId}/recovery`)
       .set('Authorization', `Bearer ${adminBToken}`)
       .send({ status: ServiceRecoveryStatus.RESOLVED });
@@ -331,7 +319,7 @@ describe('--- SHIFT 46 / GATE 46: IN-APP 5-STAR RATING & INSTANT NEGATIVE REVIEW
     expect(unauthUpdate.status).toBe(404);
 
     // Tenant B reviews list must be empty
-    const listB = await request(server)
+    const listB = await request(app)
       .get('/api/v1/guest-reviews')
       .set('Authorization', `Bearer ${adminBToken}`);
 

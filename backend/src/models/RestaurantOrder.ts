@@ -84,6 +84,10 @@ export interface IRestaurantOrder extends Document {
   customerName?: string;
   customerPhone?: string;
   idempotencyKey: string;
+  isBilled?: boolean;
+  isSweptToFolio?: boolean;
+  sweptAt?: Date;
+  sweptToFolioId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -163,6 +167,10 @@ const RestaurantOrderSchema = new Schema<IRestaurantOrder>(
     customerName: { type: String, trim: true },
     customerPhone: { type: String, trim: true },
     idempotencyKey: { type: String, required: true, index: true },
+    isBilled: { type: Boolean, default: false, index: true },
+    isSweptToFolio: { type: Boolean, default: false, index: true },
+    sweptAt: { type: Date },
+    sweptToFolioId: { type: Schema.Types.ObjectId, ref: 'MasterFolio', index: true },
   },
   { timestamps: true }
 );

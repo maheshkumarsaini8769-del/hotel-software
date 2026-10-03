@@ -13,6 +13,8 @@ import { RoomType } from '../models/RoomType';
 import { Room, RoomStatus } from '../models/Room';
 import { TaxRule, TaxType, TaxApplicability } from '../models/TaxRule';
 import { WaiterCashFloat, WaiterFloatStatus } from '../models/WaiterCashFloat';
+import { Recipe } from '../models/Recipe';
+import { StockBatch, BatchFreshnessStatus } from '../models/StockBatch';
 
 dotenv.config();
 
@@ -217,12 +219,13 @@ export async function seedDatabase() {
   });
 
   const menuItems = await MenuItem.insertMany([
+    // --- Starters ---
     {
       hotelId,
       categoryId: catStarters._id,
       kitchenStationId: tandoorStation._id,
       name: 'Paneer Tikka Angara',
-      description: 'Charcoal grilled cottage cheese marinated in spiced yogurt and kasoori methi',
+      description: 'Charcoal grilled cottage cheese marinated in spiced hung yogurt, Kashmiri deghi mirch and kasoori methi',
       foodType: FoodType.VEG,
       basePrice: 280,
       hasVariants: false,
@@ -230,14 +233,14 @@ export async function seedDatabase() {
       prepTimeMinutes: 12,
       hsnCode: '2106',
       itemCode: '101',
-      images: ['https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=500'],
+      images: ['https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=600&auto=format&fit=crop&q=80'],
     },
     {
       hotelId,
       categoryId: catStarters._id,
       kitchenStationId: tandoorStation._id,
       name: 'Murgh Malai Tikka',
-      description: 'Creamy chicken chunks spiced with cardamom and grilled to golden perfection',
+      description: 'Velvety chicken chunks marinated in rich cream cheese, green cardamom and charcoal grilled to golden perfection',
       foodType: FoodType.NON_VEG,
       basePrice: 340,
       hasVariants: false,
@@ -245,14 +248,45 @@ export async function seedDatabase() {
       prepTimeMinutes: 14,
       hsnCode: '2106',
       itemCode: '102',
-      images: ['https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=500'],
+      images: ['https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=600&auto=format&fit=crop&q=80'],
     },
+    {
+      hotelId,
+      categoryId: catStarters._id,
+      kitchenStationId: tandoorStation._id,
+      name: 'Tandoori Malai Broccoli',
+      description: 'Tender broccoli florets infused with royal cardamom, mild cheddar and baked in clay oven',
+      foodType: FoodType.VEG,
+      basePrice: 310,
+      hasVariants: false,
+      isAvailable: true,
+      prepTimeMinutes: 10,
+      hsnCode: '2106',
+      itemCode: '103',
+      images: ['https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80'],
+    },
+    {
+      hotelId,
+      categoryId: catStarters._id,
+      kitchenStationId: tandoorStation._id,
+      name: 'Galouti Kebab Nawabi',
+      description: 'Melt-in-mouth smoked lamb patties prepared with 32 royal spices on griddle with saffron glaze',
+      foodType: FoodType.NON_VEG,
+      basePrice: 410,
+      hasVariants: false,
+      isAvailable: true,
+      prepTimeMinutes: 15,
+      hsnCode: '2106',
+      itemCode: '104',
+      images: ['https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&auto=format&fit=crop&q=80'],
+    },
+    // --- Mains ---
     {
       hotelId,
       categoryId: catMains._id,
       kitchenStationId: curryStation._id,
       name: 'Dal Makhani Bukhara',
-      description: 'Slow-simmered black lentils overnight with fresh butter and dairy cream',
+      description: 'Slow-simmered black lentils overnight with fresh white butter, tomato puree and dairy cream',
       foodType: FoodType.VEG,
       basePrice: 310,
       hasVariants: false,
@@ -260,14 +294,14 @@ export async function seedDatabase() {
       prepTimeMinutes: 8,
       hsnCode: '2106',
       itemCode: '201',
-      images: ['https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=500'],
+      images: ['https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=600&auto=format&fit=crop&q=80'],
     },
     {
       hotelId,
       categoryId: catMains._id,
       kitchenStationId: curryStation._id,
       name: 'Butter Chicken Aslam Style',
-      description: 'Tender tandoori chicken cooked in rich velvety tomato makhani gravy',
+      description: 'Smoky roasted tandoori chicken cooked in rich velvety tomato makhani satin gravy with fenugreek butter',
       foodType: FoodType.NON_VEG,
       basePrice: 420,
       hasVariants: false,
@@ -275,14 +309,45 @@ export async function seedDatabase() {
       prepTimeMinutes: 12,
       hsnCode: '2106',
       itemCode: '202',
-      images: ['https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?w=500'],
+      images: ['https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?w=600&auto=format&fit=crop&q=80'],
     },
+    {
+      hotelId,
+      categoryId: catMains._id,
+      kitchenStationId: curryStation._id,
+      name: 'Paneer Lababdar Royal',
+      description: 'Fresh artisanal paneer cubes tossed in rich onion-tomato gravy with crushed ginger and royal spices',
+      foodType: FoodType.VEG,
+      basePrice: 350,
+      hasVariants: false,
+      isAvailable: true,
+      prepTimeMinutes: 12,
+      hsnCode: '2106',
+      itemCode: '203',
+      images: ['https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=600&auto=format&fit=crop&q=80'],
+    },
+    {
+      hotelId,
+      categoryId: catMains._id,
+      kitchenStationId: curryStation._id,
+      name: 'Awadhi Murgh Dum Biryani',
+      description: 'Fragrant Daawat basmati rice layered with spiced chicken, caramelized onions, fresh mint and saffron milk',
+      foodType: FoodType.NON_VEG,
+      basePrice: 460,
+      hasVariants: false,
+      isAvailable: true,
+      prepTimeMinutes: 15,
+      hsnCode: '2106',
+      itemCode: '204',
+      images: ['https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80'],
+    },
+    // --- Breads ---
     {
       hotelId,
       categoryId: catBreads._id,
       kitchenStationId: tandoorStation._id,
       name: 'Butter Garlic Naan',
-      description: 'Clay-oven baked leavened bread brushed with garlic butter and fresh cilantro',
+      description: 'Clay-oven baked leavened bread brushed with melted garlic butter and freshly chopped cilantro',
       foodType: FoodType.VEG,
       basePrice: 70,
       hasVariants: false,
@@ -290,25 +355,285 @@ export async function seedDatabase() {
       prepTimeMinutes: 6,
       hsnCode: '1905',
       itemCode: '301',
-      images: ['https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=500'],
+      images: ['https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=600&auto=format&fit=crop&q=80'],
+    },
+    {
+      hotelId,
+      categoryId: catBreads._id,
+      kitchenStationId: tandoorStation._id,
+      name: 'Amritsari Stuffed Kulcha',
+      description: 'Crisp layered tandoori bread filled with spiced herb potato mash and pomegranate seeds',
+      foodType: FoodType.VEG,
+      basePrice: 95,
+      hasVariants: false,
+      isAvailable: true,
+      prepTimeMinutes: 7,
+      hsnCode: '1905',
+      itemCode: '302',
+      images: ['https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&auto=format&fit=crop&q=80'],
+    },
+    // --- Beverages & Desserts ---
+    {
+      hotelId,
+      categoryId: catDrinks._id,
+      kitchenStationId: barStation._id,
+      name: 'Shahi Tukda with Kesar Rabri',
+      description: 'Crispy ghee fried brioche steeped in cardamom saffron syrup served with reduced pistachio rabri',
+      foodType: FoodType.VEG,
+      basePrice: 210,
+      hasVariants: false,
+      isAvailable: true,
+      prepTimeMinutes: 6,
+      hsnCode: '2106',
+      itemCode: '401',
+      images: ['https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600&auto=format&fit=crop&q=80'],
     },
     {
       hotelId,
       categoryId: catDrinks._id,
       kitchenStationId: barStation._id,
       name: 'Mint Lime Virgin Mojito',
-      description: 'Fresh crushed mint leaves, lime chunks, simple syrup and chilled fizz',
+      description: 'Muddled fresh mint leaves, key lime chunks, raw cane syrup and chilled sparkling soda',
       foodType: FoodType.BEVERAGE,
       basePrice: 180,
       hasVariants: false,
       isAvailable: true,
       prepTimeMinutes: 5,
       hsnCode: '2202',
-      itemCode: '401',
-      images: ['https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=500'],
+      itemCode: '402',
+      images: ['https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop&q=80'],
+    },
+    {
+      hotelId,
+      categoryId: catDrinks._id,
+      kitchenStationId: barStation._id,
+      name: 'Royal Kesar Pista Lassi',
+      description: 'Traditional thick churned yogurt lassi infused with Kashmiri saffron strands and slivered pistachios',
+      foodType: FoodType.BEVERAGE,
+      basePrice: 160,
+      hasVariants: false,
+      isAvailable: true,
+      prepTimeMinutes: 5,
+      hsnCode: '2202',
+      itemCode: '403',
+      images: ['https://images.unsplash.com/photo-1571006682893-4a12368a183d?w=600&auto=format&fit=crop&q=80'],
     },
   ]);
   console.log(`✅ [5/9] Menu Categories & ${menuItems.length} Authentic Dishes created`);
+
+  // 6b. Seed Recipe BOM (Bill of Materials) & FEFO Stock Batches (Shift 53)
+  await Recipe.deleteMany({ hotelId });
+  await StockBatch.deleteMany({ hotelId });
+
+  const paneerTikka = menuItems.find((m) => m.name === 'Paneer Tikka Angara');
+  const murghMalai = menuItems.find((m) => m.name === 'Murgh Malai Tikka');
+  const butterChicken = menuItems.find((m) => m.name === 'Butter Chicken Aslam Style');
+  const dalMakhani = menuItems.find((m) => m.name === 'Dal Makhani Bukhara');
+
+  if (paneerTikka) {
+    await Recipe.create({
+      hotelId,
+      menuItemId: paneerTikka._id,
+      recipeCode: 'REC-101',
+      title: 'Paneer Tikka Angara BOM',
+      yieldPortions: 1,
+      portionSizeDescription: '6 succulent chargrilled cubes (250g)',
+      ingredients: [
+        { ingredientName: 'Malai Paneer', quantity: 0.25, unit: 'kg', unitCost: 360, costContribution: 90 },
+        { ingredientName: 'Hung Curd', quantity: 0.1, unit: 'kg', unitCost: 120, costContribution: 12 },
+        { ingredientName: 'Kashmiri Spices', quantity: 0.03, unit: 'kg', unitCost: 400, costContribution: 12 },
+      ],
+      preparationSteps: [
+        'Cut fresh malai paneer into 40g uniform cubes',
+        'Whisk hung curd with mustard oil and Kashmiri deghi mirch',
+        'Marinate for 2 hours in walk-in cold storage',
+        'Roast in clay tandoor on skewer at 350°C for 9 minutes',
+      ],
+      totalBatchCost: 114,
+      costPerPortion: 114,
+      targetSellingPrice: 280,
+      foodCostPercentage: 40.7,
+      grossMarginPercentage: 59.3,
+      targetCostPercentage: 35,
+      isActive: true,
+    });
+  }
+
+  if (murghMalai) {
+    await Recipe.create({
+      hotelId,
+      menuItemId: murghMalai._id,
+      recipeCode: 'REC-102',
+      title: 'Murgh Malai Tikka BOM',
+      yieldPortions: 1,
+      portionSizeDescription: '6 tender chargrilled pieces (280g)',
+      ingredients: [
+        { ingredientName: 'Boneless Chicken', quantity: 0.28, unit: 'kg', unitCost: 280, costContribution: 78.4 },
+        { ingredientName: 'Dairy Cream', quantity: 0.08, unit: 'l', unitCost: 220, costContribution: 17.6 },
+      ],
+      preparationSteps: [
+        'Trim and tenderize fresh chicken breast pieces',
+        'Coat in cheese, cream, cardamom and cashew paste marinade',
+        'Roast gently in medium tandoor',
+      ],
+      totalBatchCost: 96,
+      costPerPortion: 96,
+      targetSellingPrice: 340,
+      foodCostPercentage: 28.2,
+      grossMarginPercentage: 71.8,
+      targetCostPercentage: 30,
+      isActive: true,
+    });
+  }
+
+  if (butterChicken) {
+    await Recipe.create({
+      hotelId,
+      menuItemId: butterChicken._id,
+      recipeCode: 'REC-202',
+      title: 'Butter Chicken Aslam Style BOM',
+      yieldPortions: 1,
+      portionSizeDescription: 'Single signature portion with gravy (450g)',
+      ingredients: [
+        { ingredientName: 'Boneless Chicken', quantity: 0.3, unit: 'kg', unitCost: 280, costContribution: 84 },
+        { ingredientName: 'Amul Butter', quantity: 0.05, unit: 'kg', unitCost: 550, costContribution: 27.5 },
+        { ingredientName: 'Makhani Satin Gravy', quantity: 0.2, unit: 'l', unitCost: 150, costContribution: 30 },
+      ],
+      preparationSteps: [
+        'Half-roast marinated chicken tikka in tandoor',
+        'Simmer makhani satin gravy with fenugreek leaves',
+        'Fold in chicken with generous clarified Amul butter',
+      ],
+      totalBatchCost: 141.5,
+      costPerPortion: 141.5,
+      targetSellingPrice: 420,
+      foodCostPercentage: 33.7,
+      grossMarginPercentage: 66.3,
+      targetCostPercentage: 32,
+      isActive: true,
+    });
+  }
+
+  if (dalMakhani) {
+    await Recipe.create({
+      hotelId,
+      menuItemId: dalMakhani._id,
+      recipeCode: 'REC-201',
+      title: 'Dal Makhani Bukhara BOM',
+      yieldPortions: 1,
+      portionSizeDescription: 'Signature copper handi portion (350g)',
+      ingredients: [
+        { ingredientName: 'Black Urad Dal', quantity: 0.15, unit: 'kg', unitCost: 160, costContribution: 24 },
+        { ingredientName: 'Amul Butter', quantity: 0.04, unit: 'kg', unitCost: 550, costContribution: 22 },
+        { ingredientName: 'Dairy Cream', quantity: 0.05, unit: 'l', unitCost: 220, costContribution: 11 },
+      ],
+      preparationSteps: [
+        'Slow cook overnight over smouldering charcoal embers',
+        'Temper with ginger, garlic and ripe tomato puree',
+        'Finish with rich white dairy butter and fresh cream',
+      ],
+      totalBatchCost: 57,
+      costPerPortion: 57,
+      targetSellingPrice: 310,
+      foodCostPercentage: 18.4,
+      grossMarginPercentage: 81.6,
+      targetCostPercentage: 25,
+      isActive: true,
+    });
+  }
+
+  // Seed FEFO Stock Batches
+  const now = new Date();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  await StockBatch.insertMany([
+    // Malai Paneer: Batch 1 (Expiring Soon - 2.5 kg, expires tomorrow) -> FEFO consumes this first!
+    {
+      hotelId,
+      batchNumber: 'BAT-MP-2026-001',
+      itemName: 'Malai Paneer',
+      category: 'Dairy & Perishables',
+      currentQuantity: 2.5,
+      unit: 'kg',
+      unitCost: 360,
+      location: 'Walk-in Cold Storage A1',
+      mfgDate: new Date(now.getTime() - 2 * dayMs),
+      expiryDate: new Date(now.getTime() + 1 * dayMs),
+      status: BatchFreshnessStatus.EXPIRING_SOON,
+    },
+    // Malai Paneer: Batch 2 (Fresh - 2.6 kg, expires in 6 days) -> Total = 5.1 kg (Order 1 portion drops to 4.85 kg <= 5.0 kg low stock threshold!)
+    {
+      hotelId,
+      batchNumber: 'BAT-MP-2026-002',
+      itemName: 'Malai Paneer',
+      category: 'Dairy & Perishables',
+      currentQuantity: 2.6,
+      unit: 'kg',
+      unitCost: 360,
+      location: 'Walk-in Cold Storage A2',
+      mfgDate: now,
+      expiryDate: new Date(now.getTime() + 6 * dayMs),
+      status: BatchFreshnessStatus.FRESH,
+    },
+    // Boneless Chicken
+    {
+      hotelId,
+      batchNumber: 'BAT-CK-2026-001',
+      itemName: 'Boneless Chicken',
+      category: 'Poultry',
+      currentQuantity: 12.0,
+      unit: 'kg',
+      unitCost: 280,
+      location: 'Meat Deep Freezer',
+      mfgDate: new Date(now.getTime() - 1 * dayMs),
+      expiryDate: new Date(now.getTime() + 4 * dayMs),
+      status: BatchFreshnessStatus.FRESH,
+    },
+    // Amul Butter
+    {
+      hotelId,
+      batchNumber: 'BAT-BT-2026-001',
+      itemName: 'Amul Butter',
+      category: 'Dairy',
+      currentQuantity: 8.0,
+      unit: 'kg',
+      unitCost: 550,
+      location: 'Dairy Cold Storage',
+      mfgDate: new Date(now.getTime() - 4 * dayMs),
+      expiryDate: new Date(now.getTime() + 25 * dayMs),
+      status: BatchFreshnessStatus.FRESH,
+    },
+    // Black Urad Dal
+    {
+      hotelId,
+      batchNumber: 'BAT-UD-2026-001',
+      itemName: 'Black Urad Dal',
+      category: 'Dry Store',
+      currentQuantity: 20.0,
+      unit: 'kg',
+      unitCost: 160,
+      location: 'Dry Grain Store',
+      mfgDate: new Date(now.getTime() - 10 * dayMs),
+      expiryDate: new Date(now.getTime() + 90 * dayMs),
+      status: BatchFreshnessStatus.FRESH,
+    },
+    // Dairy Cream
+    {
+      hotelId,
+      batchNumber: 'BAT-DC-2026-001',
+      itemName: 'Dairy Cream',
+      category: 'Dairy',
+      currentQuantity: 10.0,
+      unit: 'l',
+      unitCost: 220,
+      location: 'Walk-in Cold Storage A1',
+      mfgDate: new Date(now.getTime() - 1 * dayMs),
+      expiryDate: new Date(now.getTime() + 5 * dayMs),
+      status: BatchFreshnessStatus.FRESH,
+    },
+  ]);
+
+  console.log('✅ [5b/9] Recipe BOMs & FEFO Stock Batches created');
 
   // 7. Create Dining Tables (1 to 10)
   await DiningTable.deleteMany({ hotelId });

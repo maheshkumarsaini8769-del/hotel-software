@@ -272,10 +272,31 @@ export interface SocketEventMap {
   'table:status_changed': { tableId: string; status: TableStatus; sessionId?: string };
   'room:status_changed': { roomId: string; roomNumber?: string; status: RoomStatus };
   'tenant:status_changed': { tenantId: string; newStatus: string; reason?: string };
-  'marketing:campaign_dispatched': { campaignId: string; campaignName: string; recipientCount: number };
-  'kds:allergen_acknowledged': { orderId: string; itemIndex: number; itemName: string; acknowledgedBy: string; acknowledgedAt: string | Date };
-  'kds:allergen_acknowledged_all': { orderId: string; acknowledgedCount: number; acknowledgedBy: string; acknowledgedAt: string | Date };
   'kot:item_voided': KotVoidAuditDTO;
+  'pms:room_checked_out': {
+    stayId: string;
+    roomId: string;
+    roomNumber: string;
+    folioId: string;
+    bookingId: string;
+    checkedOutAt: string | Date;
+    settledAmount: number;
+    dueAmount: number;
+  };
+  'keycard:voided': {
+    keyCardNumber: string;
+    roomId: string;
+    roomNumber: string;
+    stayId?: string;
+    voidedAt: string | Date;
+  };
+  'housekeeping:task_created': {
+    taskId: string;
+    roomNumber: string;
+    taskType: string;
+    priority: string;
+    roomId?: string;
+  };
 }
 
 // ==========================================
@@ -319,3 +340,138 @@ export interface KotVoidAuditDTO {
   notes?: string;
   createdAt: string;
 }
+
+// ==========================================
+// PMS CHECKOUT & KEYCARD VOID TYPES
+// ==========================================
+
+export enum KeycardVoidReason {
+  CHECKOUT = 'CHECKOUT',
+  LOST = 'LOST',
+  DAMAGED = 'DAMAGED',
+  EXPIRED = 'EXPIRED',
+  MANUAL_REVOCATION = 'MANUAL_REVOCATION',
+}
+
+export interface KeycardVoidAuditDTO {
+  id: string;
+  hotelId: string;
+  roomId: string;
+  roomNumber: string;
+  stayId?: string;
+  keyCardNumber: string;
+  voidReason: KeycardVoidReason;
+  voidedByUserId?: string;
+  voidedAt: string;
+  hardwareRevoked: boolean;
+  notes?: string;
+}
+
+export interface CheckoutPaymentPayload {
+  paymentMode: 'CASH' | 'CARD' | 'UPI' | 'CITY_LEDGER' | 'COMPLIMENTARY';
+  amount: number;
+  transactionRef?: string;
+  cashReceived?: number;
+  cashChangeReturned?: number;
+  notes?: string;
+}
+
+export interface CheckoutRequestPayload {
+  stayId?: string;
+  roomId?: string;
+  payments?: CheckoutPaymentPayload[];
+  targetRoomStatus?: RoomStatus;
+  keyCardVoided?: boolean;
+  housekeepingPriority?: 'NORMAL' | 'HIGH' | 'URGENT';
+  notes?: string;
+}
+
+export interface FolioSummaryDTO {
+  folioId: string;
+  folioNumber: string;
+  totalRoomTariff: number;
+  totalFoodAndBeverage: number;
+  totalLaundry: number;
+  totalPaidServices: number;
+  totalDamageCharges: number;
+  totalDiscounts: number;
+  totalTaxes: number;
+  grossAmount: number;
+  advancePaid: number;
+  paidAmount: number;
+  netAmountPayable: number;
+  dueAmount: number;
+  folioStatus: 'OPEN' | 'LOCKED' | 'SETTLED';
+  settledAt?: string;
+  lockedAt?: string;
+  lockedByUserId?: string;
+  lockReason?: string;
+}
+
+export interface FolioLockRequestPayload {
+  stayId?: string;
+  roomId?: string;
+  folioId?: string;
+  reason?: string;
+}
+
+export interface FolioLockResponseDTO {
+  success: boolean;
+  message: string;
+  data: {
+    folioId: string;
+    folioNumber: string;
+    folioStatus: 'LOCKED';
+    lockedAt: string;
+    lockedByUserId?: string;
+    lockReason?: string;
+  };
+}
+
+export interface FolioUnlockRequestPayload {
+  stayId?: string;
+  roomId?: string;
+  folioId?: string;
+  reason?: string;
+}
+
+export interface FolioUnlockResponseDTO {
+  success: boolean;
+  message: string;
+  data: {
+    folioId: string;
+    folioNumber: string;
+    folioStatus: 'OPEN';
+  };
+}
+
+export interface ChargeSweepRequestPayload {
+  stayId?: string;
+  roomId?: string;
+  folioId?: string;
+  finalizeCookingOrders?: boolean;
+}
+
+export interface SweptOrderSummary {
+  orderId: string;
+  orderNumber: string;
+  orderType: string;
+  subtotal: number;
+  taxAmount: number;
+  grandTotal: number;
+  itemCount: number;
+}
+
+export interface ChargeSweepResponseDTO {
+  success: boolean;
+  message: string;
+  data: {
+    sweptOrdersCount: number;
+    totalSweptSubtotal: number;
+    totalSweptTax: number;
+    totalSweptAmount: number;
+    sweptOrders: SweptOrderSummary[];
+    folio: FolioSummaryDTO;
+  };
+}
+

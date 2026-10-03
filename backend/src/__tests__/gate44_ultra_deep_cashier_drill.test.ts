@@ -13,9 +13,6 @@ import { CashierShiftFloat, CashierShiftStatus } from '../models/CashierShiftFlo
 import { TaxRule, TaxType, TaxApplicability } from '../models/TaxRule';
 
 describe('--- SHIFT 44 / GATE 44 TIER 2: ULTRA-DEEP CONCURRENCY & FAST CASHIER POS DRILL ---', () => {
-  let server: http.Server;
-  const port = 5134; // Dedicated Port 5134 for Gate 44 Tier 2
-
   let tenantAId: string;
   let tenantBId: string;
   let cashierAToken: string;
@@ -27,11 +24,6 @@ describe('--- SHIFT 44 / GATE 44 TIER 2: ULTRA-DEEP CONCURRENCY & FAST CASHIER P
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(mongoUri);
     }
-
-    server = http.createServer(app);
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => resolve());
-    });
 
     const jwtSecret = process.env.JWT_SECRET || 'dev_secret_key_12345';
 
@@ -152,15 +144,11 @@ describe('--- SHIFT 44 / GATE 44 TIER 2: ULTRA-DEEP CONCURRENCY & FAST CASHIER P
     await RestaurantBill.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await CashierShiftFloat.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await TaxRule.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   it('1. Concurrency Storm: 10 Cashier terminals concurrently punch counter orders without duplicate token collisions', async () => {
     const promises = Array.from({ length: 10 }).map((_, idx) =>
-      request(server)
+      request(app)
         .post('/api/v1/fast-cashier/order')
         .set('Authorization', `Bearer ${cashierAToken}`)
         .send({
@@ -181,7 +169,7 @@ describe('--- SHIFT 44 / GATE 44 TIER 2: ULTRA-DEEP CONCURRENCY & FAST CASHIER P
   it('2. Concurrent Cash Settlements: 10 concurrent orders settling with cash simultaneously without lost updates to CashierShiftFloat', async () => {
     // Punch 10 orders with instant cash tender
     const promises = Array.from({ length: 10 }).map((_, idx) =>
-      request(server)
+      request(app)
         .post('/api/v1/fast-cashier/order')
         .set('Authorization', `Bearer ${cashierAToken}`)
         .send({
@@ -214,7 +202,7 @@ describe('--- SHIFT 44 / GATE 44 TIER 2: ULTRA-DEEP CONCURRENCY & FAST CASHIER P
 
   it('3. Double-Settlement Race: Multiple concurrent settlement requests on the same bill resolve atomically with 1 success and others rejected', async () => {
     // 1. Create a bill
-    const orderRes = await request(server)
+    const orderRes = await request(app)
       .post('/api/v1/fast-cashier/order')
       .set('Authorization', `Bearer ${cashierAToken}`)
       .send({
@@ -225,7 +213,7 @@ describe('--- SHIFT 44 / GATE 44 TIER 2: ULTRA-DEEP CONCURRENCY & FAST CASHIER P
 
     // 2. Fire 5 concurrent split settlement calls
     const settlePromises = Array.from({ length: 5 }).map(() =>
-      request(server)
+      request(app)
         .post('/api/v1/fast-cashier/settle-split')
         .set('Authorization', `Bearer ${cashierAToken}`)
         .send({
@@ -253,7 +241,7 @@ describe('--- SHIFT 44 / GATE 44 TIER 2: ULTRA-DEEP CONCURRENCY & FAST CASHIER P
 
   it('4. Multi-Tenant Penetration Defense: Competitor Tenant B cannot trigger drawer kick or view Tenant A takeaway queue', async () => {
     // Attempt to view Tenant A queue with Tenant B token
-    const queueRes = await request(server)
+    const queueRes = await request(app)
       .get('/api/v1/fast-cashier/queue')
       .set('Authorization', `Bearer ${cashierBToken}`);
 
@@ -262,7 +250,7 @@ describe('--- SHIFT 44 / GATE 44 TIER 2: ULTRA-DEEP CONCURRENCY & FAST CASHIER P
     expect(queueRes.body.totalActiveTakeaways).toBe(0);
 
     // Attempt to settle Tenant A bill using Tenant B token
-    const unauthSettle = await request(server)
+    const unauthSettle = await request(app)
       .post('/api/v1/fast-cashier/settle-split')
       .set('Authorization', `Bearer ${cashierBToken}`)
       .send({

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import mongoose, { Types } from 'mongoose';
 import jwt from 'jsonwebtoken';
-import { app, server } from '../index';
+import { app } from '../index';
 import { Tenant } from '../models/Tenant';
 import { User } from '../models/User';
 import { UserRole } from '../types';
@@ -23,11 +23,6 @@ describe('--- SHIFT 42 / GATE 42: WAITER HANDHELD DYNAMIC LOCKED UPI QR & SOUNDB
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(mongoUri);
     }
-
-    const port = 5129; // Dedicated Port 5129 for Gate 42 Tier 1
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => resolve());
-    });
 
     // Tenant A
     const tenantA = await Tenant.create({
@@ -108,10 +103,6 @@ describe('--- SHIFT 42 / GATE 42: WAITER HANDHELD DYNAMIC LOCKED UPI QR & SOUNDB
     await DynamicUpiQr.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await User.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await Tenant.deleteMany({ _id: { $in: [tenantAId, tenantBId] } });
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   let savedTransactionRef: string;

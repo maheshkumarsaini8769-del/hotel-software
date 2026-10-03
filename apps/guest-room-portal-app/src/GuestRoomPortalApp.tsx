@@ -3,6 +3,7 @@ import { GuestPortalHeader } from './components/GuestPortalHeader';
 import { GuestConciergeGrid } from './components/GuestConciergeGrid';
 import { LiveOrderTrackerModal } from './components/LiveOrderTrackerModal';
 import { GuestFolioReviewModal } from './components/GuestFolioReviewModal';
+import { InRoomDiningView } from './components/InRoomDiningView';
 import {
   GuestPortalStore,
   GuestSessionModel,
@@ -88,13 +89,23 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         )}
 
         {activeTab === 'DINING' && (
-          <div className="max-w-4xl mx-auto p-8 text-center text-slate-400">
-            <span className="text-5xl block mb-3">🍽️</span>
-            <h3 className="text-base font-extrabold text-white">In-Room Culinary Menu</h3>
-            <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-              Browse our chef-curated appetizers, regional specialties, desserts, and cocktails directly charged to your room folio.
-            </p>
-          </div>
+          <InRoomDiningView
+            roomNumber={session?.roomNumber || '302'}
+            onOrderPlaced={(items) => {
+              store.addLiveOrder({
+                orderId: `ord_ird_${Date.now()}`,
+                placedAt: new Date().toISOString(),
+                estimatedMinutes: 25,
+                status: 'PREPARING',
+                items: items.map((i) => ({
+                  name: i.name,
+                  quantity: i.quantity,
+                  unitPrice: i.price,
+                })),
+                totalAmount: items.reduce((s, it) => s + it.price * it.quantity, 0),
+              });
+            }}
+          />
         )}
 
         {activeTab === 'ORDERS' && (

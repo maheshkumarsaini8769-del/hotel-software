@@ -362,6 +362,7 @@ describe('--- SHIFT 15 / GATE 15: RESTAURANT BILLING, SPLIT & CASHIER SHIFT CLOS
 
     // Denominations Total: 5x500 + 4x200 + 2x100 + 1x50 = 2500 + 800 + 200 + 50 = 3550
     const noteCounts: Record<CurrencyDenomination, number> = {
+      2000: 0,
       500: 5,
       200: 4,
       100: 2,

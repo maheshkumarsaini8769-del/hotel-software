@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   accessTableByQR,
+  getDemoContext,
   placeRestaurantOrder,
   updateKDSOrderStatus,
   getDiningTables,
@@ -22,6 +23,7 @@ import { authenticateJWT, requireTenant } from '../middlewares/auth';
 const router = Router();
 
 // Public Table Customer Routes (Zero-barrier)
+router.get('/demo-context', getDemoContext);
 router.get('/table/qr-entry', accessTableByQR);
 router.post('/orders/place', placeRestaurantOrder);
 router.get('/menu', getDiningMenu);

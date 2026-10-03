@@ -13,9 +13,6 @@ import { CashierShiftFloat, CashierShiftStatus } from '../models/CashierShiftFlo
 import { TaxRule, TaxType, TaxApplicability } from '../models/TaxRule';
 
 describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & DRAWER KICK ---', () => {
-  let server: http.Server;
-  const port = 5133; // Dedicated Port 5133 for Gate 44 Tier 1
-
   let tenantAId: string;
   let tenantBId: string;
   let cashierAToken: string;
@@ -29,11 +26,6 @@ describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & 
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(mongoUri);
     }
-
-    server = http.createServer(app);
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => resolve());
-    });
 
     const jwtSecret = process.env.JWT_SECRET || 'dev_secret_key_12345';
 
@@ -172,14 +164,10 @@ describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & 
     await RestaurantBill.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await CashierShiftFloat.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await TaxRule.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   it('1. GET /api/v1/fast-cashier/lookup - Finds item by 10-key numeric shortcut "101"', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .get('/api/v1/fast-cashier/lookup?code=101')
       .set('Authorization', `Bearer ${cashierAToken}`);
 
@@ -190,7 +178,7 @@ describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & 
   });
 
   it('2. GET /api/v1/fast-cashier/lookup - Finds item by barcode SKU "8901234567890"', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .get('/api/v1/fast-cashier/lookup?code=8901234567890')
       .set('Authorization', `Bearer ${cashierAToken}`);
 
@@ -200,7 +188,7 @@ describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & 
   });
 
   it('3. POST /api/v1/fast-cashier/order - Creates fast takeaway order with sequential token number', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/fast-cashier/order')
       .set('Authorization', `Bearer ${cashierAToken}`)
       .send({
@@ -223,7 +211,7 @@ describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & 
   });
 
   it('4. POST /api/v1/fast-cashier/order - Cash order with tender automatically credits active CashierShiftFloat', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/fast-cashier/order')
       .set('Authorization', `Bearer ${cashierAToken}`)
       .send({
@@ -254,7 +242,7 @@ describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & 
   });
 
   it('5. GET /api/v1/fast-cashier/queue - Returns live takeaway calling board queues', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .get('/api/v1/fast-cashier/queue')
       .set('Authorization', `Bearer ${cashierAToken}`);
 
@@ -265,7 +253,7 @@ describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & 
   });
 
   it('6. POST /api/v1/fast-cashier/thermal-receipt/:billId - Generates 80mm ESC/POS formatted receipt with GST breakdown', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post(`/api/v1/fast-cashier/thermal-receipt/${testBillId}`)
       .set('Authorization', `Bearer ${cashierAToken}`)
       .send({
@@ -284,7 +272,7 @@ describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & 
   });
 
   it('7. POST /api/v1/fast-cashier/thermal-receipt/:billId - Generates 58mm compact receipt with drawer kick command', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post(`/api/v1/fast-cashier/thermal-receipt/${testBillId}`)
       .set('Authorization', `Bearer ${cashierAToken}`)
       .send({
@@ -301,7 +289,7 @@ describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & 
   });
 
   it('8. POST /api/v1/fast-cashier/drawer-kick - Emits manual drawer kick pulse', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/fast-cashier/drawer-kick')
       .set('Authorization', `Bearer ${cashierAToken}`)
       .send({
@@ -317,7 +305,7 @@ describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & 
 
   it('9. POST /api/v1/fast-cashier/settle-split - Settles counter split tender (Cash + UPI) and triggers drawer kick', async () => {
     // Due amount is 315 on testBillId
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/fast-cashier/settle-split')
       .set('Authorization', `Bearer ${cashierAToken}`)
       .send({
@@ -339,7 +327,7 @@ describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & 
     expect(res.body.drawerKickCommand).toBe('1b700019fa');
 
     // Re-attempt settling already paid bill should reject
-    const duplicateRes = await request(server)
+    const duplicateRes = await request(app)
       .post('/api/v1/fast-cashier/settle-split')
       .set('Authorization', `Bearer ${cashierAToken}`)
       .send({
@@ -352,7 +340,7 @@ describe('--- SHIFT 44 / GATE 44: FAST CASHIER COUNTER POS WITH THERMAL PRINT & 
   });
 
   it('10. Strict Multi-Tenant Isolation: Tenant B cannot generate receipt or settle Tenant A bill', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post(`/api/v1/fast-cashier/thermal-receipt/${testBillId}`)
       .set('Authorization', `Bearer ${cashierBToken}`)
       .send({ width: '80mm' });

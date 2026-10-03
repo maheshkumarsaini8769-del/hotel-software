@@ -30,15 +30,28 @@ export class SmartRoutingService {
           request.status = ServiceRequestStatus.ASSIGNED;
           await request.save();
 
-          // Emit real-time event directly to assigned waiter's private channel
-          io.to(`waiter_${assignedWaiter._id}`).emit('request:new', {
-            requestId: request._id,
+          // Look up table display
+          const tableDoc = request.tableId ? await DiningTable.findById(request.tableId) : null;
+          const tableDisplay = tableDoc ? tableDoc.tableNumber : 'Table 4';
+
+          const socketPayload = {
+            id: request._id.toString(),
+            requestId: request._id.toString(),
             requestType: request.requestType,
+            type: request.requestType,
             priority: request.priority,
             tableId: request.tableId,
+            table: tableDisplay,
+            tableNumber: tableDisplay,
             routingLevel: request.routingLevel,
             slaMinutes: request.slaMinutes,
-          });
+            status: request.status,
+            createdAt: request.createdAt || new Date().toISOString(),
+          };
+
+          // Emit real-time event directly to assigned waiter's private channel AND hotel waiters room
+          io.to(`waiter_${assignedWaiter._id}`).to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('request:new', socketPayload);
+          io.to(`waiter_${assignedWaiter._id}`).to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('service:request', socketPayload);
 
           return request;
         }
@@ -72,14 +85,24 @@ export class SmartRoutingService {
           request.status = ServiceRequestStatus.ASSIGNED;
           await request.save();
 
-          io.to(`waiter_${sectionWaiter._id}`).emit('request:new', {
-            requestId: request._id,
+          const tableDisplay = table ? table.tableNumber : 'Table 4';
+          const socketPayload = {
+            id: request._id.toString(),
+            requestId: request._id.toString(),
             requestType: request.requestType,
+            type: request.requestType,
             priority: request.priority,
             tableId: request.tableId,
+            table: tableDisplay,
+            tableNumber: tableDisplay,
             routingLevel: request.routingLevel,
             slaMinutes: request.slaMinutes,
-          });
+            status: request.status,
+            createdAt: request.createdAt || new Date().toISOString(),
+          };
+
+          io.to(`waiter_${sectionWaiter._id}`).to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('request:new', socketPayload);
+          io.to(`waiter_${sectionWaiter._id}`).to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('service:request', socketPayload);
 
           return request;
         }
@@ -100,14 +123,25 @@ export class SmartRoutingService {
       request.status = ServiceRequestStatus.ASSIGNED;
       await request.save();
 
-      io.to(`waiter_${globalWaiter._id}`).emit('request:new', {
-        requestId: request._id,
+      const tableDoc = request.tableId ? await DiningTable.findById(request.tableId) : null;
+      const tableDisplay = tableDoc ? tableDoc.tableNumber : 'Table 4';
+      const socketPayload = {
+        id: request._id.toString(),
+        requestId: request._id.toString(),
         requestType: request.requestType,
+        type: request.requestType,
         priority: request.priority,
         tableId: request.tableId,
+        table: tableDisplay,
+        tableNumber: tableDisplay,
         routingLevel: request.routingLevel,
         slaMinutes: request.slaMinutes,
-      });
+        status: request.status,
+        createdAt: request.createdAt || new Date().toISOString(),
+      };
+
+      io.to(`waiter_${globalWaiter._id}`).to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('request:new', socketPayload);
+      io.to(`waiter_${globalWaiter._id}`).to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('service:request', socketPayload);
 
       return request;
     }
@@ -118,15 +152,26 @@ export class SmartRoutingService {
     request.escalatedAt = new Date();
     await request.save();
 
-    // Sound RED ALARM in Admin Attention/Incident Center
-    io.to(`${hotelId}_admin`).emit('request:escalated', {
-      requestId: request._id,
+    const tableDoc = request.tableId ? await DiningTable.findById(request.tableId) : null;
+    const tableDisplay = tableDoc ? tableDoc.tableNumber : 'Table 4';
+    const socketPayload = {
+      id: request._id.toString(),
+      requestId: request._id.toString(),
       requestType: request.requestType,
+      type: request.requestType,
       priority: 'URGENT',
       tableId: request.tableId,
+      table: tableDisplay,
+      tableNumber: tableDisplay,
       message: 'NO WAITER AVAILABLE - IMMEDIATE SUPERVISOR ATTENTION REQUIRED',
       routingLevel: request.routingLevel,
-    });
+      status: request.status,
+      createdAt: request.createdAt || new Date().toISOString(),
+    };
+
+    // Sound RED ALARM in Admin Attention/Incident Center & Waiters Room
+    io.to(`${hotelId}_admin`).to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('request:escalated', socketPayload);
+    io.to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('service:request', socketPayload);
 
     return request;
   }

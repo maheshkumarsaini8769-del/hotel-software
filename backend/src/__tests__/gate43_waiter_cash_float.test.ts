@@ -1,7 +1,7 @@
 import request from 'supertest';
 import mongoose, { Types } from 'mongoose';
 import jwt from 'jsonwebtoken';
-import { app, server } from '../index';
+import { app } from '../index';
 import { Tenant } from '../models/Tenant';
 import { User } from '../models/User';
 import { UserRole } from '../types';
@@ -22,11 +22,6 @@ describe('--- SHIFT 43 / GATE 43: WAITER RUNNING CASH-IN-HAND FLOAT LEDGER & CAS
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(mongoUri);
     }
-
-    const port = 5131; // Dedicated Port 5131 for Gate 43 Tier 1
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => resolve());
-    });
 
     const tenantA = await Tenant.create({
       name: 'Grand Hyatt Dining',
@@ -120,10 +115,6 @@ describe('--- SHIFT 43 / GATE 43: WAITER RUNNING CASH-IN-HAND FLOAT LEDGER & CAS
     await CashierShiftFloat.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await User.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await Tenant.deleteMany({ _id: { $in: [tenantAId, tenantBId] } });
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   let savedFloatId: string;

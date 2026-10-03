@@ -171,12 +171,14 @@ export const runDailyNightAudit = async (
     );
 
     const nextBusinessDate = getNextDateString(auditDate);
+    const dayLockCertificateNumber = `CERT-EOD-${Date.now().toString().slice(-6)}`;
 
     // E. Save and Complete Night Audit Session Record
     const auditSession = await NightAuditSession.create({
       hotelId,
       auditDate,
       nextBusinessDate,
+      dayLockCertificateNumber,
       status: NightAuditStatus.COMPLETED,
       totalRooms,
       occupiedRooms,
@@ -206,11 +208,13 @@ export const runDailyNightAudit = async (
     if (io) {
       io.to(`${hotelId.toString()}_global`).emit('NIGHT_AUDIT_COMPLETED', {
         auditId: auditSession._id,
+        certificateNumber: dayLockCertificateNumber,
         auditDate,
         nextBusinessDate,
         occupancyRate,
         revPAR,
         totalGrossRevenue,
+        roomsAutoPostedCount,
       });
     }
 

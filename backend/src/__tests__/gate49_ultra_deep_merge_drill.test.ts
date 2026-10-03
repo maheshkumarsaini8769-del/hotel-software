@@ -35,12 +35,13 @@ describe('--- SHIFT 49 / GATE 49: ULTRA-DEEP CONCURRENCY & MULTI-TABLE MERGE DRI
       await mongoose.connect(mongoUri);
     }
 
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        testServerUrl = `http://localhost:${port}`;
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
+    const addr = server.address() as any;
+    testServerUrl = `http://localhost:${addr.port}`;
 
     // 1. Setup Tenant
     const tenant = await Tenant.create({
@@ -178,12 +179,7 @@ describe('--- SHIFT 49 / GATE 49: ULTRA-DEEP CONCURRENCY & MULTI-TABLE MERGE DRI
       await MenuItem.deleteMany({ hotelId: tenantId });
       await MenuCategory.deleteMany({ hotelId: tenantId });
       await KitchenStation.deleteMany({ hotelId: tenantId });
-      await mongoose.disconnect();
     }
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   // DRILL 1: Multi-Table Merge: Table 10 (Primary) + Table 11 + Table 12 -> 18 Pax Mega Banquet Tab

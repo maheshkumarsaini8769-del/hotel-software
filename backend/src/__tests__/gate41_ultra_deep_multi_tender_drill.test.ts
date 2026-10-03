@@ -1,6 +1,6 @@
 import request from 'supertest';
 import mongoose, { Types } from 'mongoose';
-import { app, server } from '../index';
+import { app } from '../index';
 import { Tenant } from '../models/Tenant';
 import { DiningTable, TableStatus } from '../models/DiningTable';
 import { RestaurantBill, BillStatus } from '../models/RestaurantBill';
@@ -19,13 +19,6 @@ describe('--- SHIFT 41 / GATE 41 TIER 2: ULTRA-DEEP CONCURRENCY & MULTI-TENDER D
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(mongoUri);
     }
-
-    const port = 5128; // Port 5128 for Gate 41 Tier 2 drill
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
-      });
-    });
 
     // 1. Setup Tenant A
     const tenantA = await Tenant.create({
@@ -93,7 +86,6 @@ describe('--- SHIFT 41 / GATE 41 TIER 2: ULTRA-DEEP CONCURRENCY & MULTI-TENDER D
     await RestaurantBill.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await MultiTenderSettlement.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await CashierShiftFloat.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
-    await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
   it('1. Concurrency Storm: 10 Cashier Terminals simultaneously settle 10 different bills with split tenders', async () => {

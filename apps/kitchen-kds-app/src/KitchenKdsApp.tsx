@@ -5,9 +5,20 @@ import { KdsOrderCard } from './components/KdsOrderCard';
 import { Kds86ManagerDrawer, Kds86DishItem } from './components/Kds86ManagerDrawer';
 import { KdsStore, KdsOrderCardModel, KitchenStationModel } from '@spicehub/ui';
 
+export interface LowStockAlertItem {
+  id: string;
+  ingredientName: string;
+  remainingQuantity: number;
+  unit: string;
+  triggeredByOrder?: string;
+  timestamp?: string;
+}
+
 export interface KitchenKdsAppProps {
   store: KdsStore;
   dishes86?: Kds86DishItem[];
+  lowStockAlerts?: LowStockAlertItem[];
+  onDismissStockAlert?: (id: string) => void;
   onStartPreparing?: (orderId: string) => Promise<void> | void;
   onMarkReady?: (orderId: string) => Promise<void> | void;
   onMarkServed?: (orderId: string) => Promise<void> | void;
@@ -20,6 +31,8 @@ export interface KitchenKdsAppProps {
 export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
   store,
   dishes86 = [],
+  lowStockAlerts = [],
+  onDismissStockAlert,
   onStartPreparing,
   onMarkReady,
   onMarkServed,
@@ -159,7 +172,46 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
         onRefresh={onRefresh}
         onOpen86Modal={() => setIs86DrawerOpen(true)}
         active86Count={localDishes86.filter((d) => !d.isAvailable).length}
+        lowStockCount={lowStockAlerts.length}
       />
+
+      {/* BOM Low Stock Alert Banner (Shift 53) */}
+      {lowStockAlerts.length > 0 && (
+        <div
+          data-testid="kds-low-stock-banner"
+          className="bg-gradient-to-r from-amber-950 via-amber-900 to-amber-950 border-b border-amber-500/50 px-6 py-2.5 flex items-center justify-between text-amber-200 shadow-xl select-text"
+        >
+          <div className="flex items-center space-x-3">
+            <span className="text-2xl animate-pulse">⚠️</span>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] font-black tracking-wider uppercase bg-amber-500 text-slate-950 px-2 py-0.5 rounded font-mono">
+                  BOM RECIPE ALERT
+                </span>
+                <span className="text-sm font-bold text-white">
+                  LOW STOCK: {lowStockAlerts[0].ingredientName} is down to{' '}
+                  <span className="text-amber-300 font-black underline">
+                    {lowStockAlerts[0].remainingQuantity} {lowStockAlerts[0].unit}
+                  </span>
+                  !
+                </span>
+              </div>
+              <p className="text-xs text-amber-200/80 mt-0.5">
+                Triggered automatically by order {lowStockAlerts[0].triggeredByOrder ? `#${lowStockAlerts[0].triggeredByOrder}` : 'processing'}. Please replenish cold-room stock soon.
+              </p>
+            </div>
+          </div>
+          {onDismissStockAlert && (
+            <button
+              onClick={() => onDismissStockAlert(lowStockAlerts[0].id)}
+              className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 rounded-lg text-xs font-bold transition flex items-center space-x-1"
+            >
+              <span>Acknowledge</span>
+              <span>✓</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Station Tabs */}
       <KdsStationTabs

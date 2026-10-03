@@ -21,7 +21,8 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
 
   const getLocationLabel = () => {
     if (order.tableNumber) {
-      return `Table ${order.tableNumber}${order.section ? ` (${order.section})` : ''}`;
+      const t = order.tableNumber.toLowerCase().startsWith('table') ? order.tableNumber : `Table ${order.tableNumber}`;
+      return `${t}${order.section ? ` (${order.section})` : ''}`;
     }
     if (order.roomNumber) {
       return `Room ${order.roomNumber}`;

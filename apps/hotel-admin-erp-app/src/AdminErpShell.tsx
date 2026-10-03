@@ -81,6 +81,117 @@ export const AdminErpShell: React.FC = () => {
 
   const currentMod = MODULE_REGISTRY.find((m) => m.key === activeModule) || MODULE_REGISTRY[0];
 
+  React.useEffect(() => {
+    if (!matrixStore.getData()) {
+      const dates: any[] = [];
+      const base = new Date('2026-10-03');
+      for (let i = 0; i < 14; i++) {
+        const d = new Date(base);
+        d.setDate(base.getDate() + i);
+        const dateStr = d.toISOString().slice(0, 10);
+        const dayOfWeek = d.getDay();
+        const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dayOfWeek];
+        const monthName = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+        dates.push({
+          date: dateStr,
+          dayOfWeek,
+          dayName,
+          dayNumber: d.getDate(),
+          monthName,
+          isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+        });
+      }
+
+      matrixStore.setData({
+        window: {
+          startDate: '2026-10-03',
+          endDate: dates[dates.length - 1].date,
+          totalDays: 14,
+        },
+        dates,
+        kpis: {
+          totalRooms: 5,
+          arrivalsToday: 2,
+          departuresToday: 1,
+          occupancyRate: 60,
+          activeBookingsCount: 3,
+        },
+        roomTypes: [
+          {
+            id: 'rt-deluxe',
+            name: 'Deluxe Heritage Room',
+            code: 'DLX',
+            basePrice: 4500,
+            rooms: [
+              { id: 'rm-101', roomNumber: '101', floorNumber: 1, wing: 'East Heritage', status: 'OCCUPIED' },
+              { id: 'rm-102', roomNumber: '102', floorNumber: 1, wing: 'East Heritage', status: 'AVAILABLE' },
+              { id: 'rm-103', roomNumber: '103', floorNumber: 1, wing: 'East Heritage', status: 'DIRTY' },
+            ],
+          },
+          {
+            id: 'rt-suite',
+            name: 'Royal Maharaja Suite',
+            code: 'STE',
+            basePrice: 9500,
+            rooms: [
+              { id: 'rm-201', roomNumber: '201', floorNumber: 2, wing: 'Royal Palace', status: 'OCCUPIED' },
+              { id: 'rm-202', roomNumber: '202', floorNumber: 2, wing: 'Royal Palace', status: 'AVAILABLE' },
+            ],
+          },
+        ],
+        bookings: [
+          {
+            id: 'bk-1',
+            bookingNumber: 'RES-8821',
+            guestName: 'Rohit Khanna (VIP)',
+            guestPhone: '+91 98230 11223',
+            guestEmail: 'rohit.khanna@tcs.com',
+            checkInDate: '2026-10-01',
+            checkOutDate: '2026-10-06',
+            bookingStatus: 'IN_HOUSE',
+            allocatedRoomId: 'rm-101',
+            roomTypeId: 'rt-deluxe',
+            roomTypeName: 'Deluxe Heritage Room',
+            grandTotal: 22500,
+            advancePaymentAmount: 22500,
+            paymentStatus: 'PAID',
+          },
+          {
+            id: 'bk-2',
+            bookingNumber: 'RES-8834',
+            guestName: 'Ananya Sharma',
+            guestPhone: '+91 99100 44556',
+            guestEmail: 'ananya@gmail.com',
+            checkInDate: '2026-10-03',
+            checkOutDate: '2026-10-07',
+            bookingStatus: 'IN_HOUSE',
+            allocatedRoomId: 'rm-201',
+            roomTypeId: 'rt-suite',
+            roomTypeName: 'Royal Maharaja Suite',
+            grandTotal: 38000,
+            advancePaymentAmount: 20000,
+            paymentStatus: 'PARTIAL',
+          },
+          {
+            id: 'bk-3',
+            bookingNumber: 'RES-8845',
+            guestName: 'Vikramaditya Singhania',
+            guestPhone: '+91 97110 99887',
+            checkInDate: '2026-10-05',
+            checkOutDate: '2026-10-09',
+            bookingStatus: 'CONFIRMED',
+            allocatedRoomId: 'rm-102',
+            roomTypeId: 'rt-deluxe',
+            roomTypeName: 'Deluxe Heritage Room',
+            grandTotal: 18000,
+            advancePaymentAmount: 5000,
+            paymentStatus: 'PARTIAL',
+          },
+        ],
+      });
+    }
+  }, []);
+
   const renderActiveModule = () => {
     switch (activeModule) {
       case 'PMS':

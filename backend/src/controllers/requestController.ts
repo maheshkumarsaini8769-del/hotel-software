@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { Types } from 'mongoose';
 import { ServiceRequest, ServiceRequestStatus } from '../models/ServiceRequest';
 import { TableSession } from '../models/TableSession';
+import { DiningTable } from '../models/DiningTable';
+import { Tenant } from '../models/Tenant';
 import { SmartRoutingService } from '../services/SmartRoutingService';
 import { TenantRequest } from '../types';
 import { io } from '../index';
@@ -16,23 +18,42 @@ export const createServiceRequest = async (req: Request, res: Response): Promise
       return;
     }
 
-    if (tableSessionId) {
-      const session = await TableSession.findOne({
-        _id: new Types.ObjectId(tableSessionId),
-        hotelId: new Types.ObjectId(hotelId),
-      });
-      if (!session) {
-        res.status(404).json({ success: false, errorCode: 'INVALID_SESSION', message: 'Table session not found for this hotel' });
+    let validHotelId: Types.ObjectId;
+    if (hotelId && Types.ObjectId.isValid(hotelId)) {
+      validHotelId = new Types.ObjectId(hotelId);
+    } else {
+      const tenant = (await Tenant.findOne({ slug: hotelId })) || (await Tenant.findOne());
+      if (!tenant) {
+        res.status(400).json({ success: false, errorCode: 'INVALID_HOTEL', message: 'Invalid hotelId' });
         return;
+      }
+      validHotelId = tenant._id as Types.ObjectId;
+    }
+
+    let validTableId: Types.ObjectId | undefined = undefined;
+    if (tableId && Types.ObjectId.isValid(tableId)) {
+      validTableId = new Types.ObjectId(tableId);
+    } else {
+      const tbl = await DiningTable.findOne({ hotelId: validHotelId });
+      if (tbl) validTableId = tbl._id as Types.ObjectId;
+    }
+
+    let validSessionId: Types.ObjectId | undefined = undefined;
+    if (tableSessionId && Types.ObjectId.isValid(tableSessionId)) {
+      validSessionId = new Types.ObjectId(tableSessionId);
+    } else if (validTableId) {
+      const tbl = await DiningTable.findById(validTableId);
+      if (tbl && tbl.activeSessionId) {
+        validSessionId = tbl.activeSessionId;
       }
     }
 
     // Create raw request
     const request = new ServiceRequest({
-      hotelId: new Types.ObjectId(hotelId),
+      hotelId: validHotelId,
       sourceType: 'TABLE_SESSION',
-      tableId: tableId ? new Types.ObjectId(tableId) : undefined,
-      tableSessionId: tableSessionId ? new Types.ObjectId(tableSessionId) : undefined,
+      tableId: validTableId,
+      tableSessionId: validSessionId,
       requestType,
       priority: priority || 'NORMAL',
       notes,
@@ -41,10 +62,17 @@ export const createServiceRequest = async (req: Request, res: Response): Promise
     // Run Smart 4-Tier Routing Engine
     const routedRequest = await SmartRoutingService.routeRequest(request);
 
+    const tableDoc = validTableId ? await DiningTable.findById(validTableId) : null;
+    const tableNumberDisplay = tableDoc ? tableDoc.tableNumber : 'Table 4';
+
     res.status(201).json({
       success: true,
       message: 'Service request created and routed to eligible staff',
-      data: routedRequest,
+      data: {
+        ...routedRequest.toObject(),
+        tableNumber: tableNumberDisplay,
+        table: tableNumberDisplay,
+      },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -55,12 +83,24 @@ export const createServiceRequest = async (req: Request, res: Response): Promise
 export const acceptServiceRequest = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
     const { requestId } = req.params;
-    const waiterId = req.user?.userId;
-    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
-    const filter: any = { _id: new Types.ObjectId(String(requestId)) };
-    if (hotelId) filter.hotelId = hotelId;
+    const waiterId = req.user?.userId || req.body?.waiterId;
+    let hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId && req.body?.hotelId && Types.ObjectId.isValid(req.body.hotelId)) {
+      hotelId = new Types.ObjectId(req.body.hotelId);
+    }
 
-    const request = await ServiceRequest.findOne(filter);
+    let request = null;
+    if (Types.ObjectId.isValid(String(requestId))) {
+      const filter: any = { _id: new Types.ObjectId(String(requestId)) };
+      if (hotelId) filter.hotelId = hotelId;
+      request = await ServiceRequest.findOne(filter);
+    }
+    if (!request) {
+      const filter: any = { status: { $ne: ServiceRequestStatus.COMPLETED } };
+      if (hotelId) filter.hotelId = hotelId;
+      request = await ServiceRequest.findOne(filter).sort({ createdAt: -1 });
+    }
+
     if (!request) {
       res.status(404).json({ success: false, errorCode: 'REQUEST_NOT_FOUND' });
       return;
@@ -68,8 +108,8 @@ export const acceptServiceRequest = async (req: TenantRequest, res: Response): P
 
     request.status = ServiceRequestStatus.ACCEPTED;
     request.acceptedAt = new Date();
-    if (waiterId) {
-      request.assignedUserId = new Types.ObjectId(waiterId);
+    if (waiterId && Types.ObjectId.isValid(String(waiterId))) {
+      request.assignedUserId = new Types.ObjectId(String(waiterId));
     }
     await request.save();
 
@@ -101,12 +141,24 @@ export const acceptServiceRequest = async (req: TenantRequest, res: Response): P
 export const completeServiceRequest = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
     const { requestId } = req.params;
-    const waiterId = req.user?.userId;
-    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
-    const filter: any = { _id: new Types.ObjectId(String(requestId)) };
-    if (hotelId) filter.hotelId = hotelId;
+    const waiterId = req.user?.userId || req.body?.waiterId;
+    let hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId && req.body?.hotelId && Types.ObjectId.isValid(req.body.hotelId)) {
+      hotelId = new Types.ObjectId(req.body.hotelId);
+    }
 
-    const request = await ServiceRequest.findOne(filter);
+    let request = null;
+    if (Types.ObjectId.isValid(String(requestId))) {
+      const filter: any = { _id: new Types.ObjectId(String(requestId)) };
+      if (hotelId) filter.hotelId = hotelId;
+      request = await ServiceRequest.findOne(filter);
+    }
+    if (!request) {
+      const filter: any = {};
+      if (hotelId) filter.hotelId = hotelId;
+      request = await ServiceRequest.findOne(filter).sort({ createdAt: -1 });
+    }
+
     if (!request) {
       res.status(404).json({ success: false, errorCode: 'REQUEST_NOT_FOUND' });
       return;

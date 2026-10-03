@@ -14,9 +14,6 @@ import {
 import { AdminAlertEvent, AlertSeverity, AlertEventStatus } from '../models/AdminAlertEvent';
 
 describe('--- SHIFT 45 / GATE 45 TIER 2: ULTRA-DEEP CONCURRENCY & ADMIN CONTROL DRILL ---', () => {
-  let server: http.Server;
-  const port = 5136; // Dedicated Port 5136 for Gate 45 Tier 2
-
   let tenantAId: string;
   let tenantBId: string;
   let gmToken: string;
@@ -33,11 +30,6 @@ describe('--- SHIFT 45 / GATE 45 TIER 2: ULTRA-DEEP CONCURRENCY & ADMIN CONTROL 
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(mongoUri);
     }
-
-    server = http.createServer(app);
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => resolve());
-    });
 
     const jwtSecret = process.env.JWT_SECRET || 'dev_secret_key_12345';
 
@@ -201,15 +193,11 @@ describe('--- SHIFT 45 / GATE 45 TIER 2: ULTRA-DEEP CONCURRENCY & ADMIN CONTROL 
     await User.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await NotificationPreference.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await AdminAlertEvent.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   it('1. High-Concurrency Alert Ingestion Storm: 20 concurrent alerts dispatched without drops or race conditions', async () => {
     const promises = Array.from({ length: 20 }).map((_, idx) =>
-      request(server)
+      request(app)
         .post('/api/v1/admin-control/dispatch-alert')
         .set('Authorization', `Bearer ${gmToken}`)
         .send({
@@ -230,7 +218,7 @@ describe('--- SHIFT 45 / GATE 45 TIER 2: ULTRA-DEEP CONCURRENCY & ADMIN CONTROL 
   });
 
   it('2. Multi-Role Routing Matrix: KITCHEN_DELAY notifies GM and F&B Director, but Accountant is omitted', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/admin-control/dispatch-alert')
       .set('Authorization', `Bearer ${gmToken}`)
       .send({
@@ -252,7 +240,7 @@ describe('--- SHIFT 45 / GATE 45 TIER 2: ULTRA-DEEP CONCURRENCY & ADMIN CONTROL 
   });
 
   it('3. Multi-Role Routing Matrix: LARGE_TRANSACTION notifies GM and Accountant, but F&B Director is omitted', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/admin-control/dispatch-alert')
       .set('Authorization', `Bearer ${gmToken}`)
       .send({
@@ -275,7 +263,7 @@ describe('--- SHIFT 45 / GATE 45 TIER 2: ULTRA-DEEP CONCURRENCY & ADMIN CONTROL 
 
   it('4. Concurrent Acknowledge Race: 5 concurrent managers acknowledging the same alert resolve with exactly 1 success and 4 rejected', async () => {
     // 1. Create a fresh single alert
-    const createRes = await request(server)
+    const createRes = await request(app)
       .post('/api/v1/admin-control/dispatch-alert')
       .set('Authorization', `Bearer ${gmToken}`)
       .send({
@@ -290,7 +278,7 @@ describe('--- SHIFT 45 / GATE 45 TIER 2: ULTRA-DEEP CONCURRENCY & ADMIN CONTROL 
 
     // 2. Fire 5 concurrent acknowledge calls
     const ackPromises = Array.from({ length: 5 }).map((_, idx) =>
-      request(server)
+      request(app)
         .put(`/api/v1/admin-control/alerts/${alertId}/acknowledge`)
         .set('Authorization', `Bearer ${gmToken}`)
         .send({ acknowledgedByName: `Manager #${idx + 1}` })
@@ -310,7 +298,7 @@ describe('--- SHIFT 45 / GATE 45 TIER 2: ULTRA-DEEP CONCURRENCY & ADMIN CONTROL 
   });
 
   it('5. Switchboard Audit Summary: Aggregates staff count, active coverage, and channel distribution', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .get('/api/v1/admin-control/switchboard-summary')
       .set('Authorization', `Bearer ${gmToken}`);
 

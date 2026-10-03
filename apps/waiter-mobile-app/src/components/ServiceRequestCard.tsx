@@ -21,44 +21,49 @@ export const ServiceRequestCard: React.FC<ServiceRequestCardProps> = ({
   onAccept,
   onComplete,
 }) => {
-  const typeMeta = RequestTypeIconMap[request.requestType] || {
-    icon: '📌',
-    label: request.requestType,
-    bg: 'bg-slate-50 text-slate-700 border-slate-200',
+  const rawType = ((request as any).type || request.requestType || 'CALL_WAITER').toUpperCase();
+  const typeMeta = RequestTypeIconMap[rawType] || {
+    icon: rawType === 'CALL_WAITER' ? '🛎️' : rawType === 'WATER' ? '💧' : rawType === 'BILL' ? '💵' : '📌',
+    label: rawType.replace(/_/g, ' '),
+    bg: 'bg-purple-950/60 text-purple-300 border-purple-700/60',
   };
+
+  const tableStr = String(request.tableNumber || (request as any).table || '4');
+  const displayTable = tableStr.toLowerCase().startsWith('table') ? tableStr : `Table ${tableStr}`;
 
   const isAccepted = request.status === WaiterRequestLifecycle.ACCEPTED;
   const isPending =
     request.status === WaiterRequestLifecycle.PENDING ||
-    request.status === WaiterRequestLifecycle.ASSIGNED;
+    request.status === WaiterRequestLifecycle.ASSIGNED ||
+    !request.status;
 
   return (
     <div
-      className={`p-4 rounded-xl border transition-all duration-200 shadow-sm ${
+      className={`p-4 rounded-2xl border transition-all duration-200 shadow-md ${
         isPending
-          ? 'border-rose-300 bg-rose-50/50 dark:bg-rose-950/20 dark:border-rose-900/50'
-          : 'border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700'
+          ? 'border-amber-500/70 bg-gradient-to-br from-amber-950/40 to-slate-900 shadow-amber-950/30'
+          : 'border-slate-800 bg-slate-900 shadow-sm'
       }`}
       data-testid={`request-card-${request.id}`}
     >
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center space-x-2">
-          <span className="text-xl">{typeMeta.icon}</span>
+        <div className="flex items-center space-x-2.5">
+          <span className="text-2xl">{typeMeta.icon}</span>
           <div>
-            <div className="font-bold text-sm text-slate-800 dark:text-slate-100">
+            <div className="font-extrabold text-sm text-white">
               {typeMeta.label}
             </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">
-              Table {request.tableNumber || request.tableId?.substring(0, 6) || 'General'}
+            <div className="text-xs font-semibold text-amber-400">
+              {displayTable}
               {request.section && ` • ${request.section}`}
             </div>
           </div>
         </div>
 
         <span
-          className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border ${typeMeta.bg}`}
+          className={`px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-full border ${typeMeta.bg}`}
         >
-          {request.status}
+          {request.status || 'PENDING'}
         </span>
       </div>
 

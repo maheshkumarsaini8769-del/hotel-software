@@ -8,6 +8,8 @@ export interface KdsHeaderProps {
   onRefresh?: () => void;
   onOpen86Modal?: () => void;
   active86Count?: number;
+  lowStockCount?: number;
+  onOpenStockAlerts?: () => void;
 }
 
 export const KdsHeader: React.FC<KdsHeaderProps> = ({
@@ -18,6 +20,8 @@ export const KdsHeader: React.FC<KdsHeaderProps> = ({
   onRefresh,
   onOpen86Modal,
   active86Count = 0,
+  lowStockCount = 0,
+  onOpenStockAlerts,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>('');
 
@@ -63,6 +67,21 @@ export const KdsHeader: React.FC<KdsHeaderProps> = ({
         <div className="font-mono text-sm text-slate-300 bg-slate-800/80 px-3 py-1 rounded border border-slate-700">
           {currentTime || '00:00:00'}
         </div>
+
+        {/* BOM Low Stock Alerts Indicator */}
+        {lowStockCount > 0 && (
+          <button
+            onClick={onOpenStockAlerts}
+            data-testid="kds-low-stock-badge"
+            className="px-3 py-1 text-xs font-bold rounded-lg border transition flex items-center space-x-1.5 min-h-[32px] bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30 animate-pulse"
+            title="Raw materials below minimum par levels detected via BOM"
+          >
+            <span>⚠️ Low Stock</span>
+            <span className="bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded-full text-[10px] font-black">
+              {lowStockCount}
+            </span>
+          </button>
+        )}
 
         {/* 1-Tap 86 Out of Stock Manager Button */}
         {onOpen86Modal && (

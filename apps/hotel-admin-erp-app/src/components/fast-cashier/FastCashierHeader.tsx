@@ -7,6 +7,7 @@ interface FastCashierHeaderProps {
   onOpenCallingBoard: () => void;
   onClearCart: () => void;
   onRefreshQueue: () => void;
+  onBlindShiftClose?: () => void;
   loading: boolean;
 }
 
@@ -16,6 +17,7 @@ export const FastCashierHeader: React.FC<FastCashierHeaderProps> = ({
   onOpenCallingBoard,
   onClearCart,
   onRefreshQueue,
+  onBlindShiftClose,
   loading,
 }) => {
   const preparingCount = callingQueue.preparingQueue?.length || 0;
@@ -98,6 +100,19 @@ export const FastCashierHeader: React.FC<FastCashierHeaderProps> = ({
           >
             Clear Cart
           </button>
+
+          {/* Blind Shift Close Button (Shift 54) */}
+          {onBlindShiftClose && (
+            <button
+              data-testid="blind-shift-close-btn"
+              type="button"
+              onClick={onBlindShiftClose}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)] flex items-center gap-1.5"
+            >
+              <span>🔒</span>
+              <span>Blind Shift Close</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

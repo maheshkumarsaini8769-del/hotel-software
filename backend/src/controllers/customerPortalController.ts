@@ -423,6 +423,37 @@ export class CustomerPortalController {
         orderType = OrderType.TAKEAWAY;
       }
 
+      // Shift 52: Atomic Folio Lock Guard - Prevent room charge if folio is locked for checkout
+      const checkPreference = billingPreference || session.inRoomContext?.billingPreference || 'POST_TO_ROOM';
+      if (session.serviceMode === CustomerServiceMode.IN_ROOM_DINING && checkPreference === 'POST_TO_ROOM') {
+        let checkFolioId = session.inRoomContext?.folioId;
+        let activeFolio: any = null;
+        if (checkFolioId) {
+          activeFolio = await MasterFolio.findById(checkFolioId);
+        } else if (session.inRoomContext?.roomId) {
+          activeFolio = await MasterFolio.findOne({
+            hotelId: session.hotelId,
+            roomId: session.inRoomContext.roomId,
+            folioStatus: { $ne: 'SETTLED' },
+          });
+        }
+
+        if (activeFolio && activeFolio.folioStatus !== 'OPEN') {
+          res.status(409).json({
+            success: false,
+            errorCode: 'FOLIO_LOCKED_CHECKOUT_IN_PROGRESS',
+            message: `Cannot post room service order: Folio is ${activeFolio.folioStatus.toLowerCase()} for check-out settlement.`,
+            data: {
+              folioId: activeFolio._id,
+              folioStatus: activeFolio.folioStatus,
+              lockedAt: activeFolio.lockedAt,
+              lockReason: activeFolio.lockReason,
+            },
+          });
+          return;
+        }
+      }
+
       // Create Restaurant Order
       const newOrder = await RestaurantOrder.create({
         hotelId: session.hotelId,
@@ -480,6 +511,12 @@ export class CustomerPortalController {
               dueAmount: grandTotal,
             },
           });
+
+          newOrder.isBilled = true;
+          newOrder.isSweptToFolio = true;
+          newOrder.sweptAt = new Date();
+          newOrder.sweptToFolioId = targetFolioId;
+          await newOrder.save();
         }
       }
 

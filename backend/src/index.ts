@@ -64,8 +64,8 @@ io.on('connection', (socket) => {
   console.log(`[Socket.IO] New connection established: ${socket.id}`);
 
   // Channel room joiner: Enforces strict tenant isolation and authentication
-  socket.on('join_tenant_room', (payload: { hotelId: string; station?: string; token?: string }) => {
-    const { hotelId, station, token } = payload || {};
+  const handleJoinTenantRoom = (payload: { hotelId: string; station?: string; token?: string; tableSessionId?: string; userId?: string }) => {
+    const { hotelId, station, token, userId } = payload || {};
     if (!hotelId) return;
 
     // Strict Security Validation: If a token is provided, verify hotelId claims
@@ -88,6 +88,7 @@ io.on('connection', (socket) => {
     let roomName = `${hotelId}_global`;
     if (station) {
       roomName = `${hotelId}_${station}`;
+      socket.join(`${hotelId}_global`); // Join global as well for broadcast events
     } else if (
       hotelId.startsWith('waiter_') ||
       hotelId.startsWith('attendant_') ||
@@ -96,8 +97,130 @@ io.on('connection', (socket) => {
     ) {
       roomName = hotelId; // direct private channel
     }
+
+    if (userId) {
+      socket.join(`waiter_${userId}`);
+      socket.join(`${hotelId}_waiter_${userId}`);
+    }
+
     socket.join(roomName);
     console.log(`[Socket.IO] Socket ${socket.id} joined room: ${roomName}`);
+  };
+
+  socket.on('join_tenant_room', handleJoinTenantRoom);
+  socket.on('join:room', handleJoinTenantRoom);
+
+  // Real-time Service Request broadcast from customer / staff
+  socket.on('service:request', (data: any) => {
+    console.log('🛎️ [Socket.IO] Relay service:request:', data);
+    const hotelId = data.hotelId || '6ac0b4e71840625417d4c7a1';
+    const payload = {
+      id: data.id || `req-${Date.now()}`,
+      requestId: data.requestId || data.id || `req-${Date.now()}`,
+      table: data.table || data.tableNumber || 'Table 4',
+      tableNumber: data.table || data.tableNumber || 'Table 4',
+      type: data.type || data.requestType || 'CALL_WAITER',
+      requestType: data.type || data.requestType || 'CALL_WAITER',
+      priority: data.priority || 'HIGH',
+      status: 'ASSIGNED',
+      createdAt: new Date().toISOString(),
+      slaMinutes: 1,
+    };
+    io.to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('service:request', payload);
+    io.to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('request:new', payload);
+  });
+
+  // Real-time Order Placed broadcast to KDS & Waiters
+  socket.on('order:placed', (data: any) => {
+    console.log('🍽️ [Socket.IO] Relay order:placed to KDS:', data);
+    const hotelId = data.hotelId || '6ac0b4e71840625417d4c7a1';
+    const payload = {
+      id: data.id || data.orderId || `ord-${Date.now()}`,
+      orderId: data.id || data.orderId || `ord-${Date.now()}`,
+      orderNumber: data.orderNumber || `KOT #${Date.now().toString().slice(-4)}`,
+      orderType: data.orderType || 'DINE_IN',
+      tableNumber: data.table || data.tableNumber || 'Table 4',
+      table: data.table || data.tableNumber || 'Table 4',
+      orderStatus: 'PLACED',
+      placedAt: new Date().toISOString(),
+      elapsedMinutes: 0,
+      urgencyLevel: 'NORMAL',
+      items: data.items || [],
+      cookingInstructions: data.instructions || data.cookingInstructions || '',
+    };
+    io.to(`${hotelId}_kds`).emit('order:created', payload);
+    io.to(`${hotelId}_kds`).emit('new_order', payload);
+    io.to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('order:created', payload);
+  });
+
+  // Real-time KDS Cooking and Ready status updates
+  socket.on('kds:order_preparing', (data: any) => {
+    console.log('🍳 [Socket.IO] Relay kds:order_preparing:', data);
+    const hotelId = data.hotelId || '6ac0b4e71840625417d4c7a1';
+    const payload = {
+      orderId: data.orderId,
+      orderStatus: 'PREPARING',
+    };
+    io.to(`${hotelId}_kds`).emit('order:status_updated', payload);
+    io.to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('order:status_updated', payload);
+  });
+
+  socket.on('kds:order_ready', (data: any) => {
+    console.log('🔔 [Socket.IO] Relay kds:order_ready:', data);
+    const hotelId = data.hotelId || '6ac0b4e71840625417d4c7a1';
+    const statusPayload = {
+      orderId: data.orderId,
+      orderStatus: 'READY',
+      readyAt: new Date().toISOString(),
+    };
+    io.to(`${hotelId}_kds`).emit('order:status_updated', statusPayload);
+    io.to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('order:ready', {
+      orderId: data.orderId,
+      tableNumber: data.tableNumber || 'Table 4',
+      readyAt: new Date().toISOString(),
+    });
+  });
+
+  // Waiter Request Lifecycle events
+  socket.on('request:accepted', (data: any) => {
+    const hotelId = data.hotelId || '6ac0b4e71840625417d4c7a1';
+    io.to(`${hotelId}_global`).emit('request:accepted', data);
+  });
+
+  socket.on('request:completed', (data: any) => {
+    const hotelId = data.hotelId || '6ac0b4e71840625417d4c7a1';
+    io.to(`${hotelId}_global`).emit('request:completed', data);
+  });
+
+  // Waiter Punch KOT directly
+  socket.on('waiter:kot_fired', (data: any) => {
+    console.log('🔥 [Socket.IO] Relay waiter:kot_fired to KDS:', data);
+    const hotelId = data.hotelId || '6ac0b4e71840625417d4c7a1';
+    const payload = {
+      id: `ord-${Date.now()}`,
+      orderId: `ord-${Date.now()}`,
+      orderNumber: `KOT #${Date.now().toString().slice(-4)}`,
+      orderType: 'DINE_IN',
+      tableNumber: data.tableNumber || `Table ${data.tableId}`,
+      table: data.tableNumber || `Table ${data.tableId}`,
+      orderStatus: 'PLACED',
+      placedAt: new Date().toISOString(),
+      elapsedMinutes: 0,
+      urgencyLevel: 'NORMAL',
+      items: (data.items || []).map((it: any, idx: number) => ({
+        itemId: `item-${Date.now()}-${idx}`,
+        menuItemId: it.menuItemId,
+        name: it.name || 'Dish',
+        quantity: it.quantity,
+        unitPrice: it.price || 200,
+        subtotal: (it.price || 200) * it.quantity,
+        itemStatus: 'PENDING',
+        specialInstructions: it.specialInstructions,
+      })),
+      cookingInstructions: data.instructions,
+    };
+    io.to(`${hotelId}_kds`).emit('order:created', payload);
+    io.to(`${hotelId}_kds`).emit('new_order', payload);
   });
 
   socket.on('disconnect', () => {

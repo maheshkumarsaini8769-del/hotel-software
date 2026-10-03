@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Types } from 'mongoose';
+import crypto from 'crypto';
 import { MultiTenderSettlement, TenderMethod, SettlementStatus, ITenderLine } from '../models/MultiTenderSettlement';
 import { CashierShiftFloat, CashierShiftStatus } from '../models/CashierShiftFloat';
 import { RestaurantBill, BillStatus } from '../models/RestaurantBill';
@@ -262,7 +263,8 @@ export class MultiTenderController {
 
       // Generate Settlement Number
       const count = await MultiTenderSettlement.countDocuments({ hotelId: new Types.ObjectId(hotelId) });
-      const settlementNumber = `SETTLE-${Date.now().toString().slice(-6)}-${count + 1}`;
+      const randomSuffix = crypto.randomBytes(4).toString('hex').toUpperCase();
+      const settlementNumber = `SETTLE-${Date.now().toString().slice(-6)}-${count + 1}-${randomSuffix}`;
 
       // Create Multi-Tender Settlement
       const settlement = await MultiTenderSettlement.create({

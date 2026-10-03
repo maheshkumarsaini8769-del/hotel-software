@@ -18,6 +18,12 @@ export interface IMasterFolio extends Document {
   paidAmount: number;
   dueAmount: number;
   folioStatus: 'OPEN' | 'LOCKED' | 'SETTLED';
+  settledAt?: Date;
+  settledByUserId?: Types.ObjectId;
+  settlementNotes?: string;
+  lockedAt?: Date;
+  lockedByUserId?: Types.ObjectId;
+  lockReason?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +52,12 @@ const MasterFolioSchema = new Schema<IMasterFolio>(
       default: 'OPEN',
       index: true,
     },
+    settledAt: { type: Date },
+    settledByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+    settlementNotes: { type: String, trim: true },
+    lockedAt: { type: Date },
+    lockedByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+    lockReason: { type: String, trim: true },
   },
   { timestamps: true }
 );

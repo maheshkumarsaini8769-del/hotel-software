@@ -29,13 +29,6 @@ describe('--- SHIFT 22 / GATE 22: BANQUET & EVENT MANAGEMENT (HALL/LAWN BOOKING,
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5102;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
-      });
-    });
-
     // 1. Setup Tenant A (Grand ITC Kohinoor)
     const tenantA = await Tenant.create({
       name: 'Grand ITC Kohinoor & Convention Center',

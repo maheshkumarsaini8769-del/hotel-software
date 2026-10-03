@@ -1,7 +1,7 @@
 import request from 'supertest';
 import mongoose, { Types } from 'mongoose';
 import jwt from 'jsonwebtoken';
-import { app, server } from '../index';
+import { app } from '../index';
 import { Tenant } from '../models/Tenant';
 import { User } from '../models/User';
 import { UserRole } from '../types';
@@ -21,11 +21,6 @@ describe('--- SHIFT 42 / GATE 42 TIER 2: ULTRA-DEEP CONCURRENCY & DYNAMIC UPI DR
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(mongoUri);
     }
-
-    const port = 5130; // Dedicated Port 5130 for Gate 42 Tier 2
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => resolve());
-    });
 
     const tenantA = await Tenant.create({
       name: 'Leela Palace Grand Dining',
@@ -89,10 +84,6 @@ describe('--- SHIFT 42 / GATE 42 TIER 2: ULTRA-DEEP CONCURRENCY & DYNAMIC UPI DR
     await DynamicUpiQr.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await User.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await Tenant.deleteMany({ _id: { $in: [tenantAId, tenantBId] } });
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   it('1. Concurrency Storm: 10 Waiters simultaneously generate 10 dynamic locked UPI QRs across 10 tables', async () => {

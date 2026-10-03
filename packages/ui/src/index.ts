@@ -192,6 +192,9 @@ export * from './guest-reviews';
 // KOT Lock & Manager Security PIN to Void Items (Anti-theft & Waste Tracking) Exports
 export * from './kot-void';
 
+// PMS Express Check-Out, Atomic Folio Settlement & Keycard Void Engine Exports
+export * from './pms-checkout';
+
 
 
 

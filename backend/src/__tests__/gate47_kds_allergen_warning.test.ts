@@ -45,12 +45,13 @@ describe('--- SHIFT 47 / GATE 47: KITCHEN KDS HIGH-CONTRAST ALLERGEN & DIETARY W
       await mongoose.connect(mongoUri);
     }
 
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        testServerUrl = `http://localhost:${port}`;
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
+    const addr = server.address() as any;
+    testServerUrl = `http://localhost:${addr.port}`;
 
     // 1. Setup Tenant
     const tenant = await Tenant.create({
@@ -202,7 +203,6 @@ describe('--- SHIFT 47 / GATE 47: KITCHEN KDS HIGH-CONTRAST ALLERGEN & DIETARY W
 
   afterAll(async () => {
     if (kdsSocket && kdsSocket.connected) kdsSocket.disconnect();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
   let createdOrder: any;

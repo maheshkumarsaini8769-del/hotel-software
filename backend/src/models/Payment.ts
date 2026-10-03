@@ -5,7 +5,9 @@ export enum PaymentMode {
   UPI = 'UPI',
   CARD = 'CARD',
   ONLINE_GATEWAY = 'ONLINE_GATEWAY',
-  CHARGE_TO_ROOM = 'CHARGE_TO_ROOM'
+  CHARGE_TO_ROOM = 'CHARGE_TO_ROOM',
+  CITY_LEDGER = 'CITY_LEDGER',
+  COMPLIMENTARY = 'COMPLIMENTARY'
 }
 
 export enum PaymentStatus {

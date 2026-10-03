@@ -10,9 +10,6 @@ import { GuestReview, ReviewSource, ServiceRecoveryStatus } from '../models/Gues
 import { AdminAlertEvent, AlertSeverity, AlertEventStatus } from '../models/AdminAlertEvent';
 
 describe('--- SHIFT 46 / GATE 46 TIER 2: ULTRA-DEEP CONCURRENCY & REVIEW DRILL ---', () => {
-  let server: http.Server;
-  const port = 5138; // Dedicated Port 5138 for Gate 46 Tier 2
-
   let tenantAId: string;
   let tenantBId: string;
   let gmToken: string;
@@ -25,11 +22,6 @@ describe('--- SHIFT 46 / GATE 46 TIER 2: ULTRA-DEEP CONCURRENCY & REVIEW DRILL -
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(mongoUri);
     }
-
-    server = http.createServer(app);
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => resolve());
-    });
 
     const jwtSecret = process.env.JWT_SECRET || 'dev_secret_key_12345';
 
@@ -119,10 +111,6 @@ describe('--- SHIFT 46 / GATE 46 TIER 2: ULTRA-DEEP CONCURRENCY & REVIEW DRILL -
     await User.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await GuestReview.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await AdminAlertEvent.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   it('1. Concurrency Storm: 20 simultaneous reviews submitted across tables and rooms without drops or data corruption', async () => {
@@ -132,7 +120,7 @@ describe('--- SHIFT 46 / GATE 46 TIER 2: ULTRA-DEEP CONCURRENCY & REVIEW DRILL -
       const overall = isNegative ? (idx % 2 === 0 ? 1 : 2) : (idx % 2 === 0 ? 5 : 4);
       const waiter = isEven ? waiter1User : waiter2User;
 
-      return request(server)
+      return request(app)
         .post('/api/v1/guest-reviews/submit')
         .set('Authorization', `Bearer ${gmToken}`)
         .send({
@@ -176,7 +164,7 @@ describe('--- SHIFT 46 / GATE 46 TIER 2: ULTRA-DEEP CONCURRENCY & REVIEW DRILL -
   });
 
   it('2. CSAT Analytics Math Accuracy: Computes exact weighted averages and percentages across the 20 reviews', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .get('/api/v1/guest-reviews')
       .set('Authorization', `Bearer ${gmToken}`);
 
@@ -190,7 +178,7 @@ describe('--- SHIFT 46 / GATE 46 TIER 2: ULTRA-DEEP CONCURRENCY & REVIEW DRILL -
   });
 
   it('3. Staff Leaderboard Drill: Accurately ranks waiters by average guest CSAT rating', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .get('/api/v1/guest-reviews/analytics')
       .set('Authorization', `Bearer ${gmToken}`);
 
@@ -220,7 +208,7 @@ describe('--- SHIFT 46 / GATE 46 TIER 2: ULTRA-DEEP CONCURRENCY & REVIEW DRILL -
 
     // 2. Fire 5 concurrent resolution requests
     const resolvePromises = Array.from({ length: 5 }).map((_, idx) =>
-      request(server)
+      request(app)
         .patch(`/api/v1/guest-reviews/${negativeReview!._id}/recovery`)
         .set('Authorization', `Bearer ${gmToken}`)
         .send({
@@ -249,7 +237,7 @@ describe('--- SHIFT 46 / GATE 46 TIER 2: ULTRA-DEEP CONCURRENCY & REVIEW DRILL -
 
   it('5. Multi-Tenant Penetration Defense: Competitor Tenant B cannot access Tenant A reviews or staff analytics', async () => {
     // Tenant B requests reviews
-    const listRes = await request(server)
+    const listRes = await request(app)
       .get('/api/v1/guest-reviews')
       .set('Authorization', `Bearer ${tenantBToken}`);
 
@@ -258,7 +246,7 @@ describe('--- SHIFT 46 / GATE 46 TIER 2: ULTRA-DEEP CONCURRENCY & REVIEW DRILL -
     expect(listRes.body.metrics.totalReviews).toBe(0);
 
     // Tenant B requests staff analytics
-    const analyticsRes = await request(server)
+    const analyticsRes = await request(app)
       .get('/api/v1/guest-reviews/analytics')
       .set('Authorization', `Bearer ${tenantBToken}`);
 

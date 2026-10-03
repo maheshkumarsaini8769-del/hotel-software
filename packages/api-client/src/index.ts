@@ -306,6 +306,50 @@ export class SpiceHubClient {
         bookings: any[];
         availableCleanRooms: any[];
       }>('GET', '/api/v1/pms/bookings/arrivals-board', undefined, query),
+    getCheckoutPreview: (stayIdOrQuery: string | { stayId?: string; roomId?: string }) => {
+      const stayId = typeof stayIdOrQuery === 'string' ? stayIdOrQuery : stayIdOrQuery.stayId;
+      const query = typeof stayIdOrQuery === 'object' ? stayIdOrQuery : undefined;
+      const path = stayId ? `/api/v1/pms/reception/checkout-preview/${stayId}` : '/api/v1/pms/reception/checkout-preview';
+      return this.request<{ success: boolean; data: any }>('GET', path, undefined, query);
+    },
+    settleAndCheckOut: (data: {
+      stayId?: string;
+      roomId?: string;
+      payments?: Array<{
+        paymentMode: string;
+        amount: number;
+        transactionRef?: string;
+        cashReceived?: number;
+        cashChangeReturned?: number;
+        notes?: string;
+      }>;
+      paymentMode?: string;
+      amount?: number;
+      transactionRef?: string;
+      cashReceived?: number;
+      cashChangeReturned?: number;
+      targetRoomStatus?: string;
+      keyCardVoided?: boolean;
+      housekeepingPriority?: string;
+      notes?: string;
+    }) =>
+      this.request<{ success: boolean; message: string; data: any }>('POST', '/api/v1/pms/reception/settle-and-checkout', data),
+    voidKeycard: (data: {
+      roomId?: string;
+      roomNumber?: string;
+      keyCardNumber?: string;
+      voidReason?: string;
+      notes?: string;
+    }) =>
+      this.request<{ success: boolean; message: string; data: any }>('POST', '/api/v1/pms/keycards/void', data),
+    getKeycardVoidAudits: (params?: { roomId?: string; limit?: number }) =>
+      this.request<{ success: boolean; count: number; data: any[] }>('GET', '/api/v1/pms/keycards/void-audit', undefined, params),
+    lockFolio: (data: { stayId?: string; roomId?: string; folioId?: string; reason?: string }) =>
+      this.request<{ success: boolean; message: string; data: any }>('POST', '/api/v1/pms/folios/lock', data),
+    unlockFolio: (data: { stayId?: string; roomId?: string; folioId?: string; reason?: string }) =>
+      this.request<{ success: boolean; message: string; data: any }>('POST', '/api/v1/pms/folios/unlock', data),
+    sweepRestaurantCharges: (data: { stayId?: string; roomId?: string; folioId?: string; finalizeCookingOrders?: boolean }) =>
+      this.request<{ success: boolean; message: string; data: any }>('POST', '/api/v1/pms/folios/sweep-charges', data),
   };
 
   public guestPortal = {

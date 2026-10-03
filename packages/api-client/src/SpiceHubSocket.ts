@@ -26,8 +26,40 @@ export class SpiceHubSocket {
     return SpiceHubSocket.instance;
   }
 
+  private joinRooms(options: SocketConnectionOptions): void {
+    if (!this.socket) return;
+    if (options.hotelId) {
+      this.socket.emit('join_tenant_room', {
+        hotelId: options.hotelId,
+        station: options.station,
+        userId: options.userId,
+        tableSessionId: options.tableSessionId,
+      });
+    }
+    if (options.userId) {
+      this.socket.emit('join_tenant_room', {
+        hotelId: `waiter_${options.userId}`,
+      });
+    }
+    if (options.tableSessionId) {
+      this.socket.emit('join_tenant_room', {
+        hotelId: `session_${options.tableSessionId}`,
+      });
+    }
+  }
+
   public connect(options: SocketConnectionOptions): void {
     if (this.socket && this.isConnected) {
+      if (
+        options.hotelId !== this.currentOptions?.hotelId ||
+        options.station !== this.currentOptions?.station ||
+        options.userId !== this.currentOptions?.userId ||
+        options.tableSessionId !== this.currentOptions?.tableSessionId
+      ) {
+        this.currentOptions = options;
+        this.joinRooms(options);
+        console.log(`📡 [SpiceHubSocket] Updated room joins for hotel: ${options.hotelId} (Station: ${options.station || 'global'})`);
+      }
       return;
     }
 
@@ -44,28 +76,7 @@ export class SpiceHubSocket {
     this.socket.on('connect', () => {
       this.isConnected = true;
       console.log(`📡 [SpiceHubSocket] Connected to server: ${url}`);
-
-      // Auto-join hotel channel
-      if (options.hotelId) {
-        this.socket?.emit('join_tenant_room', {
-          hotelId: options.hotelId,
-          station: options.station,
-        });
-      }
-
-      // Auto-join private waiter channel
-      if (options.userId) {
-        this.socket?.emit('join_tenant_room', {
-          hotelId: `waiter_${options.userId}`,
-        });
-      }
-
-      // Auto-join customer table session channel
-      if (options.tableSessionId) {
-        this.socket?.emit('join_tenant_room', {
-          hotelId: `session_${options.tableSessionId}`,
-        });
-      }
+      this.joinRooms(options);
     });
 
     this.socket.on('disconnect', (reason) => {

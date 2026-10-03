@@ -41,12 +41,13 @@ describe('--- SHIFT 47 / TIER 2 ULTRA-DEEP DRILL: KDS ALLERGEN CONCURRENCY, MULT
       await mongoose.connect(mongoUri);
     }
 
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        testServerUrl = `http://localhost:${port}`;
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
+    const addr = server.address() as any;
+    testServerUrl = `http://localhost:${addr.port}`;
 
     const tenant = await Tenant.create({
       name: 'SpiceHub Ultra Luxury Grand Banquet',
@@ -175,7 +176,6 @@ describe('--- SHIFT 47 / TIER 2 ULTRA-DEEP DRILL: KDS ALLERGEN CONCURRENCY, MULT
 
   afterAll(async () => {
     if (kdsSocket && kdsSocket.connected) kdsSocket.disconnect();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
   // DRILL 1: Concurrent Multi-Chef Tap Race

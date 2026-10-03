@@ -286,6 +286,7 @@ describe('--- SHIFT 17 / GATE 17: HOTEL PMS ROOM RESERVATION MATRIX & LIVE CALEN
       guestPhone: '9811445566',
     });
     expect(res102.success).toBe(true);
+    const res102BookingId = res102.data._id;
 
     // Now all 2 Deluxe rooms are booked for 16-18 Oct!
     // Third attempt without specifying room should be rejected as category is sold out
@@ -302,6 +303,9 @@ describe('--- SHIFT 17 / GATE 17: HOTEL PMS ROOM RESERVATION MATRIX & LIVE CALEN
       expect(err.status).toBe(409);
       expect(err.errorCode).toBe('CATEGORY_SOLD_OUT');
     }
+
+    // Cancel res102 to free up Room 102 for re-assignment
+    await client.pms.updateBookingStatus(res102BookingId, 'CANCELLED');
   });
 
   // TEST 5: Room Re-assignment & Cancellation Workflow
@@ -314,14 +318,14 @@ describe('--- SHIFT 17 / GATE 17: HOTEL PMS ROOM RESERVATION MATRIX & LIVE CALEN
       pmsSocket.once('booking:status_changed', (data) => resolve(data));
     });
 
-    // 5.1 Re-assign Room: Maharaja Suite Room 201 is free for 16-18 Oct
-    const moveRes = await client.pms.assignRoom(createdBookingId, room201._id.toString());
+    // 5.1 Re-assign Room: Room 102 (Deluxe) is now free for 16-18 Oct
+    const moveRes = await client.pms.assignRoom(createdBookingId, room102._id.toString());
     expect(moveRes.success).toBe(true);
-    expect(moveRes.data.allocatedRoomId).toBe(room201._id.toString());
+    expect(moveRes.data.allocatedRoomId).toBe(room102._id.toString());
 
     const reassignEvent = await reassignPromise;
     expect(reassignEvent.bookingId).toBe(createdBookingId);
-    expect(reassignEvent.allocatedRoomId).toBe(room201._id.toString());
+    expect(reassignEvent.allocatedRoomId).toBe(room102._id.toString());
 
     // 5.2 Cancel Booking
     const cancelRes = await client.pms.updateBookingStatus(createdBookingId, 'CANCELLED');

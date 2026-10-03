@@ -26,13 +26,6 @@ describe('--- SHIFT 23 / GATE 23: DEDICATED FAST CASHIER POS MODE (BARCODE & 10-
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5103;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
-      });
-    });
-
     // 1. Setup Tenant A
     const tenantA = await Tenant.create({
       name: 'Express SpiceHub QSR Counter',

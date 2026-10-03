@@ -58,7 +58,7 @@ export const GuestPortalHeader: React.FC<GuestPortalHeaderProps> = ({
       </div>
 
       {/* Navigation Tabs Bar */}
-      <div className="max-w-4xl mx-auto px-4 flex items-center space-x-2 border-t border-slate-900">
+      <div className="max-w-4xl mx-auto px-4 flex items-center space-x-2 border-t border-slate-900 overflow-x-auto scrollbar-none">
         {[
           { key: 'HOME', label: 'Concierge', icon: '🛎️' },
           { key: 'DINING', label: 'In-Room Dining', icon: '🍷' },
@@ -70,7 +70,7 @@ export const GuestPortalHeader: React.FC<GuestPortalHeaderProps> = ({
             <button
               key={tab.key}
               onClick={() => onTabChange(tab.key as any)}
-              className={`py-3 px-4 text-xs font-bold transition flex items-center space-x-2 border-b-2 relative ${
+              className={`py-3 px-4 text-xs font-bold transition flex items-center space-x-2 border-b-2 relative shrink-0 ${
                 isActive
                   ? 'border-amber-400 text-amber-300 bg-amber-500/5'
                   : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-900/60'

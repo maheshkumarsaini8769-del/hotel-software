@@ -38,12 +38,13 @@ describe('--- SHIFT 48 / GATE 48 ULTRA-DEEP CONCURRENCY & MULTI-TENANT ISOLATION
       await mongoose.connect(mongoUri);
     }
 
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        testServerUrl = `http://localhost:${port}`;
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
+    const addr = server.address() as any;
+    testServerUrl = `http://localhost:${addr.port}`;
 
     // 1. Setup Tenant A and Tenant B
     tenantA = await Tenant.create({
@@ -196,8 +197,6 @@ describe('--- SHIFT 48 / GATE 48 ULTRA-DEEP CONCURRENCY & MULTI-TENANT ISOLATION
   afterAll(async () => {
     if (socketA) socketA.disconnect();
     if (socketB) socketB.disconnect();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    await mongoose.connection.close();
   });
 
   test('1. Multi-Tenant Event Isolation Drill: Hotel A 86 broadcast NEVER leaks to Hotel B', async () => {

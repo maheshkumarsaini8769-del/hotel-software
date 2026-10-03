@@ -27,6 +27,7 @@ describe('--- SHIFT 49 / GATE 49: TABLE MERGE & SPLIT ENGINE (TABLE 3+4 UNIFIED 
   let testItem: any;
   let managerSocket: ClientSocketType;
   let posSocket: ClientSocketType;
+  let table4Token: string = '';
   const userPassword = 'TestPassword123!';
   const managerEmail = `manager_merge_${Date.now()}@spicehub.com`;
   const port = 5143;
@@ -37,12 +38,13 @@ describe('--- SHIFT 49 / GATE 49: TABLE MERGE & SPLIT ENGINE (TABLE 3+4 UNIFIED 
       await mongoose.connect(mongoUri);
     }
 
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        testServerUrl = `http://localhost:${port}`;
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
+    const addr = server.address() as any;
+    testServerUrl = `http://localhost:${addr.port}`;
 
     // 1. Setup Main Tenant
     const tenant = await Tenant.create({
@@ -192,12 +194,7 @@ describe('--- SHIFT 49 / GATE 49: TABLE MERGE & SPLIT ENGINE (TABLE 3+4 UNIFIED 
       await RestaurantOrder.deleteMany({ hotelId: { $in: [tenantId, otherTenantId] } });
       await MenuItem.deleteMany({ hotelId: tenantId });
       await MenuCategory.deleteMany({ hotelId: tenantId });
-      await mongoose.disconnect();
     }
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   // TEST 1: Seat Table 3 and Table 4 with independent guests initially
@@ -209,6 +206,7 @@ describe('--- SHIFT 49 / GATE 49: TABLE MERGE & SPLIT ENGINE (TABLE 3+4 UNIFIED 
     const seat4 = await client.pos.seatTable(table4._id.toString(), 4);
     expect(seat4.success).toBe(true);
     expect(seat4.data.status).toBe(TableStatus.OCCUPIED);
+    table4Token = seat4.data.sessionToken;
 
     // Place an order on Table 4 before merge
     const orderRes = await client.pos.placeOrder({
@@ -298,6 +296,7 @@ describe('--- SHIFT 49 / GATE 49: TABLE MERGE & SPLIT ENGINE (TABLE 3+4 UNIFIED 
     const qrRes = await client.request<any>('GET', '/api/v1/pos/table/qr-entry', undefined, {
       hotelId: tenantId,
       tableId: table4._id.toString(),
+      token: table4Token,
     });
 
     expect(qrRes.success).toBe(true);

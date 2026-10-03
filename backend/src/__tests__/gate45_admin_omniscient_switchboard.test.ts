@@ -21,9 +21,6 @@ import {
 import { AdminAlertEvent, AlertSeverity, AlertEventStatus } from '../models/AdminAlertEvent';
 
 describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFICATION SWITCHBOARD ---', () => {
-  let server: http.Server;
-  const port = 5135; // Dedicated Port 5135 for Gate 45 Tier 1
-
   let tenantAId: string;
   let tenantBId: string;
   let adminAToken: string;
@@ -36,11 +33,6 @@ describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFI
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(mongoUri);
     }
-
-    server = http.createServer(app);
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => resolve());
-    });
 
     const jwtSecret = process.env.JWT_SECRET || 'dev_secret_key_12345';
 
@@ -249,14 +241,10 @@ describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFI
     await CashierShiftFloat.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await NotificationPreference.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await AdminAlertEvent.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   it('1. GET /api/v1/admin-control/telemetry - Aggregates real-time pulse of dining tables, rooms, KDS orders, and today revenue', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .get('/api/v1/admin-control/telemetry')
       .set('Authorization', `Bearer ${adminAToken}`);
 
@@ -278,7 +266,7 @@ describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFI
   });
 
   it('2. GET /api/v1/admin-control/notification-preferences - Initializes default subscriptions across all 8 alert categories', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .get('/api/v1/admin-control/notification-preferences')
       .set('Authorization', `Bearer ${adminAToken}`);
 
@@ -294,7 +282,7 @@ describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFI
   });
 
   it('3. PUT /api/v1/admin-control/notification-preferences - Updates switchboard settings (toggles, thresholds, quiet hours)', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .put('/api/v1/admin-control/notification-preferences')
       .set('Authorization', `Bearer ${adminAToken}`)
       .send({
@@ -332,7 +320,7 @@ describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFI
   });
 
   it('4. POST /api/v1/admin-control/dispatch-alert - Suppresses notification when amount is below configured threshold (₹3,000 < ₹5,000)', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/admin-control/dispatch-alert')
       .set('Authorization', `Bearer ${adminAToken}`)
       .send({
@@ -351,7 +339,7 @@ describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFI
   });
 
   it('5. POST /api/v1/admin-control/dispatch-alert - Triggers notification and activates Soundbox when amount meets threshold (₹8,500 >= ₹5,000)', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/admin-control/dispatch-alert')
       .set('Authorization', `Bearer ${adminAToken}`)
       .send({
@@ -375,7 +363,7 @@ describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFI
   });
 
   it('6. POST /api/v1/admin-control/dispatch-alert - Dispatches Critical Kitchen Delay Alert through Soundbox and Admin channel', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/admin-control/dispatch-alert')
       .set('Authorization', `Bearer ${adminAToken}`)
       .send({
@@ -393,7 +381,7 @@ describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFI
   });
 
   it('7. GET /api/v1/admin-control/alerts-feed - Retrieves paginated alerts feed filtered by category and status', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .get('/api/v1/admin-control/alerts-feed?category=LARGE_TRANSACTION&status=ACTIVE')
       .set('Authorization', `Bearer ${adminAToken}`);
 
@@ -404,7 +392,7 @@ describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFI
   });
 
   it('8. PUT /api/v1/admin-control/alerts/:alertId/acknowledge - Admin atomically acknowledges an active alert', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .put(`/api/v1/admin-control/alerts/${testAlertId}/acknowledge`)
       .set('Authorization', `Bearer ${adminAToken}`)
       .send({ acknowledgedByName: 'Vikramaditya (GM)' });
@@ -417,7 +405,7 @@ describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFI
   });
 
   it('9. PUT /api/v1/admin-control/alerts/:alertId/acknowledge - Gracefully handles already acknowledged alert with 400 ALREADY_ACKNOWLEDGED', async () => {
-    const res = await request(server)
+    const res = await request(app)
       .put(`/api/v1/admin-control/alerts/${testAlertId}/acknowledge`)
       .set('Authorization', `Bearer ${adminAToken}`)
       .send({ acknowledgedByName: 'Another Admin' });
@@ -429,14 +417,14 @@ describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFI
 
   it('10. Strict Multi-Tenant Isolation: Tenant B Admin cannot access Tenant A telemetry, preferences, or acknowledge alerts', async () => {
     // Attempt to acknowledge Tenant A alert with Tenant B token
-    const unauthAck = await request(server)
+    const unauthAck = await request(app)
       .put(`/api/v1/admin-control/alerts/${testAlertId}/acknowledge`)
       .set('Authorization', `Bearer ${adminBToken}`);
 
     expect(unauthAck.status).toBe(404);
 
     // Tenant B telemetry must only show Tenant B data (0 tables, 0 revenue)
-    const telemetryB = await request(server)
+    const telemetryB = await request(app)
       .get('/api/v1/admin-control/telemetry')
       .set('Authorization', `Bearer ${adminBToken}`);
 
@@ -445,7 +433,7 @@ describe('--- SHIFT 45 / GATE 45: HOTEL ADMIN OMNISCIENT CONTROL & CUSTOM NOTIFI
     expect(telemetryB.body.financials.todayGrossSales).toBe(0);
 
     // Tenant B alerts feed must not see Tenant A alerts
-    const feedB = await request(server)
+    const feedB = await request(app)
       .get('/api/v1/admin-control/alerts-feed')
       .set('Authorization', `Bearer ${adminBToken}`);
 

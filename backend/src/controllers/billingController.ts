@@ -387,6 +387,22 @@ export const executeBlindShiftClose = async (req: TenantRequest, res: Response):
       notes,
     });
 
+    // Shift 54: Emit real-time shift closure event to global hotel and waiters
+    if (io) {
+      const shiftClosedPayload = {
+        hotelId: hotelId.toString(),
+        certificateNumber: certNum,
+        cashierUserId: cashierId.toString(),
+        systemExpectedCash,
+        actualCountedCash,
+        varianceAmount,
+        status: varianceAmount === 0 ? 'BALANCED' : varianceAmount < 0 ? 'SHORTAGE' : 'EXCESS',
+        timestamp: new Date().toISOString(),
+      };
+      io.to(`${hotelId}_global`).emit('cashier:shift_closed', shiftClosedPayload);
+      io.to(`${hotelId}_waiters`).emit('cashier:shift_closed', shiftClosedPayload);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Blind shift reconciliation completed',

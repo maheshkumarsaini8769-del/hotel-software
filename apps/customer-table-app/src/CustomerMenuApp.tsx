@@ -92,27 +92,31 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-36">
       {/* Top Welcome Bar */}
-      <header className="bg-slate-900 border-b border-slate-800 px-4 py-3 sticky top-0 z-20 shadow-md">
+      <header className="bg-slate-900/95 backdrop-blur-md border-b border-amber-500/20 px-4 py-3.5 sticky top-0 z-20 shadow-xl">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
-          <div>
-            <h1 className="font-extrabold text-base tracking-tight text-white flex items-center gap-1.5">
-              <span>🌶️</span>
-              <span>SpiceHub Digital Dining</span>
-            </h1>
-            <p className="text-xs text-amber-400 font-medium">
-              Table {tableNumber} • {section}
-            </p>
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black text-lg sm:text-xl shadow-lg shadow-amber-500/20">
+              👑
+            </div>
+            <div>
+              <h1 className="font-black text-sm sm:text-base tracking-tight text-white flex items-center gap-1.5 font-serif">
+                Hotel Taj Gateway
+              </h1>
+              <p className="text-[11px] text-amber-300/90 font-semibold tracking-wide">
+                Table {tableNumber} • {section}
+              </p>
+            </div>
           </div>
-          <div className="px-3 py-1 bg-emerald-950/80 text-emerald-400 border border-emerald-700/60 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
+          <div className="px-3 py-1.5 bg-emerald-950/90 text-emerald-300 border border-emerald-500/40 rounded-full text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1.5 shadow-sm">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>Live Session</span>
+            <span>Live Dining Tab</span>
           </div>
         </div>
       </header>
 
       {/* Realtime Request Feedback Banner */}
       {activeRequest && (
-        <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white px-4 py-3 shadow-lg">
+        <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white px-4 py-3 shadow-lg border-b border-amber-400/40">
           <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <span className="text-2xl animate-bounce">{activeRequest.icon}</span>
@@ -136,10 +140,11 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       )}
 
       {/* Instant Guest Service Action Buttons (Water, Waiter, Cutlery, Bill) */}
-      <section className="bg-slate-900/90 border-b border-slate-800/80 px-3 py-2.5">
+      <section className="bg-slate-900/90 border-b border-slate-800/80 px-3 py-3 shadow-inner">
         <div className="max-w-4xl mx-auto">
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-            1-Tap Table Assistance
+          <p className="text-[10px] font-extrabold text-amber-400/90 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <span>✨</span>
+            <span>1-Tap Royal Table Assistance</span>
           </p>
           <div className="grid grid-cols-5 gap-2">
             <button

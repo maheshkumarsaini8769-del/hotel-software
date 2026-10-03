@@ -213,6 +213,28 @@ export const placeRoomServiceOrder = async (req: Request, res: Response): Promis
       return;
     }
 
+    // Shift 52: Atomic Folio Lock Guard - Prevent posting charges if room folio is locked for checkout
+    if (chargeToRoom && stay.masterFolioId) {
+      const folio = await MasterFolio.findOne({
+        _id: stay.masterFolioId,
+        hotelId: new Types.ObjectId(hotelId),
+      });
+      if (folio && folio.folioStatus !== 'OPEN') {
+        res.status(409).json({
+          success: false,
+          errorCode: 'FOLIO_LOCKED_CHECKOUT_IN_PROGRESS',
+          message: `Cannot place room service order: Folio is ${folio.folioStatus.toLowerCase()} for check-out settlement.`,
+          data: {
+            folioId: folio._id,
+            folioStatus: folio.folioStatus,
+            lockedAt: folio.lockedAt,
+            lockReason: folio.lockReason,
+          },
+        });
+        return;
+      }
+    }
+
     if (!Array.isArray(items) || items.length === 0) {
       res.status(400).json({ success: false, errorCode: 'EMPTY_ORDER', message: 'Order must contain at least one item' });
       return;
@@ -305,6 +327,13 @@ export const placeRoomServiceOrder = async (req: Request, res: Response): Promis
           dueAmount: grandTotal,
         },
       });
+
+      // Shift 52: Mark order as already billed to avoid being swept twice
+      order.isBilled = true;
+      order.isSweptToFolio = true;
+      order.sweptAt = new Date();
+      order.sweptToFolioId = stay.masterFolioId;
+      await order.save();
     }
 
     // 3. Broadcast Real-time Event to Shared Kitchen KDS with ROOM badge

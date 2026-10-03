@@ -1,7 +1,7 @@
 import request from 'supertest';
 import mongoose, { Types } from 'mongoose';
 import jwt from 'jsonwebtoken';
-import { app, server } from '../index';
+import { app } from '../index';
 import { Tenant } from '../models/Tenant';
 import { User } from '../models/User';
 import { UserRole } from '../types';
@@ -21,11 +21,6 @@ describe('--- SHIFT 43 / GATE 43 TIER 2: ULTRA-DEEP CONCURRENCY & WAITER CASH FL
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(mongoUri);
     }
-
-    const port = 5132; // Dedicated Port 5132 for Gate 43 Tier 2
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => resolve());
-    });
 
     const tenantA = await Tenant.create({
       name: 'ITC Maurya Luxury Dining',
@@ -108,10 +103,6 @@ describe('--- SHIFT 43 / GATE 43 TIER 2: ULTRA-DEEP CONCURRENCY & WAITER CASH FL
     await CashierShiftFloat.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await User.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await Tenant.deleteMany({ _id: { $in: [tenantAId, tenantBId] } });
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
   });
 
   let sharedFloatId: string;

@@ -37,12 +37,13 @@ describe('--- SHIFT 48 / GATE 48: KITCHEN KDS 1-TAP 86 (OUT-OF-STOCK) INSTANT MI
       await mongoose.connect(mongoUri);
     }
 
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        testServerUrl = `http://localhost:${port}`;
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
+    const addr = server.address() as any;
+    testServerUrl = `http://localhost:${addr.port}`;
 
     // 1. Setup Tenants
     const tenant = await Tenant.create({
@@ -206,8 +207,6 @@ describe('--- SHIFT 48 / GATE 48: KITCHEN KDS 1-TAP 86 (OUT-OF-STOCK) INSTANT MI
   afterAll(async () => {
     if (customerSocket) customerSocket.disconnect();
     if (waiterSocket) waiterSocket.disconnect();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    await mongoose.connection.close();
   });
 
   test('1. Chef queries menu and confirms all initial test dishes are IN STOCK (isAvailable: true)', async () => {

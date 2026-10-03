@@ -44,26 +44,27 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     <>
       {/* Floating Bottom Cart Bar (When Closed) */}
       {!isOpen && items.length > 0 && (
-        <div className="fixed bottom-4 left-4 right-4 z-40 max-w-lg mx-auto">
+        <div className="fixed bottom-4 left-4 right-4 z-40 max-w-lg mx-auto animate-bounce-once">
           <div
+            data-testid="floating-cart-bar"
             onClick={onOpen}
-            className="bg-slate-900 text-white p-4 rounded-2xl shadow-xl flex items-center justify-between cursor-pointer active:scale-98 transition transform"
+            className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 p-3.5 sm:p-4 rounded-2xl shadow-2xl flex items-center justify-between cursor-pointer active:scale-98 transition transform border border-amber-200 shadow-amber-500/30"
           >
             <div className="flex items-center space-x-3">
-              <span className="w-7 h-7 bg-primary-600 rounded-full flex items-center justify-center font-bold text-xs">
+              <span className="w-8 h-8 bg-slate-950 text-amber-400 rounded-full flex items-center justify-center font-black text-xs shadow-sm">
                 {pricing.itemCount}
               </span>
               <div>
-                <div className="text-xs text-slate-400">Total</div>
-                <div className="font-bold text-sm text-emerald-400">
+                <div className="text-[10px] font-extrabold text-slate-900/80 uppercase tracking-wider">Your Dining Tab</div>
+                <div className="font-black text-base sm:text-lg text-slate-950 leading-tight">
                   {formatCurrency(pricing.totalAmount)}
                 </div>
               </div>
             </div>
-            <span className="font-semibold text-xs text-primary-400 flex items-center space-x-1">
-              <span>View Cart</span>
+            <div className="font-black text-xs uppercase tracking-wider bg-slate-950 text-amber-400 hover:text-white px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-md transition">
+              <span>View Order</span>
               <span>➔</span>
-            </span>
+            </div>
           </div>
         </div>
       )}
@@ -181,19 +182,23 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </div>
 
             {/* Footer Submit Button */}
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+            <div className="p-4 border-t border-slate-800 bg-slate-950">
               <button
+                data-testid="confirm-order-button"
                 disabled={items.length === 0 || isSubmitting || hasOutOfStockWarnings}
                 onClick={handleSubmit}
-                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl shadow-md transition active:scale-98 flex items-center justify-center space-x-2"
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-slate-950 font-black text-sm sm:text-base rounded-2xl shadow-xl shadow-amber-500/20 transition active:scale-98 flex items-center justify-center space-x-2"
               >
                 {isSubmitting ? (
-                  <span>Placing Order...</span>
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                    <span>Sending to Kitchen...</span>
+                  </span>
                 ) : hasOutOfStockWarnings ? (
-                  <span>Resolve Out of Stock Items</span>
+                  <span>Remove Unavailable Dishes</span>
                 ) : (
                   <>
-                    <span>Confirm & Send to Kitchen KDS</span>
+                    <span>👑 Confirm Order & Send to Kitchen</span>
                     <span>•</span>
                     <span>{formatCurrency(pricing.totalAmount)}</span>
                   </>

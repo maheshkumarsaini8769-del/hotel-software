@@ -246,7 +246,7 @@ export const AdminErpShell: React.FC = () => {
       case 'RECIPE_COSTING':
         return <RecipeCostingApp token={token} />;
       case 'STAFF_ROSTER':
-        return <StaffRosterApp />;
+        return <StaffRosterApp authToken={token} hotelId={hotelId} />;
       case 'NIGHT_AUDIT':
         return <NightAuditApp token={token} hotelId={hotelId} />;
       case 'REVENUE_MANAGER':

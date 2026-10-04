@@ -1,9 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { GuestRoomPortalApp } from './GuestRoomPortalApp';
-import { GuestPortalStore } from '@spicehub/ui';
+import { GuestPortalStore, LiveRoomOrder } from '@spicehub/ui';
+import { SpiceHubSocket } from '@spicehub/api-client';
 
 const store = GuestPortalStore.getInstance();
+const socket = SpiceHubSocket.getInstance();
 
 // 1. Resolve Target Room from URL parameters
 const urlParams = new URLSearchParams(window.location.search);
@@ -59,7 +61,7 @@ async function hydrateLiveRoomStay() {
           checkOutDate: stay.expectedCheckOutTimestamp,
           wifiPassword: stay.wifiPassword || `TajGuest@${room.roomNumber}`,
           wifiSsid: stay.wifiSsid || 'TajGateway_HighSpeed',
-          activeOrdersCount: 0,
+          activeOrdersCount: store.getActiveOrdersCount(),
           totalFolioAmount: folio?.netAmountPayable || 0,
         });
 
@@ -92,7 +94,90 @@ async function hydrateLiveRoomStay() {
   }
 }
 
+// 4. Hydrate existing in-room orders
+async function hydrateInRoomOrders() {
+  try {
+    const res = await fetch(`http://localhost:5000/api/v1/pms/frontdesk/inroom-orders/${targetRoom}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        const liveOrders: LiveRoomOrder[] = json.data.map((ord: any) => ({
+          id: ord.id,
+          orderNumber: ord.orderNumber,
+          orderStatus: ord.orderStatus,
+          placedAt: ord.placedAt,
+          preparedAt: ord.preparedAt,
+          readyAt: ord.readyAt,
+          servedAt: ord.servedAt,
+          cookingInstructions: ord.cookingInstructions,
+          items: (ord.items || []).map((it: any) => ({
+            menuItemId: it.menuItemId,
+            name: it.name,
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+            subtotal: it.subtotal,
+            specialInstructions: it.specialInstructions,
+          })),
+          grandTotal: ord.grandTotal,
+        }));
+        store.setLiveOrders(liveOrders);
+        if (liveOrders.length > 0 && !store.getSelectedLiveOrder()) {
+          store.openOrderTracker(liveOrders[0]);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[Guest Portal] In-room orders hydration note:`, err);
+  }
+}
+
 hydrateLiveRoomStay();
+hydrateInRoomOrders();
+
+// 5. Real-Time Socket Connection & Periodic Polling
+try {
+  socket.connect({
+    serverUrl: 'http://localhost:5000',
+    hotelId: 'global',
+    station: `guest_room_${targetRoom}`,
+  });
+
+  socket.on('order:status_updated', (data: any) => {
+    console.log('🔄 [GuestPortal] Order status updated via socket:', data);
+    store.handleOrderStatusUpdated({
+      orderId: data.orderId,
+      orderStatus: data.orderStatus,
+      readyAt: data.readyAt,
+    });
+  });
+
+  socket.on('pms:folio_updated', (data: any) => {
+    if (data.roomNumber === targetRoom) {
+      hydrateLiveRoomStay();
+    }
+  });
+} catch (e) {
+  console.warn('Socket init note:', e);
+}
+
+// Resilient polling for order status updates
+setInterval(async () => {
+  try {
+    const res = await fetch(`http://localhost:5000/api/v1/pms/frontdesk/inroom-orders/${targetRoom}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        json.data.forEach((ord: any) => {
+          store.handleOrderStatusUpdated({
+            orderId: ord.id,
+            orderStatus: ord.orderStatus,
+            readyAt: ord.readyAt,
+          });
+        });
+      }
+    }
+  } catch (e) {}
+}, 2500);
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
@@ -112,47 +197,84 @@ if (rootElement) {
           }
         }}
         onInRoomOrderPlaced={async (items) => {
-          const total = items.reduce((s, it) => s + it.price * it.quantity, 0);
-          const desc = `In-Room Dining: ` + items.map((i) => `${i.name} x${i.quantity}`).join(', ');
           try {
-            const res = await fetch('http://localhost:5000/api/v1/pms/frontdesk/post-inroom-charge', {
+            const res = await fetch('http://localhost:5000/api/v1/pms/frontdesk/inroom-order', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 roomNumber: targetRoom,
-                department: 'ROOM_SERVICE',
-                description: desc,
-                amount: total,
+                items: items.map((it) => ({
+                  dishId: it.dishId,
+                  name: it.name,
+                  quantity: it.quantity,
+                  price: it.price,
+                })),
+                cookingInstructions: 'Freshly prepared for Guest In-Room Dining',
               }),
             });
             const json = await res.json();
-            if (json.success && json.data?.folio) {
-              const fol = json.data.folio;
-              store.setFolioSummary({
-                folioNumber: fol.folioNumber,
-                totalRoomTariff: fol.totalRoomTariff || 0,
-                totalFoodAndBeverage: fol.totalFoodAndBeverage || 0,
-                totalTaxes: fol.totalTaxes || 0,
-                advancePaid: fol.advancePaid || 0,
-                paidAmount: fol.paidAmount || 0,
-                netAmountPayable: fol.netAmountPayable || 0,
-                dueAmount: fol.dueAmount || 0,
-                folioStatus: fol.folioStatus || 'OPEN',
-                lineItems: (fol.lineItems || []).map((li: any) => ({
-                  id: li.id || li._id || `li-${Date.now()}`,
-                  department: li.department || 'INCIDENTAL',
-                  description: li.description || 'Charge',
-                  rate: li.rate || 0,
-                  taxAmount: li.taxAmount || 0,
-                  netAmount: li.netAmount || 0,
-                  createdAt: li.postedAt || li.createdAt || new Date().toISOString(),
-                })),
-              });
+            if (json.success && json.data) {
+              const { order, folio } = json.data;
+              if (order) {
+                const liveOrd: LiveRoomOrder = {
+                  id: order.id,
+                  orderNumber: order.orderNumber,
+                  orderStatus: order.orderStatus,
+                  placedAt: order.placedAt,
+                  cookingInstructions: order.cookingInstructions,
+                  items: (order.items || []).map((it: any) => ({
+                    menuItemId: it.menuItemId,
+                    name: it.name,
+                    quantity: it.quantity,
+                    unitPrice: it.unitPrice,
+                    subtotal: it.subtotal,
+                    specialInstructions: it.specialInstructions,
+                  })),
+                  grandTotal: order.grandTotal,
+                };
+                store.addLiveOrder(liveOrd);
+                store.openOrderTracker(liveOrd);
+                store.setActiveTab('ORDERS');
+              }
+
+              if (folio) {
+                store.setFolioSummary({
+                  folioNumber: folio.folioNumber,
+                  totalRoomTariff: folio.totalRoomTariff || 0,
+                  totalFoodAndBeverage: folio.totalFoodAndBeverage || 0,
+                  totalTaxes: folio.totalTaxes || 0,
+                  advancePaid: folio.advancePaid || 0,
+                  paidAmount: folio.paidAmount || 0,
+                  netAmountPayable: folio.netAmountPayable || 0,
+                  dueAmount: folio.dueAmount || 0,
+                  folioStatus: folio.folioStatus || 'OPEN',
+                  lineItems: (folio.lineItems || []).map((li: any) => ({
+                    id: li.id || li._id || `li-${Date.now()}`,
+                    department: li.department || 'INCIDENTAL',
+                    description: li.description || 'Charge',
+                    rate: li.rate || 0,
+                    taxAmount: li.taxAmount || 0,
+                    netAmount: li.netAmount || 0,
+                    createdAt: li.postedAt || li.createdAt || new Date().toISOString(),
+                  })),
+                });
+
+                const cur = store.getSession();
+                if (cur) {
+                  store.setStayDetails({
+                    ...cur,
+                    totalFolioAmount: folio.netAmountPayable,
+                    activeOrdersCount: store.getActiveOrdersCount(),
+                  });
+                }
+              }
             }
           } catch (e) {
-            console.warn('Post order charge error:', e);
+            console.warn('In-room order placement error:', e);
           }
         }}
+        onRefreshOrders={hydrateInRoomOrders}
+        onRefreshFolio={hydrateLiveRoomStay}
         onExpressCheckout={async (notes) => {
           console.log(`💳 [Guest Room ${targetRoom}] Express checkout requested`, notes);
         }}

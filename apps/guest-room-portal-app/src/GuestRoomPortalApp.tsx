@@ -94,18 +94,6 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
           <InRoomDiningView
             roomNumber={session?.roomNumber || '102'}
             onOrderPlaced={async (items) => {
-              store.addLiveOrder({
-                orderId: `ord_ird_${Date.now()}`,
-                placedAt: new Date().toISOString(),
-                estimatedMinutes: 25,
-                status: 'PREPARING',
-                items: items.map((i) => ({
-                  name: i.name,
-                  quantity: i.quantity,
-                  unitPrice: i.price,
-                })),
-                totalAmount: items.reduce((s, it) => s + it.price * it.quantity, 0),
-              });
               if (onInRoomOrderPlaced) {
                 await onInRoomOrderPlaced(items);
               }
@@ -124,6 +112,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         {activeTab === 'FOLIO' && (
           <GuestFolioReviewModal
             folioSummary={folioSummary}
+            activeOrder={selectedOrder || (liveOrders.length > 0 ? liveOrders[0] : null)}
             onExpressCheckout={onExpressCheckout || (() => {})}
           />
         )}

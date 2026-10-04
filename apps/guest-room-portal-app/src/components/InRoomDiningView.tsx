@@ -220,6 +220,7 @@ export const InRoomDiningView: React.FC<InRoomDiningViewProps> = ({
                     </div>
                   ) : (
                     <button
+                      data-testid={`add-dish-${dish.id}`}
                       onClick={() => handleUpdate(dish.id, 1)}
                       className="w-full py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition"
                     >

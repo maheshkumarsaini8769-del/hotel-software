@@ -25,6 +25,9 @@ import {
   getInRoomLiveStay,
   postInRoomCharge,
   postConciergeRequest,
+  postInRoomOrder,
+  getInRoomOrders,
+  updateInRoomOrderStatus,
 } from '../controllers/frontDeskController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
@@ -93,6 +96,11 @@ router.get('/frontdesk/guest-history', authenticateFrontDeskTerminal, getGuestSt
 router.get('/frontdesk/room-stay-details/:roomNumber', authenticateFrontDeskTerminal, getInRoomLiveStay);
 router.post('/frontdesk/post-inroom-charge', authenticateFrontDeskTerminal, postInRoomCharge);
 router.post('/frontdesk/concierge-request', authenticateFrontDeskTerminal, postConciergeRequest);
+
+// Shift 59: Live In-Room Dining to Kitchen KDS Dispatch & Real-Time Folio Billing Loop
+router.post('/frontdesk/inroom-order', authenticateFrontDeskTerminal, postInRoomOrder);
+router.get('/frontdesk/inroom-orders/:roomNumber', authenticateFrontDeskTerminal, getInRoomOrders);
+router.patch('/frontdesk/inroom-order-status/:orderId', authenticateFrontDeskTerminal, updateInRoomOrderStatus);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

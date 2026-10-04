@@ -85,6 +85,7 @@ export const GuestPortalHeader: React.FC<GuestPortalHeaderProps> = ({
           return (
             <button
               key={tab.key}
+              data-testid={`guest-tab-${tab.key.toLowerCase()}`}
               onClick={() => onTabChange(tab.key as any)}
               className={`py-3 px-4 text-xs font-bold transition flex items-center space-x-2 border-b-2 relative shrink-0 ${
                 isActive

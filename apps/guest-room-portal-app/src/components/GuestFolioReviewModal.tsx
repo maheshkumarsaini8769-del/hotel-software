@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { FolioSummaryModel } from '../../../../packages/ui/src/guest-portal/types';
+import { FolioSummaryModel, LiveRoomOrder } from '../../../../packages/ui/src/guest-portal/types';
+import { GuestPortalHelper } from '../../../../packages/ui/src/guest-portal/GuestPortalHelper';
 import { formatCurrency } from '../../../../packages/ui/src/index';
 
 export interface GuestFolioReviewModalProps {
   folioSummary: FolioSummaryModel | null;
+  activeOrder?: LiveRoomOrder | null;
   onExpressCheckout: (notes?: string) => Promise<void> | void;
 }
 
 export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
   folioSummary,
+  activeOrder,
   onExpressCheckout,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -57,6 +60,64 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
           Real-time itemized billing for room tariff, dining, and incidental charges.
         </p>
       </div>
+
+      {/* Active In-Room Dining Dispatch Tracker Banner (if order active) */}
+      {activeOrder && (
+        <div data-testid="folio-active-order-tracker" className="bg-gradient-to-r from-amber-950/70 via-slate-900 to-amber-950/70 border border-amber-500/40 rounded-2xl p-4 shadow-xl">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm">⏱️</span>
+              <span className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                Live In-Room Dining Dispatch: {activeOrder.orderNumber}
+              </span>
+            </div>
+            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] px-2.5 py-0.5 rounded-full font-extrabold uppercase animate-pulse">
+              {GuestPortalHelper.getOrderStatusProgress(activeOrder.orderStatus).label}
+            </span>
+          </div>
+
+          {/* Stepper bar */}
+          <div className="relative flex items-center justify-between px-2 pt-1 pb-1">
+            <div className="absolute top-1/2 left-4 right-4 h-1 bg-slate-800 -translate-y-1/2 z-0" />
+            <div
+              className="absolute top-1/2 left-4 h-1 bg-gradient-to-r from-amber-500 to-amber-400 -translate-y-1/2 z-0 transition-all duration-500"
+              style={{
+                width: `${((GuestPortalHelper.getOrderStatusProgress(activeOrder.orderStatus).step - 1) / 3) * 92}%`,
+              }}
+            />
+            {[
+              { num: 1, label: 'Received', icon: '📝' },
+              { num: 2, label: 'Preparing', icon: '👨‍🍳' },
+              { num: 3, label: 'On The Way', icon: '🛎️' },
+              { num: 4, label: 'Delivered', icon: '🍽️' },
+            ].map((st) => {
+              const currentStep = GuestPortalHelper.getOrderStatusProgress(activeOrder.orderStatus).step;
+              const isPassed = currentStep >= st.num;
+              const isCurrent = currentStep === st.num;
+              return (
+                <div key={st.num} className="relative z-10 flex flex-col items-center">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition shadow ${
+                      isPassed
+                        ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-500/30 font-black'
+                        : 'bg-slate-800 text-slate-500 border border-slate-700'
+                    }`}
+                  >
+                    <span>{st.icon}</span>
+                  </div>
+                  <span
+                    className={`text-[9px] font-bold mt-1 text-center ${
+                      isCurrent ? 'text-amber-300' : isPassed ? 'text-slate-300' : 'text-slate-600'
+                    }`}
+                  >
+                    {st.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {checkoutResult && (
         <div

@@ -20,12 +20,15 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
   const formattedTimer = KdsHelper.formatElapsedTimer(order.elapsedMinutes);
 
   const getLocationLabel = () => {
+    if (order.roomNumber) {
+      return `Room ${order.roomNumber} (In-Room Dining)`;
+    }
+    if (order.orderType === 'ROOM_SERVICE') {
+      return `In-Room Dining`;
+    }
     if (order.tableNumber) {
       const t = order.tableNumber.toLowerCase().startsWith('table') ? order.tableNumber : `Table ${order.tableNumber}`;
       return `${t}${order.section ? ` (${order.section})` : ''}`;
-    }
-    if (order.roomNumber) {
-      return `Room ${order.roomNumber}`;
     }
     return order.orderType.replace('_', ' ');
   };
@@ -48,6 +51,7 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
 
   return (
     <div
+      data-testid={`kds-order-card-${order.id}`}
       className={`rounded-xl border-2 flex flex-col bg-slate-900 transition shadow-lg overflow-hidden ${urgencyStyle.border}`}
     >
       {/* Top Header */}
@@ -145,6 +149,7 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
       <div className="p-3 bg-slate-950/80 border-t border-slate-800 flex items-center space-x-2">
         {(order.orderStatus === 'PLACED' || order.orderStatus === 'ACCEPTED') && (
           <button
+            data-testid={`kds-btn-start-preparing-${order.id}`}
             onClick={() => onStartPreparing && onStartPreparing(order.id)}
             className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-lg shadow transition active:scale-98 flex items-center justify-center space-x-1.5"
           >
@@ -155,6 +160,7 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
 
         {order.orderStatus === 'PREPARING' && (
           <button
+            data-testid={`kds-btn-mark-ready-${order.id}`}
             onClick={() => onMarkReady && onMarkReady(order.id)}
             className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow transition active:scale-98 flex items-center justify-center space-x-1.5"
           >
@@ -165,6 +171,7 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
 
         {order.orderStatus === 'READY' && (
           <button
+            data-testid={`kds-btn-serve-${order.id}`}
             onClick={() => onMarkServed && onMarkServed(order.id)}
             className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg shadow transition active:scale-98 flex items-center justify-center space-x-1.5"
           >

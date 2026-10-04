@@ -48,7 +48,7 @@ export const LiveOrderTrackerModal: React.FC<LiveOrderTrackerModalProps> = ({
       </div>
 
       {/* Main Order Status Card */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+      <div data-testid="live-order-tracker" className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800 pb-4">
           <div>
             <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest block">
@@ -63,7 +63,10 @@ export const LiveOrderTrackerModal: React.FC<LiveOrderTrackerModalProps> = ({
             <span className="text-xs text-slate-400 font-mono">
               Placed at: {new Date(currentOrder.placedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
-            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs px-3 py-1 rounded-full font-extrabold uppercase animate-pulse">
+            <span
+              data-testid="order-progress-label"
+              className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs px-3 py-1 rounded-full font-extrabold uppercase animate-pulse"
+            >
               {progress.label}
             </span>
           </div>
@@ -83,7 +86,7 @@ export const LiveOrderTrackerModal: React.FC<LiveOrderTrackerModalProps> = ({
               const isCurrent = progress.step === st.num;
 
               return (
-                <div key={st.num} className="relative z-10 flex flex-col items-center">
+                <div key={st.num} data-testid={`stepper-step-${st.num}`} className="relative z-10 flex flex-col items-center">
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition shadow-md ${
                       isPassed

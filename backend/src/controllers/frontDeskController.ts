@@ -6,6 +6,14 @@ import { Stay, StayStatus } from '../models/Stay';
 import { GuestProfile, VIPTier } from '../models/GuestProfile';
 import { MasterFolio } from '../models/MasterFolio';
 import { FolioLineItem, DepartmentType } from '../models/FolioLineItem';
+import {
+  RestaurantOrder,
+  OrderType,
+  OverallOrderStatus,
+  OrderApprovalStatus,
+  ItemProductionStatus,
+} from '../models/RestaurantOrder';
+import { KitchenStation } from '../models/KitchenStation';
 import { TenantRequest } from '../types';
 import { io } from '../index';
 
@@ -771,6 +779,320 @@ export const getFrontDeskAvailableRooms = async (req: TenantRequest, res: Respon
     }));
 
     res.status(200).json({ success: true, count: formatted.length, data: formatted });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 9. Post Full In-Room Dining Culinary Order to Kitchen KDS & Master Folio
+export const postInRoomOrder = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { roomNumber, items = [], cookingInstructions } = req.body;
+    if (!roomNumber || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ORDER', message: 'roomNumber and non-empty items array are required' });
+      return;
+    }
+
+    const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
+    const room = await Room.findOne({
+      hotelId,
+      roomNumber: { $regex: new RegExp(`^${roomNumStr}$`, 'i') },
+    });
+
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
+      return;
+    }
+
+    const activeStay = await Stay.findOne({ hotelId, roomId: room._id, stayStatus: StayStatus.ACTIVE })
+      .populate('guestId', 'name phone')
+      .populate('bookingId', 'guestName guestPhone');
+
+    if (!activeStay) {
+      res.status(400).json({ success: false, errorCode: 'ROOM_NOT_OCCUPIED', message: `Room ${roomNumber} is not currently occupied` });
+      return;
+    }
+
+    let masterFolio = activeStay.masterFolioId
+      ? await MasterFolio.findById(activeStay.masterFolioId)
+      : await MasterFolio.findOne({ hotelId, stayId: activeStay._id, folioStatus: 'OPEN' });
+
+    if (!masterFolio) {
+      res.status(404).json({ success: false, errorCode: 'FOLIO_NOT_FOUND', message: 'Active folio not found for room' });
+      return;
+    }
+
+    // Resolve or find kitchen station
+    let kitchenStation = await KitchenStation.findOne({ hotelId });
+    if (!kitchenStation) {
+      kitchenStation = await KitchenStation.create({
+        hotelId,
+        stationName: 'Main Culinary Kitchen',
+        screenToken: `station-token-${Date.now()}`,
+        isOnline: true,
+      });
+    }
+
+    const mappedItems = items.map((it: any) => {
+      const qty = Number(it.quantity) || 1;
+      const price = Number(it.price || it.unitPrice) || 0;
+      return {
+        menuItemId: Types.ObjectId.isValid(it.menuItemId || it.dishId)
+          ? new Types.ObjectId(it.menuItemId || it.dishId)
+          : new Types.ObjectId(),
+        kitchenStationId: kitchenStation._id,
+        name: it.name,
+        quantity: qty,
+        unitPrice: price,
+        subtotal: qty * price,
+        itemStatus: ItemProductionStatus.PENDING,
+        specialInstructions: it.specialInstructions,
+      };
+    });
+
+    const foodSubtotal = mappedItems.reduce((acc: number, it: any) => acc + it.subtotal, 0);
+    const taxRate = 5; // 5% GST on Restaurant & In-Room Dining
+    const taxAmount = Math.round((foodSubtotal * (taxRate / 100)) * 100) / 100;
+    const orderGrandTotal = foodSubtotal + taxAmount;
+
+    const orderNumber = `ORD-RM${room.roomNumber}-${Date.now().toString().slice(-4)}`;
+    const guestName = (activeStay.guestId as any)?.name || (activeStay.bookingId as any)?.guestName || 'In-Room Guest';
+    const guestPhone = (activeStay.guestId as any)?.phone || (activeStay.bookingId as any)?.guestPhone || '';
+
+    // Create RestaurantOrder linked to room service
+    const order = await RestaurantOrder.create({
+      hotelId,
+      orderNumber,
+      orderType: OrderType.ROOM_SERVICE,
+      stayId: activeStay._id,
+      roomId: room._id,
+      folioId: masterFolio._id,
+      items: mappedItems,
+      cookingInstructions,
+      orderStatus: OverallOrderStatus.PLACED,
+      approvalStatus: OrderApprovalStatus.APPROVED_BY_WAITER,
+      placedAt: new Date(),
+      customerName: guestName,
+      customerPhone: guestPhone,
+      idempotencyKey: `inroom_${room._id}_${Date.now()}`,
+      isSweptToFolio: true,
+      sweptAt: new Date(),
+      sweptToFolioId: masterFolio._id,
+    });
+
+    // Create itemized FolioLineItem
+    const lineItem = await FolioLineItem.create({
+      hotelId,
+      folioId: masterFolio._id,
+      department: DepartmentType.ROOM_SERVICE,
+      description: `In-Room Dining: ${mappedItems.map((i) => `${i.name} x${i.quantity}`).join(', ')}`,
+      referenceId: order._id,
+      rate: foodSubtotal,
+      quantity: 1,
+      taxRate,
+      taxAmount,
+      netAmount: orderGrandTotal,
+      postedAt: new Date(),
+    });
+
+    // Update Master Folio totals
+    masterFolio.totalFoodAndBeverage = (masterFolio.totalFoodAndBeverage || 0) + foodSubtotal;
+    masterFolio.totalTaxes = (masterFolio.totalTaxes || 0) + taxAmount;
+    masterFolio.netAmountPayable = (masterFolio.netAmountPayable || 0) + orderGrandTotal;
+    masterFolio.dueAmount = Math.max(0, masterFolio.netAmountPayable - (masterFolio.paidAmount || 0));
+    await masterFolio.save();
+
+    const lineItems = await FolioLineItem.find({ hotelId, folioId: masterFolio._id }).sort({ postedAt: -1 });
+
+    // Real-time broadcasts to KDS screens (:3003) & Front Desk (:3005)
+    io.to(`${hotelId.toString()}_kds`).to(`${hotelId.toString()}_global`).emit('kitchen:new_order', {
+      orderId: order._id.toString(),
+      orderNumber: order.orderNumber,
+      roomNumber: room.roomNumber,
+      orderType: 'ROOM_SERVICE',
+      customerName: guestName,
+      items: order.items,
+      cookingInstructions,
+      orderStatus: 'PLACED',
+      placedAt: order.placedAt,
+    });
+
+    io.to(`${hotelId.toString()}_global`).emit('pms:inroom_order_placed', {
+      roomNumber: room.roomNumber,
+      orderNumber: order.orderNumber,
+      grandTotal: orderGrandTotal,
+      dueAmount: masterFolio.dueAmount,
+    });
+
+    io.to(`${hotelId.toString()}_global`).emit('pms:folio_updated', {
+      roomNumber: room.roomNumber,
+      folioNumber: masterFolio.folioNumber,
+      dueAmount: masterFolio.dueAmount,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Order ${order.orderNumber} dispatched to kitchen and charged ₹${orderGrandTotal} to Room ${room.roomNumber} folio`,
+      data: {
+        order: {
+          id: order._id.toString(),
+          orderNumber: order.orderNumber,
+          orderStatus: order.orderStatus,
+          placedAt: order.placedAt,
+          items: order.items,
+          cookingInstructions: order.cookingInstructions,
+          grandTotal: orderGrandTotal,
+        },
+        lineItem,
+        folio: {
+          folioId: masterFolio._id,
+          folioNumber: masterFolio.folioNumber,
+          totalRoomTariff: masterFolio.totalRoomTariff,
+          totalFoodAndBeverage: masterFolio.totalFoodAndBeverage,
+          totalLaundry: masterFolio.totalLaundry,
+          totalTaxes: masterFolio.totalTaxes,
+          advancePaid: masterFolio.advancePaid,
+          paidAmount: masterFolio.paidAmount,
+          netAmountPayable: masterFolio.netAmountPayable,
+          dueAmount: masterFolio.dueAmount,
+          folioStatus: masterFolio.folioStatus,
+          lineItems: lineItems.map((li: any) => ({
+            id: li._id,
+            department: li.department,
+            description: li.description,
+            rate: li.rate,
+            taxAmount: li.taxAmount,
+            netAmount: li.netAmount,
+            createdAt: li.postedAt,
+          })),
+        },
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 10. Fetch In-Room Dining Orders for Live Order Tracker (:3004)
+export const getInRoomOrders = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { roomNumber } = req.params;
+    const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
+
+    const room = await Room.findOne({
+      hotelId,
+      roomNumber: { $regex: new RegExp(`^${roomNumStr}$`, 'i') },
+    });
+
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
+      return;
+    }
+
+    const activeStay = await Stay.findOne({ hotelId, roomId: room._id, stayStatus: StayStatus.ACTIVE });
+    if (!activeStay) {
+      res.status(200).json({ success: true, count: 0, data: [] });
+      return;
+    }
+
+    const orders = await RestaurantOrder.find({
+      hotelId,
+      roomId: room._id,
+      stayId: activeStay._id,
+    }).sort({ placedAt: -1 });
+
+    const formatted = orders.map((ord: any) => ({
+      id: ord._id.toString(),
+      orderNumber: ord.orderNumber,
+      orderStatus: ord.orderStatus,
+      placedAt: ord.placedAt,
+      preparedAt: ord.preparedAt,
+      readyAt: ord.readyAt,
+      servedAt: ord.servedAt,
+      cookingInstructions: ord.cookingInstructions,
+      items: (ord.items || []).map((it: any) => ({
+        menuItemId: it.menuItemId?.toString(),
+        name: it.name,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        subtotal: it.subtotal,
+        specialInstructions: it.specialInstructions,
+      })),
+      grandTotal: ord.items.reduce((s: number, i: any) => s + (i.subtotal || 0), 0),
+    }));
+
+    res.status(200).json({ success: true, count: formatted.length, data: formatted });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 11. Kitchen KDS / Room Service Status Update (PLACED ➔ PREPARING ➔ READY ➔ SERVED)
+export const updateInRoomOrderStatus = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { orderId } = req.params;
+    const { status } = req.body;
+
+    if (!orderId || !Types.ObjectId.isValid(String(orderId))) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ORDER_ID', message: 'Valid orderId is required' });
+      return;
+    }
+
+    const order = await RestaurantOrder.findOne({ _id: new Types.ObjectId(String(orderId)), hotelId });
+    if (!order) {
+      res.status(404).json({ success: false, errorCode: 'ORDER_NOT_FOUND', message: 'Order not found' });
+      return;
+    }
+
+    order.orderStatus = status;
+    if (status === OverallOrderStatus.PREPARING) order.preparedAt = new Date();
+    if (status === OverallOrderStatus.READY) order.readyAt = new Date();
+    if (status === OverallOrderStatus.SERVED) order.servedAt = new Date();
+    await order.save();
+
+    // Broadcast live event to KDS & guest portal
+    io.to(`${hotelId.toString()}_global`).to(`${hotelId.toString()}_kds`).emit('order:status_updated', {
+      orderId: order._id.toString(),
+      orderStatus: order.orderStatus,
+      readyAt: order.readyAt,
+      servedAt: order.servedAt,
+    });
+
+    io.to(`${hotelId.toString()}_kds`).emit('kds:order_updated', {
+      orderId: order._id.toString(),
+      orderStatus: order.orderStatus,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Order ${order.orderNumber} status updated to ${status}`,
+      data: {
+        orderId: order._id.toString(),
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        preparedAt: order.preparedAt,
+        readyAt: order.readyAt,
+        servedAt: order.servedAt,
+      },
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
   }

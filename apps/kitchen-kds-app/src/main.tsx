@@ -82,7 +82,9 @@ export const KitchenKdsAppRoot: React.FC = () => {
                 const ordersBody = await ordersRes.json();
                 if (ordersBody.success && Array.isArray(ordersBody.data)) {
                   ordersBody.data.forEach((ord: any) => {
-                    const tableNumber = ord.tableId?.tableNumber || ord.tableNumber || 'Table 4';
+                    const roomNumber = ord.roomId?.roomNumber || ord.roomNumber;
+                    const tableNumber = ord.tableId?.tableNumber || ord.tableNumber || (roomNumber ? undefined : 'Table 4');
+                    const orderType = ord.orderType || (roomNumber ? 'ROOM_SERVICE' : 'DINE_IN');
                     const items = (ord.items || []).map((it: any, idx: number) => ({
                       itemId: it._id?.toString() || `item-${idx}`,
                       menuItemId: it.menuItemId?.toString() || `mi-${idx}`,
@@ -100,8 +102,10 @@ export const KitchenKdsAppRoot: React.FC = () => {
                     const kdsOrder: KdsOrderCardModel = {
                       id: ord._id.toString(),
                       orderNumber: ord.orderNumber || `KOT #${ord._id.toString().slice(-4)}`,
-                      orderType: ord.orderType || 'DINE_IN',
+                      orderType,
                       tableNumber,
+                      roomNumber,
+                      roomId: ord.roomId?._id?.toString() || ord.roomId?.toString(),
                       orderStatus: ord.orderStatus || 'PLACED',
                       placedAt: ord.placedAt || ord.createdAt || new Date().toISOString(),
                       elapsedMinutes: 0,
@@ -124,6 +128,56 @@ export const KitchenKdsAppRoot: React.FC = () => {
     }
     init();
   }, []);
+
+  // Periodic poll to refresh KDS orders resiliently
+  useEffect(() => {
+    if (!hotelId) return;
+    const interval = setInterval(async () => {
+      try {
+        const ordersRes = await fetch(`http://localhost:5000/api/v1/pos/kds/orders?hotelId=${hotelId}`);
+        if (ordersRes.ok) {
+          const ordersBody = await ordersRes.json();
+          if (ordersBody.success && Array.isArray(ordersBody.data)) {
+            ordersBody.data.forEach((ord: any) => {
+              const roomNumber = ord.roomId?.roomNumber || ord.roomNumber;
+              const tableNumber = ord.tableId?.tableNumber || ord.tableNumber || (roomNumber ? undefined : 'Table 4');
+              const orderType = ord.orderType || (roomNumber ? 'ROOM_SERVICE' : 'DINE_IN');
+              const items = (ord.items || []).map((it: any, idx: number) => ({
+                itemId: it._id?.toString() || `item-${idx}`,
+                menuItemId: it.menuItemId?.toString() || `mi-${idx}`,
+                name: it.name || 'Dish',
+                quantity: it.quantity || 1,
+                unitPrice: it.unitPrice || 200,
+                subtotal: it.subtotal || 200,
+                kitchenStationId: it.kitchenStationId?.toString() || 'st-curry',
+                itemStatus: it.itemStatus || 'PENDING',
+                specialInstructions: it.specialInstructions,
+                allergens: it.allergens || [],
+                hasAllergenAlert: it.hasAllergenAlert || false,
+              }));
+
+              const kdsOrder: KdsOrderCardModel = {
+                id: ord._id.toString(),
+                orderNumber: ord.orderNumber || `KOT #${ord._id.toString().slice(-4)}`,
+                orderType,
+                tableNumber,
+                roomNumber,
+                roomId: ord.roomId?._id?.toString() || ord.roomId?.toString(),
+                orderStatus: ord.orderStatus || 'PLACED',
+                placedAt: ord.placedAt || ord.createdAt || new Date().toISOString(),
+                elapsedMinutes: 0,
+                urgencyLevel: 'NORMAL',
+                items,
+                cookingInstructions: ord.cookingInstructions,
+              };
+              store.handleNewOrder(kdsOrder);
+            });
+          }
+        }
+      } catch (e) {}
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [hotelId]);
 
   // Seed sample initial kitchen stations if none
   useEffect(() => {
@@ -149,7 +203,9 @@ export const KitchenKdsAppRoot: React.FC = () => {
 
       const orderId = data.id || data.orderId || `ord-${Date.now()}`;
       const orderNumber = data.orderNumber || `KOT #${Date.now().toString().slice(-4)}`;
-      const tableNumber = data.table || data.tableNumber || 'Table 4';
+      const roomNumber = data.roomNumber || (data.room ? String(data.room) : undefined);
+      const tableNumber = data.tableNumber || data.table || (roomNumber ? undefined : 'Table 4');
+      const orderType = data.orderType || (roomNumber ? 'ROOM_SERVICE' : 'DINE_IN');
 
       const items = (data.items || []).map((it: any, idx: number) => ({
         itemId: it.itemId || it._id || `item-${Date.now()}-${idx}`,
@@ -168,9 +224,10 @@ export const KitchenKdsAppRoot: React.FC = () => {
       const newKdsOrder: KdsOrderCardModel = {
         id: orderId,
         orderNumber,
-        orderType: data.orderType || 'DINE_IN',
+        orderType,
         tableNumber,
-        orderStatus: 'PLACED',
+        roomNumber,
+        orderStatus: data.orderStatus || 'PLACED',
         placedAt: data.placedAt || new Date().toISOString(),
         elapsedMinutes: 0,
         urgencyLevel: 'NORMAL',
@@ -179,13 +236,16 @@ export const KitchenKdsAppRoot: React.FC = () => {
       };
 
       store.handleNewOrder(newKdsOrder);
-      setToast(`🔥 NEW TICKET: ${orderNumber} for ${tableNumber} (${items.length} dishes)!`);
+      const locText = roomNumber ? `Room ${roomNumber}` : tableNumber;
+      setToast(`🔥 NEW TICKET: ${orderNumber} for ${locText} (${items.length} dishes)!`);
       setTimeout(() => setToast(null), 6000);
     };
 
     const unbindCreated = socket.on('order:created', handleNewOrder);
     const unbindNewOrder = socket.on('new_order', handleNewOrder);
+    const unbindKitchenNewOrder = socket.on('kitchen:new_order', handleNewOrder);
     const unbindOrderPlaced = socket.on('order:placed', handleNewOrder);
+    const unbindInroomPlaced = socket.on('pms:inroom_order_placed', handleNewOrder);
 
     const unbindStatus = socket.on('order:status_updated', (payload: any) => {
       console.log('🔄 [KDSApp] Order status updated:', payload);
@@ -219,7 +279,9 @@ export const KitchenKdsAppRoot: React.FC = () => {
     return () => {
       unbindCreated();
       unbindNewOrder();
+      unbindKitchenNewOrder();
       unbindOrderPlaced();
+      unbindInroomPlaced();
       unbindStatus();
       unbindLowStock();
       unbindItem86();
@@ -250,6 +312,13 @@ export const KitchenKdsAppRoot: React.FC = () => {
               headers: { 'Content-Type': 'application/json', 'x-hotel-id': hotelId },
               body: JSON.stringify({ status: 'PREPARING' }),
             }).catch((err) => console.warn('HTTP status patch failed:', err));
+
+            await fetch(`http://localhost:5000/api/v1/pms/frontdesk/inroom-order-status/${orderId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'x-hotel-id': hotelId },
+              body: JSON.stringify({ status: 'PREPARING' }),
+            }).catch(() => {});
+
             socket.emit('kds:order_preparing', { orderId, hotelId });
           } catch (e: any) {
             console.warn(e.message);
@@ -265,12 +334,43 @@ export const KitchenKdsAppRoot: React.FC = () => {
               headers: { 'Content-Type': 'application/json', 'x-hotel-id': hotelId },
               body: JSON.stringify({ status: 'READY' }),
             }).catch((err) => console.warn('HTTP status patch failed:', err));
+
+            await fetch(`http://localhost:5000/api/v1/pms/frontdesk/inroom-order-status/${orderId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'x-hotel-id': hotelId },
+              body: JSON.stringify({ status: 'READY' }),
+            }).catch(() => {});
+
             socket.emit('kds:order_ready', {
               orderId,
               hotelId,
-              tableNumber: currentOrder?.tableNumber || 'Table 4',
+              tableNumber: currentOrder?.tableNumber,
+              roomNumber: currentOrder?.roomNumber,
             });
-            setToast(`✅ Order ${currentOrder?.orderNumber || orderId} marked READY! Waiter notified for pickup.`);
+            setToast(`✅ Order ${currentOrder?.orderNumber || orderId} marked READY!`);
+            setTimeout(() => setToast(null), 5000);
+          } catch (e: any) {
+            console.warn(e.message);
+          }
+        }}
+        onMarkServed={async (orderId) => {
+          console.log(`🍽️ [KDS] Order served: ${orderId}`);
+          try {
+            const currentOrder = store.getOrders().find((o) => o.id === orderId);
+            store.markOrderServed(orderId);
+            await fetch(`http://localhost:5000/api/v1/pos/kds/order/${orderId}/status`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'x-hotel-id': hotelId },
+              body: JSON.stringify({ status: 'SERVED' }),
+            }).catch(() => {});
+
+            await fetch(`http://localhost:5000/api/v1/pms/frontdesk/inroom-order-status/${orderId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'x-hotel-id': hotelId },
+              body: JSON.stringify({ status: 'SERVED' }),
+            }).catch(() => {});
+
+            setToast(`🍽️ Order ${currentOrder?.orderNumber || orderId} marked SERVED!`);
             setTimeout(() => setToast(null), 5000);
           } catch (e: any) {
             console.warn(e.message);

@@ -6,6 +6,21 @@ export enum StayStatus {
   CHECKED_OUT = 'CHECKED_OUT'
 }
 
+export interface IRoomMoveRecord {
+  fromRoomId: Types.ObjectId;
+  fromRoomNumber: string;
+  toRoomId: Types.ObjectId;
+  toRoomNumber: string;
+  movedAt: Date;
+  movedByUserId?: Types.ObjectId;
+  reason: string;
+  upgradeFee: number;
+  taxAmount: number;
+  totalCharge: number;
+  notes?: string;
+  newKeyCardIssued?: string;
+}
+
 export interface IStay extends Document {
   hotelId: Types.ObjectId;
   bookingId: Types.ObjectId;
@@ -33,6 +48,7 @@ export interface IStay extends Document {
   checkoutFeedbackComment?: string;
   taxInvoiceNumber?: string;
   keyCardVoided?: boolean;
+  roomMoveHistory?: IRoomMoveRecord[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -74,6 +90,22 @@ const StaySchema = new Schema<IStay>(
     checkoutFeedbackComment: { type: String, trim: true },
     taxInvoiceNumber: { type: String, trim: true },
     keyCardVoided: { type: Boolean, default: false },
+    roomMoveHistory: [
+      {
+        fromRoomId: { type: Schema.Types.ObjectId, ref: 'Room' },
+        fromRoomNumber: { type: String },
+        toRoomId: { type: Schema.Types.ObjectId, ref: 'Room' },
+        toRoomNumber: { type: String },
+        movedAt: { type: Date, default: Date.now },
+        movedByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+        reason: { type: String, default: 'GUEST_REQUEST' },
+        upgradeFee: { type: Number, default: 0 },
+        taxAmount: { type: Number, default: 0 },
+        totalCharge: { type: Number, default: 0 },
+        notes: { type: String, trim: true },
+        newKeyCardIssued: { type: String },
+      },
+    ],
   },
   { timestamps: true }
 );

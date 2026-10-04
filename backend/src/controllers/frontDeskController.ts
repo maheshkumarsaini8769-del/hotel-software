@@ -2512,3 +2512,280 @@ export const resolveAndReleaseMaintenanceRoom = async (req: TenantRequest, res: 
   }
 };
 
+// =============================================================================
+// Shift 64: In-House Guest Room Move, Room Upgrade & Keycard Re-Issuance Pipeline
+// =============================================================================
+
+// 24. Fetch Available Destination / Upgrade Rooms for In-House Guest Transfer
+export const getAvailableUpgradeRooms = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { currentRoomNumber } = req.query;
+    let currentRoom: any = null;
+    if (currentRoomNumber) {
+      currentRoom = await Room.findOne({
+        hotelId,
+        roomNumber: { $regex: new RegExp(`^${currentRoomNumber}$`, 'i') },
+      }).populate('roomTypeId');
+    }
+
+    const rooms = await Room.find({
+      hotelId,
+      status: RoomStatus.AVAILABLE,
+    })
+      .populate('roomTypeId')
+      .sort({ floorNumber: 1, roomNumber: 1 });
+
+    const currentRate = (currentRoom?.roomTypeId as any)?.basePriceOvernight || 0;
+
+    const availableRooms = rooms
+      .filter((r) => !currentRoom || !r._id.equals(currentRoom._id))
+      .map((r: any) => {
+        const targetRate = r.roomTypeId?.basePriceOvernight || 0;
+        const suggestedDiff = Math.max(0, targetRate - currentRate);
+        return {
+          roomId: r._id.toString(),
+          roomNumber: r.roomNumber,
+          floorNumber: r.floorNumber,
+          wing: r.wing || 'Main Wing',
+          roomType: r.roomTypeId?.name || 'Standard Room',
+          basePrice: targetRate,
+          currentRoomPrice: currentRate,
+          suggestedUpgradeFee: suggestedDiff,
+          status: r.status,
+        };
+      });
+
+    res.status(200).json({
+      success: true,
+      count: availableRooms.length,
+      data: availableRooms,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 25. Execute In-House Room Move & Upgrade, Re-Issue Key, Post Tariff GST & Trigger Housekeeping
+export const executeRoomMove = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const {
+      stayId,
+      currentRoomNumber,
+      targetRoomNumber,
+      reason = 'GUEST_REQUEST',
+      upgradeFee = 0,
+      notes = '',
+    } = req.body;
+
+    if (!targetRoomNumber) {
+      res.status(400).json({ success: false, errorCode: 'MISSING_TARGET_ROOM', message: 'Target room number is required' });
+      return;
+    }
+
+    // 1. Locate active stay
+    let stay: any = null;
+    if (stayId) {
+      stay = await Stay.findOne({ _id: new Types.ObjectId(stayId), hotelId, stayStatus: StayStatus.ACTIVE })
+        .populate('roomId')
+        .populate('guestId')
+        .populate('masterFolioId');
+    } else if (currentRoomNumber) {
+      const curRoom = await Room.findOne({
+        hotelId,
+        roomNumber: { $regex: new RegExp(`^${currentRoomNumber}$`, 'i') },
+      });
+      if (curRoom) {
+        stay = await Stay.findOne({ hotelId, roomId: curRoom._id, stayStatus: StayStatus.ACTIVE })
+          .populate('roomId')
+          .populate('guestId')
+          .populate('masterFolioId');
+      }
+    }
+
+    if (!stay) {
+      res.status(404).json({ success: false, errorCode: 'STAY_NOT_FOUND', message: 'Active stay not found for room move' });
+      return;
+    }
+
+    const sourceRoom = stay.roomId;
+    if (!sourceRoom) {
+      res.status(404).json({ success: false, errorCode: 'SOURCE_ROOM_NOT_FOUND', message: 'Source room details missing' });
+      return;
+    }
+
+    // 2. Locate target room
+    const targetRoom = await Room.findOne({
+      hotelId,
+      roomNumber: { $regex: new RegExp(`^${targetRoomNumber}$`, 'i') },
+    }).populate('roomTypeId');
+
+    if (!targetRoom) {
+      res.status(404).json({ success: false, errorCode: 'TARGET_ROOM_NOT_FOUND', message: `Destination room ${targetRoomNumber} not found` });
+      return;
+    }
+
+    if (sourceRoom._id.equals(targetRoom._id)) {
+      res.status(400).json({ success: false, errorCode: 'SAME_ROOM_ERROR', message: 'Destination room cannot be the same as current room' });
+      return;
+    }
+
+    if (targetRoom.status !== RoomStatus.AVAILABLE) {
+      res.status(409).json({
+        success: false,
+        errorCode: 'ROOM_NOT_AVAILABLE',
+        message: `Destination room ${targetRoomNumber} is currently ${targetRoom.status}. Must be AVAILABLE.`,
+      });
+      return;
+    }
+
+    // 3. Post upgrade fee & GST if upgradeFee > 0
+    const fee = Math.max(0, Number(upgradeFee) || 0);
+    let taxAmount = 0;
+    let totalCharge = 0;
+    const taxRate = 12; // Standard PMS tariff GST 12%
+
+    let folio = stay.masterFolioId;
+    if (fee > 0 && folio) {
+      taxAmount = Math.round((fee * taxRate) / 100);
+      totalCharge = fee + taxAmount;
+
+      const userId = req.user?.userId ? new Types.ObjectId(req.user.userId) : undefined;
+
+      await FolioLineItem.create({
+        hotelId,
+        folioId: folio._id,
+        department: DepartmentType.ROOM_RENT,
+        description: `Room Move Upgrade Tariff: Room ${sourceRoom.roomNumber} -> ${targetRoom.roomNumber}`,
+        rate: fee,
+        quantity: 1,
+        taxRate,
+        taxAmount,
+        netAmount: totalCharge,
+        postedAt: new Date(),
+        postedByUserId: userId,
+      });
+
+      await MasterFolio.findByIdAndUpdate(folio._id, {
+        $inc: {
+          totalRoomTariff: fee,
+          totalTaxes: taxAmount,
+          netAmountPayable: totalCharge,
+          dueAmount: totalCharge,
+        },
+        roomId: targetRoom._id,
+      });
+    } else if (folio) {
+      await MasterFolio.findByIdAndUpdate(folio._id, {
+        roomId: targetRoom._id,
+      });
+    }
+
+    // 4. Generate new digital keycard & update stay
+    const newKeyCard = `KEY-RM${targetRoom.roomNumber}-${Date.now().toString().slice(-6)}`;
+    const guestName = stay.guestId?.name || 'In-House Guest';
+    const userId = req.user?.userId ? new Types.ObjectId(req.user.userId) : undefined;
+
+    const moveLog = {
+      fromRoomId: sourceRoom._id,
+      fromRoomNumber: sourceRoom.roomNumber,
+      toRoomId: targetRoom._id,
+      toRoomNumber: targetRoom.roomNumber,
+      movedAt: new Date(),
+      movedByUserId: userId,
+      reason,
+      upgradeFee: fee,
+      taxAmount,
+      totalCharge,
+      notes: notes || '',
+      newKeyCardIssued: newKeyCard,
+    };
+
+    stay.roomId = targetRoom._id;
+    stay.keyCardIssued = newKeyCard;
+    stay.receptionistNotes = `${stay.receptionistNotes || ''} | Moved to Rm ${targetRoom.roomNumber} (${reason})`.trim();
+    if (!stay.roomMoveHistory) stay.roomMoveHistory = [];
+    stay.roomMoveHistory.push(moveLog);
+    await stay.save();
+
+    // 5. Update room statuses atomically
+    sourceRoom.status = RoomStatus.DIRTY;
+    await sourceRoom.save();
+
+    targetRoom.status = RoomStatus.OCCUPIED;
+    await targetRoom.save();
+
+    // 6. Auto-dispatch Housekeeping Turnaround Task for vacated source room
+    const hkTask = await HousekeepingTask.create({
+      hotelId,
+      roomId: sourceRoom._id,
+      taskType: HousekeepingTaskType.CHECKOUT_CLEAN,
+      priority: 'HIGH',
+      status: HousekeepingTaskStatus.PENDING,
+      checklist: [
+        { taskName: 'Strip and sanitize bed linens & pillow covers', isDone: false },
+        { taskName: 'Clean and disinfect bathroom, shower, vanity & fittings', isDone: false },
+        { taskName: 'Vacuum carpet & mop hard floors', isDone: false },
+        { taskName: 'Restock minibar, premium tea/coffee, bath amenities', isDone: false },
+        { taskName: 'Sanitize high-touch surfaces, remotes & door handles', isDone: false },
+        { taskName: 'Final supervisor turnaround inspection & air freshening', isDone: false },
+      ],
+      inspectionNotes: `Room move turnaround: Room ${sourceRoom.roomNumber} vacated by ${guestName} (transferred to Room ${targetRoom.roomNumber}).`,
+    });
+
+    // 7. Realtime Socket Broadcast
+    io.to(`${hotelId.toString()}_global`).emit('pms:room_moved', {
+      stayId: stay._id.toString(),
+      guestName,
+      fromRoomNumber: sourceRoom.roomNumber,
+      toRoomNumber: targetRoom.roomNumber,
+      newKeyCard,
+      fee,
+      turnaroundTaskId: hkTask._id.toString(),
+    });
+
+    // Refetch updated folio for summary
+    const updatedFolio = folio ? await MasterFolio.findById(folio._id) : null;
+
+    res.status(200).json({
+      success: true,
+      message: `Guest ${guestName} successfully moved from Room ${sourceRoom.roomNumber} to Room ${targetRoom.roomNumber}!`,
+      data: {
+        stayId: stay._id.toString(),
+        guestName,
+        fromRoom: {
+          id: sourceRoom._id.toString(),
+          roomNumber: sourceRoom.roomNumber,
+          status: RoomStatus.DIRTY,
+        },
+        toRoom: {
+          id: targetRoom._id.toString(),
+          roomNumber: targetRoom.roomNumber,
+          status: RoomStatus.OCCUPIED,
+          roomType: (targetRoom.roomTypeId as any)?.name || 'Room',
+        },
+        newKeyCard,
+        upgradeFee: fee,
+        taxAmount,
+        totalCharge,
+        updatedFolioDue: updatedFolio ? updatedFolio.dueAmount : 0,
+        turnaroundTaskId: hkTask._id.toString(),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+

@@ -198,6 +198,19 @@ export interface MaintenanceDeskTicket {
   createdAt: string;
 }
 
+// Shift 64: In-House Room Move & Upgrade Item
+export interface AvailableUpgradeRoom {
+  roomId: string;
+  roomNumber: string;
+  floorNumber: number;
+  wing: string;
+  roomType: string;
+  basePrice: number;
+  currentRoomPrice: number;
+  suggestedUpgradeFee: number;
+  status: string;
+}
+
 export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   authToken,
   hotelId: propHotelId,
@@ -237,6 +250,17 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [partsList, setPartsList] = useState<Array<{ partName: string; cost: number; quantity: number }>>([]);
   const [resolutionNotesText, setResolutionNotesText] = useState('');
   const [partsSubmitting, setPartsSubmitting] = useState(false);
+
+  // Shift 64: In-House Room Move & Upgrade Modal State
+  const [roomMoveModalOpen, setRoomMoveModalOpen] = useState(false);
+  const [selectedMoveGuest, setSelectedMoveGuest] = useState<InHouseGuest | null>(null);
+  const [availableUpgradeRooms, setAvailableUpgradeRooms] = useState<AvailableUpgradeRoom[]>([]);
+  const [loadingUpgradeRooms, setLoadingUpgradeRooms] = useState(false);
+  const [targetRoomNumber, setTargetRoomNumber] = useState('');
+  const [moveReason, setMoveReason] = useState<'UPGRADE' | 'MAINTENANCE_DEFECT' | 'NOISE_COMPLAINT' | 'GUEST_REQUEST'>('UPGRADE');
+  const [moveUpgradeFee, setMoveUpgradeFee] = useState<number>(0);
+  const [moveNotes, setMoveNotes] = useState('');
+  const [submittingRoomMove, setSubmittingRoomMove] = useState(false);
 
   // Check-In Form State
   const [guestName, setGuestName] = useState('');
@@ -509,6 +533,75 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       showToast(`Error resolving ticket: ${err.response?.data?.message || err.message}`);
     } finally {
       setPartsSubmitting(false);
+    }
+  };
+
+  // Shift 64: Room Move & Upgrade Handlers
+  const handleOpenRoomMoveModal = async (guest: InHouseGuest) => {
+    setSelectedMoveGuest(guest);
+    setTargetRoomNumber('');
+    setMoveReason('UPGRADE');
+    setMoveUpgradeFee(0);
+    setMoveNotes('');
+    setRoomMoveModalOpen(true);
+    setLoadingUpgradeRooms(true);
+
+    try {
+      const res = await axios.get(`${apiBase}/pms/frontdesk/available-upgrade-rooms`, {
+        headers: authHeaders,
+        params: { currentRoomNumber: guest.roomNumber },
+      });
+      if (res.data.success) {
+        const rooms = res.data.data || [];
+        setAvailableUpgradeRooms(rooms);
+        if (rooms.length > 0) {
+          setTargetRoomNumber(rooms[0].roomNumber);
+          setMoveUpgradeFee(rooms[0].suggestedUpgradeFee || 0);
+        }
+      }
+    } catch (err: any) {
+      showToast(`Error fetching available upgrade rooms: ${err.message}`);
+    } finally {
+      setLoadingUpgradeRooms(false);
+    }
+  };
+
+  const handleSelectTargetRoom = (roomNum: string) => {
+    setTargetRoomNumber(roomNum);
+    const matched = availableUpgradeRooms.find((r) => r.roomNumber === roomNum);
+    if (matched) {
+      setMoveUpgradeFee(matched.suggestedUpgradeFee || 0);
+    }
+  };
+
+  const handleExecuteRoomMove = async () => {
+    if (!selectedMoveGuest || !targetRoomNumber) {
+      showToast('⚠️ Please select a destination room.');
+      return;
+    }
+    setSubmittingRoomMove(true);
+    try {
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/room-move`,
+        {
+          stayId: selectedMoveGuest.stayId,
+          currentRoomNumber: selectedMoveGuest.roomNumber,
+          targetRoomNumber,
+          reason: moveReason,
+          upgradeFee: Number(moveUpgradeFee) || 0,
+          notes: moveNotes,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🔄 Room Move Successful! Guest moved to Room ${targetRoomNumber}. New Key: ${res.data.data?.newKeyCard || ''}`);
+        setRoomMoveModalOpen(false);
+        loadData();
+      }
+    } catch (err: any) {
+      showToast(`Error executing room move: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setSubmittingRoomMove(false);
     }
   };
 
@@ -1536,19 +1629,30 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      data-testid={`btn-settle-checkout-${guest.roomNumber}`}
-                      onClick={() => handleOpenSettleModal(guest)}
-                      className={`w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg transition flex items-center justify-center gap-1.5 ${
-                        guest.checkoutRequested
-                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-zinc-950 shadow-amber-500/30 ring-2 ring-amber-400/50'
-                          : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
-                      }`}
-                    >
-                      <span>{guest.checkoutRequested ? '⚡' : '✨'}</span>
-                      <span>{guest.checkoutRequested ? 'Settle & Process Express Departure' : 'Settle & Check-Out Room'}</span>
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        data-testid={`btn-room-move-${guest.roomNumber}`}
+                        onClick={() => handleOpenRoomMoveModal(guest)}
+                        className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-zinc-800 hover:bg-zinc-700 text-cyan-300 border border-zinc-700/80 transition flex items-center justify-center gap-1 hover:border-cyan-500/50"
+                      >
+                        <span>🔄</span>
+                        <span>Move / Upgrade</span>
+                      </button>
+                      <button
+                        type="button"
+                        data-testid={`btn-settle-checkout-${guest.roomNumber}`}
+                        onClick={() => handleOpenSettleModal(guest)}
+                        className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg transition flex items-center justify-center gap-1.5 ${
+                          guest.checkoutRequested
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-zinc-950 shadow-amber-500/30 ring-2 ring-amber-400/50'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
+                        }`}
+                      >
+                        <span>{guest.checkoutRequested ? '⚡' : '✨'}</span>
+                        <span>{guest.checkoutRequested ? 'Express Settle' : 'Check-Out'}</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -3028,6 +3132,174 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
                 >
                   {partsSubmitting ? 'Restoring Room...' : '⚡ Resolve & Restore to AVAILABLE'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 64: IN-HOUSE GUEST ROOM MOVE & UPGRADE MODAL */}
+        {roomMoveModalOpen && selectedMoveGuest && (
+          <div
+            data-testid="room-move-modal"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 relative text-zinc-100">
+              <div className="flex items-start justify-between border-b border-zinc-800/80 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-black text-white">Room Move & Suite Upgrade</span>
+                    <span className="text-xs font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded-full">
+                      SHIFT 64
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Transfer guest <strong className="text-amber-300">{selectedMoveGuest.guestName}</strong> from Room <strong className="text-white">{selectedMoveGuest.roomNumber}</strong>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-testid="btn-close-room-move-modal"
+                  onClick={() => setRoomMoveModalOpen(false)}
+                  className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                {/* Source Room Overview */}
+                <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider">Current Room</span>
+                    <div className="text-sm font-black text-white mt-0.5">Room {selectedMoveGuest.roomNumber} (Floor {selectedMoveGuest.floor})</div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider">Folio Due</span>
+                    <div className="text-sm font-black text-amber-400 mt-0.5">₹{selectedMoveGuest.balanceDue}</div>
+                  </div>
+                </div>
+
+                {/* Destination Room Selection */}
+                <div>
+                  <label className="text-zinc-300 font-bold block mb-1.5 flex items-center justify-between">
+                    <span>Select Destination Room</span>
+                    {loadingUpgradeRooms && <span className="text-[10px] text-cyan-400 animate-pulse">Loading rooms...</span>}
+                  </label>
+                  {availableUpgradeRooms.length === 0 && !loadingUpgradeRooms ? (
+                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+                      ⚠️ No other available rooms in ready state right now.
+                    </div>
+                  ) : (
+                    <select
+                      data-testid="select-target-room"
+                      value={targetRoomNumber}
+                      onChange={(e) => handleSelectTargetRoom(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-white font-medium focus:outline-none focus:border-cyan-500"
+                    >
+                      {availableUpgradeRooms.map((r) => (
+                        <option key={r.roomId} value={r.roomNumber}>
+                          Room {r.roomNumber} (Floor {r.floorNumber}) — {r.roomType} [₹{r.basePrice}/night] {r.suggestedUpgradeFee > 0 ? `(+₹${r.suggestedUpgradeFee} Upgrade)` : '(Even Move)'}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* Reason Selector */}
+                <div>
+                  <label className="text-zinc-300 font-bold block mb-1.5">Move Reason</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'UPGRADE', label: '⭐ Room Upgrade', desc: 'Paid / VIP terrace suite' },
+                      { id: 'MAINTENANCE_DEFECT', label: '🛠️ AC / Defect Move', desc: 'Technical room defect' },
+                      { id: 'NOISE_COMPLAINT', label: '🔇 Noise Complaint', desc: 'Quiet floor reassignment' },
+                      { id: 'GUEST_REQUEST', label: '👤 Guest Request', desc: 'General preference' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        data-testid={`btn-reason-${opt.id}`}
+                        onClick={() => setMoveReason(opt.id as any)}
+                        className={`p-2.5 rounded-xl border text-left transition-all ${
+                          moveReason === opt.id
+                            ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-lg shadow-cyan-500/10'
+                            : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                        }`}
+                      >
+                        <div className="font-bold text-xs">{opt.label}</div>
+                        <div className="text-[10px] text-zinc-500 mt-0.5">{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Upgrade Surcharge & GST */}
+                <div className="bg-zinc-900/50 p-3 rounded-2xl border border-zinc-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-zinc-300 font-bold">Upgrade Tariff Surcharge (₹)</label>
+                    <span className="text-[10px] text-zinc-400 font-mono">12% GST Auto-Calculated</span>
+                  </div>
+                  <input
+                    type="number"
+                    data-testid="input-upgrade-fee"
+                    min="0"
+                    value={moveUpgradeFee}
+                    onChange={(e) => setMoveUpgradeFee(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono font-bold focus:outline-none focus:border-cyan-500"
+                  />
+                  {moveUpgradeFee > 0 && (
+                    <div className="flex justify-between items-center text-[11px] pt-1 border-t border-zinc-800 text-zinc-400 font-mono">
+                      <span>Surcharge: ₹{moveUpgradeFee} + GST: ₹{Math.round(moveUpgradeFee * 0.12)}</span>
+                      <span className="text-emerald-400 font-bold">Total Posted: ₹{moveUpgradeFee + Math.round(moveUpgradeFee * 0.12)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="text-zinc-300 font-bold block mb-1">Receptionist Notes</label>
+                  <input
+                    type="text"
+                    data-testid="input-move-notes"
+                    value={moveNotes}
+                    onChange={(e) => setMoveNotes(e.target.value)}
+                    placeholder="e.g. Upgraded to Presidential Suite as VIP Platinum gesture."
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                {/* Operational Impact Notice */}
+                <div className="p-3 rounded-2xl bg-cyan-950/40 border border-cyan-800/50 text-[11px] text-cyan-200/90 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-cyan-300">
+                    <span>ℹ️</span> Operational Workflow Automation:
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 text-zinc-400 text-[10px]">
+                    <li>Room {selectedMoveGuest.roomNumber} will automatically vacate to <strong>DIRTY</strong> and queue for Housekeeping Turnaround.</li>
+                    <li>Target Room <strong>{targetRoomNumber || '...'}</strong> will atomically become <strong>OCCUPIED</strong>.</li>
+                    <li>New digital keycard token will be generated, invalidating old access.</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  data-testid="btn-cancel-room-move"
+                  onClick={() => setRoomMoveModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs uppercase tracking-wider transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-submit-room-move"
+                  disabled={submittingRoomMove || !targetRoomNumber}
+                  onClick={handleExecuteRoomMove}
+                  className="flex-2 py-3 px-6 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-cyan-950/40 disabled:opacity-50"
+                >
+                  {submittingRoomMove ? 'Transferring...' : 'Execute Room Move & Re-Issue Key'}
                 </button>
               </div>
             </div>

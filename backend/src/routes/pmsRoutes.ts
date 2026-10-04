@@ -44,6 +44,8 @@ import {
   assignMaintenanceTechnician,
   logMaintenancePartsAndCost,
   resolveAndReleaseMaintenanceRoom,
+  getAvailableUpgradeRooms,
+  executeRoomMove,
 } from '../controllers/frontDeskController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
@@ -141,6 +143,10 @@ router.post('/frontdesk/maintenance/create-ticket', authenticateFrontDeskTermina
 router.post('/frontdesk/maintenance/assign-technician', authenticateFrontDeskTerminal, assignMaintenanceTechnician);
 router.post('/frontdesk/maintenance/log-parts', authenticateFrontDeskTerminal, logMaintenancePartsAndCost);
 router.post('/frontdesk/maintenance/resolve-and-release', authenticateFrontDeskTerminal, resolveAndReleaseMaintenanceRoom);
+
+// Shift 64: In-House Guest Room Move, Room Upgrade & Keycard Re-Issuance Pipeline
+router.get('/frontdesk/available-upgrade-rooms', authenticateFrontDeskTerminal, getAvailableUpgradeRooms);
+router.post('/frontdesk/room-move', authenticateFrontDeskTerminal, executeRoomMove);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

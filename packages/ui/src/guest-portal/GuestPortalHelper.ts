@@ -50,6 +50,16 @@ export class GuestPortalHelper {
         icon: '⏰',
         requestType: 'WAKEUP_CALL',
       },
+      {
+        id: 'srv_laundry',
+        title: 'Express Laundry Bag',
+        subtitle: 'Wash, fold & dry clean bag (₹350 debited to Folio)',
+        icon: '🧺',
+        requestType: 'LAUNDRY',
+        isPopular: true,
+        isBillable: true,
+        price: 350,
+      },
     ];
   }
 

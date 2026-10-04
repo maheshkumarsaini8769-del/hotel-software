@@ -14,6 +14,12 @@ import {
   ItemProductionStatus,
 } from '../models/RestaurantOrder';
 import { KitchenStation } from '../models/KitchenStation';
+import {
+  ServiceRequest,
+  ServiceRequestType,
+  ServiceRequestPriority,
+  ServiceRequestStatus,
+} from '../models/ServiceRequest';
 import { TenantRequest } from '../types';
 import { io } from '../index';
 
@@ -629,7 +635,7 @@ export const postInRoomCharge = async (req: TenantRequest, res: Response): Promi
   }
 };
 
-// 6. Register In-Room Concierge / Housekeeping Request
+// 6. Register In-Room Concierge / Housekeeping Request (Shift 60 Enhanced)
 export const postConciergeRequest = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
     const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
@@ -638,7 +644,16 @@ export const postConciergeRequest = async (req: TenantRequest, res: Response): P
       return;
     }
 
-    const { roomNumber, requestType, notes } = req.body;
+    const {
+      roomNumber,
+      requestType,
+      notes,
+      priority,
+      isBillable,
+      billableAmount,
+      billableDescription,
+    } = req.body;
+
     if (!roomNumber || !requestType) {
       res.status(400).json({ success: false, errorCode: 'INVALID_PARAMS', message: 'roomNumber and requestType are required' });
       return;
@@ -649,27 +664,127 @@ export const postConciergeRequest = async (req: TenantRequest, res: Response): P
       roomNumber: { $regex: new RegExp(`^${String(roomNumber).trim()}$`, 'i') },
     });
 
-    if (room) {
-      const activeStay = await Stay.findOne({ hotelId, roomId: room._id, stayStatus: StayStatus.ACTIVE });
-      if (activeStay) {
-        const appended = `[Concierge: ${requestType}] ${notes || ''}`.trim();
-        activeStay.receptionistNotes = activeStay.receptionistNotes
-          ? `${activeStay.receptionistNotes} | ${appended}`
-          : appended;
-        await activeStay.save();
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
+      return;
+    }
+
+    const activeStay = await Stay.findOne({ hotelId, roomId: room._id, stayStatus: StayStatus.ACTIVE });
+
+    let lineItem: any = null;
+    let masterFolio: any = null;
+
+    // Handle billable services (e.g. Express Laundry or Paid Amenities)
+    if (isBillable && Number(billableAmount) > 0 && activeStay?.masterFolioId) {
+      masterFolio = await MasterFolio.findOne({ _id: activeStay.masterFolioId, hotelId });
+      if (masterFolio) {
+        const amount = Number(billableAmount);
+        const taxRate = 5;
+        const taxAmount = Math.round(amount * (taxRate / 100));
+        const netTotal = amount + taxAmount;
+
+        const dept = requestType === 'LAUNDRY' ? DepartmentType.LAUNDRY : DepartmentType.PAID_AMENITY;
+        lineItem = await FolioLineItem.create({
+          hotelId,
+          folioId: masterFolio._id,
+          stayId: activeStay._id,
+          department: dept,
+          description: billableDescription || `Concierge Service: ${requestType}`,
+          rate: amount,
+          quantity: 1,
+          taxRate,
+          taxAmount,
+          netAmount: netTotal,
+          postedAt: new Date(),
+        });
+
+        if (dept === DepartmentType.LAUNDRY) {
+          masterFolio.totalLaundry = (masterFolio.totalLaundry || 0) + amount;
+        } else {
+          masterFolio.totalPaidServices = (masterFolio.totalPaidServices || 0) + amount;
+        }
+
+        masterFolio.totalTaxes = (masterFolio.totalTaxes || 0) + taxAmount;
+        masterFolio.netAmountPayable = (masterFolio.netAmountPayable || 0) + netTotal;
+        masterFolio.dueAmount = Math.max(0, masterFolio.netAmountPayable - (masterFolio.paidAmount || 0));
+        await masterFolio.save();
+
+        io.to(`${hotelId.toString()}_global`).emit('pms:folio_updated', {
+          roomNumber: room.roomNumber,
+          folioNumber: masterFolio.folioNumber,
+          dueAmount: masterFolio.dueAmount,
+        });
       }
     }
 
-    io.to(`${hotelId.toString()}_global`).emit('pms:concierge_request', {
-      roomNumber,
-      requestType,
-      notes,
-      timestamp: new Date(),
+    // Map requestType to valid enum or fallback
+    let normalizedType = ServiceRequestType.ASSISTANCE;
+    if (Object.values(ServiceRequestType).includes(requestType as ServiceRequestType)) {
+      normalizedType = requestType as ServiceRequestType;
+    } else {
+      const upper = String(requestType).toUpperCase();
+      if (upper.includes('TOWEL')) normalizedType = ServiceRequestType.TOWEL_REPLENISH;
+      else if (upper.includes('CLEAN')) normalizedType = ServiceRequestType.ROOM_CLEANING;
+      else if (upper.includes('LAUNDRY')) normalizedType = ServiceRequestType.LAUNDRY;
+      else if (upper.includes('TOILET')) normalizedType = ServiceRequestType.TOILETRIES;
+      else if (upper.includes('LUGGAGE')) normalizedType = ServiceRequestType.LUGGAGE_ASSIST;
+      else if (upper.includes('MAINT') || upper.includes('AC')) normalizedType = ServiceRequestType.MAINTENANCE;
+      else if (upper.includes('WATER')) normalizedType = ServiceRequestType.WATER;
+    }
+
+    const priorityVal = priority === 'URGENT' ? ServiceRequestPriority.URGENT :
+                        priority === 'HIGH' ? ServiceRequestPriority.HIGH :
+                        ServiceRequestPriority.NORMAL;
+
+    const serviceRequest = await ServiceRequest.create({
+      hotelId,
+      sourceType: 'HOTEL_STAY',
+      roomId: room._id,
+      stayId: activeStay ? activeStay._id : undefined,
+      requestType: normalizedType,
+      priority: priorityVal,
+      status: ServiceRequestStatus.CREATED,
+      notes: notes || undefined,
+      slaMinutes: 15,
+      isBillable: !!isBillable,
+      billableAmount: Number(billableAmount) || 0,
+      folioLineItemId: lineItem ? lineItem._id : undefined,
     });
 
-    res.status(200).json({
+    if (activeStay) {
+      const appended = `[Concierge: ${normalizedType}] ${notes || ''}`.trim();
+      activeStay.receptionistNotes = activeStay.receptionistNotes
+        ? `${activeStay.receptionistNotes} | ${appended}`
+        : appended;
+      await activeStay.save();
+    }
+
+    const payload = {
+      requestId: serviceRequest._id.toString(),
+      roomNumber: room.roomNumber,
+      requestType: serviceRequest.requestType,
+      priority: serviceRequest.priority,
+      status: serviceRequest.status,
+      notes: serviceRequest.notes,
+      isBillable: serviceRequest.isBillable,
+      billableAmount: serviceRequest.billableAmount,
+      createdAt: serviceRequest.createdAt,
+    };
+
+    io.to(`${hotelId.toString()}_global`).emit('pms:concierge_request_created', payload);
+    io.to(`guest_room_${room.roomNumber}`).emit('pms:concierge_request_created', payload);
+
+    res.status(201).json({
       success: true,
-      message: `Concierge request for ${requestType} registered for Room ${roomNumber}`,
+      message: `Concierge request for ${normalizedType} registered for Room ${room.roomNumber}`,
+      data: {
+        request: payload,
+        folio: masterFolio ? {
+          folioNumber: masterFolio.folioNumber,
+          netAmountPayable: masterFolio.netAmountPayable,
+          dueAmount: masterFolio.dueAmount,
+        } : null,
+      },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
@@ -1092,6 +1207,174 @@ export const updateInRoomOrderStatus = async (req: TenantRequest, res: Response)
         readyAt: order.readyAt,
         servedAt: order.servedAt,
       },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 12. Fetch Front Desk Concierge & Housekeeping Queue (Shift 60)
+export const getConciergeRequests = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const requests = await ServiceRequest.find({
+      hotelId,
+      sourceType: 'HOTEL_STAY',
+    })
+      .populate('roomId', 'roomNumber floor roomType')
+      .populate('stayId')
+      .sort({ createdAt: -1 });
+
+    const formatted = await Promise.all(
+      requests.map(async (reqDoc: any) => {
+        let guestName = 'Hotel Guest';
+        if (reqDoc.stayId) {
+          const stay = await Stay.findById(reqDoc.stayId).populate('guestId', 'name phone');
+          if (stay && (stay.guestId as any)?.name) {
+            guestName = (stay.guestId as any).name;
+          }
+        }
+
+        const roomNum = reqDoc.roomId?.roomNumber || 'Unknown';
+        return {
+          id: reqDoc._id.toString(),
+          roomNumber: roomNum,
+          floor: reqDoc.roomId?.floor || 1,
+          guestName,
+          requestType: reqDoc.requestType,
+          priority: reqDoc.priority,
+          status: reqDoc.status,
+          notes: reqDoc.notes,
+          assignedStaffName: reqDoc.assignedStaffName || 'Unassigned',
+          slaMinutes: reqDoc.slaMinutes || 15,
+          isBillable: reqDoc.isBillable || false,
+          billableAmount: reqDoc.billableAmount || 0,
+          createdAt: reqDoc.createdAt,
+          acceptedAt: reqDoc.acceptedAt,
+          completedAt: reqDoc.completedAt,
+        };
+      })
+    );
+
+    res.status(200).json({ success: true, count: formatted.length, data: formatted });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 13. Fetch Live In-Room Concierge Requests for Room Portal (:3004) (Shift 60)
+export const getInRoomConciergeRequests = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { roomNumber } = req.params;
+    const room = await Room.findOne({
+      hotelId,
+      roomNumber: { $regex: new RegExp(`^${String(roomNumber).trim()}$`, 'i') },
+    });
+
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
+      return;
+    }
+
+    const requests = await ServiceRequest.find({
+      hotelId,
+      roomId: room._id,
+      sourceType: 'HOTEL_STAY',
+    }).sort({ createdAt: -1 });
+
+    const formatted = requests.map((r: any) => ({
+      id: r._id.toString(),
+      requestType: r.requestType,
+      priority: r.priority,
+      status: r.status,
+      notes: r.notes,
+      assignedStaffName: r.assignedStaffName || 'Attendant',
+      isBillable: r.isBillable,
+      billableAmount: r.billableAmount,
+      createdAt: r.createdAt,
+      acceptedAt: r.acceptedAt,
+      completedAt: r.completedAt,
+    }));
+
+    res.status(200).json({ success: true, count: formatted.length, data: formatted });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 14. Update Concierge Request Status & Assign Staff (Shift 60)
+export const updateConciergeRequestStatus = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { requestId } = req.params;
+    const { status, assignedStaffName, notes } = req.body;
+
+    if (!requestId || !Types.ObjectId.isValid(String(requestId))) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_REQUEST_ID', message: 'Valid requestId required' });
+      return;
+    }
+
+    const serviceReq = await ServiceRequest.findOne({ _id: new Types.ObjectId(String(requestId)), hotelId }).populate('roomId');
+    if (!serviceReq) {
+      res.status(404).json({ success: false, errorCode: 'REQUEST_NOT_FOUND', message: 'Service request not found' });
+      return;
+    }
+
+    if (status) {
+      serviceReq.status = status;
+      if (status === ServiceRequestStatus.ASSIGNED || status === ServiceRequestStatus.IN_PROGRESS) {
+        if (!serviceReq.acceptedAt) serviceReq.acceptedAt = new Date();
+      }
+      if (status === ServiceRequestStatus.COMPLETED) {
+        serviceReq.completedAt = new Date();
+      }
+    }
+
+    if (assignedStaffName) {
+      serviceReq.assignedStaffName = assignedStaffName;
+    }
+    if (notes) {
+      serviceReq.notes = notes;
+    }
+
+    await serviceReq.save();
+
+    const roomNum = (serviceReq.roomId as any)?.roomNumber || 'Unknown';
+    const payload = {
+      requestId: serviceReq._id.toString(),
+      roomNumber: roomNum,
+      requestType: serviceReq.requestType,
+      priority: serviceReq.priority,
+      status: serviceReq.status,
+      assignedStaffName: serviceReq.assignedStaffName,
+      acceptedAt: serviceReq.acceptedAt,
+      completedAt: serviceReq.completedAt,
+      notes: serviceReq.notes,
+    };
+
+    io.to(`${hotelId.toString()}_global`).emit('pms:concierge_request_updated', payload);
+    io.to(`guest_room_${roomNum}`).emit('pms:concierge_request_updated', payload);
+
+    res.status(200).json({
+      success: true,
+      message: `Concierge request updated to ${serviceReq.status}`,
+      data: payload,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });

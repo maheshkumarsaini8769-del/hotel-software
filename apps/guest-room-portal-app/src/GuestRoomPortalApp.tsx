@@ -13,7 +13,7 @@ import {
 
 export interface GuestRoomPortalAppProps {
   store: GuestPortalStore;
-  onConciergeRequest?: (requestType: string, notes?: string) => Promise<void> | void;
+  onConciergeRequest?: (requestType: string, notes?: string, isBillable?: boolean, billableAmount?: number) => Promise<void> | void;
   onInRoomOrderPlaced?: (items: { dishId: string; name: string; quantity: number; price: number }[]) => Promise<void> | void;
   onExpressCheckout?: (notes?: string) => Promise<void> | void;
   onRefreshOrders?: () => Promise<void> | void;
@@ -59,14 +59,22 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
     }
   };
 
-  const handleConciergeRequest = async (requestType: string, notes?: string) => {
+  const handleConciergeRequest = async (
+    requestType: string,
+    notes?: string,
+    isBillable?: boolean,
+    billableAmount?: number
+  ) => {
     if (onConciergeRequest) {
-      await onConciergeRequest(requestType, notes);
+      await onConciergeRequest(requestType, notes, isBillable, billableAmount);
     }
     store.addConciergeRequest({
       id: `req_${Date.now()}`,
       requestType,
       status: 'SUBMITTED',
+      notes,
+      isBillable,
+      billableAmount,
       createdAt: new Date().toISOString(),
     });
   };

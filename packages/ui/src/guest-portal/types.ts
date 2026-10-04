@@ -18,6 +18,8 @@ export interface ConciergeServiceItem {
   icon: string;
   requestType: string;
   isPopular?: boolean;
+  isBillable?: boolean;
+  price?: number;
 }
 
 export interface InRoomOrderItem {

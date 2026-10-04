@@ -75,16 +75,37 @@ interface GuestProfileHistory {
   }>;
 }
 
+export interface ConciergeDeskRequest {
+  id: string;
+  roomNumber: string;
+  floor: number;
+  guestName: string;
+  requestType: string;
+  priority: string;
+  status: string;
+  notes?: string;
+  assignedStaffName: string;
+  slaMinutes: number;
+  isBillable: boolean;
+  billableAmount: number;
+  createdAt: string;
+  acceptedAt?: string;
+  completedAt?: string;
+}
+
 export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   authToken,
   hotelId: propHotelId,
 }) => {
-  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY'>('CHECKIN');
+  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE'>('CHECKIN');
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Loaded Online Pre-Booking (if arriving via online queue)
   const [loadedBooking, setLoadedBooking] = useState<ExpectedArrival | null>(null);
+
+  // Concierge & Housekeeping Desk Requests (Shift 60)
+  const [conciergeRequests, setConciergeRequests] = useState<ConciergeDeskRequest[]>([]);
 
   // Check-In Form State
   const [guestName, setGuestName] = useState('');
@@ -175,13 +196,85 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
         ]);
         setSelectedRoomId('rm-101');
       }
+
+      // 4. Fetch Concierge & Housekeeping Desk Requests (Shift 60)
+      try {
+        const crRes = await axios.get(`${apiBase}/pms/frontdesk/concierge-requests`, {
+          headers: authHeaders,
+          params: { hotelId },
+        });
+        if (crRes.data.success) {
+          setConciergeRequests(crRes.data.data || []);
+        }
+      } catch (err: any) {
+        console.warn('Concierge requests note:', err.message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const loadConciergeRequests = async () => {
+    try {
+      const crRes = await axios.get(`${apiBase}/pms/frontdesk/concierge-requests`, {
+        headers: authHeaders,
+        params: { hotelId },
+      });
+      if (crRes.data.success) {
+        setConciergeRequests(crRes.data.data || []);
+      }
+    } catch (e) {}
+  };
+
+  const handleAssignStaff = async (requestId: string, staffName: string) => {
+    try {
+      const res = await axios.patch(
+        `${apiBase}/pms/frontdesk/concierge-request/${requestId}/status`,
+        {
+          status: 'ASSIGNED',
+          assignedStaffName: staffName,
+          notes: `${staffName} assigned to service task`,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`👤 Assigned ${staffName} to task! Status updated to ASSIGNED.`);
+        loadConciergeRequests();
+      }
+    } catch (err: any) {
+      showToast(`Error assigning staff: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  const handleUpdateConciergeStatus = async (requestId: string, status: string) => {
+    try {
+      const res = await axios.patch(
+        `${apiBase}/pms/frontdesk/concierge-request/${requestId}/status`,
+        {
+          status,
+          notes: status === 'COMPLETED' ? 'Task fulfilled and delivered to guest room' : 'Task in progress',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(
+          status === 'COMPLETED'
+            ? '✅ Service request marked FULFILLED & COMPLETED!'
+            : `🚀 Service request status updated to ${status}!`
+        );
+        loadConciergeRequests();
+      }
+    } catch (err: any) {
+      showToast(`Error updating status: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
   useEffect(() => {
     loadData();
+    const timer = setInterval(() => {
+      loadConciergeRequests();
+    }, 3000);
+    return () => clearInterval(timer);
   }, []);
 
   // 1-Click Load Online Pre-Booking into Terminal
@@ -301,8 +394,8 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           </div>
         </div>
 
-        {/* 4 Metric Badges */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* 5 Metric Badges */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div
             data-testid="metric-expected-arrivals"
             className="bg-zinc-950/70 border border-amber-500/40 p-3 rounded-2xl text-center cursor-pointer hover:border-amber-400 transition"
@@ -326,6 +419,16 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           <div className="bg-zinc-950/70 border border-cyan-500/30 p-3 rounded-2xl text-center">
             <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">Available Rooms</span>
             <div className="text-xl font-black text-cyan-400 mt-0.5">{availableRooms.length}</div>
+          </div>
+          <div
+            data-testid="metric-concierge-tasks"
+            className="bg-zinc-950/70 border border-purple-500/40 p-3 rounded-2xl text-center cursor-pointer hover:border-purple-400 transition"
+            onClick={() => setActiveTab('CONCIERGE')}
+          >
+            <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Concierge Tasks</span>
+            <div className="text-xl font-black text-purple-300 mt-0.5">
+              {conciergeRequests.filter((r) => r.status !== 'COMPLETED').length}
+            </div>
           </div>
         </div>
       </div>
@@ -379,6 +482,18 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }`}
         >
           <span>📜</span> Guest Stay History & Ledger
+        </button>
+        <button
+          type="button"
+          data-testid="tab-concierge"
+          onClick={() => setActiveTab('CONCIERGE')}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'CONCIERGE'
+              ? 'border-purple-400 text-purple-400 bg-purple-500/10'
+              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <span>🛎️</span> In-Room Concierge & Housekeeping Desk ({conciergeRequests.filter((r) => r.status !== 'COMPLETED').length})
         </button>
       </div>
 
@@ -970,6 +1085,213 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                           </div>
                         ))}
                       </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 5: IN-ROOM CONCIERGE & HOUSEKEEPING DESK (Shift 60) */}
+        {activeTab === 'CONCIERGE' && (
+          <div className="space-y-6">
+            <div className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">🛎️</span>
+                  <h2 className="text-lg font-black text-white">Digital Concierge & Housekeeping Dispatch Desk</h2>
+                </div>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Real-time room service and housekeeping requests dispatched from In-Room Guest Portal (:3004). Assign staff attendants and monitor resolution SLAs.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  data-testid="refresh-concierge-btn"
+                  onClick={loadConciergeRequests}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+                >
+                  <span>🔄</span> Refresh Desk
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-zinc-900/80 border border-purple-500/30 p-4 rounded-2xl text-center">
+                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Active In-Flight</span>
+                <div className="text-2xl font-black text-purple-300 mt-1">
+                  {conciergeRequests.filter((r) => r.status !== 'COMPLETED').length}
+                </div>
+              </div>
+              <div className="bg-zinc-900/80 border border-amber-500/30 p-4 rounded-2xl text-center">
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Billable / Laundry</span>
+                <div className="text-2xl font-black text-amber-300 mt-1">
+                  {conciergeRequests.filter((r) => r.isBillable).length}
+                </div>
+              </div>
+              <div className="bg-zinc-900/80 border border-blue-500/30 p-4 rounded-2xl text-center">
+                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Assigned Staff</span>
+                <div className="text-2xl font-black text-blue-300 mt-1">
+                  {conciergeRequests.filter((r) => r.status === 'ASSIGNED' || r.status === 'IN_PROGRESS').length}
+                </div>
+              </div>
+              <div className="bg-zinc-900/80 border border-emerald-500/30 p-4 rounded-2xl text-center">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Fulfilled Today</span>
+                <div className="text-2xl font-black text-emerald-400 mt-1">
+                  {conciergeRequests.filter((r) => r.status === 'COMPLETED').length}
+                </div>
+              </div>
+            </div>
+
+            {/* Requests Cards List */}
+            {conciergeRequests.length === 0 ? (
+              <div className="bg-zinc-900/50 border border-dashed border-zinc-800 p-12 rounded-3xl text-center">
+                <span className="text-4xl block mb-3">🛎️</span>
+                <h3 className="text-sm font-bold text-zinc-300">No Concierge or Housekeeping Requests Active</h3>
+                <p className="text-xs text-zinc-500 mt-1">
+                  When guests submit towel replenishment, room cleaning, or laundry requests via the room portal (:3004), they will appear here live.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {conciergeRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    data-testid={`concierge-card-${req.roomNumber}`}
+                    className="bg-zinc-900/90 border border-zinc-800 hover:border-purple-500/40 p-5 rounded-3xl transition flex flex-col lg:flex-row lg:items-center justify-between gap-5"
+                  >
+                    {/* Left: Room & Request Information */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="px-3 py-1 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-black font-mono">
+                          ROOM {req.roomNumber}
+                        </span>
+                        <span className="text-sm font-black text-white">{req.guestName}</span>
+                        <span className="text-xs text-zinc-500">• Fl {req.floor}</span>
+
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
+                            req.priority === 'URGENT'
+                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                              : req.priority === 'HIGH'
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                          }`}
+                        >
+                          {req.priority} Priority
+                        </span>
+
+                        {req.isBillable && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                            💰 ₹{req.billableAmount} + 5% GST (Posted to Master Folio)
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">
+                          {req.requestType === 'TOWEL_REPLENISH'
+                            ? '🧴'
+                            : req.requestType === 'LAUNDRY'
+                            ? '🧺'
+                            : req.requestType === 'ROOM_CLEANING'
+                            ? '🧹'
+                            : req.requestType === 'TOILETRIES'
+                            ? '🪥'
+                            : req.requestType === 'LUGGAGE_ASSIST'
+                            ? '🧳'
+                            : '🛎️'}
+                        </span>
+                        <span className="text-sm font-bold text-amber-300 uppercase tracking-wide">
+                          {req.requestType.replace('_', ' ')}
+                        </span>
+                        {req.notes && (
+                          <span className="text-xs text-zinc-300 italic font-medium ml-2">
+                            "{req.notes}"
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-4 text-[11px] text-zinc-400">
+                        <span>Requested: {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>• SLA Target: {req.slaMinutes}m</span>
+                        {req.assignedStaffName && req.assignedStaffName !== 'Unassigned' && (
+                          <span className="text-purple-300 font-bold">
+                            • Assigned Attendant: {req.assignedStaffName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right: Status Pill & Interactive Controls */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                      <span
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase text-center border ${
+                          req.status === 'COMPLETED'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : req.status === 'IN_PROGRESS'
+                            ? 'bg-blue-500/20 text-blue-300 border-blue-500/40 animate-pulse'
+                            : req.status === 'ASSIGNED'
+                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                            : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        }`}
+                      >
+                        {req.status === 'COMPLETED'
+                          ? '✅ Fulfilled'
+                          : req.status === 'IN_PROGRESS'
+                          ? '🚀 On The Way'
+                          : req.status === 'ASSIGNED'
+                          ? '👤 Staff Assigned'
+                          : '⏳ Pending Dispatch'}
+                      </span>
+
+                      {req.status !== 'COMPLETED' && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {req.status === 'CREATED' && (
+                            <>
+                              <button
+                                type="button"
+                                data-testid={`assign-sunita-${req.roomNumber}`}
+                                onClick={() => handleAssignStaff(req.id, 'Sunita Sharma (Housekeeping)')}
+                                className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md transition"
+                              >
+                                👤 Assign Sunita
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAssignStaff(req.id, 'Ramesh Kumar (Captain)')}
+                                className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs transition"
+                              >
+                                👤 Assign Ramesh
+                              </button>
+                            </>
+                          )}
+
+                          {req.status === 'ASSIGNED' && (
+                            <button
+                              type="button"
+                              data-testid={`inprogress-btn-${req.roomNumber}`}
+                              onClick={() => handleUpdateConciergeStatus(req.id, 'IN_PROGRESS')}
+                              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition"
+                            >
+                              🚀 Mark In-Progress
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            data-testid={`fulfill-btn-${req.roomNumber}`}
+                            onClick={() => handleUpdateConciergeStatus(req.id, 'COMPLETED')}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-950/40 transition"
+                          >
+                            ✅ Fulfill & Deliver
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

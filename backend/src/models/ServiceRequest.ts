@@ -12,7 +12,11 @@ export enum ServiceRequestType {
   EXTRA_CHAIR = 'EXTRA_CHAIR',
   ASSISTANCE = 'ASSISTANCE',
   HOUSEKEEPING = 'HOUSEKEEPING',
-  MAINTENANCE = 'MAINTENANCE'
+  MAINTENANCE = 'MAINTENANCE',
+  LAUNDRY = 'LAUNDRY',
+  TOILETRIES = 'TOILETRIES',
+  WAKEUP_CALL = 'WAKEUP_CALL',
+  DND = 'DND',
 }
 
 export enum ServiceRequestPriority {
@@ -48,10 +52,14 @@ export interface IServiceRequest extends Document {
   requestType: ServiceRequestType;
   priority: ServiceRequestPriority;
   assignedUserId?: Types.ObjectId;
+  assignedStaffName?: string;
   routingLevel: RoutingLevel;
   status: ServiceRequestStatus;
   notes?: string;
   slaMinutes: number;
+  isBillable?: boolean;
+  billableAmount?: number;
+  folioLineItemId?: Types.ObjectId;
   createdAt: Date;
   acceptedAt?: Date;
   completedAt?: Date;
@@ -84,6 +92,7 @@ const ServiceRequestSchema = new Schema<IServiceRequest>(
       default: ServiceRequestPriority.NORMAL,
     },
     assignedUserId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+    assignedStaffName: { type: String, trim: true },
     routingLevel: {
       type: String,
       enum: Object.values(RoutingLevel),
@@ -98,6 +107,9 @@ const ServiceRequestSchema = new Schema<IServiceRequest>(
     },
     notes: { type: String, trim: true },
     slaMinutes: { type: Number, default: 3 }, // 3 minutes SLA threshold
+    isBillable: { type: Boolean, default: false },
+    billableAmount: { type: Number, default: 0 },
+    folioLineItemId: { type: Schema.Types.ObjectId, ref: 'FolioLineItem' },
     acceptedAt: { type: Date },
     completedAt: { type: Date },
     escalatedAt: { type: Date },

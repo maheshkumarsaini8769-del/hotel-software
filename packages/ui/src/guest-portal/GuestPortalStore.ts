@@ -73,11 +73,16 @@ export class GuestPortalStore {
     return this.liveOrders.filter((o) => o.orderStatus !== 'SERVED' && o.orderStatus !== 'CANCELLED').length;
   }
 
-  public getRecentRequests(): Array<{ id: string; requestType: string; status: string; createdAt: string }> {
+  public getRecentRequests(): any[] {
     return [...this.recentRequests];
   }
 
-  public addConciergeRequest(req: { id: string; requestType: string; status: string; createdAt: string }): void {
+  public setRecentRequests(requests: any[]): void {
+    this.recentRequests = [...requests];
+    this.notify();
+  }
+
+  public addConciergeRequest(req: any): void {
     this.recentRequests.unshift(req);
     this.notify();
   }

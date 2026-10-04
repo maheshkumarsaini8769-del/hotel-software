@@ -131,10 +131,26 @@ async function hydrateInRoomOrders() {
   }
 }
 
+// 5. Hydrate existing concierge requests for room (Shift 60)
+async function hydrateConciergeRequests() {
+  try {
+    const res = await fetch(`http://localhost:5000/api/v1/pms/frontdesk/concierge-requests/${targetRoom}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        store.setRecentRequests(json.data);
+      }
+    }
+  } catch (err) {
+    console.warn(`[Guest Portal] Concierge requests hydration note:`, err);
+  }
+}
+
 hydrateLiveRoomStay();
 hydrateInRoomOrders();
+hydrateConciergeRequests();
 
-// 5. Real-Time Socket Connection & Periodic Polling
+// 6. Real-Time Socket Connection & Periodic Polling
 try {
   socket.connect({
     serverUrl: 'http://localhost:5000',
@@ -156,11 +172,23 @@ try {
       hydrateLiveRoomStay();
     }
   });
+
+  socket.on('pms:concierge_request_updated', (data: any) => {
+    if (data.roomNumber === targetRoom) {
+      hydrateConciergeRequests();
+    }
+  });
+
+  socket.on('pms:concierge_request_created', (data: any) => {
+    if (data.roomNumber === targetRoom) {
+      hydrateConciergeRequests();
+    }
+  });
 } catch (e) {
   console.warn('Socket init note:', e);
 }
 
-// Resilient polling for order status updates
+// Resilient polling for order & concierge updates
 setInterval(async () => {
   try {
     const res = await fetch(`http://localhost:5000/api/v1/pms/frontdesk/inroom-orders/${targetRoom}`);
@@ -176,6 +204,8 @@ setInterval(async () => {
         });
       }
     }
+
+    hydrateConciergeRequests();
   } catch (e) {}
 }, 2500);
 
@@ -185,13 +215,25 @@ if (rootElement) {
     <React.StrictMode>
       <GuestRoomPortalApp
         store={store}
-        onConciergeRequest={async (requestType, notes) => {
+        onConciergeRequest={async (requestType, notes, isBillable, billableAmount) => {
           try {
-            await fetch('http://localhost:5000/api/v1/pms/frontdesk/concierge-request', {
+            const res = await fetch('http://localhost:5000/api/v1/pms/frontdesk/concierge-request', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ roomNumber: targetRoom, requestType, notes }),
+              body: JSON.stringify({
+                roomNumber: targetRoom,
+                requestType,
+                notes,
+                isBillable: !!isBillable,
+                billableAmount: billableAmount || 0,
+                billableDescription: isBillable ? `In-Room Guest Order: ${requestType}` : undefined,
+              }),
             });
+            const json = await res.json();
+            if (json.success && json.data?.folio) {
+              hydrateLiveRoomStay();
+            }
+            hydrateConciergeRequests();
           } catch (e) {
             console.warn('Concierge request error:', e);
           }

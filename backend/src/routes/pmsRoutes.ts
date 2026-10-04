@@ -28,6 +28,9 @@ import {
   postInRoomOrder,
   getInRoomOrders,
   updateInRoomOrderStatus,
+  getConciergeRequests,
+  getInRoomConciergeRequests,
+  updateConciergeRequestStatus,
 } from '../controllers/frontDeskController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
@@ -101,6 +104,11 @@ router.post('/frontdesk/concierge-request', authenticateFrontDeskTerminal, postC
 router.post('/frontdesk/inroom-order', authenticateFrontDeskTerminal, postInRoomOrder);
 router.get('/frontdesk/inroom-orders/:roomNumber', authenticateFrontDeskTerminal, getInRoomOrders);
 router.patch('/frontdesk/inroom-order-status/:orderId', authenticateFrontDeskTerminal, updateInRoomOrderStatus);
+
+// Shift 60: Real-Time In-Room Digital Concierge, Housekeeping Dispatch & Folio Billing Loop
+router.get('/frontdesk/concierge-requests', authenticateFrontDeskTerminal, getConciergeRequests);
+router.get('/frontdesk/concierge-requests/:roomNumber', authenticateFrontDeskTerminal, getInRoomConciergeRequests);
+router.patch('/frontdesk/concierge-request/:requestId/status', authenticateFrontDeskTerminal, updateConciergeRequestStatus);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

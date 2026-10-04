@@ -28,10 +28,13 @@ export interface KitchenKdsAppProps {
   onBatchToggle86?: (itemIds: string[], isAvailable: boolean, reason?: string) => Promise<void> | void;
 }
 
+const EMPTY_DISHES_86: Kds86DishItem[] = [];
+const EMPTY_STOCK_ALERTS: LowStockAlertItem[] = [];
+
 export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
   store,
-  dishes86 = [],
-  lowStockAlerts = [],
+  dishes86 = EMPTY_DISHES_86,
+  lowStockAlerts = EMPTY_STOCK_ALERTS,
   onDismissStockAlert,
   onStartPreparing,
   onMarkReady,

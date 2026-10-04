@@ -46,6 +46,49 @@ interface InHouseGuest {
   advancePaid: number;
   balanceDue: number;
   receptionistNotes?: string;
+  checkoutRequested?: boolean;
+  checkoutRequestedAt?: string;
+  preferredPaymentMethod?: string;
+  feedbackRating?: number;
+  checkoutNotes?: string;
+}
+
+interface CheckoutPreviewData {
+  room: { id: string; roomNumber: string; floor: number; status: string };
+  stay: {
+    stayId: string;
+    guestName: string;
+    checkInTimestamp: string;
+    expectedCheckOutTimestamp: string;
+    checkoutRequested?: boolean;
+    checkoutRequestedAt?: string;
+    preferredPaymentMethod?: string;
+    feedbackRating?: number;
+    keyCardIssued?: boolean;
+  };
+  folio: {
+    folioId: string;
+    folioNumber: string;
+    folioStatus: string;
+    totalRoomTariff: number;
+    totalFoodAndBeverage: number;
+    totalLaundry: number;
+    totalPaidServices: number;
+    totalTaxes: number;
+    advancePaid: number;
+    paidAmount: number;
+    netAmountPayable: number;
+    dueAmount: number;
+    lineItems: Array<{
+      id: string;
+      department: string;
+      description: string;
+      rate: number;
+      taxAmount: number;
+      netAmount: number;
+      postedAt: string;
+    }>;
+  };
 }
 
 interface GuestProfileHistory {
@@ -124,6 +167,16 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [inHouseGuests, setInHouseGuests] = useState<InHouseGuest[]>([]);
   const [searchHistoryQuery, setSearchHistoryQuery] = useState('');
   const [guestHistoryList, setGuestHistoryList] = useState<GuestProfileHistory[]>([]);
+
+  // Master Folio Departure Settlement State (Shift 61)
+  const [settleModalGuest, setSettleModalGuest] = useState<InHouseGuest | null>(null);
+  const [settlePreviewData, setSettlePreviewData] = useState<CheckoutPreviewData | null>(null);
+  const [settleLoadingPreview, setSettleLoadingPreview] = useState(false);
+  const [settleSubmitting, setSettleSubmitting] = useState(false);
+  const [settlePaymentMode, setSettlePaymentMode] = useState<string>('UPI');
+  const [settleTransactionRef, setSettleTransactionRef] = useState<string>('');
+  const [settleKeycardVoid, setSettleKeycardVoid] = useState<boolean>(true);
+  const [settleSuccessVoucher, setSettleSuccessVoucher] = useState<any | null>(null);
 
   const apiBase = 'http://localhost:5000/api/v1';
   const token = authToken || (typeof window !== 'undefined' ? (localStorage.getItem('spicehub_token') || localStorage.getItem('token') || '') : '');
@@ -269,10 +322,77 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
     }
   };
 
+  const loadActiveInHouseStays = async () => {
+    try {
+      const inHouseRes = await axios.get(`${apiBase}/pms/frontdesk/active-stays`, {
+        headers: authHeaders,
+        params: { hotelId },
+      });
+      if (inHouseRes.data.success) {
+        setInHouseGuests(inHouseRes.data.data || []);
+      }
+    } catch (e) {}
+  };
+
+  const handleOpenSettleModal = async (guest: InHouseGuest) => {
+    setSettleModalGuest(guest);
+    setSettlePaymentMode(guest.preferredPaymentMethod || 'UPI');
+    setSettleTransactionRef(`UPI-${Date.now().toString().slice(-6)}`);
+    setSettleKeycardVoid(true);
+    setSettleSuccessVoucher(null);
+    setSettleLoadingPreview(true);
+
+    try {
+      const res = await axios.get(`${apiBase}/pms/frontdesk/checkout-preview/${guest.roomNumber}`, {
+        headers: authHeaders,
+        params: { hotelId },
+      });
+      if (res.data.success) {
+        setSettlePreviewData(res.data.data);
+      }
+    } catch (err: any) {
+      showToast(`Error loading checkout preview: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setSettleLoadingPreview(false);
+    }
+  };
+
+  const handleConfirmSettleAndCheckOut = async () => {
+    if (!settleModalGuest) return;
+    setSettleSubmitting(true);
+    try {
+      const payload = {
+        hotelId,
+        roomNumber: settleModalGuest.roomNumber,
+        stayId: settleModalGuest.stayId,
+        paymentMode: settlePaymentMode,
+        amount: settlePreviewData?.folio?.dueAmount ?? settleModalGuest.balanceDue ?? 0,
+        transactionRef: settleTransactionRef || `TXN-${Date.now().toString().slice(-6)}`,
+        keyCardVoided: settleKeycardVoid,
+        notes: `Front Desk Departure Settled via ${settlePaymentMode}`,
+      };
+
+      const res = await axios.post(`${apiBase}/pms/frontdesk/settle-and-checkout`, payload, {
+        headers: authHeaders,
+      });
+
+      if (res.data.success) {
+        setSettleSuccessVoucher(res.data.data);
+        showToast(`✅ Room ${settleModalGuest.roomNumber} settled and checked out! Tax Invoice generated.`);
+        loadData();
+      }
+    } catch (err: any) {
+      showToast(`Settlement error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setSettleSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
     const timer = setInterval(() => {
       loadConciergeRequests();
+      loadActiveInHouseStays();
     }, 3000);
     return () => clearInterval(timer);
   }, []);
@@ -972,6 +1092,48 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         "{guest.receptionistNotes}"
                       </div>
                     )}
+
+                    {guest.checkoutRequested && (
+                      <div
+                        data-testid={`badge-checkout-requested-${guest.roomNumber}`}
+                        className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/20 border border-amber-500/50 space-y-1.5 animate-pulse"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                            <span>🚨</span> EXPRESS DEPARTURE REQUESTED
+                          </span>
+                          <span className="text-[10px] font-mono font-bold bg-amber-400 text-zinc-950 px-2 py-0.5 rounded-full uppercase">
+                            {guest.preferredPaymentMethod || 'UPI'}
+                          </span>
+                        </div>
+                        {guest.feedbackRating && (
+                          <div className="text-[11px] text-amber-200/90 flex items-center gap-1">
+                            <span>Rating:</span>
+                            <span className="font-bold text-yellow-300">{'★'.repeat(guest.feedbackRating)}{'☆'.repeat(5 - guest.feedbackRating)}</span>
+                            <span className="text-zinc-400 text-[10px]">({guest.feedbackRating}/5)</span>
+                          </div>
+                        )}
+                        {guest.checkoutNotes && (
+                          <div className="text-[11px] text-zinc-300 italic">
+                            "{guest.checkoutNotes}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      data-testid={`btn-settle-checkout-${guest.roomNumber}`}
+                      onClick={() => handleOpenSettleModal(guest)}
+                      className={`w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg transition flex items-center justify-center gap-1.5 ${
+                        guest.checkoutRequested
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-zinc-950 shadow-amber-500/30 ring-2 ring-amber-400/50'
+                          : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
+                      }`}
+                    >
+                      <span>{guest.checkoutRequested ? '⚡' : '✨'}</span>
+                      <span>{guest.checkoutRequested ? 'Settle & Process Express Departure' : 'Settle & Check-Out Room'}</span>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -1297,6 +1459,250 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 ))}
               </div>
             )}
+          </div>
+        )}
+        {/* SHIFT 61: MASTER FOLIO DEPARTURE SETTLEMENT MODAL */}
+        {settleModalGuest && (
+          <div
+            data-testid="front-desk-departure-modal"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto relative text-zinc-100">
+              {/* Modal Header */}
+              <div className="flex items-start justify-between border-b border-zinc-800/80 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-black text-white">Room {settleModalGuest.roomNumber}</span>
+                    <span className="text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                      Folio: {settlePreviewData?.folio?.folioNumber || settleModalGuest.folioNumber}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-amber-400 mt-1">
+                    Master Folio Settlement & Guest Departure • {settleModalGuest.guestName}
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    Phone: {settleModalGuest.phone} • Floor {settleModalGuest.floor}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-testid="btn-close-settle-modal"
+                  onClick={() => {
+                    setSettleModalGuest(null);
+                    setSettleSuccessVoucher(null);
+                  }}
+                  className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {settleLoadingPreview ? (
+                <div className="py-12 text-center space-y-3">
+                  <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-xs text-zinc-400">Consolidating Master Folio & sweeping pending restaurant orders...</p>
+                </div>
+              ) : settleSuccessVoucher ? (
+                /* SUCCESS TAX INVOICE VOUCHER */
+                <div data-testid="departure-settled-voucher-admin" className="space-y-5">
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 p-5 rounded-2xl text-center space-y-2">
+                    <div className="text-3xl">🎉</div>
+                    <h3 className="text-base font-black text-emerald-300">Room Vacated & Folio Settled in Full</h3>
+                    <p className="text-xs text-zinc-300">
+                      Tax Invoice has been generated, stay closed, keycard voided, and room scheduled for Housekeeping.
+                    </p>
+                  </div>
+
+                  <div className="bg-zinc-900/90 border border-zinc-800 p-5 rounded-2xl space-y-3 font-mono text-xs">
+                    <div className="flex justify-between border-b border-zinc-800 pb-2">
+                      <span className="text-zinc-400">Tax Invoice Number:</span>
+                      <strong className="text-amber-300 font-bold">{settleSuccessVoucher.invoiceNumber}</strong>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-800 pb-2">
+                      <span className="text-zinc-400">Room Status Transition:</span>
+                      <strong className="text-orange-400 font-bold">DIRTY (Queued for Turnaround)</strong>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-800 pb-2">
+                      <span className="text-zinc-400">Payment Mode / Txn:</span>
+                      <strong className="text-emerald-400">{settleSuccessVoucher.paymentMode} ({settleSuccessVoucher.transactionRef})</strong>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-800 pb-2">
+                      <span className="text-zinc-400">Total Paid:</span>
+                      <strong className="text-emerald-400 font-bold">₹{settleSuccessVoucher.totalPaid}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-400">Master Folio Due Balance:</span>
+                      <strong className="text-emerald-400 font-bold">₹0 (ZERO DUE)</strong>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    data-testid="btn-dismiss-success-modal"
+                    onClick={() => {
+                      setSettleModalGuest(null);
+                      setSettleSuccessVoucher(null);
+                    }}
+                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-500/20"
+                  >
+                    Done & Return to Front Desk
+                  </button>
+                </div>
+              ) : (
+                /* SETTLEMENT FORM */
+                <div className="space-y-5">
+                  {/* Express departure banner if requested */}
+                  {settleModalGuest.checkoutRequested && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                          <span>🚨</span> 1-Tap Express Departure Requested by Guest
+                        </span>
+                        <span className="text-[10px] font-mono font-bold bg-amber-400 text-zinc-950 px-2 py-0.5 rounded-full uppercase">
+                          Prefers: {settleModalGuest.preferredPaymentMethod || 'UPI'}
+                        </span>
+                      </div>
+                      {settleModalGuest.feedbackRating && (
+                        <div className="text-xs text-amber-200 flex items-center gap-1">
+                          <span>Guest Experience Rating:</span>
+                          <span className="text-yellow-300 font-bold">{'★'.repeat(settleModalGuest.feedbackRating)}{'☆'.repeat(5 - settleModalGuest.feedbackRating)}</span>
+                          <span className="text-zinc-400 text-[10px]">({settleModalGuest.feedbackRating}/5 stars)</span>
+                        </div>
+                      )}
+                      {settleModalGuest.checkoutNotes && (
+                        <p className="text-xs text-zinc-300 italic">"{settleModalGuest.checkoutNotes}"</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Financial Overview Grid */}
+                  <div className="bg-zinc-900/90 border border-zinc-800 p-4 rounded-2xl space-y-2 text-xs">
+                    <h4 className="font-bold text-zinc-300 uppercase tracking-wider text-[11px] mb-2">Master Folio Statement Breakdown</h4>
+                    <div className="grid grid-cols-2 gap-2 text-zinc-400">
+                      <div>Room Tariff: <strong className="text-zinc-200 font-mono">₹{settlePreviewData?.folio?.totalRoomTariff || 0}</strong></div>
+                      <div>Dining & F&B: <strong className="text-zinc-200 font-mono">₹{settlePreviewData?.folio?.totalFoodAndBeverage || 0}</strong></div>
+                      <div>Services & Laundry: <strong className="text-zinc-200 font-mono">₹{(settlePreviewData?.folio?.totalLaundry || 0) + (settlePreviewData?.folio?.totalPaidServices || 0)}</strong></div>
+                      <div>Applicable Taxes (GST): <strong className="text-zinc-200 font-mono">₹{settlePreviewData?.folio?.totalTaxes || 0}</strong></div>
+                    </div>
+                    <div className="border-t border-zinc-800 pt-2 flex justify-between items-center text-zinc-400">
+                      <span>Total Gross Billed:</span>
+                      <strong className="text-zinc-200 font-mono">₹{settlePreviewData?.folio?.netAmountPayable || 0}</strong>
+                    </div>
+                    <div className="flex justify-between items-center text-zinc-400">
+                      <span>Advance Credited at Check-In:</span>
+                      <strong className="text-emerald-400 font-mono">-₹{settlePreviewData?.folio?.advancePaid || 0}</strong>
+                    </div>
+                    <div className="border-t border-zinc-800 pt-2.5 flex justify-between items-center bg-zinc-950/80 p-3 rounded-xl">
+                      <span className="text-sm font-black text-amber-400">Net Balance Due to Settle:</span>
+                      <span className="text-lg font-black text-amber-300 font-mono">
+                        ₹{settlePreviewData?.folio?.dueAmount ?? settleModalGuest.balanceDue ?? 0}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Folio Line Items breakdown */}
+                  {settlePreviewData?.folio?.lineItems && settlePreviewData.folio.lineItems.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Itemized Folio Transactions</h4>
+                      <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                        {settlePreviewData.folio.lineItems.map((li) => (
+                          <div key={li.id} className="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-800 flex items-center justify-between text-xs">
+                            <div>
+                              <div className="font-medium text-zinc-200">{li.description}</div>
+                              <div className="text-[10px] text-zinc-500 font-mono uppercase">{li.department}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-mono font-bold text-zinc-100">₹{li.netAmount}</div>
+                              <div className="text-[10px] text-zinc-500 font-mono">incl. ₹{li.taxAmount} GST</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment Mode Selector */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-zinc-300 block">Settlement Payment Mode</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { id: 'UPI', label: '📱 UPI' },
+                        { id: 'CASH', label: '💵 Cash' },
+                        { id: 'CREDIT_CARD', label: '💳 Card' },
+                        { id: 'CORPORATE', label: '🏢 Direct Bill' },
+                      ].map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          data-testid={`paymode-btn-${m.id}`}
+                          onClick={() => setSettlePaymentMode(m.id)}
+                          className={`py-2 px-3 rounded-xl text-xs font-bold transition border ${
+                            settlePaymentMode === m.id
+                              ? 'bg-amber-500 text-zinc-950 border-amber-400 shadow-md shadow-amber-500/20'
+                              : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Transaction Ref input */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-zinc-300 block">Transaction Reference / UTR Number</label>
+                    <input
+                      type="text"
+                      data-testid="input-settle-txn-ref"
+                      value={settleTransactionRef}
+                      onChange={(e) => setSettleTransactionRef(e.target.value)}
+                      placeholder="e.g. UPI-9821345 or CASH-REC-01"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                  </div>
+
+                  {/* Void Keycard and Room Turnaround toggle */}
+                  <div className="bg-zinc-900/60 p-3 rounded-xl border border-zinc-800 space-y-2 text-xs">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        data-testid="checkbox-void-keycard"
+                        checked={settleKeycardVoid}
+                        onChange={(e) => setSettleKeycardVoid(e.target.checked)}
+                        className="rounded border-zinc-700 text-amber-500 focus:ring-amber-500"
+                      />
+                      <span className="font-bold text-zinc-200">Deactivate & Void RFID / Digital Keycard Immediately</span>
+                    </label>
+                    <p className="text-[11px] text-zinc-500 pl-6">
+                      Room {settleModalGuest.roomNumber} will automatically transition to <strong className="text-orange-400">DIRTY</strong> status and a high-priority Housekeeping turnaround cleaning task will be dispatched.
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      data-testid="btn-cancel-settle"
+                      onClick={() => setSettleModalGuest(null)}
+                      className="flex-1 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs uppercase tracking-wider transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="btn-confirm-settle-checkout"
+                      disabled={settleSubmitting}
+                      onClick={handleConfirmSettleAndCheckOut}
+                      className="flex-2 py-3 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                    >
+                      {settleSubmitting
+                        ? 'Settling Folio...'
+                        : `Complete Departure & Settle ₹${settlePreviewData?.folio?.dueAmount ?? settleModalGuest.balanceDue ?? 0}`}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>

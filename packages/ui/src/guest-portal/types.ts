@@ -58,6 +58,8 @@ export interface FolioSummaryModel {
   folioNumber: string;
   totalRoomTariff: number;
   totalFoodAndBeverage: number;
+  totalLaundry?: number;
+  totalPaidServices?: number;
   totalTaxes: number;
   advancePaid: number;
   paidAmount: number;

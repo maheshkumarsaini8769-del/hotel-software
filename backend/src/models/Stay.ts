@@ -25,6 +25,14 @@ export interface IStay extends Document {
   documentAttachmentUrl?: string;
   checkedInByUserId?: Types.ObjectId;
   checkedOutByUserId?: Types.ObjectId;
+  checkoutRequested?: boolean;
+  checkoutRequestedAt?: Date;
+  checkoutRequestedNotes?: string;
+  preferredPaymentMethod?: string;
+  checkoutFeedbackRating?: number;
+  checkoutFeedbackComment?: string;
+  taxInvoiceNumber?: string;
+  keyCardVoided?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -58,6 +66,14 @@ const StaySchema = new Schema<IStay>(
     documentAttachmentUrl: { type: String, trim: true },
     checkedInByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
     checkedOutByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+    checkoutRequested: { type: Boolean, default: false },
+    checkoutRequestedAt: { type: Date },
+    checkoutRequestedNotes: { type: String, trim: true },
+    preferredPaymentMethod: { type: String, trim: true },
+    checkoutFeedbackRating: { type: Number, min: 1, max: 5 },
+    checkoutFeedbackComment: { type: String, trim: true },
+    taxInvoiceNumber: { type: String, trim: true },
+    keyCardVoided: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

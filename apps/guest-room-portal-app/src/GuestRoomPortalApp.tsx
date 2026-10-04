@@ -15,9 +15,12 @@ export interface GuestRoomPortalAppProps {
   store: GuestPortalStore;
   onConciergeRequest?: (requestType: string, notes?: string, isBillable?: boolean, billableAmount?: number) => Promise<void> | void;
   onInRoomOrderPlaced?: (items: { dishId: string; name: string; quantity: number; price: number }[]) => Promise<void> | void;
-  onExpressCheckout?: (notes?: string) => Promise<void> | void;
+  onExpressCheckout?: (notes?: string, paymentMethod?: string, rating?: number, comment?: string) => Promise<void> | void;
   onRefreshOrders?: () => Promise<void> | void;
   onRefreshFolio?: () => Promise<void> | void;
+  isCheckoutRequested?: boolean;
+  isStayCheckedOut?: boolean;
+  checkoutInvoice?: any;
 }
 
 export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
@@ -27,6 +30,9 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   onExpressCheckout,
   onRefreshOrders,
   onRefreshFolio,
+  isCheckoutRequested = false,
+  isStayCheckedOut = false,
+  checkoutInvoice = null,
 }) => {
   const [session, setSession] = useState<GuestSessionModel | null>(store.getSession());
   const [activeTab, setActiveTab] = useState<'HOME' | 'DINING' | 'ORDERS' | 'FOLIO'>(store.getActiveTab());
@@ -121,6 +127,9 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
           <GuestFolioReviewModal
             folioSummary={folioSummary}
             activeOrder={selectedOrder || (liveOrders.length > 0 ? liveOrders[0] : null)}
+            isCheckoutRequested={isCheckoutRequested}
+            isStayCheckedOut={isStayCheckedOut}
+            checkoutInvoice={checkoutInvoice}
             onExpressCheckout={onExpressCheckout || (() => {})}
           />
         )}

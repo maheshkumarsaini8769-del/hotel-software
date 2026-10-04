@@ -20,6 +20,11 @@ import {
   ServiceRequestPriority,
   ServiceRequestStatus,
 } from '../models/ServiceRequest';
+import {
+  HousekeepingTask,
+  HousekeepingTaskType,
+  HousekeepingTaskStatus,
+} from '../models/HousekeepingTask';
 import { TenantRequest } from '../types';
 import { io } from '../index';
 
@@ -393,6 +398,11 @@ export const getActiveInHouseGuests = async (req: TenantRequest, res: Response):
       advancePaid: s.masterFolioId?.advancePaid || 0,
       balanceDue: s.masterFolioId?.dueAmount || 0,
       receptionistNotes: s.receptionistNotes || '',
+      checkoutRequested: Boolean(s.checkoutRequested),
+      checkoutRequestedAt: s.checkoutRequestedAt,
+      preferredPaymentMethod: s.preferredPaymentMethod || 'UPI',
+      feedbackRating: s.checkoutFeedbackRating,
+      checkoutNotes: s.checkoutRequestedNotes || '',
     }));
 
     res.status(200).json({
@@ -431,7 +441,7 @@ export const getInRoomLiveStay = async (req: TenantRequest, res: Response): Prom
       return;
     }
 
-    const activeStay = await Stay.findOne({
+    let activeStay = await Stay.findOne({
       hotelId,
       roomId: room._id,
       stayStatus: StayStatus.ACTIVE,
@@ -439,6 +449,18 @@ export const getInRoomLiveStay = async (req: TenantRequest, res: Response): Prom
       .populate('guestId', 'name phone email vipTier')
       .populate('bookingId', 'bookingNumber grandTotal guestName guestPhone checkInDate checkOutDate')
       .populate('masterFolioId');
+
+    // If no active stay, check if there is a recently settled/checked-out stay for departure invoice review
+    if (!activeStay) {
+      activeStay = await Stay.findOne({
+        hotelId,
+        roomId: room._id,
+      })
+        .sort({ actualCheckOutTimestamp: -1, updatedAt: -1, createdAt: -1 })
+        .populate('guestId', 'name phone email vipTier')
+        .populate('bookingId', 'bookingNumber grandTotal guestName guestPhone checkInDate checkOutDate')
+        .populate('masterFolioId');
+    }
 
     if (!activeStay) {
       res.status(200).json({
@@ -490,7 +512,9 @@ export const getInRoomLiveStay = async (req: TenantRequest, res: Response): Prom
           verificationMode: activeStay.verificationMode || 'NONE',
           idNumberMasked: activeStay.idNumberMasked,
           verifiedByReceptionist: activeStay.verifiedByReceptionist || false,
-          keyCardIssued: activeStay.keyCardIssued || `KEY-${room.roomNumber}`,
+          stayStatus: activeStay.stayStatus,
+          checkoutRequested: Boolean(activeStay.checkoutRequested),
+          taxInvoiceNumber: activeStay.taxInvoiceNumber,
           wifiSsid: 'TajGateway_HighSpeed',
           wifiPassword: `TajGuest@${room.roomNumber}`,
         },
@@ -1380,3 +1404,383 @@ export const updateConciergeRequestStatus = async (req: TenantRequest, res: Resp
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
   }
 };
+
+// 15. In-Room Guest Portal Express Departure Request (Shift 61)
+export const postExpressCheckoutRequest = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { roomNumber, notes, paymentMethodPreference, feedbackRating, feedbackComment } = req.body;
+    if (!roomNumber) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PARAMS', message: 'roomNumber is required' });
+      return;
+    }
+
+    const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
+    const room = await Room.findOne({
+      hotelId,
+      roomNumber: { $regex: new RegExp(`^${roomNumStr}$`, 'i') },
+    });
+
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
+      return;
+    }
+
+    const activeStay = await Stay.findOne({
+      hotelId,
+      roomId: room._id,
+      stayStatus: StayStatus.ACTIVE,
+    }).populate('guestId', 'name phone email');
+
+    if (!activeStay) {
+      res.status(404).json({ success: false, errorCode: 'NO_ACTIVE_STAY', message: `No active stay found for Room ${roomNumber}` });
+      return;
+    }
+
+    const masterFolio = await MasterFolio.findOne({ _id: activeStay.masterFolioId, hotelId });
+
+    activeStay.checkoutRequested = true;
+    activeStay.checkoutRequestedAt = new Date();
+    if (notes) activeStay.checkoutRequestedNotes = notes;
+    if (paymentMethodPreference) activeStay.preferredPaymentMethod = paymentMethodPreference;
+    if (feedbackRating) activeStay.checkoutFeedbackRating = Number(feedbackRating);
+    if (feedbackComment) activeStay.checkoutFeedbackComment = feedbackComment;
+    await activeStay.save();
+
+    // Auto-create a service request for Reception
+    await ServiceRequest.create({
+      hotelId,
+      sourceType: 'HOTEL_STAY',
+      roomId: room._id,
+      stayId: activeStay._id,
+      requestType: ServiceRequestType.ASSISTANCE,
+      priority: ServiceRequestPriority.HIGH,
+      status: ServiceRequestStatus.CREATED,
+      notes: notes ? `Guest Express Departure Requested: ${notes}` : 'Guest requested 1-Tap Express Departure at Front Desk',
+      slaMinutes: 10,
+    });
+
+    const guestName = (activeStay.guestId as any)?.name || 'In-House Guest';
+    const payload = {
+      roomNumber: room.roomNumber,
+      stayId: activeStay._id.toString(),
+      guestName,
+      requestedAt: activeStay.checkoutRequestedAt,
+      preferredPaymentMethod: activeStay.preferredPaymentMethod || 'UPI',
+      feedbackRating: activeStay.checkoutFeedbackRating,
+      feedbackComment: activeStay.checkoutFeedbackComment,
+      dueAmount: masterFolio?.dueAmount || 0,
+      folioNumber: masterFolio?.folioNumber || '',
+    };
+
+    io.to(`${hotelId.toString()}_global`).emit('pms:checkout_requested', payload);
+    io.to(`guest_room_${room.roomNumber}`).emit('pms:checkout_requested', payload);
+
+    res.status(200).json({
+      success: true,
+      message: `Express departure request for Room ${room.roomNumber} received! Front desk notified.`,
+      data: payload,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 16. Front Desk Checkout Preview by Room Number (Shift 61)
+export const getCheckoutPreviewByRoom = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { roomNumber } = req.params;
+    const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
+    const room = await Room.findOne({
+      hotelId,
+      roomNumber: { $regex: new RegExp(`^${roomNumStr}$`, 'i') },
+    });
+
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
+      return;
+    }
+
+    const stay = await Stay.findOne({
+      hotelId,
+      roomId: room._id,
+      stayStatus: StayStatus.ACTIVE,
+    }).populate('guestId', 'name phone email').populate('bookingId');
+
+    if (!stay) {
+      res.status(404).json({ success: false, errorCode: 'NO_ACTIVE_STAY', message: `No active stay found for Room ${roomNumber}` });
+      return;
+    }
+
+    const folio = await MasterFolio.findOne({ _id: stay.masterFolioId, hotelId });
+    if (!folio) {
+      res.status(404).json({ success: false, errorCode: 'FOLIO_NOT_FOUND', message: 'Master Folio not found' });
+      return;
+    }
+
+    const lineItems = await FolioLineItem.find({ folioId: folio._id, hotelId }).sort({ postedAt: -1 });
+
+    const guestName = (stay.guestId as any)?.name || (stay.bookingId as any)?.guestName || 'Valued Guest';
+
+    res.status(200).json({
+      success: true,
+      data: {
+        room: {
+          id: room._id.toString(),
+          roomNumber: room.roomNumber,
+          floor: room.floorNumber,
+          status: room.status,
+        },
+        stay: {
+          stayId: stay._id.toString(),
+          guestName,
+          checkInTimestamp: stay.checkInTimestamp,
+          expectedCheckOutTimestamp: stay.expectedCheckOutTimestamp,
+          checkoutRequested: stay.checkoutRequested,
+          checkoutRequestedAt: stay.checkoutRequestedAt,
+          preferredPaymentMethod: stay.preferredPaymentMethod,
+          feedbackRating: stay.checkoutFeedbackRating,
+          keyCardIssued: stay.keyCardIssued,
+        },
+        folio: {
+          folioId: folio._id.toString(),
+          folioNumber: folio.folioNumber,
+          folioStatus: folio.folioStatus,
+          totalRoomTariff: folio.totalRoomTariff,
+          totalFoodAndBeverage: folio.totalFoodAndBeverage,
+          totalLaundry: folio.totalLaundry,
+          totalPaidServices: folio.totalPaidServices,
+          totalTaxes: folio.totalTaxes,
+          advancePaid: folio.advancePaid,
+          paidAmount: folio.paidAmount,
+          netAmountPayable: folio.netAmountPayable,
+          dueAmount: folio.dueAmount,
+          lineItems: lineItems.map((li: any) => ({
+            id: li._id.toString(),
+            department: li.department,
+            description: li.description,
+            rate: li.rate,
+            taxAmount: li.taxAmount,
+            netAmount: li.netAmount,
+            postedAt: li.postedAt,
+          })),
+        },
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 17. Settle Master Folio & Complete Room Departure (Shift 61)
+export const settleAndCheckOutFrontDesk = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const {
+      roomNumber,
+      stayId,
+      paymentMode = 'UPI',
+      amount,
+      transactionRef,
+      keyCardVoided = true,
+      notes,
+    } = req.body;
+
+    if (!roomNumber && !stayId) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PARAMS', message: 'roomNumber or stayId is required' });
+      return;
+    }
+
+    let room: any = null;
+    let stay: any = null;
+
+    if (stayId && Types.ObjectId.isValid(stayId)) {
+      stay = await Stay.findOne({ _id: new Types.ObjectId(stayId), hotelId });
+      if (stay) {
+        room = await Room.findOne({ _id: stay.roomId, hotelId });
+      }
+    }
+
+    if (!stay && roomNumber) {
+      const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
+      room = await Room.findOne({
+        hotelId,
+        roomNumber: { $regex: new RegExp(`^${roomNumStr}$`, 'i') },
+      });
+      if (room) {
+        stay = await Stay.findOne({ hotelId, roomId: room._id, stayStatus: StayStatus.ACTIVE });
+      }
+    }
+
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: 'Room not found' });
+      return;
+    }
+
+    if (!stay) {
+      res.status(404).json({ success: false, errorCode: 'STAY_NOT_FOUND', message: 'Active stay not found' });
+      return;
+    }
+
+    const folio = await MasterFolio.findOne({ _id: stay.masterFolioId, hotelId });
+    if (!folio) {
+      res.status(404).json({ success: false, errorCode: 'FOLIO_NOT_FOUND', message: 'Master Folio not found' });
+      return;
+    }
+
+    if (folio.folioStatus === 'SETTLED') {
+      res.status(400).json({ success: false, errorCode: 'ALREADY_SETTLED', message: 'Folio is already settled' });
+      return;
+    }
+
+    // Auto-sweep any unbilled restaurant orders
+    const pendingOrders = await RestaurantOrder.find({
+      hotelId,
+      roomId: room._id,
+      stayId: stay._id,
+      isBilled: { $ne: true },
+      orderStatus: { $ne: OverallOrderStatus.CANCELLED },
+    });
+
+    for (const ord of pendingOrders) {
+      ord.isBilled = true;
+      ord.orderStatus = OverallOrderStatus.SERVED;
+      await ord.save();
+
+      const subtotal = ord.items.reduce((sum: number, it: any) => sum + (it.subtotal || it.unitPrice * it.quantity), 0);
+      const tax = Math.round(subtotal * 0.05);
+      const total = subtotal + tax;
+
+      await FolioLineItem.create({
+        hotelId,
+        folioId: folio._id,
+        stayId: stay._id,
+        department: DepartmentType.ROOM_SERVICE,
+        description: `In-Room Dining #${ord.orderNumber} (Swept at Check-Out)`,
+        rate: subtotal,
+        quantity: 1,
+        taxRate: 5,
+        taxAmount: tax,
+        netAmount: total,
+        postedAt: new Date(),
+      });
+
+      folio.totalFoodAndBeverage = (folio.totalFoodAndBeverage || 0) + subtotal;
+      folio.totalTaxes = (folio.totalTaxes || 0) + tax;
+      folio.netAmountPayable = (folio.netAmountPayable || 0) + total;
+    }
+
+    // Generate unique Tax Invoice Number
+    const invoiceNumber = `INV-${new Date().getFullYear()}-${room.roomNumber}-${Date.now().toString().slice(-4)}`;
+
+    // Atomically settle Master Folio
+    folio.paidAmount = folio.netAmountPayable;
+    folio.dueAmount = 0;
+    folio.folioStatus = 'SETTLED';
+    folio.settledAt = new Date();
+    folio.settlementNotes = notes || `Settled via ${paymentMode}${transactionRef ? ` (${transactionRef})` : ''} at Front Desk Departure`;
+    await folio.save();
+
+    // Close Stay
+    stay.stayStatus = StayStatus.CHECKED_OUT;
+    stay.actualCheckOutTimestamp = new Date();
+    stay.taxInvoiceNumber = invoiceNumber;
+    stay.keyCardVoided = !!keyCardVoided;
+    await stay.save();
+
+    // Update Room to DIRTY
+    room.status = RoomStatus.DIRTY;
+    await room.save();
+
+    // Trigger Housekeeping Turnaround Task
+    let hkTask = await HousekeepingTask.findOne({
+      hotelId,
+      roomId: room._id,
+      status: { $in: [HousekeepingTaskStatus.PENDING, HousekeepingTaskStatus.IN_PROGRESS] },
+    });
+
+    if (!hkTask) {
+      hkTask = await HousekeepingTask.create({
+        hotelId,
+        roomId: room._id,
+        taskType: HousekeepingTaskType.CHECKOUT_CLEAN,
+        priority: 'HIGH',
+        status: HousekeepingTaskStatus.PENDING,
+        checklist: [
+          { taskName: 'Strip bed linen & replace fresh sheets', isDone: false },
+          { taskName: 'Sanitize bathroom, replace luxury towels & toiletries', isDone: false },
+          { taskName: 'Vacuum carpet & mop tile surfaces', isDone: false },
+          { taskName: 'Restock spring water bottles & tea station', isDone: false },
+          { taskName: 'Final supervisor turnaround inspection', isDone: false },
+        ],
+        inspectionNotes: `Checkout turnaround cleaning for Room ${room.roomNumber}`,
+      });
+    }
+
+    // Also close any in-flight Service Requests for this room
+    await ServiceRequest.updateMany(
+      { hotelId, roomId: room._id, status: { $ne: ServiceRequestStatus.COMPLETED } },
+      { $set: { status: ServiceRequestStatus.COMPLETED, completedAt: new Date(), notes: 'Closed automatically upon guest departure' } }
+    );
+
+    const invoicePayload = {
+      invoiceNumber,
+      roomNumber: room.roomNumber,
+      stayId: stay._id.toString(),
+      folioId: folio._id.toString(),
+      folioNumber: folio.folioNumber,
+      settledAt: folio.settledAt,
+      paymentMode,
+      transactionRef: transactionRef || `TXN-${Date.now().toString().slice(-6)}`,
+      totalRoomTariff: folio.totalRoomTariff,
+      totalFoodAndBeverage: folio.totalFoodAndBeverage,
+      totalLaundry: folio.totalLaundry,
+      totalTaxes: folio.totalTaxes,
+      advancePaid: folio.advancePaid,
+      totalPaid: folio.paidAmount,
+      balanceDue: 0,
+      roomStatus: room.status,
+      housekeepingTaskId: hkTask._id.toString(),
+    };
+
+    // Emit real-time broadcasts
+    io.to(`${hotelId.toString()}_global`).emit('pms:stay_checked_out', invoicePayload);
+    io.to(`${hotelId.toString()}_global`).emit('pms:folio_settled', invoicePayload);
+    io.to(`${hotelId.toString()}_global`).emit('pms:room_status_changed', {
+      roomNumber: room.roomNumber,
+      status: room.status,
+    });
+    io.to(`guest_room_${room.roomNumber}`).emit('pms:stay_checked_out', invoicePayload);
+    io.to(`${hotelId.toString()}_global`).emit('housekeeping:task_created', {
+      taskId: hkTask._id.toString(),
+      roomNumber: room.roomNumber,
+      taskType: hkTask.taskType,
+      status: hkTask.status,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Room ${room.roomNumber} successfully checked out and settled! Tax Invoice ${invoiceNumber} issued. Room queued for Housekeeping Turnaround.`,
+      data: invoicePayload,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+

@@ -70,6 +70,8 @@ async function hydrateLiveRoomStay() {
             folioNumber: folio.folioNumber,
             totalRoomTariff: folio.totalRoomTariff || 0,
             totalFoodAndBeverage: folio.totalFoodAndBeverage || 0,
+            totalLaundry: folio.totalLaundry || 0,
+            totalPaidServices: folio.totalPaidServices || 0,
             totalTaxes: folio.totalTaxes || 0,
             advancePaid: folio.advancePaid || 0,
             paidAmount: folio.paidAmount || 0,
@@ -209,118 +211,199 @@ setInterval(async () => {
   } catch (e) {}
 }, 2500);
 
+const GuestRoomPortalRoot: React.FC = () => {
+  const [isCheckoutRequested, setIsCheckoutRequested] = React.useState(false);
+  const [isStayCheckedOut, setIsStayCheckedOut] = React.useState(false);
+  const [checkoutInvoice, setCheckoutInvoice] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    try {
+      socket.on('pms:checkout_requested', (data: any) => {
+        if (data.roomNumber === targetRoom) {
+          setIsCheckoutRequested(true);
+        }
+      });
+
+      socket.on('pms:stay_checked_out', (data: any) => {
+        if (data.roomNumber === targetRoom) {
+          setIsStayCheckedOut(true);
+          setCheckoutInvoice(data);
+          hydrateLiveRoomStay();
+        }
+      });
+
+      socket.on('pms:folio_settled', (data: any) => {
+        if (data.roomNumber === targetRoom) {
+          setIsStayCheckedOut(true);
+          setCheckoutInvoice(data);
+          hydrateLiveRoomStay();
+        }
+      });
+
+      // Hydrate stay status on mount / reload
+      fetch(`http://localhost:5000/api/v1/pms/frontdesk/room-stay-details/${targetRoom}`)
+        .then((r) => r.json())
+        .then((json) => {
+          if (json.success && json.data?.stay) {
+            const { stay, folio } = json.data;
+            if (stay.stayStatus === 'CHECKED_OUT' || stay.taxInvoiceNumber) {
+              setIsStayCheckedOut(true);
+              setCheckoutInvoice({
+                invoiceNumber: stay.taxInvoiceNumber || `INV-2026-${targetRoom}-001`,
+                paymentMode: folio?.settlementNotes || 'UPI / Instant Settle',
+                totalPaid: folio?.paidAmount || folio?.netAmountPayable || 0,
+                roomNumber: targetRoom,
+              });
+            } else if (stay.checkoutRequested) {
+              setIsCheckoutRequested(true);
+            }
+          }
+        })
+        .catch(() => {});
+    } catch (e) {
+      console.warn('Socket checkout event bind note:', e);
+    }
+  }, []);
+
+  return (
+    <GuestRoomPortalApp
+      store={store}
+      isCheckoutRequested={isCheckoutRequested}
+      isStayCheckedOut={isStayCheckedOut}
+      checkoutInvoice={checkoutInvoice}
+      onConciergeRequest={async (requestType, notes, isBillable, billableAmount) => {
+        try {
+          const res = await fetch('http://localhost:5000/api/v1/pms/frontdesk/concierge-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              roomNumber: targetRoom,
+              requestType,
+              notes,
+              isBillable: !!isBillable,
+              billableAmount: billableAmount || 0,
+              billableDescription: isBillable ? `In-Room Guest Order: ${requestType}` : undefined,
+            }),
+          });
+          const json = await res.json();
+          if (json.success && json.data?.folio) {
+            hydrateLiveRoomStay();
+          }
+          hydrateConciergeRequests();
+        } catch (e) {
+          console.warn('Concierge request error:', e);
+        }
+      }}
+      onInRoomOrderPlaced={async (items) => {
+        try {
+          const res = await fetch('http://localhost:5000/api/v1/pms/frontdesk/inroom-order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              roomNumber: targetRoom,
+              items: items.map((it) => ({
+                dishId: it.dishId,
+                name: it.name,
+                quantity: it.quantity,
+                price: it.price,
+              })),
+              cookingInstructions: 'Freshly prepared for Guest In-Room Dining',
+            }),
+          });
+          const json = await res.json();
+          if (json.success && json.data) {
+            const { order, folio } = json.data;
+            if (order) {
+              const liveOrd: LiveRoomOrder = {
+                id: order.id,
+                orderNumber: order.orderNumber,
+                orderStatus: order.orderStatus,
+                placedAt: order.placedAt,
+                cookingInstructions: order.cookingInstructions,
+                items: (order.items || []).map((it: any) => ({
+                  menuItemId: it.menuItemId,
+                  name: it.name,
+                  quantity: it.quantity,
+                  unitPrice: it.unitPrice,
+                  subtotal: it.subtotal,
+                  specialInstructions: it.specialInstructions,
+                })),
+                grandTotal: order.grandTotal,
+              };
+              store.addLiveOrder(liveOrd);
+              store.openOrderTracker(liveOrd);
+              store.setActiveTab('ORDERS');
+            }
+
+            if (folio) {
+              store.setFolioSummary({
+                folioNumber: folio.folioNumber,
+                totalRoomTariff: folio.totalRoomTariff || 0,
+                totalFoodAndBeverage: folio.totalFoodAndBeverage || 0,
+                totalLaundry: folio.totalLaundry || 0,
+                totalPaidServices: folio.totalPaidServices || 0,
+                totalTaxes: folio.totalTaxes || 0,
+                advancePaid: folio.advancePaid || 0,
+                paidAmount: folio.paidAmount || 0,
+                netAmountPayable: folio.netAmountPayable || 0,
+                dueAmount: folio.dueAmount || 0,
+                folioStatus: folio.folioStatus || 'OPEN',
+                lineItems: (folio.lineItems || []).map((li: any) => ({
+                  id: li.id || li._id || `li-${Date.now()}`,
+                  department: li.department || 'INCIDENTAL',
+                  description: li.description || 'Charge',
+                  rate: li.rate || 0,
+                  taxAmount: li.taxAmount || 0,
+                  netAmount: li.netAmount || 0,
+                  createdAt: li.postedAt || li.createdAt || new Date().toISOString(),
+                })),
+              });
+              const cur = store.getSession();
+              if (cur) {
+                store.setStayDetails({
+                  ...cur,
+                  totalFolioAmount: folio.netAmountPayable,
+                  activeOrdersCount: store.getActiveOrdersCount(),
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('In-room order placement error:', e);
+        }
+      }}
+      onRefreshOrders={hydrateInRoomOrders}
+      onRefreshFolio={hydrateLiveRoomStay}
+      onExpressCheckout={async (notes, paymentMethod, rating, comment) => {
+        try {
+          const res = await fetch('http://localhost:5000/api/v1/pms/frontdesk/express-checkout-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              roomNumber: targetRoom,
+              notes,
+              paymentMethodPreference: paymentMethod,
+              feedbackRating: rating,
+              feedbackComment: comment,
+            }),
+          });
+          const json = await res.json();
+          if (json.success) {
+            setIsCheckoutRequested(true);
+          }
+        } catch (e) {
+          console.warn('Express checkout error:', e);
+        }
+      }}
+    />
+  );
+};
+
 const rootElement = document.getElementById('root');
 if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <GuestRoomPortalApp
-        store={store}
-        onConciergeRequest={async (requestType, notes, isBillable, billableAmount) => {
-          try {
-            const res = await fetch('http://localhost:5000/api/v1/pms/frontdesk/concierge-request', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                roomNumber: targetRoom,
-                requestType,
-                notes,
-                isBillable: !!isBillable,
-                billableAmount: billableAmount || 0,
-                billableDescription: isBillable ? `In-Room Guest Order: ${requestType}` : undefined,
-              }),
-            });
-            const json = await res.json();
-            if (json.success && json.data?.folio) {
-              hydrateLiveRoomStay();
-            }
-            hydrateConciergeRequests();
-          } catch (e) {
-            console.warn('Concierge request error:', e);
-          }
-        }}
-        onInRoomOrderPlaced={async (items) => {
-          try {
-            const res = await fetch('http://localhost:5000/api/v1/pms/frontdesk/inroom-order', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                roomNumber: targetRoom,
-                items: items.map((it) => ({
-                  dishId: it.dishId,
-                  name: it.name,
-                  quantity: it.quantity,
-                  price: it.price,
-                })),
-                cookingInstructions: 'Freshly prepared for Guest In-Room Dining',
-              }),
-            });
-            const json = await res.json();
-            if (json.success && json.data) {
-              const { order, folio } = json.data;
-              if (order) {
-                const liveOrd: LiveRoomOrder = {
-                  id: order.id,
-                  orderNumber: order.orderNumber,
-                  orderStatus: order.orderStatus,
-                  placedAt: order.placedAt,
-                  cookingInstructions: order.cookingInstructions,
-                  items: (order.items || []).map((it: any) => ({
-                    menuItemId: it.menuItemId,
-                    name: it.name,
-                    quantity: it.quantity,
-                    unitPrice: it.unitPrice,
-                    subtotal: it.subtotal,
-                    specialInstructions: it.specialInstructions,
-                  })),
-                  grandTotal: order.grandTotal,
-                };
-                store.addLiveOrder(liveOrd);
-                store.openOrderTracker(liveOrd);
-                store.setActiveTab('ORDERS');
-              }
-
-              if (folio) {
-                store.setFolioSummary({
-                  folioNumber: folio.folioNumber,
-                  totalRoomTariff: folio.totalRoomTariff || 0,
-                  totalFoodAndBeverage: folio.totalFoodAndBeverage || 0,
-                  totalTaxes: folio.totalTaxes || 0,
-                  advancePaid: folio.advancePaid || 0,
-                  paidAmount: folio.paidAmount || 0,
-                  netAmountPayable: folio.netAmountPayable || 0,
-                  dueAmount: folio.dueAmount || 0,
-                  folioStatus: folio.folioStatus || 'OPEN',
-                  lineItems: (folio.lineItems || []).map((li: any) => ({
-                    id: li.id || li._id || `li-${Date.now()}`,
-                    department: li.department || 'INCIDENTAL',
-                    description: li.description || 'Charge',
-                    rate: li.rate || 0,
-                    taxAmount: li.taxAmount || 0,
-                    netAmount: li.netAmount || 0,
-                    createdAt: li.postedAt || li.createdAt || new Date().toISOString(),
-                  })),
-                });
-
-                const cur = store.getSession();
-                if (cur) {
-                  store.setStayDetails({
-                    ...cur,
-                    totalFolioAmount: folio.netAmountPayable,
-                    activeOrdersCount: store.getActiveOrdersCount(),
-                  });
-                }
-              }
-            }
-          } catch (e) {
-            console.warn('In-room order placement error:', e);
-          }
-        }}
-        onRefreshOrders={hydrateInRoomOrders}
-        onRefreshFolio={hydrateLiveRoomStay}
-        onExpressCheckout={async (notes) => {
-          console.log(`💳 [Guest Room ${targetRoom}] Express checkout requested`, notes);
-        }}
-      />
+      <GuestRoomPortalRoot />
     </React.StrictMode>
   );
 }

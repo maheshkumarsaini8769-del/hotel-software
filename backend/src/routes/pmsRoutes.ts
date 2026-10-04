@@ -31,6 +31,9 @@ import {
   getConciergeRequests,
   getInRoomConciergeRequests,
   updateConciergeRequestStatus,
+  postExpressCheckoutRequest,
+  getCheckoutPreviewByRoom,
+  settleAndCheckOutFrontDesk,
 } from '../controllers/frontDeskController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
@@ -109,6 +112,11 @@ router.patch('/frontdesk/inroom-order-status/:orderId', authenticateFrontDeskTer
 router.get('/frontdesk/concierge-requests', authenticateFrontDeskTerminal, getConciergeRequests);
 router.get('/frontdesk/concierge-requests/:roomNumber', authenticateFrontDeskTerminal, getInRoomConciergeRequests);
 router.patch('/frontdesk/concierge-request/:requestId/status', authenticateFrontDeskTerminal, updateConciergeRequestStatus);
+
+// Shift 61: 1-Tap Express Digital Departure, Atomic Master Folio Settlement & Housekeeping Turnaround Pipeline
+router.post('/frontdesk/express-checkout-request', authenticateFrontDeskTerminal, postExpressCheckoutRequest);
+router.get('/frontdesk/checkout-preview/:roomNumber', authenticateFrontDeskTerminal, getCheckoutPreviewByRoom);
+router.post('/frontdesk/settle-and-checkout', authenticateFrontDeskTerminal, settleAndCheckOutFrontDesk);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

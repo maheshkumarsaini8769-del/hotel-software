@@ -64,6 +64,11 @@ export class GuestPortalStore {
     this.notify();
   }
 
+  public addLiveOrder(order: any): void {
+    this.liveOrders.unshift(order);
+    this.notify();
+  }
+
   public getActiveOrdersCount(): number {
     return this.liveOrders.filter((o) => o.orderStatus !== 'SERVED' && o.orderStatus !== 'CANCELLED').length;
   }

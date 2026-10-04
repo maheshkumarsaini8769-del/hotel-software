@@ -21,6 +21,10 @@ import {
   getActiveInHouseGuests,
   getGuestStayHistory,
   getFrontDeskAvailableRooms,
+  getExpectedArrivals,
+  getInRoomLiveStay,
+  postInRoomCharge,
+  postConciergeRequest,
 } from '../controllers/frontDeskController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
@@ -80,11 +84,15 @@ export const authenticateFrontDeskTerminal = async (
 router.get('/rooms/search', searchAvailableRooms);
 router.post('/bookings/create', createRoomBooking);
 
-// Shift 57: Flexible Front Desk Check-in & Guest Stay History
+// Shift 57 & Shift 58: Flexible Front Desk Check-in, Expected Arrivals & In-Room Guest Portal
 router.get('/frontdesk/available-rooms', authenticateFrontDeskTerminal, getFrontDeskAvailableRooms);
 router.post('/frontdesk/quick-checkin', authenticateFrontDeskTerminal, quickFrontDeskCheckIn);
+router.get('/frontdesk/expected-arrivals', authenticateFrontDeskTerminal, getExpectedArrivals);
 router.get('/frontdesk/active-stays', authenticateFrontDeskTerminal, getActiveInHouseGuests);
 router.get('/frontdesk/guest-history', authenticateFrontDeskTerminal, getGuestStayHistory);
+router.get('/frontdesk/room-stay-details/:roomNumber', authenticateFrontDeskTerminal, getInRoomLiveStay);
+router.post('/frontdesk/post-inroom-charge', authenticateFrontDeskTerminal, postInRoomCharge);
+router.post('/frontdesk/concierge-request', authenticateFrontDeskTerminal, postConciergeRequest);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

@@ -1,11 +1,13 @@
 export interface GuestSessionModel {
-  sessionToken: string;
+  sessionToken?: string;
   roomNumber: string;
   guestName: string;
-  stayId: string;
+  stayId?: string;
   masterFolioId?: string;
   checkInDate?: string;
   expectedCheckOutDate?: string;
+  wifiPassword?: string;
+  wifiSsid?: string;
   lastKnownRoute?: string;
 }
 

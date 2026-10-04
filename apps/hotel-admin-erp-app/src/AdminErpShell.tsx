@@ -304,6 +304,7 @@ export const AdminErpShell: React.FC = () => {
             return (
               <button
                 key={mod.key}
+                data-testid={`module-nav-${mod.key}`}
                 onClick={() => setActiveModule(mod.key)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group text-left ${
                   isActive

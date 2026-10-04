@@ -14,6 +14,7 @@ import {
 export interface GuestRoomPortalAppProps {
   store: GuestPortalStore;
   onConciergeRequest?: (requestType: string, notes?: string) => Promise<void> | void;
+  onInRoomOrderPlaced?: (items: { dishId: string; name: string; quantity: number; price: number }[]) => Promise<void> | void;
   onExpressCheckout?: (notes?: string) => Promise<void> | void;
   onRefreshOrders?: () => Promise<void> | void;
   onRefreshFolio?: () => Promise<void> | void;
@@ -22,6 +23,7 @@ export interface GuestRoomPortalAppProps {
 export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   store,
   onConciergeRequest,
+  onInRoomOrderPlaced,
   onExpressCheckout,
   onRefreshOrders,
   onRefreshFolio,
@@ -90,8 +92,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
         {activeTab === 'DINING' && (
           <InRoomDiningView
-            roomNumber={session?.roomNumber || '302'}
-            onOrderPlaced={(items) => {
+            roomNumber={session?.roomNumber || '102'}
+            onOrderPlaced={async (items) => {
               store.addLiveOrder({
                 orderId: `ord_ird_${Date.now()}`,
                 placedAt: new Date().toISOString(),
@@ -104,6 +106,9 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 })),
                 totalAmount: items.reduce((s, it) => s + it.price * it.quantity, 0),
               });
+              if (onInRoomOrderPlaced) {
+                await onInRoomOrderPlaced(items);
+              }
             }}
           />
         )}

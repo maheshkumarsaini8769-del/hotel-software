@@ -37,8 +37,24 @@ export const GuestPortalHeader: React.FC<GuestPortalHeaderProps> = ({
           </div>
         </div>
 
-        {/* Room Status & Active Orders Indicator */}
-        <div className="flex items-center space-x-3 text-xs">
+        {/* Room Status & Wi-Fi Credentials & Active Orders Indicator */}
+        <div className="flex flex-wrap items-center gap-2.5 text-xs">
+          {/* Wi-Fi Credentials Badge */}
+          <div
+            data-testid="inroom-wifi-badge"
+            className="bg-gradient-to-r from-amber-500/15 to-amber-500/5 border border-amber-500/30 rounded-xl px-3 py-1.5 flex items-center gap-2"
+          >
+            <span className="text-amber-400 text-sm">📶</span>
+            <div>
+              <span className="text-[9px] uppercase font-extrabold text-amber-400/90 tracking-wider block leading-none">
+                High-Speed Wi-Fi
+              </span>
+              <span className="font-mono text-[11px] font-black text-amber-200">
+                {session?.wifiPassword || `TajGuest@${session?.roomNumber || '102'}`}
+              </span>
+            </div>
+          </div>
+
           {activeOrdersCount > 0 && (
             <button
               onClick={() => onTabChange('ORDERS')}

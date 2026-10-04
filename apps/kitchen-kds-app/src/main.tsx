@@ -72,7 +72,50 @@ export const KitchenKdsAppRoot: React.FC = () => {
         if (res.ok) {
           const body = await res.json();
           if (body.success && body.data) {
-            setHotelId(body.data.hotel.id);
+            const hId = body.data.hotel.id;
+            setHotelId(hId);
+
+            // Fetch existing active KDS orders from backend
+            try {
+              const ordersRes = await fetch(`http://localhost:5000/api/v1/pos/kds/orders?hotelId=${hId}`);
+              if (ordersRes.ok) {
+                const ordersBody = await ordersRes.json();
+                if (ordersBody.success && Array.isArray(ordersBody.data)) {
+                  ordersBody.data.forEach((ord: any) => {
+                    const tableNumber = ord.tableId?.tableNumber || ord.tableNumber || 'Table 4';
+                    const items = (ord.items || []).map((it: any, idx: number) => ({
+                      itemId: it._id?.toString() || `item-${idx}`,
+                      menuItemId: it.menuItemId?.toString() || `mi-${idx}`,
+                      name: it.name || 'Dish',
+                      quantity: it.quantity || 1,
+                      unitPrice: it.unitPrice || 200,
+                      subtotal: it.subtotal || 200,
+                      kitchenStationId: it.kitchenStationId?.toString() || 'st-curry',
+                      itemStatus: it.itemStatus || 'PENDING',
+                      specialInstructions: it.specialInstructions,
+                      allergens: it.allergens || [],
+                      hasAllergenAlert: it.hasAllergenAlert || false,
+                    }));
+
+                    const kdsOrder: KdsOrderCardModel = {
+                      id: ord._id.toString(),
+                      orderNumber: ord.orderNumber || `KOT #${ord._id.toString().slice(-4)}`,
+                      orderType: ord.orderType || 'DINE_IN',
+                      tableNumber,
+                      orderStatus: ord.orderStatus || 'PLACED',
+                      placedAt: ord.placedAt || ord.createdAt || new Date().toISOString(),
+                      elapsedMinutes: 0,
+                      urgencyLevel: 'NORMAL',
+                      items,
+                      cookingInstructions: ord.cookingInstructions,
+                    };
+                    store.handleNewOrder(kdsOrder);
+                  });
+                }
+              }
+            } catch (err) {
+              console.warn('Initial KDS orders fetch error:', err);
+            }
           }
         }
       } catch (err) {
@@ -202,6 +245,11 @@ export const KitchenKdsAppRoot: React.FC = () => {
           console.log(`🍳 [KDS] Cooking started: ${orderId}`);
           try {
             store.markOrderPreparing(orderId);
+            await fetch(`http://localhost:5000/api/v1/pos/kds/order/${orderId}/status`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'x-hotel-id': hotelId },
+              body: JSON.stringify({ status: 'PREPARING' }),
+            }).catch((err) => console.warn('HTTP status patch failed:', err));
             socket.emit('kds:order_preparing', { orderId, hotelId });
           } catch (e: any) {
             console.warn(e.message);
@@ -212,6 +260,11 @@ export const KitchenKdsAppRoot: React.FC = () => {
           try {
             const currentOrder = store.getOrders().find((o) => o.id === orderId);
             store.markOrderReady(orderId);
+            await fetch(`http://localhost:5000/api/v1/pos/kds/order/${orderId}/status`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'x-hotel-id': hotelId },
+              body: JSON.stringify({ status: 'READY' }),
+            }).catch((err) => console.warn('HTTP status patch failed:', err));
             socket.emit('kds:order_ready', {
               orderId,
               hotelId,

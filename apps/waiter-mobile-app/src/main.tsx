@@ -66,6 +66,29 @@ export const WaiterAppRoot: React.FC = () => {
                 shiftStatus: 'ON_DUTY' as any,
               });
             }
+
+            // Fetch any existing open requests for this hotel
+            try {
+              const reqRes = await fetch(`http://localhost:5000/api/v1/requests/waiter/assigned?hotelId=${d.hotel.id}`);
+              if (reqRes.ok) {
+                const reqBody = await reqRes.json();
+                if (reqBody.success && Array.isArray(reqBody.data)) {
+                  reqBody.data.forEach((r: any) => {
+                    store.addRequest({
+                      id: r.id,
+                      tableNumber: r.tableNumber || 'Table 4',
+                      type: r.requestType || 'CALL_WAITER',
+                      status: r.status || 'ASSIGNED',
+                      createdAt: r.createdAt || new Date().toISOString(),
+                      slaMinutes: 1,
+                      priority: r.priority || 'HIGH',
+                    });
+                  });
+                }
+              }
+            } catch (fetchErr) {
+              console.warn('Initial requests fetch error:', fetchErr);
+            }
           }
         }
       } catch (err) {

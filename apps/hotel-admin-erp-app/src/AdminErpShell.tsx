@@ -215,13 +215,12 @@ export const AdminErpShell: React.FC = () => {
                 });
                 if (!res.ok) {
                   const errJson = await res.json().catch(() => null);
-                  alert(errJson?.message || 'Failed to create reservation');
+                  console.warn('Booking creation failed:', errJson?.message);
                 } else {
-                  alert('Quick reservation confirmed successfully!');
+                  console.log('✅ [Hotel Admin] Quick reservation confirmed successfully!');
                 }
               } catch (err: any) {
                 console.error('Booking creation error:', err);
-                alert(`Error saving booking: ${err?.message || 'Network error'}`);
               }
             }}
           />

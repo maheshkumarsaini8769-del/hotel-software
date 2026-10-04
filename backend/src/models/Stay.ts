@@ -17,6 +17,12 @@ export interface IStay extends Document {
   stayStatus: StayStatus;
   masterFolioId?: Types.ObjectId;
   keyCardIssued?: string;
+  isCouple?: boolean;
+  verificationMode?: 'NONE' | 'AADHAAR' | 'PASSPORT' | 'DRIVING_LICENSE' | 'OTHER';
+  idNumberMasked?: string;
+  verifiedByReceptionist?: boolean;
+  receptionistNotes?: string;
+  documentAttachmentUrl?: string;
   checkedInByUserId?: Types.ObjectId;
   checkedOutByUserId?: Types.ObjectId;
   createdAt: Date;
@@ -40,6 +46,16 @@ const StaySchema = new Schema<IStay>(
     },
     masterFolioId: { type: Schema.Types.ObjectId, ref: 'MasterFolio' },
     keyCardIssued: { type: String },
+    isCouple: { type: Boolean, default: false },
+    verificationMode: {
+      type: String,
+      enum: ['NONE', 'AADHAAR', 'PASSPORT', 'DRIVING_LICENSE', 'OTHER'],
+      default: 'NONE',
+    },
+    idNumberMasked: { type: String, trim: true },
+    verifiedByReceptionist: { type: Boolean, default: false },
+    receptionistNotes: { type: String, trim: true },
+    documentAttachmentUrl: { type: String, trim: true },
     checkedInByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
     checkedOutByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
   },

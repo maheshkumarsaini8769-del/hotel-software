@@ -17,10 +17,12 @@ import { NightAuditApp } from './components/night-audit/NightAuditApp';
 import { RevenueManagerApp } from './components/revenue-manager/RevenueManagerApp';
 import { SeatBillingApp } from './components/seat-billing/SeatBillingApp';
 import { KotVoidAuditApp } from './components/kot-void/KotVoidAuditApp';
+import { FrontDeskCheckInApp } from './components/front-desk/FrontDeskCheckInApp';
 import { MatrixStore } from '../../../packages/ui/src/pms/MatrixStore';
 
 export type ErpModuleKey =
   | 'PMS'
+  | 'FRONT_DESK_CHECKIN'
   | 'FAST_CASHIER'
   | 'HOUSEKEEPING'
   | 'RESERVATIONS'
@@ -48,6 +50,7 @@ interface ErpModuleDef {
 const MODULE_REGISTRY: ErpModuleDef[] = [
   // Front Desk & Rooms
   { key: 'PMS', label: 'PMS Room Grid', category: 'FRONT_DESK', icon: '🏨' },
+  { key: 'FRONT_DESK_CHECKIN', label: '1-Click Check-In & KYC', category: 'FRONT_DESK', icon: '🛎️', badge: 'KYC / DOCS' },
   { key: 'HOUSEKEEPING', label: 'Housekeeping Turnaround', category: 'FRONT_DESK', icon: '🧹' },
   { key: 'RESERVATIONS', label: 'Dining & Room Arrivals', category: 'FRONT_DESK', icon: '📅' },
   { key: 'CORPORATE', label: 'Corporate & Groups', category: 'FRONT_DESK', icon: '🏢' },
@@ -225,6 +228,8 @@ export const AdminErpShell: React.FC = () => {
             }}
           />
         );
+      case 'FRONT_DESK_CHECKIN':
+        return <FrontDeskCheckInApp authToken={token} hotelId={hotelId} />;
       case 'FAST_CASHIER':
         return <FastCashierPosApp token={token} />;
       case 'HOUSEKEEPING':

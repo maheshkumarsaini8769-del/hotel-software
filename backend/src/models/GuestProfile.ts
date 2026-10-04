@@ -23,6 +23,10 @@ export interface IGuestProfile extends Document {
   totalVisits: number;
   totalLifetimeSpend: number;
   lastVisitDate?: Date;
+  idNumberMasked?: string;
+  idType?: string;
+  isVerified?: boolean;
+  lastVerifiedDate?: Date;
   loyaltyPointsBalance: number;
   pointsEarnedLifetime: number;
   pointsRedeemedLifetime: number;
@@ -51,6 +55,10 @@ const GuestProfileSchema = new Schema<IGuestProfile>(
     totalVisits: { type: Number, default: 0, min: 0 },
     totalLifetimeSpend: { type: Number, default: 0, min: 0 },
     lastVisitDate: { type: Date },
+    idNumberMasked: { type: String, trim: true },
+    idType: { type: String, trim: true },
+    isVerified: { type: Boolean, default: false },
+    lastVerifiedDate: { type: Date },
     loyaltyPointsBalance: { type: Number, default: 0, min: 0 },
     pointsEarnedLifetime: { type: Number, default: 0, min: 0 },
     pointsRedeemedLifetime: { type: Number, default: 0, min: 0 },

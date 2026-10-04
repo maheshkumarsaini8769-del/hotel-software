@@ -409,6 +409,80 @@ async function startDeepBackendAudit() {
     return { status: res.status, details: `Housekeeping Board verified (${board.rooms?.length || 'Live'} rooms)` };
   });
 
+  // Shift 57, 58, 59 Front Desk & In-Room Dining Lifecycle
+  await runTest('PMS & Front Desk', 'Fetch Front Desk Available Rooms (GET /api/v1/pms/frontdesk/available-rooms)', async () => {
+    const res = await axios.get(`${API_BASE}/pms/frontdesk/available-rooms`, {
+      headers: { Authorization: `Bearer ${adminToken}`, 'x-hotel-id': hotelId },
+    });
+    return { status: res.status, details: `Available rooms count: ${res.data.count ?? res.data.data?.length}` };
+  });
+
+  await runTest('PMS & Front Desk', 'Fetch Expected Online Arrivals Queue (GET /api/v1/pms/frontdesk/expected-arrivals)', async () => {
+    const res = await axios.get(`${API_BASE}/pms/frontdesk/expected-arrivals`, {
+      headers: { Authorization: `Bearer ${adminToken}`, 'x-hotel-id': hotelId },
+    });
+    return { status: res.status, details: `Arrivals in queue: ${res.data.count}` };
+  });
+
+  await runTest('PMS & Front Desk', 'Fetch Active In-House Staying Guests (GET /api/v1/pms/frontdesk/active-stays)', async () => {
+    const res = await axios.get(`${API_BASE}/pms/frontdesk/active-stays`, {
+      headers: { Authorization: `Bearer ${adminToken}`, 'x-hotel-id': hotelId },
+    });
+    return { status: res.status, details: `Active stays in-house: ${res.data.count}` };
+  });
+
+  await runTest('PMS & Front Desk', 'Fetch Guest Stay & Aadhaar History (GET /api/v1/pms/frontdesk/guest-history)', async () => {
+    const res = await axios.get(`${API_BASE}/pms/frontdesk/guest-history`, {
+      headers: { Authorization: `Bearer ${adminToken}`, 'x-hotel-id': hotelId },
+    });
+    return { status: res.status, details: `Guest histories indexed: ${res.data.count}` };
+  });
+
+  await runTest('PMS & Front Desk', 'Fetch In-Room Live Stay Details (GET /api/v1/pms/frontdesk/room-stay-details/102)', async () => {
+    const res = await axios.get(`${API_BASE}/pms/frontdesk/room-stay-details/102`, {
+      headers: { Authorization: `Bearer ${adminToken}`, 'x-hotel-id': hotelId },
+    });
+    const guest = res.data.data?.stay?.guestName || 'In-House';
+    const due = res.data.data?.folio?.dueAmount || 0;
+    return { status: res.status, details: `Room 102 Guest: ${guest} | Folio Due: ₹${due}` };
+  });
+
+  let inroomOrderId = '';
+  await runTest('PMS & Front Desk', 'Post In-Room Dining Order (POST /api/v1/pms/frontdesk/inroom-order)', async () => {
+    const res = await axios.post(
+      `${API_BASE}/pms/frontdesk/inroom-order`,
+      {
+        roomNumber: '102',
+        items: [
+          { name: 'Paneer Tikka Angara', quantity: 1, price: 280 },
+          { name: 'Butter Garlic Naan', quantity: 2, price: 70 },
+        ],
+        cookingInstructions: 'Deep Audit Test Fresh Order',
+      },
+      { headers: { Authorization: `Bearer ${adminToken}`, 'x-hotel-id': hotelId } }
+    );
+    inroomOrderId = res.data.data?.order?.id;
+    return { status: res.status, details: `Order ${res.data.data?.order?.orderNumber} charged ₹${res.data.data?.order?.grandTotal} to folio` };
+  });
+
+  await runTest('PMS & Front Desk', 'Fetch In-Room Orders List (GET /api/v1/pms/frontdesk/inroom-orders/102)', async () => {
+    const res = await axios.get(`${API_BASE}/pms/frontdesk/inroom-orders/102`, {
+      headers: { Authorization: `Bearer ${adminToken}`, 'x-hotel-id': hotelId },
+    });
+    return { status: res.status, details: `In-room orders active: ${res.data.count}` };
+  });
+
+  if (inroomOrderId) {
+    await runTest('PMS & Front Desk', `Update In-Room Order Status (PATCH /api/v1/pms/frontdesk/inroom-order-status/${inroomOrderId})`, async () => {
+      const res = await axios.patch(
+        `${API_BASE}/pms/frontdesk/inroom-order-status/${inroomOrderId}`,
+        { status: 'PREPARING' },
+        { headers: { Authorization: `Bearer ${adminToken}`, 'x-hotel-id': hotelId } }
+      );
+      return { status: res.status, details: `Order status transitioned to ${res.data.data?.orderStatus}` };
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // SUITE 8: NIGHT AUDIT & EOD LEDGER CLOSURE
   // ---------------------------------------------------------------------------

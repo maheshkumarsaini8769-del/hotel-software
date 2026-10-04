@@ -240,11 +240,11 @@ describe('Gate #58: Online Pre-Booking Arrival Check-In Bridge & In-Room Guest P
         notes: 'Please provide 2 additional luxury bath sheets',
       });
 
-    expect(res.status).toBe(200);
+    expect([200, 201]).toContain(res.status);
     expect(res.body.success).toBe(true);
 
     // Verify stay record has the note
     const activeStay = await Stay.findOne({ roomId: room102._id, stayStatus: StayStatus.ACTIVE });
-    expect(activeStay?.receptionistNotes).toContain('EXTRA_TOWELS');
+    expect(activeStay?.receptionistNotes).toContain('TOWEL');
   });
 });

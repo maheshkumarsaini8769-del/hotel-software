@@ -25,12 +25,11 @@ describe('--- SHIFT 24 / GATE 24: KITCHEN RECIPE COSTING, FOOD WASTE TRACKER & P
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5104;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Setup Tenant A
     const tenantA = await Tenant.create({

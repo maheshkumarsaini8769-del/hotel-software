@@ -29,12 +29,11 @@ describe('--- SHIFT 26 / GATE 26: DEPARTMENTAL STORE REQUISITIONS, TRANSFERS & F
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5106;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Setup Tenant A
     const tenantA = await Tenant.create({

@@ -31,12 +31,11 @@ describe('--- SHIFT 31 / GATE 31: DAILY NIGHT AUDIT, REVENUE MANAGER & BUSINESS 
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5111;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Setup Tenant A (Grand Palace Hotel)
     const tenantA = await Tenant.create({

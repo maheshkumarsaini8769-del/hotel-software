@@ -23,12 +23,11 @@ describe('--- SHIFT 25 / GATE 25: CENTRAL STORE PURCHASE ORDERS, VENDOR MANAGEME
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5105;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Setup Tenant A
     const tenantA = await Tenant.create({

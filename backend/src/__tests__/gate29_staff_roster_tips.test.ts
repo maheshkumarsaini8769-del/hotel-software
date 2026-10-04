@@ -36,12 +36,11 @@ describe('--- SHIFT 29 / GATE 29: STAFF SHIFT ROSTER, ATTENDANCE & TIP POOL DIST
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5109;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Setup Tenant A
     const tenantA = await Tenant.create({

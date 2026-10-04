@@ -32,12 +32,11 @@ describe('--- SHIFT 33 / GATE 33: UNIVERSAL CUSTOMER SELF-SERVICE PORTAL ---', (
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5113;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Setup Tenant A (Grand Heritage Resort)
     const tenantA = await Tenant.create({
@@ -176,7 +175,11 @@ describe('--- SHIFT 33 / GATE 33: UNIVERSAL CUSTOMER SELF-SERVICE PORTAL ---', (
   });
 
   afterAll(async () => {
-    await server.close();
+    if (server.listening) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
     await mongoose.connection.close();
   });
 

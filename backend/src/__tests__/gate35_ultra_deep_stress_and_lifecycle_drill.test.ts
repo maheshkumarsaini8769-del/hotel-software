@@ -36,12 +36,11 @@ describe('=== ULTRA-DEEP ENTERPRISE INTEGRATION, CONCURRENCY & COMPLETE LIFECYCL
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5116;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Seed Real Enterprise Tenant (The Leela Palace Hotel & Convention)
     const tenant = await Tenant.create({
@@ -178,7 +177,11 @@ describe('=== ULTRA-DEEP ENTERPRISE INTEGRATION, CONCURRENCY & COMPLETE LIFECYCL
   });
 
   afterAll(async () => {
-    await server.close();
+    if (server.listening) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
     await mongoose.connection.close();
   });
 

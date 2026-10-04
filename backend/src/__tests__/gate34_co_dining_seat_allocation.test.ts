@@ -18,12 +18,11 @@ describe('--- SHIFT 34 / GATE 34: SMART TABLE AVAILABILITY & CO-DINING SEAT-LEVE
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5114;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Setup Tenant A (Bustling Food Hall & Lounge)
     const tenantA = await Tenant.create({
@@ -58,7 +57,11 @@ describe('--- SHIFT 34 / GATE 34: SMART TABLE AVAILABILITY & CO-DINING SEAT-LEVE
   });
 
   afterAll(async () => {
-    await server.close();
+    if (server.listening) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
     await mongoose.connection.close();
   });
 

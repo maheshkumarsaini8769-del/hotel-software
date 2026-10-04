@@ -31,12 +31,11 @@ describe('--- SHIFT 21 / GATE 21: GROUP BOOKINGS & CORPORATE MASTER FOLIO SPLIT 
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5101;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Create Tenant A (Grand Oberoi Resort)
     const tenantA = await Tenant.create({

@@ -103,7 +103,11 @@ describe('--- SHIFT 39: ULTRA-DEEP LATE ATTENDANCE & CONCURRENCY SPILLOVER DRILL
   });
 
   afterAll(async () => {
-    await server.close();
+    if (server.listening) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
     await mongoose.connection.close();
   });
 

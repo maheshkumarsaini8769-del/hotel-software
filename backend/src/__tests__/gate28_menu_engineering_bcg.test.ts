@@ -24,12 +24,11 @@ describe('--- SHIFT 28 / GATE 28: F&B MENU ENGINEERING MATRIX & BCG PROFITABILIT
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5108;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Setup Tenant A
     const tenantA = await Tenant.create({

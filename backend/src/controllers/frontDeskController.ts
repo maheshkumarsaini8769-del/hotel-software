@@ -25,6 +25,7 @@ import {
   HousekeepingTaskType,
   HousekeepingTaskStatus,
 } from '../models/HousekeepingTask';
+import { User } from '../models/User';
 import { TenantRequest } from '../types';
 import { io } from '../index';
 
@@ -1778,6 +1779,423 @@ export const settleAndCheckOutFrontDesk = async (req: TenantRequest, res: Respon
       success: true,
       message: `Room ${room.roomNumber} successfully checked out and settled! Tax Invoice ${invoiceNumber} issued. Room queued for Housekeeping Turnaround.`,
       data: invoicePayload,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// =============================================================================
+// Shift 62: Housekeeping Turnaround Execution, Room Inspection & Instant Ready
+// =============================================================================
+
+// 18. Fetch Housekeeping Turnaround Queue with 30-min SLA Countdown
+export const getTurnaroundQueue = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const tasks = await HousekeepingTask.find({
+      hotelId,
+      status: {
+        $in: [
+          HousekeepingTaskStatus.PENDING,
+          HousekeepingTaskStatus.IN_PROGRESS,
+          HousekeepingTaskStatus.COMPLETED,
+          HousekeepingTaskStatus.INSPECTED_FAILED,
+        ],
+      },
+    })
+      .populate('roomId', 'roomNumber floorNumber wing status roomTypeId')
+      .populate('assignedAttendantId', 'name email phone role')
+      .sort({ priority: -1, createdAt: 1 });
+
+    const queue = tasks.map((task: any) => {
+      const room = task.roomId;
+      const createdTime = new Date(task.createdAt).getTime();
+      const elapsedMinutes = Math.max(0, Math.round((Date.now() - createdTime) / 60000));
+      const slaTargetMinutes = 30; // 30-min standard turnaround SLA
+      const slaRemainingMinutes = Math.max(0, slaTargetMinutes - elapsedMinutes);
+      const isSlaBreached = elapsedMinutes > slaTargetMinutes;
+      const completedCount = task.checklist ? task.checklist.filter((item: any) => item.isDone).length : 0;
+      const totalCount = task.checklist ? task.checklist.length : 6;
+
+      return {
+        taskId: task._id.toString(),
+        room: room
+          ? {
+              id: room._id.toString(),
+              roomNumber: room.roomNumber,
+              floor: room.floorNumber,
+              wing: room.wing || 'Main Wing',
+              status: room.status,
+            }
+          : null,
+        taskType: task.taskType,
+        priority: task.priority,
+        status: task.status,
+        checklist: task.checklist || [],
+        checklistProgress: `${completedCount}/${totalCount}`,
+        checklistCompleted: completedCount === totalCount,
+        assignedAttendant: task.assignedAttendantId
+          ? {
+              id: task.assignedAttendantId._id.toString(),
+              name: task.assignedAttendantId.name,
+              email: task.assignedAttendantId.email,
+              phone: task.assignedAttendantId.phone,
+            }
+          : null,
+        inspectionNotes: task.inspectionNotes,
+        startedAt: task.startedAt,
+        completedAt: task.completedAt,
+        createdAt: task.createdAt,
+        elapsedMinutes,
+        slaTargetMinutes,
+        slaRemainingMinutes,
+        isSlaBreached,
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: queue,
+      totalPending: queue.filter((q) => q.status === HousekeepingTaskStatus.PENDING).length,
+      totalInCleaning: queue.filter((q) => q.status === HousekeepingTaskStatus.IN_PROGRESS).length,
+      totalReadyForInspection: queue.filter((q) => q.status === HousekeepingTaskStatus.COMPLETED).length,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 19. Assign Attendant & Transition Room to CLEANING
+export const assignTurnaroundAttendant = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { taskId, attendantId, roomNumber } = req.body;
+    if (!taskId && !roomNumber) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PARAMS', message: 'taskId or roomNumber is required' });
+      return;
+    }
+
+    let task: any = null;
+    if (taskId) {
+      task = await HousekeepingTask.findOne({ _id: new Types.ObjectId(taskId), hotelId });
+    } else if (roomNumber) {
+      const room = await Room.findOne({ hotelId, roomNumber: String(roomNumber).trim() });
+      if (room) {
+        task = await HousekeepingTask.findOne({
+          hotelId,
+          roomId: room._id,
+          status: { $in: [HousekeepingTaskStatus.PENDING, HousekeepingTaskStatus.IN_PROGRESS, HousekeepingTaskStatus.INSPECTED_FAILED] },
+        });
+      }
+    }
+
+    if (!task) {
+      res.status(404).json({ success: false, errorCode: 'TASK_NOT_FOUND', message: 'Housekeeping turnaround task not found' });
+      return;
+    }
+
+    const room = await Room.findOne({ _id: task.roomId, hotelId });
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: 'Room not found' });
+      return;
+    }
+
+    let attendantObj: any = null;
+    if (attendantId) {
+      attendantObj = await User.findOne({ _id: new Types.ObjectId(attendantId), hotelId });
+      task.assignedAttendantId = attendantObj ? attendantObj._id : new Types.ObjectId(attendantId);
+    }
+
+    task.status = HousekeepingTaskStatus.IN_PROGRESS;
+    if (!task.startedAt) {
+      task.startedAt = new Date();
+    }
+    await task.save();
+
+    room.status = RoomStatus.CLEANING;
+    await room.save();
+
+    const payload = {
+      taskId: task._id.toString(),
+      roomNumber: room.roomNumber,
+      roomStatus: room.status,
+      taskStatus: task.status,
+      assignedAttendant: attendantObj ? { id: attendantObj._id.toString(), name: attendantObj.name } : null,
+      startedAt: task.startedAt,
+    };
+
+    io.to(`${hotelId.toString()}_global`).emit('pms:turnaround_assigned', payload);
+    io.to(`${hotelId.toString()}_global`).emit('pms:room_status_changed', {
+      roomNumber: room.roomNumber,
+      status: RoomStatus.CLEANING,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Attendant assigned and Room ${room.roomNumber} transitioned to CLEANING`,
+      data: payload,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 20. Submit 6-Point Inspection Checklist & Advance to INSPECTION
+export const submitTurnaroundChecklist = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { taskId, roomNumber, checklist, attendantNotes } = req.body;
+    if (!taskId && !roomNumber) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PARAMS', message: 'taskId or roomNumber is required' });
+      return;
+    }
+
+    let task: any = null;
+    if (taskId) {
+      task = await HousekeepingTask.findOne({ _id: new Types.ObjectId(taskId), hotelId });
+    } else if (roomNumber) {
+      const room = await Room.findOne({ hotelId, roomNumber: String(roomNumber).trim() });
+      if (room) {
+        task = await HousekeepingTask.findOne({
+          hotelId,
+          roomId: room._id,
+          status: { $in: [HousekeepingTaskStatus.IN_PROGRESS, HousekeepingTaskStatus.PENDING] },
+        });
+      }
+    }
+
+    if (!task) {
+      res.status(404).json({ success: false, errorCode: 'TASK_NOT_FOUND', message: 'Active turnaround task not found' });
+      return;
+    }
+
+    const room = await Room.findOne({ _id: task.roomId, hotelId });
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: 'Room not found' });
+      return;
+    }
+
+    if (checklist && Array.isArray(checklist) && checklist.length > 0) {
+      task.checklist = checklist;
+    } else {
+      task.checklist = (task.checklist || []).map((item: any) => ({
+        taskName: item.taskName,
+        isDone: true,
+      }));
+    }
+
+    task.status = HousekeepingTaskStatus.COMPLETED;
+    task.completedAt = new Date();
+    if (attendantNotes) {
+      task.inspectionNotes = attendantNotes;
+    }
+    await task.save();
+
+    room.status = RoomStatus.INSPECTION;
+    await room.save();
+
+    const payload = {
+      taskId: task._id.toString(),
+      roomNumber: room.roomNumber,
+      roomStatus: room.status,
+      taskStatus: task.status,
+      checklist: task.checklist,
+      completedAt: task.completedAt,
+      inspectionNotes: task.inspectionNotes,
+    };
+
+    io.to(`${hotelId.toString()}_global`).emit('pms:turnaround_checklist_submitted', payload);
+    io.to(`${hotelId.toString()}_global`).emit('pms:room_status_changed', {
+      roomNumber: room.roomNumber,
+      status: RoomStatus.INSPECTION,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Checklist submitted for Room ${room.roomNumber}. Advanced to INSPECTION`,
+      data: payload,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 21. Supervisor 1-Tap "Instant Ready" Approval & Release Room to AVAILABLE
+export const approveAndReleaseTurnaroundRoom = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { taskId, roomNumber, supervisorNotes } = req.body;
+    if (!taskId && !roomNumber) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PARAMS', message: 'taskId or roomNumber is required' });
+      return;
+    }
+
+    let task: any = null;
+    if (taskId) {
+      task = await HousekeepingTask.findOne({
+        _id: new Types.ObjectId(taskId),
+        hotelId,
+        status: { $in: [HousekeepingTaskStatus.COMPLETED, HousekeepingTaskStatus.IN_PROGRESS, HousekeepingTaskStatus.PENDING] },
+      });
+    } else if (roomNumber) {
+      const room = await Room.findOne({ hotelId, roomNumber: String(roomNumber).trim() });
+      if (room) {
+        task = await HousekeepingTask.findOne({
+          hotelId,
+          roomId: room._id,
+          status: { $in: [HousekeepingTaskStatus.COMPLETED, HousekeepingTaskStatus.IN_PROGRESS] },
+        });
+      }
+    }
+
+    if (!task) {
+      res.status(404).json({ success: false, errorCode: 'TASK_NOT_FOUND', message: 'Completed turnaround task not found' });
+      return;
+    }
+
+    const room = await Room.findOne({ _id: task.roomId, hotelId });
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: 'Room not found' });
+      return;
+    }
+
+    task.status = HousekeepingTaskStatus.INSPECTED_PASSED;
+    task.inspectedAt = new Date();
+    if (req.user?.userId) {
+      task.inspectedByUserId = new Types.ObjectId(req.user.userId);
+    }
+    if (supervisorNotes) {
+      task.inspectionNotes = task.inspectionNotes
+        ? `${task.inspectionNotes} | Supervisor: ${supervisorNotes}`
+        : `Supervisor: ${supervisorNotes}`;
+    }
+    await task.save();
+
+    // Atomically release room to AVAILABLE and decouple vacated stay
+    room.status = RoomStatus.AVAILABLE;
+    room.currentStayId = undefined;
+    await room.save();
+
+    const createdTime = new Date(task.createdAt).getTime();
+    const turnaroundMinutes = Math.max(1, Math.round((Date.now() - createdTime) / 60000));
+
+    const payload = {
+      taskId: task._id.toString(),
+      roomNumber: room.roomNumber,
+      floor: room.floorNumber,
+      roomStatus: RoomStatus.AVAILABLE,
+      taskStatus: task.status,
+      turnaroundMinutes,
+      inspectedAt: task.inspectedAt,
+      inspectionNotes: task.inspectionNotes,
+    };
+
+    io.to(`${hotelId.toString()}_global`).emit('pms:turnaround_completed', payload);
+    io.to(`${hotelId.toString()}_global`).emit('pms:room_status_changed', {
+      roomNumber: room.roomNumber,
+      status: RoomStatus.AVAILABLE,
+      turnaroundMinutes,
+    });
+    io.to(`${hotelId.toString()}_global`).emit('pms:room_available', {
+      roomNumber: room.roomNumber,
+      floorNumber: room.floorNumber,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Room ${room.roomNumber} approved and released to INSTANT READY (AVAILABLE) in ${turnaroundMinutes} min!`,
+      data: payload,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 22. Supervisor Rejection / Quality Fail -> Revert to DIRTY for Re-Clean
+export const rejectTurnaroundReclean = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { taskId, roomNumber, rejectionReason } = req.body;
+    if (!taskId && !roomNumber) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PARAMS', message: 'taskId or roomNumber is required' });
+      return;
+    }
+
+    let task: any = null;
+    if (taskId) {
+      task = await HousekeepingTask.findOne({ _id: new Types.ObjectId(taskId), hotelId });
+    } else if (roomNumber) {
+      const room = await Room.findOne({ hotelId, roomNumber: String(roomNumber).trim() });
+      if (room) {
+        task = await HousekeepingTask.findOne({
+          hotelId,
+          roomId: room._id,
+        });
+      }
+    }
+
+    if (!task) {
+      res.status(404).json({ success: false, errorCode: 'TASK_NOT_FOUND', message: 'Housekeeping task not found' });
+      return;
+    }
+
+    const room = await Room.findOne({ _id: task.roomId, hotelId });
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: 'Room not found' });
+      return;
+    }
+
+    task.status = HousekeepingTaskStatus.INSPECTED_FAILED;
+    task.inspectionNotes = `RE-CLEAN REQUIRED: ${rejectionReason || 'Quality check failed'}`;
+    await task.save();
+
+    room.status = RoomStatus.DIRTY;
+    await room.save();
+
+    const payload = {
+      taskId: task._id.toString(),
+      roomNumber: room.roomNumber,
+      roomStatus: RoomStatus.DIRTY,
+      taskStatus: task.status,
+      rejectionReason: task.inspectionNotes,
+    };
+
+    io.to(`${hotelId.toString()}_global`).emit('pms:turnaround_rejected', payload);
+    io.to(`${hotelId.toString()}_global`).emit('pms:room_status_changed', {
+      roomNumber: room.roomNumber,
+      status: RoomStatus.DIRTY,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Room ${room.roomNumber} inspection failed. Reverted to DIRTY for re-cleaning.`,
+      data: payload,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });

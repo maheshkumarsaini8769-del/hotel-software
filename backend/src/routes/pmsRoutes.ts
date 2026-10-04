@@ -34,6 +34,11 @@ import {
   postExpressCheckoutRequest,
   getCheckoutPreviewByRoom,
   settleAndCheckOutFrontDesk,
+  getTurnaroundQueue,
+  assignTurnaroundAttendant,
+  submitTurnaroundChecklist,
+  approveAndReleaseTurnaroundRoom,
+  rejectTurnaroundReclean,
 } from '../controllers/frontDeskController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
@@ -117,6 +122,13 @@ router.patch('/frontdesk/concierge-request/:requestId/status', authenticateFront
 router.post('/frontdesk/express-checkout-request', authenticateFrontDeskTerminal, postExpressCheckoutRequest);
 router.get('/frontdesk/checkout-preview/:roomNumber', authenticateFrontDeskTerminal, getCheckoutPreviewByRoom);
 router.post('/frontdesk/settle-and-checkout', authenticateFrontDeskTerminal, settleAndCheckOutFrontDesk);
+
+// Shift 62: Housekeeping Turnaround Execution, Room Inspection Checklist & Instant Ready Status Pipeline
+router.get('/frontdesk/turnaround-queue', authenticateFrontDeskTerminal, getTurnaroundQueue);
+router.post('/frontdesk/turnaround/assign-attendant', authenticateFrontDeskTerminal, assignTurnaroundAttendant);
+router.post('/frontdesk/turnaround/submit-checklist', authenticateFrontDeskTerminal, submitTurnaroundChecklist);
+router.post('/frontdesk/turnaround/approve-ready', authenticateFrontDeskTerminal, approveAndReleaseTurnaroundRoom);
+router.post('/frontdesk/turnaround/reject-reclean', authenticateFrontDeskTerminal, rejectTurnaroundReclean);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

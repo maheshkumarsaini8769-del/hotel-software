@@ -86,7 +86,11 @@ describe('--- SHIFT 37 / GATE 37: WAITER ZONE ASSIGNMENT & TARGETED PUSH ALERTS 
   });
 
   afterAll(async () => {
-    await server.close();
+    if (server.listening) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
     await mongoose.connection.close();
   });
 

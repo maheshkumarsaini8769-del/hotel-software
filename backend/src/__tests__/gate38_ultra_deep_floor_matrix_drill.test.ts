@@ -98,7 +98,11 @@ describe('--- SHIFT 38: ULTRA-DEEP MULTI-FLOOR CONCURRENCY & STRESS DRILL ---', 
   });
 
   afterAll(async () => {
-    await server.close();
+    if (server.listening) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
     await mongoose.connection.close();
   });
 

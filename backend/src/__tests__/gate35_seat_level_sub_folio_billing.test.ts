@@ -22,12 +22,11 @@ describe('--- SHIFT 35 / GATE 35: INDEPENDENT SEAT-LEVEL BILLING & SUB-FOLIO SET
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5115;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Setup Tenant A
     const tenantA = await Tenant.create({
@@ -71,7 +70,11 @@ describe('--- SHIFT 35 / GATE 35: INDEPENDENT SEAT-LEVEL BILLING & SUB-FOLIO SET
   });
 
   afterAll(async () => {
-    await server.close();
+    if (server.listening) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
     await mongoose.connection.close();
   });
 

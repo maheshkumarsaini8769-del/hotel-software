@@ -29,12 +29,11 @@ describe('--- SHIFT 36 / GATE 36: PERMANENT TABLE QR LOCKER & 10-SECOND WAITER S
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5117;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Setup Tenant A
     const tenantA = await Tenant.create({
@@ -100,7 +99,11 @@ describe('--- SHIFT 36 / GATE 36: PERMANENT TABLE QR LOCKER & 10-SECOND WAITER S
   });
 
   afterAll(async () => {
-    await server.close();
+    if (server.listening) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
     await mongoose.connection.close();
   });
 

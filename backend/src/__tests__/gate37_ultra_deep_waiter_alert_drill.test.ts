@@ -106,7 +106,11 @@ describe('--- SHIFT 37: ULTRA-DEEP WAITER ALERT CONCURRENCY & STRESS DRILL ---',
   });
 
   afterAll(async () => {
-    await server.close();
+    if (server.listening) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
     await mongoose.connection.close();
   });
 

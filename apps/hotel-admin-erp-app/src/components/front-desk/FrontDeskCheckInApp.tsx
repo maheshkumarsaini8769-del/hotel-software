@@ -136,11 +136,42 @@ export interface ConciergeDeskRequest {
   completedAt?: string;
 }
 
+export interface TurnaroundQueueItem {
+  taskId: string;
+  room: {
+    id: string;
+    roomNumber: string;
+    floor: number;
+    wing: string;
+    status: string;
+  } | null;
+  taskType: string;
+  priority: string;
+  status: string;
+  checklist: Array<{ taskName: string; isDone: boolean }>;
+  checklistProgress: string;
+  checklistCompleted: boolean;
+  assignedAttendant: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+  } | null;
+  inspectionNotes?: string;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  elapsedMinutes: number;
+  slaTargetMinutes: number;
+  slaRemainingMinutes: number;
+  isSlaBreached: boolean;
+}
+
 export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   authToken,
   hotelId: propHotelId,
 }) => {
-  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE'>('CHECKIN');
+  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND'>('CHECKIN');
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -149,6 +180,15 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
 
   // Concierge & Housekeeping Desk Requests (Shift 60)
   const [conciergeRequests, setConciergeRequests] = useState<ConciergeDeskRequest[]>([]);
+
+  // Shift 62: Housekeeping Turnaround Queue & Room Inspection State
+  const [turnaroundQueue, setTurnaroundQueue] = useState<TurnaroundQueueItem[]>([]);
+  const [selectedTurnaroundTask, setSelectedTurnaroundTask] = useState<TurnaroundQueueItem | null>(null);
+  const [checklistModalOpen, setChecklistModalOpen] = useState(false);
+  const [activeChecklist, setActiveChecklist] = useState<Array<{ taskName: string; isDone: boolean }>>([]);
+  const [turnaroundAttendantName, setTurnaroundAttendantName] = useState('Sunita Sharma (Executive Attendant)');
+  const [turnaroundNotes, setTurnaroundNotes] = useState('');
+  const [turnaroundSubmitting, setTurnaroundSubmitting] = useState(false);
 
   // Check-In Form State
   const [guestName, setGuestName] = useState('');
@@ -262,6 +302,19 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       } catch (err: any) {
         console.warn('Concierge requests note:', err.message);
       }
+
+      // 5. Fetch Housekeeping Turnaround Queue (Shift 62)
+      try {
+        const tRes = await axios.get(`${apiBase}/pms/frontdesk/turnaround-queue`, {
+          headers: authHeaders,
+          params: { hotelId },
+        });
+        if (tRes.data.success) {
+          setTurnaroundQueue(tRes.data.data || []);
+        }
+      } catch (err: any) {
+        console.warn('Turnaround queue note:', err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -277,6 +330,130 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
         setConciergeRequests(crRes.data.data || []);
       }
     } catch (e) {}
+  };
+
+  const loadTurnaroundQueue = async () => {
+    try {
+      const res = await axios.get(`${apiBase}/pms/frontdesk/turnaround-queue`, {
+        headers: authHeaders,
+        params: { hotelId },
+      });
+      if (res.data.success) {
+        setTurnaroundQueue(res.data.data || []);
+      }
+    } catch (e) {}
+  };
+
+  const handleAssignTurnaroundAttendant = async (taskId: string, attendantName: string) => {
+    try {
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/turnaround/assign-attendant`,
+        { taskId, attendantName },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🧹 Assigned ${attendantName} to Room Turnaround! Status updated to CLEANING.`);
+        loadTurnaroundQueue();
+        loadData();
+      }
+    } catch (err: any) {
+      showToast(`Error assigning attendant: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  const handleOpenTurnaroundChecklist = (task: TurnaroundQueueItem) => {
+    setSelectedTurnaroundTask(task);
+    setActiveChecklist(
+      task.checklist && task.checklist.length > 0
+        ? task.checklist
+        : [
+            { taskName: 'Strip & replace bed linens, pillow covers and duvet', isDone: false },
+            { taskName: 'Scrub & sanitize bathroom, replenish towels and toiletries', isDone: false },
+            { taskName: 'Vacuum carpet & disinfect all touch points (remote, switches)', isDone: false },
+            { taskName: 'Audit minibar & replenish complimentary water bottles', isDone: false },
+            { taskName: 'Inspect electricals, AC thermostat and TV connectivity', isDone: false },
+            { taskName: 'Verify RFID keycard reader & seal room with door safety band', isDone: false },
+          ]
+    );
+    setTurnaroundNotes(task.inspectionNotes || '');
+    setChecklistModalOpen(true);
+  };
+
+  const handleToggleChecklistItem = (index: number) => {
+    setActiveChecklist((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, isDone: !item.isDone } : item))
+    );
+  };
+
+  const handleSubmitChecklist = async () => {
+    if (!selectedTurnaroundTask) return;
+    setTurnaroundSubmitting(true);
+    try {
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/turnaround/submit-checklist`,
+        {
+          taskId: selectedTurnaroundTask.taskId,
+          checklist: activeChecklist,
+          attendantNotes: turnaroundNotes || 'All turnaround checklist items completed and verified.',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast('✅ 6-Point Checklist submitted! Room moved to INSPECTION.');
+        setChecklistModalOpen(false);
+        loadTurnaroundQueue();
+        loadData();
+      }
+    } catch (err: any) {
+      showToast(`Error submitting checklist: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setTurnaroundSubmitting(false);
+    }
+  };
+
+  const handleApproveAndReleaseRoom = async (taskId: string, roomNum: string) => {
+    setTurnaroundSubmitting(true);
+    try {
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/turnaround/approve-ready`,
+        {
+          taskId,
+          supervisorNotes: 'Executive Housekeeper inspection certified. Instant Ready.',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🎉 Room ${roomNum} verified & released to AVAILABLE (Instant Ready) in ${res.data.data?.turnaroundMinutes || 12} min!`);
+        setChecklistModalOpen(false);
+        loadTurnaroundQueue();
+        loadData();
+      }
+    } catch (err: any) {
+      showToast(`Error releasing room: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setTurnaroundSubmitting(false);
+    }
+  };
+
+  const handleRejectTurnaroundReclean = async (taskId: string, roomNum: string) => {
+    try {
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/turnaround/reject-reclean`,
+        {
+          taskId,
+          rejectionReason: 'Supervisor found quality deficiency. Re-clean required.',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`⚠️ Room ${roomNum} rejected. Reverted to DIRTY for re-cleaning.`);
+        setChecklistModalOpen(false);
+        loadTurnaroundQueue();
+        loadData();
+      }
+    } catch (err: any) {
+      showToast(`Error rejecting: ${err.response?.data?.message || err.message}`);
+    }
   };
 
   const handleAssignStaff = async (requestId: string, staffName: string) => {
@@ -393,6 +570,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
     const timer = setInterval(() => {
       loadConciergeRequests();
       loadActiveInHouseStays();
+      loadTurnaroundQueue();
     }, 3000);
     return () => clearInterval(timer);
   }, []);
@@ -550,6 +728,16 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
               {conciergeRequests.filter((r) => r.status !== 'COMPLETED').length}
             </div>
           </div>
+          <div
+            data-testid="metric-turnaround-queue"
+            className="bg-zinc-950/70 border border-teal-500/40 p-3 rounded-2xl text-center cursor-pointer hover:border-teal-400 transition"
+            onClick={() => setActiveTab('TURNAROUND')}
+          >
+            <span className="text-[10px] font-bold text-teal-400 uppercase tracking-wider">Turnaround Queue</span>
+            <div className="text-xl font-black text-teal-300 mt-0.5">
+              {turnaroundQueue.filter((t) => t.status !== 'INSPECTED_PASSED').length}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -614,6 +802,18 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }`}
         >
           <span>🛎️</span> In-Room Concierge & Housekeeping Desk ({conciergeRequests.filter((r) => r.status !== 'COMPLETED').length})
+        </button>
+        <button
+          type="button"
+          data-testid="tab-turnaround"
+          onClick={() => setActiveTab('TURNAROUND')}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'TURNAROUND'
+              ? 'border-teal-400 text-teal-400 bg-teal-500/10'
+              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <span>🧹</span> Housekeeping Turnaround Desk ({turnaroundQueue.filter((t) => t.status !== 'INSPECTED_PASSED').length})
         </button>
       </div>
 
@@ -1461,6 +1661,244 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             )}
           </div>
         )}
+
+        {/* TAB 6: HOUSEKEEPING TURNAROUND & INSTANT READY PIPELINE (Shift 62) */}
+        {activeTab === 'TURNAROUND' && (
+          <div className="space-y-6" data-testid="turnaround-desk-workspace">
+            {/* Header section */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-black text-white">Housekeeping Turnaround & Instant Ready Pipeline</h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                    30-MIN SLA ENGINE
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Manage vacated dirty rooms, dispatch attendants, verify 6-point room hygiene inspections, and execute 1-tap supervisor certification for instant ready guest release.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  data-testid="btn-refresh-turnaround"
+                  onClick={loadTurnaroundQueue}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-xl border border-zinc-700 transition flex items-center gap-1.5"
+                >
+                  <span>🔄</span> Refresh Queue
+                </button>
+              </div>
+            </div>
+
+            {/* Turnaround Quick Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-zinc-900/60 border border-zinc-800/80 p-3.5 rounded-2xl">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Queue Total</span>
+                <div className="text-xl font-black text-white mt-0.5">{turnaroundQueue.length}</div>
+              </div>
+              <div className="bg-zinc-900/60 border border-orange-500/30 p-3.5 rounded-2xl">
+                <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wider">Dirty / Pending</span>
+                <div className="text-xl font-black text-orange-400 mt-0.5">
+                  {turnaroundQueue.filter((t) => t.status === 'PENDING').length}
+                </div>
+              </div>
+              <div className="bg-zinc-900/60 border border-blue-500/30 p-3.5 rounded-2xl">
+                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">In Cleaning</span>
+                <div className="text-xl font-black text-blue-400 mt-0.5">
+                  {turnaroundQueue.filter((t) => t.status === 'IN_PROGRESS').length}
+                </div>
+              </div>
+              <div className="bg-zinc-900/60 border border-emerald-500/30 p-3.5 rounded-2xl">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Passed / Released</span>
+                <div className="text-xl font-black text-emerald-400 mt-0.5">
+                  {turnaroundQueue.filter((t) => t.status === 'INSPECTED_PASSED').length}
+                </div>
+              </div>
+            </div>
+
+            {/* Room Queue List */}
+            {turnaroundQueue.length === 0 ? (
+              <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-12 text-center space-y-3">
+                <div className="text-4xl">✨</div>
+                <h3 className="text-base font-bold text-zinc-300">No Rooms in Turnaround Queue</h3>
+                <p className="text-xs text-zinc-500 max-w-md mx-auto">
+                  All guest rooms are currently clean, certified, or occupied. When a guest departs or settles their folio, the room will automatically appear here with a 30-minute turnaround SLA timer.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="turnaround-room-grid">
+                {turnaroundQueue.map((item) => {
+                  const isBreached = item.isSlaBreached;
+                  const isPassed = item.status === 'INSPECTED_PASSED';
+                  const isInspection = item.status === 'COMPLETED';
+                  const isCleaning = item.status === 'IN_PROGRESS';
+                  const isPending = item.status === 'PENDING';
+
+                  return (
+                    <div
+                      key={item.taskId}
+                      data-testid={`turnaround-card-${item.room?.roomNumber || item.taskId}`}
+                      className={`bg-zinc-900/90 border rounded-3xl p-5 space-y-4 transition shadow-lg relative overflow-hidden flex flex-col justify-between ${
+                        isPassed
+                          ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-950/20 to-zinc-900/90'
+                          : isBreached
+                          ? 'border-red-500/50 bg-gradient-to-b from-red-950/20 to-zinc-900/90'
+                          : isCleaning
+                          ? 'border-amber-500/40 bg-gradient-to-b from-amber-950/15 to-zinc-900/90'
+                          : isInspection
+                          ? 'border-cyan-500/40 bg-gradient-to-b from-cyan-950/15 to-zinc-900/90'
+                          : 'border-zinc-800 hover:border-zinc-700'
+                      }`}
+                    >
+                      {/* Top bar: Room & Status */}
+                      <div>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl font-black text-white">Room {item.room?.roomNumber || 'N/A'}</span>
+                              <span className="text-xs font-mono text-zinc-400">Floor {item.room?.floor ?? 1}</span>
+                            </div>
+                            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block mt-0.5">
+                              {item.priority} Priority Turnaround
+                            </span>
+                          </div>
+
+                          <div className="text-right">
+                            {isPassed ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase">
+                                INSTANT READY
+                              </span>
+                            ) : isInspection ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 uppercase">
+                                INSPECTION
+                              </span>
+                            ) : isCleaning ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-amber-500/20 text-amber-400 border border-amber-500/40 uppercase">
+                                CLEANING
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-orange-500/20 text-orange-400 border border-orange-500/40 uppercase">
+                                DIRTY • PENDING
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* SLA Countdown pill & progress */}
+                        <div className="mt-3 bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/80 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-[11px] font-bold text-zinc-400 flex items-center gap-1">
+                              <span>⏱️</span> SLA Timer (30 min):
+                            </span>
+                            <span
+                              className={`font-mono font-black ${
+                                isPassed
+                                  ? 'text-emerald-400'
+                                  : isBreached
+                                  ? 'text-red-400 animate-pulse'
+                                  : 'text-amber-400'
+                              }`}
+                            >
+                              {isPassed
+                                ? `Completed in ${item.elapsedMinutes}m`
+                                : isBreached
+                                ? `Breached by ${Math.abs(item.slaRemainingMinutes)}m`
+                                : `${item.slaRemainingMinutes} min remaining`}
+                            </span>
+                          </div>
+                          {/* Mini Progress Bar */}
+                          <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all duration-500 ${
+                                isPassed
+                                  ? 'bg-emerald-500 w-full'
+                                  : isBreached
+                                  ? 'bg-red-500 w-full'
+                                  : 'bg-amber-500'
+                              }`}
+                              style={{
+                                width: isPassed
+                                  ? '100%'
+                                  : `${Math.min(100, Math.max(10, (item.elapsedMinutes / item.slaTargetMinutes) * 100))}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Checklist progress */}
+                        <div className="mt-3 flex items-center justify-between text-xs px-1">
+                          <span className="text-zinc-400 font-medium">6-Point Inspection:</span>
+                          <span className="font-mono font-bold text-zinc-200">
+                            {item.checklistProgress || '0/6'} items
+                            {item.checklistCompleted && <span className="ml-1 text-emerald-400">✓</span>}
+                          </span>
+                        </div>
+
+                        {/* Attendant assignment section */}
+                        <div className="mt-3 bg-zinc-950/40 p-2.5 rounded-2xl border border-zinc-800/60 text-xs">
+                          {item.assignedAttendant ? (
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="text-[10px] text-zinc-500 uppercase block font-bold">Attendant</span>
+                                <span className="font-bold text-zinc-200">{item.assignedAttendant.name}</span>
+                              </div>
+                              <span className="text-[10px] font-mono text-zinc-400">
+                                {item.startedAt ? `Started ${new Date(item.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Assigned'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              <span className="text-[10px] text-zinc-500 uppercase block font-bold">Assign Attendant</span>
+                              <div className="flex gap-1.5 flex-wrap">
+                                {['Sunita Sharma', 'Ramesh Kumar', 'Priya Verma'].map((attendant) => (
+                                  <button
+                                    key={attendant}
+                                    type="button"
+                                    data-testid={`btn-assign-${attendant.split(' ')[0].toLowerCase()}-${item.room?.roomNumber}`}
+                                    onClick={() => handleAssignTurnaroundAttendant(item.taskId, attendant)}
+                                    className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-[11px] font-bold transition border border-zinc-700"
+                                  >
+                                    + {attendant}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Action Buttons */}
+                      <div className="pt-2 flex flex-col gap-2">
+                        <button
+                          type="button"
+                          data-testid={`btn-open-checklist-${item.room?.roomNumber || item.taskId}`}
+                          onClick={() => handleOpenTurnaroundChecklist(item)}
+                          className="w-full py-2.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold text-xs uppercase tracking-wider transition border border-zinc-700 flex items-center justify-center gap-1.5"
+                        >
+                          <span>📋</span> 6-Point Inspection Checklist ({item.checklistProgress || '0/6'})
+                        </button>
+
+                        {!isPassed && (
+                          <button
+                            type="button"
+                            data-testid={`btn-instant-ready-${item.room?.roomNumber || item.taskId}`}
+                            onClick={() => handleApproveAndReleaseRoom(item.taskId, item.room?.roomNumber || '')}
+                            disabled={turnaroundSubmitting}
+                            className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                          >
+                            <span>⚡</span> Instant Ready (Release to Available)
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* SHIFT 61: MASTER FOLIO DEPARTURE SETTLEMENT MODAL */}
         {settleModalGuest && (
           <div
@@ -1702,6 +2140,138 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 62: 6-POINT INSPECTION CHECKLIST & CERTIFICATION MODAL */}
+        {checklistModalOpen && selectedTurnaroundTask && (
+          <div
+            data-testid="turnaround-checklist-modal"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto relative text-zinc-100">
+              {/* Modal Header */}
+              <div className="flex items-start justify-between border-b border-zinc-800/80 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-black text-white">
+                      Room {selectedTurnaroundTask.room?.roomNumber}
+                    </span>
+                    <span className="text-xs font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full">
+                      Floor {selectedTurnaroundTask.room?.floor ?? 1}
+                    </span>
+                    <span className="text-xs font-mono font-bold bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full">
+                      Status: {selectedTurnaroundTask.status}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-teal-400 mt-1">
+                    Housekeeping 6-Point Quality Assurance & Turnaround Protocol
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    Attendant: {selectedTurnaroundTask.assignedAttendant?.name || 'Unassigned'} • Target SLA: 30 minutes
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-testid="btn-close-checklist-modal"
+                  onClick={() => setChecklistModalOpen(false)}
+                  className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Quick Action: Mark All Completed */}
+              <div className="flex items-center justify-between bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
+                <div className="text-xs text-zinc-300">
+                  Completed items: <strong className="text-teal-400">{activeChecklist.filter((c) => c.isDone).length} of {activeChecklist.length}</strong>
+                </div>
+                <button
+                  type="button"
+                  data-testid="btn-check-all-items"
+                  onClick={() => setActiveChecklist((prev) => prev.map((item) => ({ ...item, isDone: true })))}
+                  className="px-3 py-1 bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 rounded-xl text-xs font-bold transition"
+                >
+                  ✓ Check All 6 Points
+                </button>
+              </div>
+
+              {/* 6-Point Inspection Checklist Items */}
+              <div className="space-y-2.5">
+                <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                  Mandatory Turnaround Standards
+                </h4>
+                {activeChecklist.map((item, idx) => (
+                  <label
+                    key={idx}
+                    data-testid={`checklist-item-${idx}`}
+                    className={`flex items-start gap-3 p-3.5 rounded-2xl border transition cursor-pointer ${
+                      item.isDone
+                        ? 'bg-teal-950/20 border-teal-500/40 text-zinc-200'
+                        : 'bg-zinc-900/40 border-zinc-800 text-zinc-300 hover:border-zinc-700'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      data-testid={`checkbox-checklist-${idx}`}
+                      checked={item.isDone}
+                      onChange={() => handleToggleChecklistItem(idx)}
+                      className="mt-0.5 rounded border-zinc-700 text-teal-500 focus:ring-teal-500 h-4 w-4"
+                    />
+                    <div className="text-xs leading-relaxed flex-1">
+                      <span className={item.isDone ? 'line-through text-zinc-400' : 'font-medium'}>
+                        {idx + 1}. {item.taskName}
+                      </span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {/* Attendant & Supervisor Notes */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-300 block">
+                  Attendant / Supervisor Inspection Notes
+                </label>
+                <textarea
+                  rows={2}
+                  data-testid="input-turnaround-notes"
+                  value={turnaroundNotes}
+                  onChange={(e) => setTurnaroundNotes(e.target.value)}
+                  placeholder="e.g. Linen changed, minibar audited, fragrance spritzed, sanitized for arrival."
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-teal-500 resize-none"
+                />
+              </div>
+
+              {/* Actions Footer */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  type="button"
+                  data-testid="btn-modal-reject-reclean"
+                  onClick={() => handleRejectTurnaroundReclean(selectedTurnaroundTask.taskId, selectedTurnaroundTask.room?.roomNumber || '')}
+                  className="py-3 px-4 rounded-xl bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800 font-bold text-xs uppercase tracking-wider transition"
+                >
+                  ⚠️ Quality Reject (Re-Clean)
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-submit-checklist"
+                  disabled={turnaroundSubmitting}
+                  onClick={handleSubmitChecklist}
+                  className="py-3 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 font-bold text-xs uppercase tracking-wider transition"
+                >
+                  Save Checklist & Move to Inspection
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-modal-instant-ready"
+                  disabled={turnaroundSubmitting}
+                  onClick={() => handleApproveAndReleaseRoom(selectedTurnaroundTask.taskId, selectedTurnaroundTask.room?.roomNumber || '')}
+                  className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {turnaroundSubmitting ? 'Certifying...' : '⚡ Approve & Release (Instant Ready)'}
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -127,7 +127,11 @@ describe('--- SHIFT 39 / GATE 39: DYNAMIC STAFF LOAD BALANCING & LATE SPILLOVER 
   });
 
   afterAll(async () => {
-    await server.close();
+    if (server.listening) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
     await mongoose.connection.close();
   });
 

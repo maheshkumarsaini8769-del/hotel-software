@@ -22,12 +22,11 @@ describe('--- SHIFT 32 / GATE 32: HOTEL REVENUE MANAGER & DYNAMIC PRICING YIELD 
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5112;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Setup Tenant A (Luxury Palace Hotel)
     const tenantA = await Tenant.create({

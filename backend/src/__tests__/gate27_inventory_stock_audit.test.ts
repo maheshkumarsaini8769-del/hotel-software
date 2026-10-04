@@ -27,12 +27,11 @@ describe('--- SHIFT 27 / GATE 27: PHYSICAL INVENTORY AUDIT, BLIND STOCKTAKE & RE
       await mongoose.connect(mongoUri);
     }
 
-    const port = 5107;
-    await new Promise<void>((resolve) => {
-      server.listen(port, () => {
-        resolve();
+    if (!server.listening) {
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => resolve());
       });
-    });
+    }
 
     // 1. Setup Tenant A
     const tenantA = await Tenant.create({

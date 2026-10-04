@@ -112,7 +112,11 @@ describe('--- SHIFT 38 / GATE 38: MULTI-FLOOR WAITER DUTY MATRIX & DYNAMIC RANGE
   });
 
   afterAll(async () => {
-    await server.close();
+    if (server.listening) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
     await mongoose.connection.close();
   });
 

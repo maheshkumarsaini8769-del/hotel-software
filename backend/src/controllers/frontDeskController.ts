@@ -25,6 +25,11 @@ import {
   HousekeepingTaskType,
   HousekeepingTaskStatus,
 } from '../models/HousekeepingTask';
+import {
+  MaintenanceRequest,
+  MaintenanceStatus,
+  MaintenancePriority,
+} from '../models/MaintenanceRequest';
 import { User } from '../models/User';
 import { TenantRequest } from '../types';
 import { io } from '../index';
@@ -2196,6 +2201,311 @@ export const rejectTurnaroundReclean = async (req: TenantRequest, res: Response)
       success: true,
       message: `Room ${room.roomNumber} inspection failed. Reverted to DIRTY for re-cleaning.`,
       data: payload,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// ============================================================================
+// SHIFT 63: ROOM MAINTENANCE TICKETING, OUT-OF-SERVICE (OOS/OOO) INVENTORY LOCKER & RELEASE
+// ============================================================================
+
+// 21. Get Active Maintenance Desk Tickets & Out-of-Service Queue
+export const getMaintenanceDeskTickets = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const tickets = await MaintenanceRequest.find({ hotelId })
+      .populate('roomId', 'roomNumber floorNumber wing status')
+      .populate('assetId', 'name assetCode')
+      .sort({ createdAt: -1 });
+
+    const now = new Date();
+
+    const formatted = tickets.map((t: any) => {
+      const room = t.roomId;
+      const createdAt = new Date(t.createdAt);
+      const elapsedMinutes = Math.max(0, Math.round((now.getTime() - createdAt.getTime()) / (1000 * 60)));
+      const slaRemainingMinutes = Math.round((new Date(t.slaDeadline).getTime() - now.getTime()) / (1000 * 60));
+      const isSlaBreached = t.slaDeadline ? now > new Date(t.slaDeadline) : false;
+
+      return {
+        ticketId: t._id.toString(),
+        ticketNumber: t.ticketNumber,
+        title: t.title,
+        description: t.description,
+        category: t.category,
+        priority: t.priority,
+        status: t.status,
+        blocksRoom: t.blocksRoom,
+        room: room
+          ? {
+              id: room._id.toString(),
+              roomNumber: room.roomNumber,
+              floor: room.floorNumber,
+              wing: room.wing,
+              status: room.status,
+            }
+          : null,
+        assignedTechnicianName: t.assignedTechnicianName || null,
+        assignedTechnicianId: t.assignedTechnicianId ? t.assignedTechnicianId.toString() : null,
+        slaHours: t.slaHours || 24,
+        slaDeadline: t.slaDeadline,
+        slaRemainingMinutes,
+        elapsedMinutes,
+        isSlaBreached,
+        partsUsed: t.partsUsed || [],
+        totalCost: t.totalCost || 0,
+        resolutionNotes: t.resolutionNotes || '',
+        resolvedAt: t.resolvedAt || null,
+        createdAt: t.createdAt,
+      };
+    });
+
+    res.status(200).json({ success: true, count: formatted.length, data: formatted });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 22. Create Room Maintenance Ticket & Lock Room to OUT_OF_SERVICE
+export const createRoomMaintenanceTicket = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const {
+      roomId,
+      roomNumber,
+      title,
+      description,
+      category = 'GENERAL',
+      priority = MaintenancePriority.MEDIUM,
+      blocksRoom = true,
+      assignedTechnicianName,
+    } = req.body;
+
+    if (!title || !description) {
+      res.status(400).json({ success: false, errorCode: 'MISSING_FIELDS', message: 'Title and description are required' });
+      return;
+    }
+
+    let targetRoom: any = null;
+    if (roomId && Types.ObjectId.isValid(roomId)) {
+      targetRoom = await Room.findOne({ _id: new Types.ObjectId(roomId), hotelId });
+    } else if (roomNumber) {
+      targetRoom = await Room.findOne({ roomNumber: String(roomNumber), hotelId });
+    }
+
+    const SLA_HOURS: Record<string, number> = {
+      EMERGENCY: 2,
+      HIGH: 6,
+      MEDIUM: 24,
+      LOW: 72,
+    };
+    const slaHours = SLA_HOURS[priority] || 24;
+    const slaDeadline = new Date(Date.now() + slaHours * 3600 * 1000);
+    const ticketNumber = `MNT-${Date.now().toString().slice(-6)}`;
+    const reportedByUserId = req.user?.userId ? new Types.ObjectId(req.user.userId) : new Types.ObjectId();
+
+    const ticket = new MaintenanceRequest({
+      hotelId,
+      ticketNumber,
+      title,
+      description,
+      category,
+      priority,
+      roomId: targetRoom ? targetRoom._id : undefined,
+      blocksRoom: !!blocksRoom,
+      reportedByUserId,
+      assignedTechnicianName: assignedTechnicianName || undefined,
+      status: assignedTechnicianName ? MaintenanceStatus.ASSIGNED : MaintenanceStatus.REPORTED,
+      slaHours,
+      slaDeadline,
+      partsUsed: [],
+      totalCost: 0,
+    });
+
+    await ticket.save();
+
+    // If blocksRoom is true, update Room status to OUT_OF_SERVICE
+    if (blocksRoom && targetRoom) {
+      targetRoom.status = RoomStatus.OUT_OF_SERVICE;
+      await targetRoom.save();
+    }
+
+    io.to(`${hotelId.toString()}_maintenance`).emit('maintenance:ticket_created', {
+      ticketId: ticket._id,
+      ticketNumber,
+      roomNumber: targetRoom?.roomNumber,
+      blocksRoom,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Maintenance ticket ${ticketNumber} created.${blocksRoom && targetRoom ? ` Room ${targetRoom.roomNumber} marked OUT_OF_SERVICE.` : ''}`,
+      data: ticket,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 23. Assign Technician to Maintenance Ticket
+export const assignMaintenanceTechnician = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { ticketId, technicianName } = req.body;
+    if (!ticketId || !technicianName) {
+      res.status(400).json({ success: false, errorCode: 'MISSING_FIELDS', message: 'ticketId and technicianName are required' });
+      return;
+    }
+
+    const ticket = await MaintenanceRequest.findOne({ _id: new Types.ObjectId(ticketId), hotelId });
+    if (!ticket) {
+      res.status(404).json({ success: false, errorCode: 'TICKET_NOT_FOUND', message: 'Maintenance ticket not found' });
+      return;
+    }
+
+    ticket.assignedTechnicianName = technicianName;
+    ticket.status = MaintenanceStatus.IN_PROGRESS;
+    await ticket.save();
+
+    io.to(`${hotelId.toString()}_maintenance`).emit('maintenance:ticket_updated', {
+      ticketId: ticket._id,
+      technicianName,
+      status: ticket.status,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Technician ${technicianName} assigned to ticket ${ticket.ticketNumber}`,
+      data: ticket,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 24. Log Spare Parts & Maintenance Expenses
+export const logMaintenancePartsAndCost = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { ticketId, partsUsed } = req.body;
+    if (!ticketId || !Array.isArray(partsUsed)) {
+      res.status(400).json({ success: false, errorCode: 'MISSING_FIELDS', message: 'ticketId and partsUsed array are required' });
+      return;
+    }
+
+    const ticket = await MaintenanceRequest.findOne({ _id: new Types.ObjectId(ticketId), hotelId });
+    if (!ticket) {
+      res.status(404).json({ success: false, errorCode: 'TICKET_NOT_FOUND', message: 'Maintenance ticket not found' });
+      return;
+    }
+
+    const formattedParts = partsUsed.map((p: any) => ({
+      partName: String(p.partName || 'Spare Part'),
+      cost: Number(p.cost || 0),
+      quantity: Number(p.quantity || 1),
+    }));
+
+    ticket.partsUsed = formattedParts;
+    ticket.totalCost = formattedParts.reduce((sum, p) => sum + (p.cost * p.quantity), 0);
+    await ticket.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Parts logged for ticket ${ticket.ticketNumber}. Total repair cost: ₹${ticket.totalCost}`,
+      data: ticket,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 25. Resolve Maintenance Ticket & Release Room Back to AVAILABLE / INSPECTION
+export const resolveAndReleaseMaintenanceRoom = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { ticketId, resolutionNotes, targetRoomStatus = RoomStatus.AVAILABLE } = req.body;
+    if (!ticketId) {
+      res.status(400).json({ success: false, errorCode: 'MISSING_FIELDS', message: 'ticketId is required' });
+      return;
+    }
+
+    // Filter active tickets only to protect against double resolution
+    const ticket = await MaintenanceRequest.findOne({
+      _id: new Types.ObjectId(ticketId),
+      hotelId,
+      status: { $in: [MaintenanceStatus.REPORTED, MaintenanceStatus.ASSIGNED, MaintenanceStatus.IN_PROGRESS] },
+    });
+
+    if (!ticket) {
+      res.status(404).json({
+        success: false,
+        errorCode: 'TICKET_NOT_FOUND_OR_ALREADY_RESOLVED',
+        message: 'Active maintenance ticket not found or already closed',
+      });
+      return;
+    }
+
+    ticket.status = MaintenanceStatus.CLOSED;
+    ticket.resolvedAt = new Date();
+    ticket.resolutionNotes = resolutionNotes || 'Repairs completed and verified by Engineering.';
+    await ticket.save();
+
+    let roomNumber = '';
+    if (ticket.roomId) {
+      const room = await Room.findById(ticket.roomId);
+      if (room) {
+        roomNumber = room.roomNumber;
+        if (room.status === RoomStatus.OUT_OF_SERVICE) {
+          room.status = targetRoomStatus === RoomStatus.AVAILABLE ? RoomStatus.AVAILABLE : RoomStatus.INSPECTION;
+          await room.save();
+        }
+      }
+    }
+
+    io.to(`${hotelId.toString()}_maintenance`).emit('maintenance:ticket_closed', {
+      ticketId: ticket._id,
+      ticketNumber: ticket.ticketNumber,
+      roomNumber,
+      newRoomStatus: targetRoomStatus,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Ticket ${ticket.ticketNumber} resolved and room ${roomNumber || ''} restored to ${targetRoomStatus}!`,
+      data: {
+        ticketId: ticket._id.toString(),
+        ticketNumber: ticket.ticketNumber,
+        status: ticket.status,
+        totalCost: ticket.totalCost,
+        roomRestoredStatus: targetRoomStatus,
+      },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });

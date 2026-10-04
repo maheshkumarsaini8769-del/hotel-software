@@ -33,6 +33,7 @@ export interface IMaintenanceRequest extends Document {
   blocksRoom: boolean;
   reportedByUserId: Types.ObjectId;
   assignedTechnicianId?: Types.ObjectId;
+  assignedTechnicianName?: string;
   status: MaintenanceStatus;
   slaHours: number;
   slaDeadline: Date;
@@ -67,6 +68,7 @@ const MaintenanceRequestSchema = new Schema<IMaintenanceRequest>(
     blocksRoom: { type: Boolean, default: false },
     reportedByUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     assignedTechnicianId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+    assignedTechnicianName: { type: String, trim: true },
     status: {
       type: String,
       enum: Object.values(MaintenanceStatus),

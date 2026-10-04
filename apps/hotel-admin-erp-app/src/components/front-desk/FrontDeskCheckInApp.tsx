@@ -167,11 +167,42 @@ export interface TurnaroundQueueItem {
   isSlaBreached: boolean;
 }
 
+// Shift 63: Room Maintenance & Out-of-Service Queue Item
+export interface MaintenanceDeskTicket {
+  ticketId: string;
+  ticketNumber: string;
+  title: string;
+  description: string;
+  category: 'ELECTRICAL' | 'PLUMBING' | 'HVAC' | 'CARPENTRY' | 'ELECTRONICS' | 'GENERAL';
+  priority: 'EMERGENCY' | 'HIGH' | 'MEDIUM' | 'LOW';
+  status: 'REPORTED' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+  blocksRoom: boolean;
+  room: {
+    id: string;
+    roomNumber: string;
+    floor: number;
+    wing: string;
+    status: string;
+  } | null;
+  assignedTechnicianName: string | null;
+  assignedTechnicianId: string | null;
+  slaHours: number;
+  slaDeadline: string;
+  slaRemainingMinutes: number;
+  elapsedMinutes: number;
+  isSlaBreached: boolean;
+  partsUsed: Array<{ partName: string; cost: number; quantity: number }>;
+  totalCost: number;
+  resolutionNotes: string;
+  resolvedAt: string | null;
+  createdAt: string;
+}
+
 export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   authToken,
   hotelId: propHotelId,
 }) => {
-  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND'>('CHECKIN');
+  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE'>('CHECKIN');
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -189,6 +220,23 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [turnaroundAttendantName, setTurnaroundAttendantName] = useState('Sunita Sharma (Executive Attendant)');
   const [turnaroundNotes, setTurnaroundNotes] = useState('');
   const [turnaroundSubmitting, setTurnaroundSubmitting] = useState(false);
+
+  // Shift 63: Room Maintenance & Out-of-Service Pipeline
+  const [maintenanceTickets, setMaintenanceTickets] = useState<MaintenanceDeskTicket[]>([]);
+  const [selectedMaintTicket, setSelectedMaintTicket] = useState<MaintenanceDeskTicket | null>(null);
+  const [reportDefectModalOpen, setReportDefectModalOpen] = useState(false);
+  const [defectRoomNumber, setDefectRoomNumber] = useState('102');
+  const [defectTitle, setDefectTitle] = useState('');
+  const [defectDescription, setDefectDescription] = useState('');
+  const [defectCategory, setDefectCategory] = useState<'ELECTRICAL' | 'PLUMBING' | 'HVAC' | 'CARPENTRY' | 'ELECTRONICS' | 'GENERAL'>('HVAC');
+  const [defectPriority, setDefectPriority] = useState<'EMERGENCY' | 'HIGH' | 'MEDIUM' | 'LOW'>('HIGH');
+  const [defectBlocksRoom, setDefectBlocksRoom] = useState(true);
+  const [defectSubmitting, setDefectSubmitting] = useState(false);
+
+  const [partsModalOpen, setPartsModalOpen] = useState(false);
+  const [partsList, setPartsList] = useState<Array<{ partName: string; cost: number; quantity: number }>>([]);
+  const [resolutionNotesText, setResolutionNotesText] = useState('');
+  const [partsSubmitting, setPartsSubmitting] = useState(false);
 
   // Check-In Form State
   const [guestName, setGuestName] = useState('');
@@ -315,8 +363,152 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       } catch (err: any) {
         console.warn('Turnaround queue note:', err.message);
       }
+
+      // 6. Fetch Room Maintenance & Out-of-Service Tickets (Shift 63)
+      try {
+        const mRes = await axios.get(`${apiBase}/pms/frontdesk/maintenance/tickets`, {
+          headers: authHeaders,
+          params: { hotelId },
+        });
+        if (mRes.data.success) {
+          setMaintenanceTickets(mRes.data.data || []);
+        }
+      } catch (err: any) {
+        console.warn('Maintenance tickets note:', err.message);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMaintenanceTickets = async () => {
+    try {
+      const res = await axios.get(`${apiBase}/pms/frontdesk/maintenance/tickets`, {
+        headers: authHeaders,
+        params: { hotelId },
+      });
+      if (res.data.success) {
+        setMaintenanceTickets(res.data.data || []);
+      }
+    } catch (e) {}
+  };
+
+  const handleCreateMaintenanceTicket = async () => {
+    if (!defectTitle.trim() || !defectDescription.trim()) {
+      showToast('⚠️ Please enter defect title and description.');
+      return;
+    }
+    setDefectSubmitting(true);
+    try {
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/maintenance/create-ticket`,
+        {
+          roomNumber: defectRoomNumber,
+          title: defectTitle,
+          description: defectDescription,
+          category: defectCategory,
+          priority: defectPriority,
+          blocksRoom: defectBlocksRoom,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🛠️ Ticket ${res.data.data?.ticketNumber || ''} created! ${defectBlocksRoom ? `Room ${defectRoomNumber} locked to OUT_OF_SERVICE.` : ''}`);
+        setReportDefectModalOpen(false);
+        setDefectTitle('');
+        setDefectDescription('');
+        loadMaintenanceTickets();
+        loadData();
+      }
+    } catch (err: any) {
+      showToast(`Error creating ticket: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setDefectSubmitting(false);
+    }
+  };
+
+  const handleAssignMaintenanceTechnician = async (ticketId: string, technicianName: string) => {
+    try {
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/maintenance/assign-technician`,
+        { ticketId, technicianName },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🔧 Assigned ${technicianName}! Status updated to IN_PROGRESS.`);
+        loadMaintenanceTickets();
+      }
+    } catch (err: any) {
+      showToast(`Error assigning technician: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  const handleOpenPartsModal = (ticket: MaintenanceDeskTicket) => {
+    setSelectedMaintTicket(ticket);
+    setPartsList(
+      ticket.partsUsed && ticket.partsUsed.length > 0
+        ? [...ticket.partsUsed]
+        : [{ partName: '', cost: 0, quantity: 1 }]
+    );
+    setResolutionNotesText(ticket.resolutionNotes || '');
+    setPartsModalOpen(true);
+  };
+
+  const handleSavePartsAndCost = async () => {
+    if (!selectedMaintTicket) return;
+    setPartsSubmitting(true);
+    try {
+      const filteredParts = partsList.filter((p) => p.partName.trim().length > 0);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/maintenance/log-parts`,
+        {
+          ticketId: selectedMaintTicket.ticketId,
+          partsUsed: filteredParts,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`💰 Saved parts for ticket ${selectedMaintTicket.ticketNumber}! Total: ₹${res.data.data?.totalCost || 0}`);
+        loadMaintenanceTickets();
+      }
+    } catch (err: any) {
+      showToast(`Error saving parts: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setPartsSubmitting(false);
+    }
+  };
+
+  const handleResolveAndReleaseRoom = async (ticketId: string, roomNum: string) => {
+    setPartsSubmitting(true);
+    try {
+      const filteredParts = partsList.filter((p) => p.partName.trim().length > 0);
+      if (filteredParts.length > 0) {
+        await axios.post(
+          `${apiBase}/pms/frontdesk/maintenance/log-parts`,
+          { ticketId, partsUsed: filteredParts },
+          { headers: authHeaders }
+        ).catch(() => null);
+      }
+
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/maintenance/resolve-and-release`,
+        {
+          ticketId,
+          resolutionNotes: resolutionNotesText || 'Repairs completed and certified by Engineering.',
+          targetRoomStatus: 'AVAILABLE',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🎉 Room ${roomNum || ''} repaired & restored to AVAILABLE! Ticket closed.`);
+        setPartsModalOpen(false);
+        loadMaintenanceTickets();
+        loadData();
+      }
+    } catch (err: any) {
+      showToast(`Error resolving ticket: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setPartsSubmitting(false);
     }
   };
 
@@ -571,6 +763,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       loadConciergeRequests();
       loadActiveInHouseStays();
       loadTurnaroundQueue();
+      loadMaintenanceTickets();
     }, 3000);
     return () => clearInterval(timer);
   }, []);
@@ -738,6 +931,16 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
               {turnaroundQueue.filter((t) => t.status !== 'INSPECTED_PASSED').length}
             </div>
           </div>
+          <div
+            data-testid="metric-maintenance-tickets"
+            className="bg-zinc-950/70 border border-red-500/40 p-3 rounded-2xl text-center cursor-pointer hover:border-red-400 transition"
+            onClick={() => setActiveTab('MAINTENANCE')}
+          >
+            <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Out-Of-Service (OOS)</span>
+            <div className="text-xl font-black text-red-400 mt-0.5">
+              {maintenanceTickets.filter((t) => t.status !== 'CLOSED').length}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -814,6 +1017,18 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }`}
         >
           <span>🧹</span> Housekeeping Turnaround Desk ({turnaroundQueue.filter((t) => t.status !== 'INSPECTED_PASSED').length})
+        </button>
+        <button
+          type="button"
+          data-testid="tab-maintenance"
+          onClick={() => setActiveTab('MAINTENANCE')}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'MAINTENANCE'
+              ? 'border-red-400 text-red-400 bg-red-500/10'
+              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <span>🛠️</span> Room Maintenance & OOS Desk ({maintenanceTickets.filter((t) => t.status !== 'CLOSED').length})
         </button>
       </div>
 
@@ -1899,6 +2114,255 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           </div>
         )}
 
+        {/* TAB 7: ROOM MAINTENANCE & OUT-OF-SERVICE (OOS) DESK (Shift 63) */}
+        {activeTab === 'MAINTENANCE' && (
+          <div className="space-y-6" data-testid="maintenance-desk-workspace">
+            {/* Header section */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-black text-white">Room Maintenance & Out-of-Service (OOS) Inventory Locker</h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                    OOS INVENTORY LOCKER
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Log guest room physical defects, lock defective rooms out of check-in inventory, dispatch engineering specialists, track spare parts & repair costs, and 1-tap restore to AVAILABLE upon completion.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  data-testid="btn-open-report-defect"
+                  onClick={() => {
+                    setDefectRoomNumber('102');
+                    setDefectTitle('');
+                    setDefectDescription('');
+                    setReportDefectModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold rounded-xl border border-red-500/40 shadow-lg shadow-red-950/40 transition flex items-center gap-1.5"
+                >
+                  <span>⚠️</span> + Report Defect & Lock OOS
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-refresh-maintenance"
+                  onClick={loadMaintenanceTickets}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold rounded-xl border border-zinc-700 transition flex items-center gap-1.5"
+                >
+                  <span>🔄</span> Refresh
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-zinc-900/60 border border-zinc-800/80 p-3.5 rounded-2xl">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Tickets</span>
+                <div className="text-xl font-black text-white mt-0.5">{maintenanceTickets.length}</div>
+              </div>
+              <div className="bg-zinc-900/60 border border-red-500/30 p-3.5 rounded-2xl">
+                <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Locked Out-of-Service</span>
+                <div className="text-xl font-black text-red-400 mt-0.5">
+                  {maintenanceTickets.filter((t) => t.blocksRoom && t.status !== 'CLOSED').length}
+                </div>
+              </div>
+              <div className="bg-zinc-900/60 border border-blue-500/30 p-3.5 rounded-2xl">
+                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">In Progress</span>
+                <div className="text-xl font-black text-blue-400 mt-0.5">
+                  {maintenanceTickets.filter((t) => t.status === 'IN_PROGRESS').length}
+                </div>
+              </div>
+              <div className="bg-zinc-900/60 border border-emerald-500/30 p-3.5 rounded-2xl">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Closed & Restored</span>
+                <div className="text-xl font-black text-emerald-400 mt-0.5">
+                  {maintenanceTickets.filter((t) => t.status === 'CLOSED').length}
+                </div>
+              </div>
+            </div>
+
+            {/* Tickets Grid */}
+            {maintenanceTickets.length === 0 ? (
+              <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-12 text-center space-y-3">
+                <div className="text-4xl">🛠️</div>
+                <h3 className="text-base font-bold text-zinc-300">No Active Maintenance Tickets</h3>
+                <p className="text-xs text-zinc-500 max-w-md mx-auto">
+                  All hotel rooms and assets are operational. To lock a defective room out of service and dispatch engineering, click "+ Report Defect & Lock OOS".
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="maintenance-room-grid">
+                {maintenanceTickets.map((ticket) => {
+                  const isClosed = ticket.status === 'CLOSED';
+                  const isBreached = ticket.isSlaBreached;
+                  const isOOS = ticket.blocksRoom && !isClosed;
+
+                  return (
+                    <div
+                      key={ticket.ticketId}
+                      data-testid={`maint-card-${ticket.room?.roomNumber || ticket.ticketNumber}`}
+                      className={`bg-zinc-900/90 border rounded-3xl p-5 space-y-4 transition shadow-lg relative overflow-hidden flex flex-col justify-between ${
+                        isClosed
+                          ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-950/20 to-zinc-900/90'
+                          : isOOS
+                          ? 'border-red-500/50 bg-gradient-to-b from-red-950/20 to-zinc-900/90'
+                          : 'border-zinc-800 hover:border-zinc-700'
+                      }`}
+                    >
+                      {/* Top Bar: Room + Category + Status */}
+                      <div>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl font-black text-white">
+                                {ticket.room ? `Room ${ticket.room.roomNumber}` : 'General Asset'}
+                              </span>
+                              {ticket.room && (
+                                <span className="text-xs font-mono text-zinc-400">Floor {ticket.room.floor}</span>
+                              )}
+                            </div>
+                            <span className="text-[11px] font-mono text-zinc-400 block mt-0.5">
+                              {ticket.ticketNumber} • {ticket.category}
+                            </span>
+                          </div>
+
+                          <div className="text-right flex flex-col items-end gap-1">
+                            {isClosed ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase">
+                                RESOLVED • CLOSED
+                              </span>
+                            ) : isOOS ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-red-500/20 text-red-400 border border-red-500/40 uppercase animate-pulse">
+                                OUT OF SERVICE
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-blue-500/20 text-blue-400 border border-blue-500/40 uppercase">
+                                {ticket.status}
+                              </span>
+                            )}
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                ticket.priority === 'EMERGENCY'
+                                  ? 'bg-red-900/60 text-red-300'
+                                  : ticket.priority === 'HIGH'
+                                  ? 'bg-orange-900/60 text-orange-300'
+                                  : 'bg-zinc-800 text-zinc-300'
+                              }`}
+                            >
+                              {ticket.priority} PRIORITY
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Defect Title & Description */}
+                        <div className="mt-3 bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/80 space-y-1">
+                          <h4 className="text-xs font-bold text-white line-clamp-1">{ticket.title}</h4>
+                          <p className="text-[11px] text-zinc-400 line-clamp-2 leading-relaxed">
+                            {ticket.description}
+                          </p>
+                        </div>
+
+                        {/* SLA Countdown Timer */}
+                        <div className="mt-3 bg-zinc-950/40 p-2.5 rounded-2xl border border-zinc-800/60 space-y-1 text-xs">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-zinc-400 flex items-center gap-1 font-bold">
+                              <span>⏱️</span> SLA Timer ({ticket.slaHours}h target):
+                            </span>
+                            <span
+                              className={`font-mono font-black ${
+                                isClosed
+                                  ? 'text-emerald-400'
+                                  : isBreached
+                                  ? 'text-red-400 animate-pulse'
+                                  : 'text-amber-400'
+                              }`}
+                            >
+                              {isClosed
+                                ? 'Repairs Complete'
+                                : isBreached
+                                ? `Breached by ${Math.abs(ticket.slaRemainingMinutes)}m`
+                                : `${ticket.slaRemainingMinutes} min remaining`}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Technician Assignment */}
+                        <div className="mt-3 bg-zinc-950/40 p-2.5 rounded-2xl border border-zinc-800/60 text-xs">
+                          {ticket.assignedTechnicianName ? (
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="text-[10px] text-zinc-500 uppercase block font-bold">Technician</span>
+                                <span className="font-bold text-zinc-200">{ticket.assignedTechnicianName}</span>
+                              </div>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 uppercase">
+                                {ticket.status}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              <span className="text-[10px] text-zinc-500 uppercase block font-bold">Assign Specialist</span>
+                              <div className="flex gap-1.5 flex-wrap">
+                                {[
+                                  'Rajesh Sharma (HVAC Specialist)',
+                                  'Deepak Verma (Plumber)',
+                                  'Amit Kumar (Electrician)',
+                                ].map((tech) => (
+                                  <button
+                                    key={tech}
+                                    type="button"
+                                    data-testid={`btn-assign-tech-${tech.split(' ')[0].toLowerCase()}-${ticket.room?.roomNumber || ticket.ticketId}`}
+                                    onClick={() => handleAssignMaintenanceTechnician(ticket.ticketId, tech)}
+                                    className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-[11px] font-bold transition border border-zinc-700"
+                                  >
+                                    + {tech.split(' ')[0]}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Parts & Cost Counter */}
+                        <div className="mt-3 flex items-center justify-between text-xs px-1">
+                          <span className="text-zinc-400 font-medium">Parts & Expenses:</span>
+                          <span className="font-mono font-bold text-amber-400">
+                            {ticket.partsUsed?.length || 0} parts • ₹{ticket.totalCost}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card Action Buttons */}
+                      <div className="pt-2 flex flex-col gap-2">
+                        <button
+                          type="button"
+                          data-testid={`btn-log-parts-${ticket.room?.roomNumber || ticket.ticketId}`}
+                          onClick={() => handleOpenPartsModal(ticket)}
+                          className="w-full py-2.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold text-xs uppercase tracking-wider transition border border-zinc-700 flex items-center justify-center gap-1.5"
+                        >
+                          <span>🔧</span> Log Parts & Notes (₹{ticket.totalCost})
+                        </button>
+
+                        {!isClosed && (
+                          <button
+                            type="button"
+                            data-testid={`btn-resolve-maintenance-${ticket.room?.roomNumber || ticket.ticketId}`}
+                            onClick={() => handleResolveAndReleaseRoom(ticket.ticketId, ticket.room?.roomNumber || '')}
+                            disabled={partsSubmitting}
+                            className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                          >
+                            <span>⚡</span> Resolve & Unblock Room (Restore AVAILABLE)
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* SHIFT 61: MASTER FOLIO DEPARTURE SETTLEMENT MODAL */}
         {settleModalGuest && (
           <div
@@ -2270,6 +2734,300 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
                 >
                   {turnaroundSubmitting ? 'Certifying...' : '⚡ Approve & Release (Instant Ready)'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 63: REPORT ROOM DEFECT & LOCK OOS MODAL */}
+        {reportDefectModalOpen && (
+          <div
+            data-testid="report-defect-modal"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 relative text-zinc-100">
+              <div className="flex items-start justify-between border-b border-zinc-800/80 pb-3">
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <span>⚠️</span> Report Room Defect & Lock Out-of-Service
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Dispatch engineering technician and lock room from PMS available inventory.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-testid="btn-close-defect-modal"
+                  onClick={() => setReportDefectModalOpen(false)}
+                  className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                {/* Room Number & Category */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-zinc-300 font-bold block mb-1">Target Room Number</label>
+                    <input
+                      type="text"
+                      data-testid="input-defect-room"
+                      value={defectRoomNumber}
+                      onChange={(e) => setDefectRoomNumber(e.target.value)}
+                      placeholder="e.g. 102"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-red-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-300 font-bold block mb-1">Category</label>
+                    <select
+                      data-testid="select-defect-category"
+                      value={defectCategory}
+                      onChange={(e: any) => setDefectCategory(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-red-500"
+                    >
+                      <option value="HVAC">HVAC / Air Conditioning</option>
+                      <option value="PLUMBING">Plumbing & Water</option>
+                      <option value="ELECTRICAL">Electrical & Lighting</option>
+                      <option value="CARPENTRY">Carpentry & Furniture</option>
+                      <option value="ELECTRONICS">TV / Wi-Fi / Keycard</option>
+                      <option value="GENERAL">General Maintenance</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Priority */}
+                <div>
+                  <label className="text-zinc-300 font-bold block mb-1">Priority & SLA</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { id: 'EMERGENCY', label: '🚨 2h SLA' },
+                      { id: 'HIGH', label: '🔥 6h SLA' },
+                      { id: 'MEDIUM', label: '⚡ 24h SLA' },
+                      { id: 'LOW', label: '⏳ 72h SLA' },
+                    ].map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        data-testid={`btn-priority-${p.id.toLowerCase()}`}
+                        onClick={() => setDefectPriority(p.id as any)}
+                        className={`py-2 px-1 text-center rounded-xl text-[11px] font-bold border transition ${
+                          defectPriority === p.id
+                            ? 'bg-red-500/20 text-red-300 border-red-500/50'
+                            : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Defect Title */}
+                <div>
+                  <label className="text-zinc-300 font-bold block mb-1">Defect Title</label>
+                  <input
+                    type="text"
+                    data-testid="input-defect-title"
+                    value={defectTitle}
+                    onChange={(e) => setDefectTitle(e.target.value)}
+                    placeholder="e.g. AC compressor failure - room not cooling"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-red-500"
+                  />
+                </div>
+
+                {/* Defect Description */}
+                <div>
+                  <label className="text-zinc-300 font-bold block mb-1">Detailed Defect Description</label>
+                  <textarea
+                    rows={2}
+                    data-testid="input-defect-description"
+                    value={defectDescription}
+                    onChange={(e) => setDefectDescription(e.target.value)}
+                    placeholder="e.g. Temperature stuck at 31C, vibration noise from outdoor unit."
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-red-500 resize-none"
+                  />
+                </div>
+
+                {/* Lock Room Checkbox */}
+                <div className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-white block">Lock Room Out-of-Service (OOS)</span>
+                    <span className="text-[11px] text-zinc-400">Excludes room from available check-in inventory.</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    data-testid="checkbox-blocks-room"
+                    checked={defectBlocksRoom}
+                    onChange={(e) => setDefectBlocksRoom(e.target.checked)}
+                    className="h-4 w-4 rounded border-zinc-700 text-red-500 focus:ring-red-500"
+                  />
+                </div>
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  data-testid="btn-cancel-report-defect"
+                  onClick={() => setReportDefectModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs uppercase tracking-wider transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-submit-report-defect"
+                  disabled={defectSubmitting}
+                  onClick={handleCreateMaintenanceTicket}
+                  className="flex-2 py-3 px-6 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-red-950/40 disabled:opacity-50"
+                >
+                  {defectSubmitting ? 'Creating Ticket...' : 'Dispatch Ticket & Lock Room'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 63: LOG SPARE PARTS, EXPENSES & RESOLUTION MODAL */}
+        {partsModalOpen && selectedMaintTicket && (
+          <div
+            data-testid="parts-resolution-modal"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 relative text-zinc-100">
+              <div className="flex items-start justify-between border-b border-zinc-800/80 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-black text-white">
+                      {selectedMaintTicket.room ? `Room ${selectedMaintTicket.room.roomNumber}` : 'General Asset'}
+                    </span>
+                    <span className="text-xs font-mono font-bold bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full">
+                      {selectedMaintTicket.ticketNumber}
+                    </span>
+                  </div>
+                  <h3 className="text-xs font-bold text-amber-400 mt-1">
+                    Log Spare Parts, Repair Cost & Engineering Resolution
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  data-testid="btn-close-parts-modal"
+                  onClick={() => setPartsModalOpen(false)}
+                  className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Parts Table */}
+              <div className="space-y-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-zinc-300 uppercase tracking-wider text-[11px]">Replacement Parts Used</span>
+                  <button
+                    type="button"
+                    data-testid="btn-add-part-row"
+                    onClick={() => setPartsList((prev) => [...prev, { partName: '', cost: 0, quantity: 1 }])}
+                    className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-[11px] font-bold transition border border-zinc-700"
+                  >
+                    + Add Part
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {partsList.map((part, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-800">
+                      <input
+                        type="text"
+                        data-testid={`input-part-name-${idx}`}
+                        value={part.partName}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPartsList((prev) => prev.map((p, i) => (i === idx ? { ...p, partName: val } : p)));
+                        }}
+                        placeholder="Part name (e.g. AC Capacitor)"
+                        className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-amber-500"
+                      />
+                      <div className="flex items-center gap-1 w-24">
+                        <span className="text-zinc-500 text-xs">₹</span>
+                        <input
+                          type="number"
+                          data-testid={`input-part-cost-${idx}`}
+                          value={part.cost || ''}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setPartsList((prev) => prev.map((p, i) => (i === idx ? { ...p, cost: val } : p)));
+                          }}
+                          placeholder="Cost"
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1.5 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1 w-16">
+                        <span className="text-zinc-500 text-xs">Qty</span>
+                        <input
+                          type="number"
+                          data-testid={`input-part-qty-${idx}`}
+                          value={part.quantity || 1}
+                          onChange={(e) => {
+                            const val = Math.max(1, Number(e.target.value));
+                            setPartsList((prev) => prev.map((p, i) => (i === idx ? { ...p, quantity: val } : p)));
+                          }}
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1.5 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPartsList((prev) => prev.filter((_, i) => i !== idx))}
+                        className="text-red-400 hover:text-red-300 px-2 py-1 text-sm"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between bg-zinc-900/80 p-3 rounded-2xl border border-zinc-800">
+                  <span className="text-zinc-400">Total Repair Expense:</span>
+                  <span className="font-mono font-black text-amber-400 text-sm">
+                    ₹{partsList.reduce((sum, p) => sum + (Number(p.cost || 0) * Number(p.quantity || 1)), 0)}
+                  </span>
+                </div>
+
+                {/* Resolution Notes */}
+                <div>
+                  <label className="text-zinc-300 font-bold block mb-1">Engineering Resolution Notes</label>
+                  <textarea
+                    rows={2}
+                    data-testid="input-resolution-notes"
+                    value={resolutionNotesText}
+                    onChange={(e) => setResolutionNotesText(e.target.value)}
+                    placeholder="e.g. Capacitor replaced, gas recharged. Tested and operational at 18C."
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500 resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  type="button"
+                  data-testid="btn-save-parts-only"
+                  disabled={partsSubmitting}
+                  onClick={handleSavePartsAndCost}
+                  className="py-3 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 font-bold text-xs uppercase tracking-wider transition"
+                >
+                  Save Parts & Cost
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-resolve-and-restore-room"
+                  disabled={partsSubmitting}
+                  onClick={() => handleResolveAndReleaseRoom(selectedMaintTicket.ticketId, selectedMaintTicket.room?.roomNumber || '')}
+                  className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {partsSubmitting ? 'Restoring Room...' : '⚡ Resolve & Restore to AVAILABLE'}
                 </button>
               </div>
             </div>

@@ -39,6 +39,11 @@ import {
   submitTurnaroundChecklist,
   approveAndReleaseTurnaroundRoom,
   rejectTurnaroundReclean,
+  getMaintenanceDeskTickets,
+  createRoomMaintenanceTicket,
+  assignMaintenanceTechnician,
+  logMaintenancePartsAndCost,
+  resolveAndReleaseMaintenanceRoom,
 } from '../controllers/frontDeskController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
@@ -129,6 +134,13 @@ router.post('/frontdesk/turnaround/assign-attendant', authenticateFrontDeskTermi
 router.post('/frontdesk/turnaround/submit-checklist', authenticateFrontDeskTerminal, submitTurnaroundChecklist);
 router.post('/frontdesk/turnaround/approve-ready', authenticateFrontDeskTerminal, approveAndReleaseTurnaroundRoom);
 router.post('/frontdesk/turnaround/reject-reclean', authenticateFrontDeskTerminal, rejectTurnaroundReclean);
+
+// Shift 63: Room Maintenance & Engineering Ticketing, Out-of-Service (OOS/OOO) Inventory Locking & Release
+router.get('/frontdesk/maintenance/tickets', authenticateFrontDeskTerminal, getMaintenanceDeskTickets);
+router.post('/frontdesk/maintenance/create-ticket', authenticateFrontDeskTerminal, createRoomMaintenanceTicket);
+router.post('/frontdesk/maintenance/assign-technician', authenticateFrontDeskTerminal, assignMaintenanceTechnician);
+router.post('/frontdesk/maintenance/log-parts', authenticateFrontDeskTerminal, logMaintenancePartsAndCost);
+router.post('/frontdesk/maintenance/resolve-and-release', authenticateFrontDeskTerminal, resolveAndReleaseMaintenanceRoom);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

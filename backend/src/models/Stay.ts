@@ -21,6 +21,38 @@ export interface IRoomMoveRecord {
   newKeyCardIssued?: string;
 }
 
+export interface IEarlyCheckInRecord {
+  requestedCheckInTime: Date;
+  approvedAt: Date;
+  approvedByUserId?: Types.ObjectId;
+  hoursEarly: number;
+  tier: string;
+  surchargeAmount: number;
+  taxAmount: number;
+  totalCharge: number;
+  waived: boolean;
+  waiverReason?: string;
+  vipTierBenefitApplied?: boolean;
+}
+
+export interface ILateCheckOutRecord {
+  standardCheckOutTime: Date;
+  requestedCheckOutTime: Date;
+  approvedAt: Date;
+  approvedByUserId?: Types.ObjectId;
+  hoursLate: number;
+  tier: string;
+  surchargeAmount: number;
+  taxAmount: number;
+  totalCharge: number;
+  waived: boolean;
+  waiverReason?: string;
+  vipTierBenefitApplied?: boolean;
+  keycardExtendedTo: Date;
+  housekeepingNotified: boolean;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+}
+
 export interface IStay extends Document {
   hotelId: Types.ObjectId;
   bookingId: Types.ObjectId;
@@ -49,6 +81,10 @@ export interface IStay extends Document {
   taxInvoiceNumber?: string;
   keyCardVoided?: boolean;
   roomMoveHistory?: IRoomMoveRecord[];
+  earlyCheckInRecord?: IEarlyCheckInRecord;
+  lateCheckOutRecord?: ILateCheckOutRecord;
+  keycardExpiresAt?: Date;
+  delayedDepartureTime?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -106,6 +142,42 @@ const StaySchema = new Schema<IStay>(
         newKeyCardIssued: { type: String },
       },
     ],
+    earlyCheckInRecord: {
+      requestedCheckInTime: { type: Date },
+      approvedAt: { type: Date },
+      approvedByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+      hoursEarly: { type: Number },
+      tier: { type: String },
+      surchargeAmount: { type: Number, default: 0 },
+      taxAmount: { type: Number, default: 0 },
+      totalCharge: { type: Number, default: 0 },
+      waived: { type: Boolean, default: false },
+      waiverReason: { type: String, trim: true },
+      vipTierBenefitApplied: { type: Boolean, default: false },
+    },
+    lateCheckOutRecord: {
+      standardCheckOutTime: { type: Date },
+      requestedCheckOutTime: { type: Date },
+      approvedAt: { type: Date },
+      approvedByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+      hoursLate: { type: Number },
+      tier: { type: String },
+      surchargeAmount: { type: Number, default: 0 },
+      taxAmount: { type: Number, default: 0 },
+      totalCharge: { type: Number, default: 0 },
+      waived: { type: Boolean, default: false },
+      waiverReason: { type: String, trim: true },
+      vipTierBenefitApplied: { type: Boolean, default: false },
+      keycardExtendedTo: { type: Date },
+      housekeepingNotified: { type: Boolean, default: true },
+      status: {
+        type: String,
+        enum: ['PENDING', 'APPROVED', 'REJECTED'],
+        default: 'APPROVED',
+      },
+    },
+    keycardExpiresAt: { type: Date },
+    delayedDepartureTime: { type: Date },
   },
   { timestamps: true }
 );

@@ -51,6 +51,16 @@ interface InHouseGuest {
   preferredPaymentMethod?: string;
   feedbackRating?: number;
   checkoutNotes?: string;
+  lateCheckOutRecord?: {
+    tier: string;
+    hoursLate: number;
+    surchargeAmount: number;
+    totalCharge: number;
+    waived: boolean;
+    requestedCheckOutTime?: string;
+    keycardExtendedTo?: string;
+  };
+  keycardExpiresAt?: string;
 }
 
 interface CheckoutPreviewData {
@@ -261,6 +271,15 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [moveUpgradeFee, setMoveUpgradeFee] = useState<number>(0);
   const [moveNotes, setMoveNotes] = useState('');
   const [submittingRoomMove, setSubmittingRoomMove] = useState(false);
+
+  // Shift 65: In-House Late Check-Out Modal State
+  const [lateCheckoutModalOpen, setLateCheckoutModalOpen] = useState(false);
+  const [selectedLateGuest, setSelectedLateGuest] = useState<InHouseGuest | null>(null);
+  const [requestedLateDepartureTime, setRequestedLateDepartureTime] = useState<string>('15:00');
+  const [lateCalculation, setLateCalculation] = useState<any | null>(null);
+  const [waiveLateFee, setWaiveLateFee] = useState<boolean>(false);
+  const [lateWaiverReason, setLateWaiverReason] = useState<string>('');
+  const [submittingLateCheckout, setSubmittingLateCheckout] = useState<boolean>(false);
 
   // Check-In Form State
   const [guestName, setGuestName] = useState('');
@@ -602,6 +621,66 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       showToast(`Error executing room move: ${err.response?.data?.message || err.message}`);
     } finally {
       setSubmittingRoomMove(false);
+    }
+  };
+
+  // Shift 65: Late Check-Out Surcharge & Keycard Expiry Handlers
+  const handleOpenLateCheckoutModal = async (guest: InHouseGuest) => {
+    setSelectedLateGuest(guest);
+    setRequestedLateDepartureTime('15:00');
+    setWaiveLateFee(false);
+    setLateWaiverReason('');
+    setLateCheckoutModalOpen(true);
+    await fetchLateCheckoutCalculation(guest.stayId, guest.roomNumber, '15:00');
+  };
+
+  const fetchLateCheckoutCalculation = async (stayId: string, roomNumber: string, timeStr: string) => {
+    try {
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/late-checkout/calculate`,
+        { stayId, roomNumber, requestedCheckOutTime: timeStr },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        setLateCalculation(res.data.data);
+      }
+    } catch (err: any) {
+      console.warn('Error calculating late checkout:', err);
+    }
+  };
+
+  const handleChangeLateTime = async (timeStr: string) => {
+    setRequestedLateDepartureTime(timeStr);
+    if (selectedLateGuest) {
+      await fetchLateCheckoutCalculation(selectedLateGuest.stayId, selectedLateGuest.roomNumber, timeStr);
+    }
+  };
+
+  const handleExecuteLateCheckout = async () => {
+    if (!selectedLateGuest) return;
+    setSubmittingLateCheckout(true);
+    try {
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/late-checkout/approve`,
+        {
+          stayId: selectedLateGuest.stayId,
+          roomNumber: selectedLateGuest.roomNumber,
+          requestedCheckOutTime: requestedLateDepartureTime,
+          waiveSurcharge: waiveLateFee,
+          waiverReason: lateWaiverReason || 'Managerial VIP waiver',
+          forceOverride: true,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🕒 Late Check-Out Approved for Room ${selectedLateGuest.roomNumber} until ${requestedLateDepartureTime}! Keycard validity extended.`);
+        setLateCheckoutModalOpen(false);
+        loadData();
+      }
+    } catch (err: any) {
+      showToast(`Error approving late check-out: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setSubmittingLateCheckout(false);
     }
   };
 
@@ -1629,28 +1708,52 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       </div>
                     )}
 
-                    <div className="flex gap-2">
+                    {guest.lateCheckOutRecord && (
+                      <div
+                        data-testid={`badge-late-checkout-${guest.roomNumber}`}
+                        className="p-2.5 rounded-2xl bg-purple-500/10 border border-purple-500/40 text-purple-200 text-xs flex items-center justify-between shadow-lg"
+                      >
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <span>🕒</span>
+                          <span>Late Departure: {new Date(guest.lateCheckOutRecord.requestedCheckOutTime || guest.expectedCheckOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <span className="text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30">
+                          {guest.lateCheckOutRecord.waived ? 'COMPLIMENTARY' : `+₹${guest.lateCheckOutRecord.totalCharge}`}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        data-testid={`btn-late-checkout-${guest.roomNumber}`}
+                        onClick={() => handleOpenLateCheckoutModal(guest)}
+                        className="py-2.5 rounded-xl font-bold text-[11px] bg-zinc-800 hover:bg-zinc-700 text-purple-300 border border-zinc-700/80 transition flex items-center justify-center gap-1 hover:border-purple-500/50"
+                      >
+                        <span>🕒</span>
+                        <span>Late Out</span>
+                      </button>
                       <button
                         type="button"
                         data-testid={`btn-room-move-${guest.roomNumber}`}
                         onClick={() => handleOpenRoomMoveModal(guest)}
-                        className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-zinc-800 hover:bg-zinc-700 text-cyan-300 border border-zinc-700/80 transition flex items-center justify-center gap-1 hover:border-cyan-500/50"
+                        className="py-2.5 rounded-xl font-bold text-[11px] bg-zinc-800 hover:bg-zinc-700 text-cyan-300 border border-zinc-700/80 transition flex items-center justify-center gap-1 hover:border-cyan-500/50"
                       >
                         <span>🔄</span>
-                        <span>Move / Upgrade</span>
+                        <span>Move</span>
                       </button>
                       <button
                         type="button"
                         data-testid={`btn-settle-checkout-${guest.roomNumber}`}
                         onClick={() => handleOpenSettleModal(guest)}
-                        className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg transition flex items-center justify-center gap-1.5 ${
+                        className={`py-2.5 rounded-xl font-black text-[11px] uppercase tracking-wider shadow-lg transition flex items-center justify-center gap-1 ${
                           guest.checkoutRequested
                             ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-zinc-950 shadow-amber-500/30 ring-2 ring-amber-400/50'
                             : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
                         }`}
                       >
                         <span>{guest.checkoutRequested ? '⚡' : '✨'}</span>
-                        <span>{guest.checkoutRequested ? 'Express Settle' : 'Check-Out'}</span>
+                        <span>{guest.checkoutRequested ? 'Settle' : 'Out'}</span>
                       </button>
                     </div>
                   </div>
@@ -3300,6 +3403,190 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   className="flex-2 py-3 px-6 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-cyan-950/40 disabled:opacity-50"
                 >
                   {submittingRoomMove ? 'Transferring...' : 'Execute Room Move & Re-Issue Key'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 65: LATE CHECK-OUT & DIGITAL KEYCARD EXTENSION MODAL */}
+        {lateCheckoutModalOpen && selectedLateGuest && (
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div
+              data-testid="modal-late-checkout"
+              className="bg-zinc-950 border border-purple-500/40 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl text-xs relative max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 rounded-2xl bg-purple-500/20 text-purple-400 text-lg">🕒</span>
+                  <div>
+                    <h3 className="text-base font-black text-white">Late Check-Out & Keycard Extension</h3>
+                    <p className="text-[11px] text-zinc-400">Tiered surcharge calculation, automated folio charge & door key sync</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-testid="btn-close-late-checkout-modal"
+                  onClick={() => setLateCheckoutModalOpen(false)}
+                  className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Guest & Room Context Banner */}
+              <div className="bg-purple-950/20 border border-purple-500/30 p-3.5 rounded-2xl flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-black text-white">Room {selectedLateGuest.roomNumber}</span>
+                    <span className="text-[10px] font-mono font-bold bg-zinc-800 px-2 py-0.5 rounded text-zinc-400">
+                      Floor {selectedLateGuest.floor}
+                    </span>
+                    {selectedLateGuest.vipTier !== 'REGULAR' && (
+                      <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                        ⭐ {selectedLateGuest.vipTier} VIP
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-zinc-300 font-bold mt-0.5">{selectedLateGuest.guestName}</div>
+                  <div className="text-[11px] text-zinc-400 font-mono">Current Check-Out: 11:00 AM</div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-black text-purple-400 block">Folio Balance</span>
+                  <span className="text-base font-black text-amber-400 font-mono">₹{selectedLateGuest.balanceDue}</span>
+                </div>
+              </div>
+
+              {/* Extension Time Selector */}
+              <div className="space-y-2">
+                <label className="text-zinc-300 font-bold block">Select Extended Departure Time</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { time: '13:00', label: '1:00 PM', tag: 'Grace (Free)' },
+                    { time: '15:00', label: '3:00 PM', tag: 'Half-Day (50%)' },
+                    { time: '18:00', label: '6:00 PM', tag: 'Full-Day (100%)' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.time}
+                      type="button"
+                      data-testid={`btn-late-time-${preset.time.replace(':', '')}`}
+                      onClick={() => handleChangeLateTime(preset.time)}
+                      className={`p-3 rounded-2xl border text-center transition-all ${
+                        requestedLateDepartureTime === preset.time
+                          ? 'bg-purple-500/20 border-purple-400 text-white shadow-lg shadow-purple-500/20'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                      }`}
+                    >
+                      <div className="font-black text-sm">{preset.label}</div>
+                      <div className="text-[10px] text-purple-300/80 mt-0.5 font-bold">{preset.tag}</div>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="pt-1 flex items-center gap-2">
+                  <span className="text-zinc-400 text-xs">Or custom departure time:</span>
+                  <input
+                    type="time"
+                    data-testid="input-custom-late-time"
+                    value={requestedLateDepartureTime}
+                    onChange={(e) => handleChangeLateTime(e.target.value)}
+                    className="bg-zinc-900 border border-zinc-800 text-white rounded-xl px-3 py-1.5 font-mono text-xs focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+
+              {/* Live Surcharge & Tax Calculation Breakdown */}
+              {lateCalculation && (
+                <div
+                  data-testid="box-late-calculation"
+                  className="bg-zinc-900/60 p-4 rounded-2xl border border-zinc-800/90 space-y-2 font-mono"
+                >
+                  <div className="flex justify-between text-zinc-400 text-xs">
+                    <span>Applicable Pricing Tier:</span>
+                    <strong className="text-purple-300 font-bold uppercase">{lateCalculation.tier} ({lateCalculation.percent}%)</strong>
+                  </div>
+                  <div className="flex justify-between text-zinc-400 text-xs">
+                    <span>Extension Granted:</span>
+                    <strong className="text-zinc-200">+{lateCalculation.hoursLate} Hours beyond 11:00 AM</strong>
+                  </div>
+                  <div className="flex justify-between text-zinc-400 text-xs">
+                    <span>Room Tariff Surcharge:</span>
+                    <strong className="text-zinc-200">{waiveLateFee ? '₹0 (Waived)' : `₹${lateCalculation.surchargeAmount}`}</strong>
+                  </div>
+                  <div className="flex justify-between text-zinc-400 text-xs">
+                    <span>Applicable GST (12%):</span>
+                    <strong className="text-zinc-200">{waiveLateFee ? '₹0' : `₹${lateCalculation.taxAmount}`}</strong>
+                  </div>
+                  <div className="pt-2 border-t border-zinc-800 flex justify-between items-center text-sm font-black">
+                    <span className="text-white">Total Folio Charge:</span>
+                    <span className="text-emerald-400 text-base">
+                      {waiveLateFee ? '₹0 (Waived)' : `₹${lateCalculation.totalCharge}`}
+                    </span>
+                  </div>
+
+                  {lateCalculation.vipBenefitApplied && (
+                    <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-sans">
+                      ⭐ VIP Benefit Applied: Complimentary late checkout privilege applied to this booking.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Managerial Waiver Toggle */}
+              <div className="p-3.5 rounded-2xl bg-zinc-900/40 border border-zinc-800 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    data-testid="checkbox-waive-late-fee"
+                    checked={waiveLateFee}
+                    onChange={(e) => setWaiveLateFee(e.target.checked)}
+                    className="w-4 h-4 rounded text-purple-600 bg-zinc-900 border-zinc-700 focus:ring-0"
+                  />
+                  <span className="text-zinc-300 font-bold">Waive Late Check-Out Surcharge (GM / VIP Discretion)</span>
+                </label>
+                {waiveLateFee && (
+                  <input
+                    type="text"
+                    data-testid="input-late-waiver-reason"
+                    value={lateWaiverReason}
+                    onChange={(e) => setLateWaiverReason(e.target.value)}
+                    placeholder="Enter reason for complimentary waiver (e.g. Flight delay / VIP courtesy)"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-purple-500 font-sans"
+                  />
+                )}
+              </div>
+
+              {/* Automation & Safety Advisory */}
+              <div className="p-3 rounded-2xl bg-purple-950/30 border border-purple-800/40 text-[11px] text-purple-200/90 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-purple-300">
+                  <span>⚡</span> Automated Actions Upon Approval:
+                </div>
+                <ul className="list-disc list-inside space-y-0.5 text-zinc-400 text-[10px]">
+                  <li>Digital keycard validity automatically extended until <strong>{requestedLateDepartureTime}</strong>.</li>
+                  <li>Housekeeping turnaround schedule rebalanced to avoid premature room knocks.</li>
+                  <li>Surcharge posted to active Master Folio with itemized GST audit entry.</li>
+                </ul>
+              </div>
+
+              {/* Modal Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  data-testid="btn-cancel-late-checkout"
+                  onClick={() => setLateCheckoutModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs uppercase tracking-wider transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-confirm-late-checkout"
+                  disabled={submittingLateCheckout}
+                  onClick={handleExecuteLateCheckout}
+                  className="flex-2 py-3 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-purple-950/40 disabled:opacity-50"
+                >
+                  {submittingLateCheckout ? 'Extending Keycard...' : 'Approve Late Departure & Sync Keycard'}
                 </button>
               </div>
             </div>

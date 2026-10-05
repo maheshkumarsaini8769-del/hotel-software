@@ -46,6 +46,10 @@ import {
   resolveAndReleaseMaintenanceRoom,
   getAvailableUpgradeRooms,
   executeRoomMove,
+  calculateEarlyCheckInSurcharge,
+  calculateLateCheckOutSurcharge,
+  approveLateCheckOut,
+  getLateCheckOutSchedule,
 } from '../controllers/frontDeskController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
@@ -147,6 +151,12 @@ router.post('/frontdesk/maintenance/resolve-and-release', authenticateFrontDeskT
 // Shift 64: In-House Guest Room Move, Room Upgrade & Keycard Re-Issuance Pipeline
 router.get('/frontdesk/available-upgrade-rooms', authenticateFrontDeskTerminal, getAvailableUpgradeRooms);
 router.post('/frontdesk/room-move', authenticateFrontDeskTerminal, executeRoomMove);
+
+// Shift 65: Early Check-In & Late Check-Out Automated Tiered Surcharge Pipeline & Keycard Expiry Adjustment
+router.post('/frontdesk/early-checkin/calculate', authenticateFrontDeskTerminal, calculateEarlyCheckInSurcharge);
+router.post('/frontdesk/late-checkout/calculate', authenticateFrontDeskTerminal, calculateLateCheckOutSurcharge);
+router.post('/frontdesk/late-checkout/approve', authenticateFrontDeskTerminal, approveLateCheckOut);
+router.get('/frontdesk/late-checkout/schedule', authenticateFrontDeskTerminal, getLateCheckOutSchedule);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

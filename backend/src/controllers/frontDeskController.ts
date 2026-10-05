@@ -409,6 +409,8 @@ export const getActiveInHouseGuests = async (req: TenantRequest, res: Response):
       preferredPaymentMethod: s.preferredPaymentMethod || 'UPI',
       feedbackRating: s.checkoutFeedbackRating,
       checkoutNotes: s.checkoutRequestedNotes || '',
+      lateCheckOutRecord: s.lateCheckOutRecord,
+      keycardExpiresAt: s.keycardExpiresAt,
     }));
 
     res.status(200).json({
@@ -2785,6 +2787,508 @@ export const executeRoomMove = async (req: TenantRequest, res: Response): Promis
     });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// =============================================================================
+// SHIFT 65: EARLY CHECK-IN & LATE CHECK-OUT AUTOMATED TIERED SURCHARGE PIPELINE
+// & DIGITAL KEYCARD EXPIRY SYNCHRONIZATION
+// =============================================================================
+
+export const calculateEarlyCheckInSurcharge = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const {
+      expectedCheckInTime,
+      baseTariff = 2500,
+      guestId,
+      guestPhone,
+    } = req.body;
+
+    let arrivalHour = 8;
+    if (expectedCheckInTime) {
+      if (typeof expectedCheckInTime === 'string' && expectedCheckInTime.includes(':') && !expectedCheckInTime.includes('T')) {
+        arrivalHour = parseInt(expectedCheckInTime.split(':')[0], 10);
+      } else {
+        const d = new Date(expectedCheckInTime);
+        arrivalHour = d.getHours();
+      }
+    }
+
+    // Check VIP Tier
+    let vipTier = VIPTier.REGULAR;
+    if (guestId && Types.ObjectId.isValid(guestId)) {
+      const gp = await GuestProfile.findById(guestId);
+      if (gp) vipTier = gp.vipTier;
+    } else if (guestPhone) {
+      const gp = await GuestProfile.findOne({ hotelId, phone: guestPhone });
+      if (gp) vipTier = gp.vipTier;
+    }
+
+    let tier = 'COMPLIMENTARY';
+    let percent = 0;
+    let surchargeAmount = 0;
+    const hoursEarly = Math.max(0, 14 - arrivalHour);
+
+    if (arrivalHour < 6) {
+      tier = 'FULL_DAY';
+      percent = 100;
+      surchargeAmount = Math.round(baseTariff * 1.0);
+    } else if (arrivalHour < 10) {
+      tier = 'HALF_DAY';
+      percent = 50;
+      surchargeAmount = Math.round(baseTariff * 0.5);
+    } else if (arrivalHour < 12) {
+      tier = 'NOMINAL';
+      percent = 25;
+      surchargeAmount = Math.round(baseTariff * 0.25);
+    } else {
+      tier = 'COMPLIMENTARY';
+      percent = 0;
+      surchargeAmount = 0;
+    }
+
+    let vipBenefitApplied = false;
+    let recommendedWaiver = false;
+    if (vipTier === VIPTier.PLATINUM || vipTier === VIPTier.VIP || (vipTier as string) === 'PLATINUM_VIP') {
+      if (arrivalHour >= 9) {
+        surchargeAmount = 0;
+        vipBenefitApplied = true;
+        recommendedWaiver = true;
+      } else {
+        surchargeAmount = Math.round(surchargeAmount * 0.5);
+        vipBenefitApplied = true;
+      }
+    }
+
+    const taxAmount = Math.round(surchargeAmount * 0.12);
+    const totalCharge = surchargeAmount + taxAmount;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        standardCheckInHour: 14,
+        arrivalHour,
+        hoursEarly,
+        tier,
+        percent,
+        baseTariff,
+        surchargeAmount,
+        taxAmount,
+        totalCharge,
+        vipTier,
+        vipBenefitApplied,
+        recommendedWaiver,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'CALC_ERROR', message: err.message });
+  }
+};
+
+export const calculateLateCheckOutSurcharge = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const {
+      stayId,
+      roomNumber,
+      requestedCheckOutTime,
+      baseTariff: explicitBaseTariff,
+    } = req.body;
+
+    let stay: any = null;
+    if (stayId && Types.ObjectId.isValid(stayId)) {
+      stay = await Stay.findOne({ _id: new Types.ObjectId(stayId), hotelId })
+        .populate('bookingId')
+        .populate('guestId')
+        .populate('roomId');
+    } else if (roomNumber) {
+      const room = await Room.findOne({ hotelId, roomNumber });
+      if (room) {
+        stay = await Stay.findOne({ hotelId, roomId: room._id, stayStatus: StayStatus.ACTIVE })
+          .populate('bookingId')
+          .populate('guestId')
+          .populate('roomId');
+      }
+    }
+
+    let standardCheckOutHour = 11;
+    let baseTariff = explicitBaseTariff || 2500;
+    let guestVipTier = VIPTier.REGULAR;
+
+    if (stay) {
+      if (stay.expectedCheckOutTimestamp) {
+        standardCheckOutHour = new Date(stay.expectedCheckOutTimestamp).getHours() || 11;
+      }
+      if (stay.bookingId && (stay.bookingId as any).totalTariff) {
+        const bk = stay.bookingId as any;
+        const nights = bk.nights || 1;
+        baseTariff = Math.round(bk.totalTariff / nights);
+      }
+      if (stay.guestId && (stay.guestId as any).vipTier) {
+        guestVipTier = (stay.guestId as any).vipTier;
+      }
+    }
+
+    let departureHour = 15;
+    if (requestedCheckOutTime) {
+      if (typeof requestedCheckOutTime === 'string' && requestedCheckOutTime.includes(':') && !requestedCheckOutTime.includes('T')) {
+        departureHour = parseInt(requestedCheckOutTime.split(':')[0], 10);
+      } else {
+        const d = new Date(requestedCheckOutTime);
+        departureHour = d.getHours();
+      }
+    }
+
+    const hoursLate = Math.max(0, departureHour - standardCheckOutHour);
+    let tier = 'COMPLIMENTARY';
+    let percent = 0;
+    let surchargeAmount = 0;
+
+    if (departureHour <= 13) {
+      tier = 'GRACE_PERIOD_COMPLIMENTARY';
+      percent = 0;
+      surchargeAmount = 0;
+    } else if (departureHour <= 16) {
+      tier = 'HALF_DAY';
+      percent = 50;
+      surchargeAmount = Math.round(baseTariff * 0.5);
+    } else {
+      tier = 'FULL_DAY';
+      percent = 100;
+      surchargeAmount = Math.round(baseTariff * 1.0);
+    }
+
+    let vipBenefitApplied = false;
+    if (guestVipTier === VIPTier.PLATINUM || guestVipTier === VIPTier.VIP || (guestVipTier as string) === 'PLATINUM_VIP') {
+      if (departureHour <= 14) {
+        surchargeAmount = 0;
+        vipBenefitApplied = true;
+      } else if (departureHour <= 16) {
+        surchargeAmount = Math.round(surchargeAmount * 0.5);
+        vipBenefitApplied = true;
+      }
+    }
+
+    const taxAmount = Math.round(surchargeAmount * 0.12);
+    const totalCharge = surchargeAmount + taxAmount;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        standardCheckOutHour,
+        departureHour,
+        hoursLate,
+        tier,
+        percent,
+        baseTariff,
+        surchargeAmount,
+        taxAmount,
+        totalCharge,
+        vipTier: guestVipTier,
+        vipBenefitApplied,
+        isComplimentary: totalCharge === 0,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'CALC_ERROR', message: err.message });
+  }
+};
+
+export const approveLateCheckOut = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const {
+      stayId,
+      roomNumber,
+      requestedCheckOutTime,
+      waiveSurcharge = false,
+      waiverReason,
+      forceOverride = false,
+    } = req.body;
+
+    const userId = req.user?.userId ? new Types.ObjectId(req.user.userId) : undefined;
+
+    // Find Stay
+    let stay: any = null;
+    if (stayId && Types.ObjectId.isValid(stayId)) {
+      stay = await Stay.findOne({ _id: new Types.ObjectId(stayId), hotelId })
+        .populate('bookingId')
+        .populate('guestId')
+        .populate('roomId');
+    } else if (roomNumber) {
+      const room = await Room.findOne({ hotelId, roomNumber });
+      if (room) {
+        stay = await Stay.findOne({ hotelId, roomId: room._id, stayStatus: StayStatus.ACTIVE })
+          .populate('bookingId')
+          .populate('guestId')
+          .populate('roomId');
+      }
+    }
+
+    if (!stay || stay.stayStatus !== StayStatus.ACTIVE) {
+      res.status(404).json({ success: false, errorCode: 'ACTIVE_STAY_NOT_FOUND', message: 'Active stay not found for late checkout' });
+      return;
+    }
+
+    const room = stay.roomId as any;
+    const booking = stay.bookingId as any;
+    const guest = stay.guestId as any;
+    const guestName = guest?.name || booking?.guestName || 'In-House Guest';
+    const guestVipTier = guest?.vipTier || VIPTier.REGULAR;
+
+    // Parse requested checkout timestamp
+    const targetDate = new Date(stay.expectedCheckOutTimestamp || Date.now());
+    let departureHour = 15;
+    if (requestedCheckOutTime) {
+      if (typeof requestedCheckOutTime === 'string' && requestedCheckOutTime.includes(':') && !requestedCheckOutTime.includes('T')) {
+        const [hh, mm] = requestedCheckOutTime.split(':').map((s: string) => parseInt(s, 10));
+        departureHour = hh;
+        targetDate.setHours(hh, mm || 0, 0, 0);
+      } else {
+        const d = new Date(requestedCheckOutTime);
+        departureHour = d.getHours();
+        targetDate.setTime(d.getTime());
+      }
+    } else {
+      departureHour = 15;
+      targetDate.setHours(15, 0, 0, 0);
+    }
+
+    // Standard Check-Out Hour
+    const standardCheckOutTime = stay.expectedCheckOutTimestamp ? new Date(stay.expectedCheckOutTimestamp) : new Date(targetDate);
+    const standardHour = standardCheckOutTime.getHours() || 11;
+    const hoursLate = Math.max(0, departureHour - standardHour);
+
+    // Calculate Surcharge
+    const nights = booking?.nights || 1;
+    const baseTariff = booking?.totalTariff ? Math.round(booking.totalTariff / nights) : 2500;
+
+    let tier = 'COMPLIMENTARY';
+    let surchargeAmount = 0;
+
+    if (departureHour <= 13) {
+      tier = 'GRACE_PERIOD_COMPLIMENTARY';
+      surchargeAmount = 0;
+    } else if (departureHour <= 16) {
+      tier = 'HALF_DAY';
+      surchargeAmount = Math.round(baseTariff * 0.5);
+    } else {
+      tier = 'FULL_DAY';
+      surchargeAmount = Math.round(baseTariff * 1.0);
+    }
+
+    let vipTierBenefitApplied = false;
+    if (guestVipTier === VIPTier.PLATINUM || guestVipTier === VIPTier.VIP || (guestVipTier as string) === 'PLATINUM_VIP') {
+      if (departureHour <= 14) {
+        surchargeAmount = 0;
+        vipTierBenefitApplied = true;
+      } else if (departureHour <= 16) {
+        surchargeAmount = Math.round(surchargeAmount * 0.5);
+        vipTierBenefitApplied = true;
+      }
+    }
+
+    if (waiveSurcharge) {
+      surchargeAmount = 0;
+    }
+
+    const taxAmount = Math.round(surchargeAmount * 0.12);
+    const totalCharge = surchargeAmount + taxAmount;
+
+    // Check for next arrival conflict unless forceOverride is true
+    const conflictingBooking = await Booking.findOne({
+      hotelId,
+      $or: [{ allocatedRoomId: room._id }, { roomId: room._id as any }],
+      bookingStatus: { $in: [BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN] },
+      _id: { $ne: booking?._id },
+      checkInDate: {
+        $gte: new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0),
+        $lte: new Date(targetDate.getTime() + 60 * 60 * 1000),
+      },
+    });
+
+    if (conflictingBooking && !forceOverride) {
+      res.status(409).json({
+        success: false,
+        errorCode: 'INCOMING_ARRIVAL_CONFLICT',
+        message: `Conflict: Room ${room.roomNumber} has incoming guest booking #${conflictingBooking.bookingNumber} arriving soon. Late checkout requires manager force override.`,
+        conflictingBookingNumber: conflictingBooking.bookingNumber,
+      });
+      return;
+    }
+
+    // Post to Folio if totalCharge > 0
+    let folio: any = null;
+    if (stay.masterFolioId) {
+      folio = await MasterFolio.findById(stay.masterFolioId);
+    } else {
+      folio = await MasterFolio.findOne({ hotelId, stayId: stay._id });
+    }
+
+    if (totalCharge > 0 && folio) {
+      await FolioLineItem.create({
+        hotelId,
+        folioId: folio._id,
+        department: DepartmentType.ROOM_RENT,
+        description: `Late Check-Out Surcharge (Extended to ${departureHour}:00, ${hoursLate}h)`,
+        rate: surchargeAmount,
+        quantity: 1,
+        taxRate: 12,
+        taxAmount,
+        netAmount: totalCharge,
+        postedAt: new Date(),
+        postedByUserId: userId,
+      });
+
+      folio.totalRoomTariff += surchargeAmount;
+      folio.totalTaxes += taxAmount;
+      folio.netAmountPayable += totalCharge;
+      folio.dueAmount += totalCharge;
+      await folio.save();
+    }
+
+    // Update Stay Record
+    stay.expectedCheckOutTimestamp = targetDate;
+    stay.delayedDepartureTime = targetDate;
+    stay.keycardExpiresAt = targetDate;
+    stay.lateCheckOutRecord = {
+      standardCheckOutTime,
+      requestedCheckOutTime: targetDate,
+      approvedAt: new Date(),
+      approvedByUserId: userId,
+      hoursLate,
+      tier,
+      surchargeAmount,
+      taxAmount,
+      totalCharge,
+      waived: Boolean(waiveSurcharge),
+      waiverReason: waiveSurcharge ? (waiverReason || 'Managerial VIP waiver') : undefined,
+      vipTierBenefitApplied,
+      keycardExtendedTo: targetDate,
+      housekeepingNotified: true,
+      status: 'APPROVED',
+    };
+    stay.receptionistNotes = `${stay.receptionistNotes || ''} | Late Check-Out Approved to ${targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${tier})`.trim();
+    await stay.save();
+
+    // Rebalance Housekeeping Turnaround Task Notes
+    await HousekeepingTask.updateMany(
+      {
+        hotelId,
+        roomId: room._id,
+        status: { $in: [HousekeepingTaskStatus.PENDING, HousekeepingTaskStatus.IN_PROGRESS] },
+      },
+      {
+        $set: {
+          inspectionNotes: `[DELAYED DEPARTURE: Guest granted late check-out until ${targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Turnaround scheduled accordingly.]`,
+        },
+      }
+    );
+
+    // Socket.IO Notifications
+    io.to(`${hotelId.toString()}_global`).emit('pms:late_checkout_approved', {
+      stayId: stay._id.toString(),
+      roomNumber: room.roomNumber,
+      guestName,
+      departureTime: targetDate.toISOString(),
+      surchargeAmount,
+      totalCharge,
+      keycardExtendedTo: targetDate.toISOString(),
+    });
+
+    io.to(`${hotelId.toString()}_global`).emit('housekeeping:schedule_rebalanced', {
+      roomId: room._id.toString(),
+      roomNumber: room.roomNumber,
+      newDepartureTime: targetDate.toISOString(),
+      reason: 'LATE_CHECKOUT',
+    });
+
+    const updatedFolio = folio ? await MasterFolio.findById(folio._id) : null;
+
+    res.status(200).json({
+      success: true,
+      message: `Late check-out successfully approved for Room ${room.roomNumber} until ${targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Keycard extended and housekeeping notified.`,
+      data: {
+        stayId: stay._id.toString(),
+        roomNumber: room.roomNumber,
+        guestName,
+        standardCheckOutTime,
+        approvedCheckOutTime: targetDate,
+        keycardExtendedTo: targetDate,
+        hoursLate,
+        tier,
+        surchargeAmount,
+        taxAmount,
+        totalCharge,
+        waived: Boolean(waiveSurcharge),
+        waiverReason: waiveSurcharge ? waiverReason : undefined,
+        vipTierBenefitApplied,
+        updatedFolioDue: updatedFolio ? updatedFolio.dueAmount : 0,
+        housekeepingNotified: true,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'APPROVAL_ERROR', message: err.message });
+  }
+};
+
+export const getLateCheckOutSchedule = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const stays = await Stay.find({
+      hotelId,
+      stayStatus: StayStatus.ACTIVE,
+      'lateCheckOutRecord.status': 'APPROVED',
+    })
+      .populate('roomId')
+      .populate('guestId')
+      .populate('bookingId')
+      .sort({ 'lateCheckOutRecord.requestedCheckOutTime': 1 });
+
+    const schedule = stays.map((s) => ({
+      stayId: s._id.toString(),
+      roomNumber: (s.roomId as any)?.roomNumber,
+      guestName: (s.guestId as any)?.name || (s.bookingId as any)?.guestName || 'In-House Guest',
+      vipTier: (s.guestId as any)?.vipTier || 'REGULAR',
+      originalCheckOut: s.lateCheckOutRecord?.standardCheckOutTime,
+      extendedCheckOut: s.lateCheckOutRecord?.requestedCheckOutTime,
+      hoursLate: s.lateCheckOutRecord?.hoursLate,
+      tier: s.lateCheckOutRecord?.tier,
+      surchargeAmount: s.lateCheckOutRecord?.surchargeAmount,
+      totalCharge: s.lateCheckOutRecord?.totalCharge,
+      waived: s.lateCheckOutRecord?.waived,
+      keycardExtendedTo: s.lateCheckOutRecord?.keycardExtendedTo,
+      approvedAt: s.lateCheckOutRecord?.approvedAt,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: schedule,
+      total: schedule.length,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'SCHEDULE_ERROR', message: err.message });
   }
 };
 

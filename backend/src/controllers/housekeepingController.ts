@@ -611,7 +611,7 @@ export const updateLinenStock = async (req: TenantRequest, res: Response): Promi
   }
 };
 
-// 8. Lost & Found Management
+// 8. Lost & Found Management & Digital Vault Pipeline
 export const logLostItem = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
     const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
@@ -620,15 +620,41 @@ export const logLostItem = async (req: TenantRequest, res: Response): Promise<vo
       return;
     }
 
-    const { description, category = LostAndFoundCategory.OTHER, foundLocation, guestName, roomId, stayId, storageLocation, photoUrl } = req.body;
+    const {
+      description,
+      category = LostAndFoundCategory.OTHER,
+      foundLocation,
+      guestName,
+      roomId,
+      stayId,
+      storageLocation = 'Lost & Found Storage Room A',
+      secureVaultLocker,
+      estimatedValue = 0,
+      isHighValue,
+      retentionDays = 90,
+      photoUrl,
+    } = req.body;
 
-    if (!description || !foundLocation || !storageLocation) {
-      res.status(400).json({ success: false, errorCode: 'MISSING_FIELDS', message: 'Description, location, and storage location required' });
+    if (!description || !foundLocation) {
+      res.status(400).json({ success: false, errorCode: 'MISSING_FIELDS', message: 'Description and found location are required' });
       return;
     }
 
-    const trackingNumber = `LF-${Date.now().toString().slice(-6)}`;
+    const trackingNumber = `LF-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
     const foundByUserId = req.user?.userId ? new Types.ObjectId(req.user.userId) : new Types.ObjectId();
+    const performerName = req.user?.name || req.user?.email || 'Duty Housekeeper';
+
+    const isHighValueItem =
+      Boolean(isHighValue) ||
+      Number(estimatedValue) >= 5000 ||
+      category === LostAndFoundCategory.JEWELRY ||
+      category === LostAndFoundCategory.ELECTRONICS;
+
+    const assignedLocker = secureVaultLocker || (isHighValueItem ? 'VAULT-LOCKER-A1' : undefined);
+    const resolvedStorageLocation = assignedLocker ? `Secure Vault Locker: ${assignedLocker}` : storageLocation;
+
+    const retentionExpiryDate = new Date();
+    retentionExpiryDate.setDate(retentionExpiryDate.getDate() + Number(retentionDays));
 
     const item = new LostAndFound({
       hotelId,
@@ -640,12 +666,31 @@ export const logLostItem = async (req: TenantRequest, res: Response): Promise<vo
       guestName,
       roomId: roomId ? new Types.ObjectId(roomId) : undefined,
       stayId: stayId ? new Types.ObjectId(stayId) : undefined,
-      storageLocation,
+      storageLocation: resolvedStorageLocation,
+      secureVaultLocker: assignedLocker,
+      estimatedValue: Number(estimatedValue) || 0,
+      isHighValue: isHighValueItem,
+      retentionExpiryDate,
       photoUrl,
       status: LostAndFoundStatus.LOGGED,
+      custodyChain: [
+        {
+          action: isHighValueItem ? 'MOVED_TO_VAULT' : 'LOGGED',
+          performedByUserId: foundByUserId,
+          performedByName: performerName,
+          fromLocation: foundLocation,
+          toLocation: resolvedStorageLocation,
+          timestamp: new Date(),
+          notes: isHighValueItem
+            ? `High-value asset (Est. ₹${estimatedValue || 5000}) secured in digital vault ${assignedLocker}`
+            : 'Cataloged into digital lost & found inventory',
+        },
+      ],
     });
 
     await item.save();
+
+    io.to(`${hotelId.toString()}_housekeeping`).emit('lostfound:logged', { item });
 
     res.status(201).json({ success: true, item });
   } catch (error: any) {
@@ -653,14 +698,27 @@ export const logLostItem = async (req: TenantRequest, res: Response): Promise<vo
   }
 };
 
-export const claimLostItem = async (req: TenantRequest, res: Response): Promise<void> => {
+export const verifyAndApproveClaim = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
     const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
     const itemId = String(req.params.itemId);
-    const { claimantName, contactNumber, idProof, notes } = req.body;
+    const {
+      claimantName,
+      claimantPhone,
+      claimantEmail,
+      idProofType = 'AADHAAR',
+      idProofNumber,
+      verificationNotes,
+      serialNumberMatched = true,
+      matchConfidenceScore = 100,
+    } = req.body;
 
-    if (!claimantName || !contactNumber || !idProof) {
-      res.status(400).json({ success: false, errorCode: 'MISSING_CLAIMANT_INFO', message: 'Claimant name, contact number, and ID proof required' });
+    if (!claimantName || !claimantPhone || !idProofNumber) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'MISSING_CLAIMANT_INFO',
+        message: 'Claimant name, phone, and ID proof number are required',
+      });
       return;
     }
 
@@ -670,14 +728,188 @@ export const claimLostItem = async (req: TenantRequest, res: Response): Promise<
       return;
     }
 
-    if (item.status === LostAndFoundStatus.CLAIMED) {
-      res.status(400).json({ success: false, errorCode: 'ALREADY_CLAIMED', message: 'Item has already been claimed' });
+    if (
+      item.status === LostAndFoundStatus.CLAIMED ||
+      item.status === LostAndFoundStatus.CLAIMED_IN_PERSON ||
+      item.status === LostAndFoundStatus.COURIER_DISPATCHED ||
+      item.status === LostAndFoundStatus.DISPOSED
+    ) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_STATUS_FOR_CLAIM',
+        message: `Cannot verify claim for item currently in status ${item.status}`,
+      });
       return;
     }
 
     const verifiedByUserId = req.user?.userId ? new Types.ObjectId(req.user.userId) : new Types.ObjectId();
+    const performerName = req.user?.name || req.user?.email || 'Duty Manager';
 
-    item.status = LostAndFoundStatus.CLAIMED;
+    item.status = LostAndFoundStatus.VERIFIED_PENDING_DISPATCH;
+    item.claimVerification = {
+      claimantName,
+      claimantPhone,
+      claimantEmail,
+      idProofType,
+      idProofNumber,
+      verificationNotes,
+      verifiedByUserId,
+      verifiedAt: new Date(),
+      serialNumberMatched: Boolean(serialNumberMatched),
+      matchConfidenceScore: Number(matchConfidenceScore) || 100,
+    };
+
+    item.custodyChain.push({
+      action: 'VERIFIED',
+      performedByUserId: verifiedByUserId,
+      performedByName: performerName,
+      fromLocation: item.secureVaultLocker || item.storageLocation,
+      toLocation: 'Front Office / Dispatch Staging',
+      timestamp: new Date(),
+      notes: `Duty Manager verified ownership claim for ${claimantName} (ID: ${idProofType} ${idProofNumber}, Confidence: ${matchConfidenceScore}%)`,
+    });
+
+    await item.save();
+
+    io.to(`${hotelId?.toString()}_housekeeping`).emit('lostfound:claim_verified', { item });
+
+    res.status(200).json({ success: true, message: 'Claim verified successfully. Item ready for dispatch or handover.', item });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+export const dispatchCourier = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    const itemId = String(req.params.itemId);
+    const {
+      courierPartner = 'BLUE_DART',
+      waybillNumber,
+      recipientName,
+      recipientPhone,
+      shippingAddress,
+      shippingFeePaidBy = 'GUEST',
+      shippingFeeAmount = 0,
+      notes,
+    } = req.body;
+
+    if (!waybillNumber || !recipientName || !recipientPhone || !shippingAddress?.street || !shippingAddress?.city) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'MISSING_DISPATCH_DETAILS',
+        message: 'Waybill number, recipient name, phone, and complete shipping address required',
+      });
+      return;
+    }
+
+    const item = await LostAndFound.findOne({ _id: new Types.ObjectId(itemId), hotelId });
+    if (!item) {
+      res.status(404).json({ success: false, errorCode: 'ITEM_NOT_FOUND', message: 'Lost and found item not found' });
+      return;
+    }
+
+    if (
+      item.status === LostAndFoundStatus.CLAIMED ||
+      item.status === LostAndFoundStatus.CLAIMED_IN_PERSON ||
+      item.status === LostAndFoundStatus.COURIER_DISPATCHED ||
+      item.status === LostAndFoundStatus.DISPOSED
+    ) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_STATUS_FOR_DISPATCH',
+        message: `Cannot dispatch item with status ${item.status}`,
+      });
+      return;
+    }
+
+    const dispatchedByUserId = req.user?.userId ? new Types.ObjectId(req.user.userId) : new Types.ObjectId();
+    const performerName = req.user?.name || req.user?.email || 'Concierge / Dispatch Desk';
+
+    item.status = LostAndFoundStatus.COURIER_DISPATCHED;
+    item.courierDispatch = {
+      courierPartner,
+      waybillNumber,
+      recipientName,
+      recipientPhone,
+      shippingAddress: {
+        street: shippingAddress.street,
+        city: shippingAddress.city,
+        state: shippingAddress.state || '',
+        pincode: shippingAddress.pincode || '',
+        country: shippingAddress.country || 'India',
+      },
+      shippingFeePaidBy,
+      shippingFeeAmount: Number(shippingFeeAmount) || 0,
+      dispatchedAt: new Date(),
+      dispatchedByUserId,
+      courierStatus: 'PICKED_UP',
+      notes,
+    };
+
+    item.custodyChain.push({
+      action: 'DISPATCH_PREPARED',
+      performedByUserId: dispatchedByUserId,
+      performedByName: performerName,
+      fromLocation: item.secureVaultLocker || item.storageLocation,
+      toLocation: `${courierPartner} Logistics (Waybill: ${waybillNumber})`,
+      timestamp: new Date(),
+      notes: `Courier package dispatched via ${courierPartner} to ${recipientName}, ${shippingAddress.city}. Waybill: ${waybillNumber}`,
+    });
+
+    await item.save();
+
+    io.to(`${hotelId?.toString()}_housekeeping`).emit('lostfound:courier_dispatched', { item });
+
+    res.status(200).json({
+      success: true,
+      message: `Item dispatched via ${courierPartner} with Waybill ${waybillNumber}`,
+      item,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+export const handoverInPerson = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    const itemId = String(req.params.itemId);
+    const { claimantName, contactNumber, idProof, notes } = req.body;
+
+    if (!claimantName || !contactNumber || !idProof) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'MISSING_CLAIMANT_INFO',
+        message: 'Claimant name, contact number, and ID proof required',
+      });
+      return;
+    }
+
+    const item = await LostAndFound.findOne({ _id: new Types.ObjectId(itemId), hotelId });
+    if (!item) {
+      res.status(404).json({ success: false, errorCode: 'ITEM_NOT_FOUND', message: 'Lost and found item not found' });
+      return;
+    }
+
+    if (
+      item.status === LostAndFoundStatus.CLAIMED ||
+      item.status === LostAndFoundStatus.CLAIMED_IN_PERSON ||
+      item.status === LostAndFoundStatus.COURIER_DISPATCHED ||
+      item.status === LostAndFoundStatus.DISPOSED
+    ) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'ALREADY_CLAIMED',
+        message: `Item has already been finalized in status ${item.status}`,
+      });
+      return;
+    }
+
+    const verifiedByUserId = req.user?.userId ? new Types.ObjectId(req.user.userId) : new Types.ObjectId();
+    const performerName = req.user?.name || req.user?.email || 'Front Desk Agent';
+
+    item.status = LostAndFoundStatus.CLAIMED_IN_PERSON;
     item.claimedBy = {
       claimantName,
       contactNumber,
@@ -687,14 +919,179 @@ export const claimLostItem = async (req: TenantRequest, res: Response): Promise<
       notes,
     };
 
+    item.custodyChain.push({
+      action: 'HANDOVER',
+      performedByUserId: verifiedByUserId,
+      performedByName: performerName,
+      fromLocation: item.secureVaultLocker || item.storageLocation,
+      toLocation: 'Guest Possession (In-Person Handover)',
+      timestamp: new Date(),
+      notes: `In-person handover at Front Desk to ${claimantName} (Contact: ${contactNumber}, ID: ${idProof})`,
+    });
+
     await item.save();
 
-    res.status(200).json({ success: true, item });
+    io.to(`${hotelId?.toString()}_housekeeping`).emit('lostfound:claimed', { item });
+
+    res.status(200).json({ success: true, message: 'Item successfully handed over to claimant', item });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
   }
 };
 
+// Backwards-compatible claimLostItem
+export const claimLostItem = handoverInPerson;
+
+export const inquireLostItem = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    const { category, keyword, foundLocation } = req.body;
+
+    const filter: any = {
+      hotelId,
+      status: { $in: [LostAndFoundStatus.LOGGED, LostAndFoundStatus.INQUIRY_RECEIVED] },
+    };
+
+    if (category && category !== 'ALL') {
+      filter.category = category;
+    }
+
+    if (keyword) {
+      filter.$or = [
+        { description: { $regex: keyword, $options: 'i' } },
+        { trackingNumber: { $regex: keyword, $options: 'i' } },
+        { foundLocation: { $regex: keyword, $options: 'i' } },
+        { guestName: { $regex: keyword, $options: 'i' } },
+      ];
+    }
+
+    if (foundLocation) {
+      filter.foundLocation = { $regex: foundLocation, $options: 'i' };
+    }
+
+    const matchedItems = await LostAndFound.find(filter).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: matchedItems.length,
+      matchedItems,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+export const getLostAndFoundVault = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    const { status, category, isHighValue, search, locker } = req.query;
+
+    const filter: any = { hotelId };
+
+    if (status && status !== 'ALL') {
+      filter.status = status;
+    }
+
+    if (category && category !== 'ALL') {
+      filter.category = category;
+    }
+
+    if (isHighValue !== undefined && isHighValue !== '') {
+      filter.isHighValue = String(isHighValue) === 'true';
+    }
+
+    if (locker) {
+      filter.secureVaultLocker = { $regex: String(locker), $options: 'i' };
+    }
+
+    if (search) {
+      const searchRegex = { $regex: String(search), $options: 'i' };
+      filter.$or = [
+        { description: searchRegex },
+        { trackingNumber: searchRegex },
+        { foundLocation: searchRegex },
+        { guestName: searchRegex },
+        { secureVaultLocker: searchRegex },
+        { 'courierDispatch.waybillNumber': searchRegex },
+      ];
+    }
+
+    const items = await LostAndFound.find(filter).sort({ createdAt: -1 });
+
+    // Aggregate vault metrics
+    const allItems = await LostAndFound.find({ hotelId });
+    const now = new Date();
+
+    const metrics = {
+      totalLogged: allItems.length,
+      activeInVault: allItems.filter(
+        (i) => i.status === LostAndFoundStatus.LOGGED || i.status === LostAndFoundStatus.INQUIRY_RECEIVED
+      ).length,
+      highValueSecured: allItems.filter((i) => i.isHighValue && i.status !== LostAndFoundStatus.DISPOSED).length,
+      pendingDispatch: allItems.filter((i) => i.status === LostAndFoundStatus.VERIFIED_PENDING_DISPATCH).length,
+      courierDispatched: allItems.filter((i) => i.status === LostAndFoundStatus.COURIER_DISPATCHED).length,
+      claimedInPerson: allItems.filter(
+        (i) => i.status === LostAndFoundStatus.CLAIMED_IN_PERSON || i.status === LostAndFoundStatus.CLAIMED
+      ).length,
+      disposed: allItems.filter((i) => i.status === LostAndFoundStatus.DISPOSED || i.status === LostAndFoundStatus.AUCTIONED).length,
+      retentionDueCount: allItems.filter(
+        (i) =>
+          (i.status === LostAndFoundStatus.LOGGED || i.status === LostAndFoundStatus.INQUIRY_RECEIVED) &&
+          new Date(i.retentionExpiryDate) <= now
+      ).length,
+    };
+
+    res.status(200).json({
+      success: true,
+      count: items.length,
+      metrics,
+      items,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+export const disposeLostItem = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    const itemId = String(req.params.itemId);
+    const { action = 'DISPOSED', disposalNotes = 'Item retention period elapsed without claim' } = req.body;
+
+    const item = await LostAndFound.findOne({ _id: new Types.ObjectId(itemId), hotelId });
+    if (!item) {
+      res.status(404).json({ success: false, errorCode: 'ITEM_NOT_FOUND', message: 'Lost and found item not found' });
+      return;
+    }
+
+    const disposedByUserId = req.user?.userId ? new Types.ObjectId(req.user.userId) : new Types.ObjectId();
+    const performerName = req.user?.name || req.user?.email || 'Executive Housekeeper';
+
+    item.status = action === 'AUCTIONED' ? LostAndFoundStatus.AUCTIONED : LostAndFoundStatus.DISPOSED;
+    item.disposedAt = new Date();
+    item.disposalNotes = disposalNotes;
+
+    item.custodyChain.push({
+      action: 'DISPOSED',
+      performedByUserId: disposedByUserId,
+      performedByName: performerName,
+      fromLocation: item.secureVaultLocker || item.storageLocation,
+      toLocation: action === 'AUCTIONED' ? 'Staff Charity Auction' : 'Authorized Waste / E-Waste Disposal',
+      timestamp: new Date(),
+      notes: disposalNotes,
+    });
+
+    await item.save();
+
+    io.to(`${hotelId?.toString()}_housekeeping`).emit('lostfound:disposed', { item });
+
+    res.status(200).json({ success: true, message: `Item marked as ${item.status}`, item });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// Backwards-compatible getLostAndFound
 export const getLostAndFound = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
     const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);

@@ -18,11 +18,13 @@ import { RevenueManagerApp } from './components/revenue-manager/RevenueManagerAp
 import { SeatBillingApp } from './components/seat-billing/SeatBillingApp';
 import { KotVoidAuditApp } from './components/kot-void/KotVoidAuditApp';
 import { FrontDeskCheckInApp } from './components/front-desk/FrontDeskCheckInApp';
+import { LostAndFoundVaultApp } from './components/lost-and-found/LostAndFoundVaultApp';
 import { MatrixStore } from '../../../packages/ui/src/pms/MatrixStore';
 
 export type ErpModuleKey =
   | 'PMS'
   | 'FRONT_DESK_CHECKIN'
+  | 'LOST_AND_FOUND'
   | 'FAST_CASHIER'
   | 'HOUSEKEEPING'
   | 'RESERVATIONS'
@@ -51,6 +53,7 @@ const MODULE_REGISTRY: ErpModuleDef[] = [
   // Front Desk & Rooms
   { key: 'PMS', label: 'PMS Room Grid', category: 'FRONT_DESK', icon: '🏨' },
   { key: 'FRONT_DESK_CHECKIN', label: '1-Click Check-In & KYC', category: 'FRONT_DESK', icon: '🛎️', badge: 'KYC / DOCS' },
+  { key: 'LOST_AND_FOUND', label: 'Lost & Found Vault', category: 'FRONT_DESK', icon: '🔐', badge: 'DISPATCH' },
   { key: 'HOUSEKEEPING', label: 'Housekeeping Turnaround', category: 'FRONT_DESK', icon: '🧹' },
   { key: 'RESERVATIONS', label: 'Dining & Room Arrivals', category: 'FRONT_DESK', icon: '📅' },
   { key: 'CORPORATE', label: 'Corporate & Groups', category: 'FRONT_DESK', icon: '🏢' },
@@ -230,6 +233,8 @@ export const AdminErpShell: React.FC = () => {
         );
       case 'FRONT_DESK_CHECKIN':
         return <FrontDeskCheckInApp authToken={token} hotelId={hotelId} />;
+      case 'LOST_AND_FOUND':
+        return <LostAndFoundVaultApp authToken={token} hotelId={hotelId} />;
       case 'FAST_CASHIER':
         return <FastCashierPosApp token={token} />;
       case 'HOUSEKEEPING':

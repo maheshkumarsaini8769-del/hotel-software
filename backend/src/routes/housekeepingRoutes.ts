@@ -12,6 +12,12 @@ import {
   logLostItem,
   claimLostItem,
   getLostAndFound,
+  getLostAndFoundVault,
+  verifyAndApproveClaim,
+  dispatchCourier,
+  handoverInPerson,
+  inquireLostItem,
+  disposeLostItem,
 } from '../controllers/housekeepingController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 
@@ -33,9 +39,15 @@ router.get('/board', getHousekeepingBoard);
 router.get('/linen', getLinenInventory);
 router.post('/linen/transaction', updateLinenStock);
 
-// Lost and Found
+// Lost and Found Digital Vault & Courier Pipeline
+router.get('/lost-and-found/vault', getLostAndFoundVault);
+router.post('/lost-and-found/inquire', inquireLostItem);
 router.post('/lost-and-found', logLostItem);
+router.put('/lost-and-found/:itemId/verify-claim', verifyAndApproveClaim);
+router.post('/lost-and-found/:itemId/dispatch-courier', dispatchCourier);
+router.put('/lost-and-found/:itemId/handover', handoverInPerson);
 router.put('/lost-and-found/:itemId/claim', claimLostItem);
+router.post('/lost-and-found/:itemId/dispose', disposeLostItem);
 router.get('/lost-and-found', getLostAndFound);
 
 export default router;

@@ -132,7 +132,7 @@ export async function runSingleGates(gateNumbers?: number[]): Promise<GateResult
 // =============================================================================
 export async function runBatchesOf10(): Promise<void> {
   console.log('\n================================================================================');
-  console.log('📦 STAGE 2: BATCHES OF 10 SHIFTS / GATES (1-10, 11-20, 21-30, 31-40, 41-50, 51-61)');
+  console.log('📦 STAGE 2: BATCHES OF 10 SHIFTS / GATES (1-10, 11-20, 21-30, 31-40, 41-50, 51-60, 61-64)');
   console.log('================================================================================');
 
   const map = getGateFilesMap();
@@ -142,7 +142,8 @@ export async function runBatchesOf10(): Promise<void> {
     { name: 'Batch 3 (Gates 21-30)', start: 21, end: 30 },
     { name: 'Batch 4 (Gates 31-40)', start: 31, end: 40 },
     { name: 'Batch 5 (Gates 41-50)', start: 41, end: 50 },
-    { name: 'Batch 6 (Gates 51-61)', start: 51, end: 61 },
+    { name: 'Batch 6 (Gates 51-60)', start: 51, end: 60 },
+    { name: 'Batch 7 (Gates 61-64)', start: 61, end: 64 },
   ];
 
   for (const b of batches) {
@@ -159,22 +160,23 @@ export async function runBatchesOf10(): Promise<void> {
     }
   }
 
-  console.log('\n🎉 STAGE 2 COMPLETE: All 6 Batches of 10 passed (100% Green)!');
+  console.log('\n🎉 STAGE 2 COMPLETE: All 7 Batches passed (100% Green)!');
 }
 
 // =============================================================================
-// 3. BATCHES OF 20 SHIFTS (1-20, 21-40, 41-61)
+// 3. BATCHES OF 20 SHIFTS (1-20, 21-40, 41-60, 61-64)
 // =============================================================================
 export async function runBatchesOf20(): Promise<void> {
   console.log('\n================================================================================');
-  console.log('🚀 STAGE 3: BATCHES OF 20 SHIFTS / GATES (1-20, 21-40, 41-61)');
+  console.log('🚀 STAGE 3: BATCHES OF 20 SHIFTS / GATES (1-20, 21-40, 41-60, 61-64)');
   console.log('================================================================================');
 
   const map = getGateFilesMap();
   const batches = [
     { name: 'Super-Batch A (Gates 1-20)', start: 1, end: 20 },
     { name: 'Super-Batch B (Gates 21-40)', start: 21, end: 40 },
-    { name: 'Super-Batch C (Gates 41-61)', start: 41, end: 61 },
+    { name: 'Super-Batch C (Gates 41-60)', start: 41, end: 60 },
+    { name: 'Super-Batch D (Gates 61-64)', start: 61, end: 64 },
   ];
 
   for (const b of batches) {
@@ -191,15 +193,15 @@ export async function runBatchesOf20(): Promise<void> {
     }
   }
 
-  console.log('\n🎉 STAGE 3 COMPLETE: All 3 Super-Batches of 20 passed (100% Green)!');
+  console.log('\n🎉 STAGE 3 COMPLETE: All 4 Super-Batches passed (100% Green)!');
 }
 
 // =============================================================================
-// 4. COMBINED COMPLETE RUN (1 se 61 tk Ek Sath)
+// 4. COMBINED COMPLETE RUN (1 se 64 tk Ek Sath)
 // =============================================================================
 export async function runAllGatesTogether(): Promise<void> {
   console.log('\n================================================================================');
-  console.log('⚡ STAGE 4: ALL 61 SHIFTS TOGETHER (COMBINED COMPLETE TEST SUITE)');
+  console.log('⚡ STAGE 4: ALL 64 SHIFTS TOGETHER (COMBINED COMPLETE TEST SUITE)');
   console.log('================================================================================');
 
   const map = getGateFilesMap();
@@ -210,7 +212,7 @@ export async function runAllGatesTogether(): Promise<void> {
     if (gFiles) allFiles.push(...gFiles);
   }
 
-  const res = runJestFiles(allFiles, `Complete Monorepo Test Suite (Gates 1-61, ${allFiles.length} suites)`);
+  const res = runJestFiles(allFiles, `Complete Monorepo Test Suite (Gates 1-64, ${allFiles.length} suites)`);
   if (!res.passed) {
     throw new Error('Combined test suite failure! Halting.');
   }

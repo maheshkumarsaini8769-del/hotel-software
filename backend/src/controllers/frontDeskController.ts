@@ -1,8 +1,9 @@
 import { Response } from 'express';
 import { Types } from 'mongoose';
 import { Room, RoomStatus } from '../models/Room';
+import { RoomType } from '../models/RoomType';
 import { Booking, BookingStatus } from '../models/Booking';
-import { Stay, StayStatus } from '../models/Stay';
+import { Stay, StayStatus, IRateOverrideRecord } from '../models/Stay';
 import { GuestProfile, VIPTier } from '../models/GuestProfile';
 import { MasterFolio } from '../models/MasterFolio';
 import { FolioLineItem, DepartmentType } from '../models/FolioLineItem';
@@ -411,6 +412,10 @@ export const getActiveInHouseGuests = async (req: TenantRequest, res: Response):
       checkoutNotes: s.checkoutRequestedNotes || '',
       lateCheckOutRecord: s.lateCheckOutRecord,
       keycardExpiresAt: s.keycardExpiresAt,
+      activeRateOverride: s.activeRateOverride,
+      baseRatePerNight: s.baseRatePerNight,
+      effectiveRatePerNight: s.effectiveRatePerNight,
+      isComplimentaryWaiver: s.isComplimentaryWaiver,
     }));
 
     res.status(200).json({
@@ -3291,5 +3296,501 @@ export const getLateCheckOutSchedule = async (req: TenantRequest, res: Response)
     res.status(500).json({ success: false, errorCode: 'SCHEDULE_ERROR', message: err.message });
   }
 };
+
+// ============================================================================
+// Shift 67: Front Desk Manager Rate Override, Complimentary Waiver & Security PIN Approval Matrix
+// ============================================================================
+
+const verifyManagerSecurityPin = async (hotelId: Types.ObjectId, pin?: string): Promise<boolean> => {
+  if (!pin) return false;
+  const masterPin = process.env.MANAGER_SECURITY_PIN || '9921';
+  if (pin === masterPin) return true;
+
+  const managers = await User.find({
+    hotelId,
+    role: { $in: ['HOTEL_ADMIN', 'MANAGER'] },
+    isActive: true,
+  });
+
+  for (const m of managers) {
+    if (m.pinCodeHash && (m.pinCodeHash === pin || m.pinCodeHash.includes(pin))) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+export const calculateRateOverride = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { stayId, roomNumber, overrideType = 'PERCENTAGE_DISCOUNT', discountPercent = 0, newFixedRate = 0 } = req.body;
+
+    let stayQuery: any = { hotelId, stayStatus: StayStatus.ACTIVE };
+    if (stayId && Types.ObjectId.isValid(stayId)) {
+      stayQuery._id = new Types.ObjectId(stayId);
+    } else if (roomNumber) {
+      const room = await Room.findOne({ hotelId, roomNumber });
+      if (!room) {
+        res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
+        return;
+      }
+      stayQuery.roomId = room._id;
+    } else {
+      res.status(400).json({ success: false, errorCode: 'MISSING_STAY_IDENTIFIER', message: 'stayId or roomNumber is required' });
+      return;
+    }
+
+    const stay = await Stay.findOne(stayQuery).populate('roomId').populate('bookingId').populate('guestId');
+    if (!stay) {
+      res.status(404).json({ success: false, errorCode: 'ACTIVE_STAY_NOT_FOUND', message: 'Active stay not found' });
+      return;
+    }
+
+    // Determine Base Rate
+    let baseRate = stay.baseRatePerNight || stay.effectiveRatePerNight || 0;
+    if (!baseRate && stay.roomId) {
+      const rType = await RoomType.findById((stay.roomId as any).roomTypeId);
+      if (rType && rType.basePriceOvernight) {
+        baseRate = rType.basePriceOvernight;
+      }
+    }
+    if (!baseRate) baseRate = 3500;
+
+    let computedNewRate = baseRate;
+    let computedDiscountAmount = 0;
+    let computedDiscountPercent = 0;
+
+    if (overrideType === 'COMPLIMENTARY_WAIVER') {
+      computedNewRate = 0;
+      computedDiscountAmount = baseRate;
+      computedDiscountPercent = 100;
+    } else if (overrideType === 'FIXED_TARIFF') {
+      computedNewRate = Math.max(0, Number(newFixedRate) || 0);
+      computedDiscountAmount = Math.max(0, baseRate - computedNewRate);
+      computedDiscountPercent = baseRate > 0 ? Math.round(((baseRate - computedNewRate) / baseRate) * 1000) / 10 : 0;
+    } else {
+      // PERCENTAGE_DISCOUNT
+      const pct = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+      computedDiscountAmount = Math.round(baseRate * (pct / 100));
+      computedNewRate = Math.max(0, baseRate - computedDiscountAmount);
+      computedDiscountPercent = pct;
+    }
+
+    // Tier Evaluation
+    let approvalTier: 'AGENT_SELF' | 'SUPERVISOR' | 'DUTY_MANAGER' | 'GENERAL_MANAGER' = 'AGENT_SELF';
+    let pinRequired = false;
+    let tierDescription = 'Front Desk Agent Self-Authorized';
+
+    if (computedDiscountPercent <= 5 && computedDiscountAmount <= 500) {
+      approvalTier = 'AGENT_SELF';
+      pinRequired = false;
+      tierDescription = 'Front Desk Agent Self-Authorized (<= 5% or <= ₹500)';
+    } else if (computedDiscountPercent <= 15 && computedDiscountAmount <= 2000) {
+      approvalTier = 'SUPERVISOR';
+      pinRequired = true;
+      tierDescription = 'Front Desk Supervisor PIN Approval (<= 15% or <= ₹2,000)';
+    } else if (computedDiscountPercent <= 50) {
+      approvalTier = 'DUTY_MANAGER';
+      pinRequired = true;
+      tierDescription = 'Duty Manager Authorization PIN (<= 50%)';
+    } else {
+      approvalTier = 'GENERAL_MANAGER';
+      pinRequired = true;
+      tierDescription = 'General Manager / Executive Discretion PIN (> 50% or 100% Complimentary Waiver)';
+    }
+
+    const originalTax = Math.round(baseRate * 0.12 * 100) / 100;
+    const newTax = Math.round(computedNewRate * 0.12 * 100) / 100;
+    const taxSavings = Math.max(0, originalTax - newTax);
+    const netSavingsTotal = computedDiscountAmount + taxSavings;
+
+    const guestName = (stay.guestId as any)?.name || (stay.bookingId as any)?.guestName || 'In-House Guest';
+    const roomNum = (stay.roomId as any)?.roomNumber || roomNumber || 'N/A';
+
+    res.status(200).json({
+      success: true,
+      data: {
+        stayId: stay._id.toString(),
+        roomNumber: roomNum,
+        guestName,
+        overrideType,
+        baseRatePerNight: baseRate,
+        newRatePerNight: computedNewRate,
+        discountAmount: computedDiscountAmount,
+        discountPercent: computedDiscountPercent,
+        originalTax,
+        newTax,
+        taxSavings,
+        netSavingsTotal,
+        approvalTier,
+        pinRequired,
+        tierDescription,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'CALCULATION_ERROR', message: err.message });
+  }
+};
+
+export const applyRateOverride = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const {
+      stayId,
+      roomNumber,
+      overrideType = 'PERCENTAGE_DISCOUNT',
+      discountPercent = 0,
+      newFixedRate = 0,
+      reason,
+      justification,
+      managerPin,
+    } = req.body;
+
+    if (!reason) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'MISSING_REASON',
+        message: 'Reason for rate override is required (e.g. SERVICE_RECOVERY, VIP_MANAGEMENT_GUEST)',
+      });
+      return;
+    }
+
+    if (!justification || justification.trim().length < 3) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'MISSING_JUSTIFICATION',
+        message: 'A mandatory justification note (minimum 3 characters) must be provided for audit compliance',
+      });
+      return;
+    }
+
+    let stayQuery: any = { hotelId, stayStatus: StayStatus.ACTIVE };
+    if (stayId && Types.ObjectId.isValid(stayId)) {
+      stayQuery._id = new Types.ObjectId(stayId);
+    } else if (roomNumber) {
+      const room = await Room.findOne({ hotelId, roomNumber });
+      if (!room) {
+        res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
+        return;
+      }
+      stayQuery.roomId = room._id;
+    } else {
+      res.status(400).json({ success: false, errorCode: 'MISSING_STAY_IDENTIFIER', message: 'stayId or roomNumber is required' });
+      return;
+    }
+
+    const stay = await Stay.findOne(stayQuery).populate('roomId').populate('bookingId').populate('guestId');
+    if (!stay) {
+      res.status(404).json({ success: false, errorCode: 'ACTIVE_STAY_NOT_FOUND', message: 'Active stay not found' });
+      return;
+    }
+
+    // Determine Base Rate
+    let baseRate = stay.baseRatePerNight || stay.effectiveRatePerNight || 0;
+    if (!baseRate && stay.roomId) {
+      const rType = await RoomType.findById((stay.roomId as any).roomTypeId);
+      if (rType && rType.basePriceOvernight) {
+        baseRate = rType.basePriceOvernight;
+      }
+    }
+    if (!baseRate) baseRate = 3500;
+
+    let computedNewRate = baseRate;
+    let computedDiscountAmount = 0;
+    let computedDiscountPercent = 0;
+
+    if (overrideType === 'COMPLIMENTARY_WAIVER') {
+      computedNewRate = 0;
+      computedDiscountAmount = baseRate;
+      computedDiscountPercent = 100;
+    } else if (overrideType === 'FIXED_TARIFF') {
+      computedNewRate = Math.max(0, Number(newFixedRate) || 0);
+      computedDiscountAmount = Math.max(0, baseRate - computedNewRate);
+      computedDiscountPercent = baseRate > 0 ? Math.round(((baseRate - computedNewRate) / baseRate) * 1000) / 10 : 0;
+    } else {
+      // PERCENTAGE_DISCOUNT
+      const pct = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+      computedDiscountAmount = Math.round(baseRate * (pct / 100));
+      computedNewRate = Math.max(0, baseRate - computedDiscountAmount);
+      computedDiscountPercent = pct;
+    }
+
+    // Determine Tier
+    let approvalTier: 'AGENT_SELF' | 'SUPERVISOR' | 'DUTY_MANAGER' | 'GENERAL_MANAGER' = 'AGENT_SELF';
+    let pinRequired = false;
+
+    if (computedDiscountPercent <= 5 && computedDiscountAmount <= 500) {
+      approvalTier = 'AGENT_SELF';
+      pinRequired = false;
+    } else if (computedDiscountPercent <= 15 && computedDiscountAmount <= 2000) {
+      approvalTier = 'SUPERVISOR';
+      pinRequired = true;
+    } else if (computedDiscountPercent <= 50) {
+      approvalTier = 'DUTY_MANAGER';
+      pinRequired = true;
+    } else {
+      approvalTier = 'GENERAL_MANAGER';
+      pinRequired = true;
+    }
+
+    // Verify PIN if required
+    if (pinRequired) {
+      const isPinValid = await verifyManagerSecurityPin(hotelId, managerPin);
+      if (!isPinValid) {
+        res.status(403).json({
+          success: false,
+          errorCode: 'INVALID_MANAGER_PIN',
+          message: `Manager Security PIN verification failed. Tier '${approvalTier}' requires valid authorization PIN.`,
+        });
+        return;
+      }
+    }
+
+    const performerName = req.user?.name || req.user?.email || 'Front Desk Staff';
+
+    const overrideRecord: IRateOverrideRecord = {
+      originalRate: baseRate,
+      newRate: computedNewRate,
+      discountAmount: computedDiscountAmount,
+      discountPercent: computedDiscountPercent,
+      overrideType,
+      reason,
+      justification,
+      requestedByUserId: req.user?.userId ? new Types.ObjectId(req.user.userId) : undefined,
+      requestedByName: performerName,
+      approvedByUserId: req.user?.userId ? new Types.ObjectId(req.user.userId) : undefined,
+      approvedByName: pinRequired ? (req.user?.name || 'Authorized Duty Manager') : 'Agent Self-Authorized',
+      approvedAt: new Date(),
+      managerPinVerified: pinRequired,
+      approvalTier,
+      status: 'APPROVED',
+    };
+
+    stay.baseRatePerNight = baseRate;
+    stay.effectiveRatePerNight = computedNewRate;
+    stay.isComplimentaryWaiver = computedNewRate === 0 || overrideType === 'COMPLIMENTARY_WAIVER';
+    stay.activeRateOverride = overrideRecord;
+
+    if (!stay.rateOverrideHistory) {
+      stay.rateOverrideHistory = [];
+    }
+    stay.rateOverrideHistory.push(overrideRecord);
+    await stay.save();
+
+    // Master Folio Recalculation
+    let updatedDueAmount = 0;
+    if (stay.masterFolioId) {
+      const folio = await MasterFolio.findOne({ _id: stay.masterFolioId, hotelId });
+      if (folio && folio.folioStatus === 'OPEN') {
+        const checkIn = new Date(stay.checkInTimestamp);
+        const checkOut = new Date(stay.expectedCheckOutTimestamp);
+        const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+        const totalDiscountImpact = computedDiscountAmount * nights;
+
+        folio.totalRoomTariff = computedNewRate * nights;
+        folio.totalDiscounts = (folio.totalDiscounts || 0) + totalDiscountImpact;
+
+        folio.netAmountPayable = Math.max(
+          0,
+          (folio.totalRoomTariff || 0) +
+            (folio.totalFoodAndBeverage || 0) +
+            (folio.totalLaundry || 0) +
+            (folio.totalPaidServices || 0) +
+            (folio.totalDamageCharges || 0) -
+            (folio.totalDiscounts || 0) +
+            (folio.totalTaxes || 0)
+        );
+
+        folio.dueAmount = Math.max(0, folio.netAmountPayable - (folio.advancePaid || 0) - (folio.paidAmount || 0));
+        await folio.save();
+        updatedDueAmount = folio.dueAmount;
+
+        // Post an itemized Folio line item audit
+        await FolioLineItem.create({
+          hotelId,
+          folioId: folio._id,
+          department: DepartmentType.DISCOUNT,
+          description: `Manager Rate Override (${overrideType.replace(/_/g, ' ')}): ${reason.replace(/_/g, ' ')}`,
+          rate: -totalDiscountImpact,
+          quantity: 1,
+          taxRate: 0,
+          taxAmount: 0,
+          netAmount: -totalDiscountImpact,
+          postedAt: new Date(),
+          postedByUserId: req.user?.userId ? new Types.ObjectId(req.user.userId) : undefined,
+        });
+      }
+    }
+
+    const roomNum = (stay.roomId as any)?.roomNumber || roomNumber || 'N/A';
+    const guestName = (stay.guestId as any)?.name || (stay.bookingId as any)?.guestName || 'In-House Guest';
+
+    // Socket notification
+    io.to(`${hotelId.toString()}_global`).emit('pms:rate_override_applied', {
+      stayId: stay._id.toString(),
+      roomNumber: roomNum,
+      guestName,
+      overrideRecord,
+      updatedFolioDue: updatedDueAmount,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Rate override authorized and applied successfully for Room ${roomNum}`,
+      data: {
+        stayId: stay._id.toString(),
+        roomNumber: roomNum,
+        guestName,
+        baseRatePerNight: baseRate,
+        effectiveRatePerNight: computedNewRate,
+        isComplimentaryWaiver: stay.isComplimentaryWaiver,
+        overrideRecord,
+        updatedFolioDue: updatedDueAmount,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'OVERRIDE_ERROR', message: err.message });
+  }
+};
+
+export const waiveFolioIncidental = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { folioId, lineItemId, waiverReason = 'SERVICE_RECOVERY', managerPin } = req.body;
+
+    if (!lineItemId || !managerPin) {
+      res.status(400).json({ success: false, errorCode: 'MISSING_FIELDS', message: 'lineItemId and managerPin are required' });
+      return;
+    }
+
+    const isPinValid = await verifyManagerSecurityPin(hotelId, managerPin);
+    if (!isPinValid) {
+      res.status(403).json({ success: false, errorCode: 'INVALID_MANAGER_PIN', message: 'Manager Security PIN verification failed' });
+      return;
+    }
+
+    const lineItem = await FolioLineItem.findOne({ _id: new Types.ObjectId(lineItemId), hotelId });
+    if (!lineItem) {
+      res.status(404).json({ success: false, errorCode: 'LINE_ITEM_NOT_FOUND', message: 'Folio line item not found' });
+      return;
+    }
+
+    const waivedAmount = lineItem.netAmount;
+    lineItem.description = `[COMPLIMENTARY WAIVER - ${waiverReason}] ${lineItem.description}`;
+    lineItem.netAmount = 0;
+    lineItem.rate = 0;
+    await lineItem.save();
+
+    const targetFolioId = folioId || lineItem.folioId;
+    const folio = await MasterFolio.findOne({ _id: targetFolioId, hotelId });
+    if (folio) {
+      folio.netAmountPayable = Math.max(0, (folio.netAmountPayable || 0) - waivedAmount);
+      folio.dueAmount = Math.max(0, (folio.dueAmount || 0) - waivedAmount);
+      await folio.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Folio incidental of ₹${waivedAmount} waived successfully`,
+      waivedAmount,
+      updatedFolioDue: folio?.dueAmount || 0,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'WAIVER_ERROR', message: err.message });
+  }
+};
+
+export const getRateOverrideAuditLog = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { reason, approvalTier } = req.query;
+
+    const stays = await Stay.find({
+      hotelId,
+      'rateOverrideHistory.0': { $exists: true },
+    })
+      .populate('roomId')
+      .populate('guestId')
+      .populate('bookingId')
+      .sort({ updatedAt: -1 });
+
+    const auditList: any[] = [];
+    let totalRevenueWaived = 0;
+    let complimentaryStaysCount = 0;
+    let serviceRecoveryCount = 0;
+
+    stays.forEach((s) => {
+      const roomNum = (s.roomId as any)?.roomNumber || 'N/A';
+      const guestName = (s.guestId as any)?.name || (s.bookingId as any)?.guestName || 'In-House Guest';
+
+      s.rateOverrideHistory?.forEach((override) => {
+        if (reason && override.reason !== reason) return;
+        if (approvalTier && override.approvalTier !== approvalTier) return;
+
+        totalRevenueWaived += override.discountAmount || 0;
+        if (override.overrideType === 'COMPLIMENTARY_WAIVER' || override.newRate === 0) {
+          complimentaryStaysCount++;
+        }
+        if (override.reason === 'SERVICE_RECOVERY') {
+          serviceRecoveryCount++;
+        }
+
+        auditList.push({
+          stayId: s._id.toString(),
+          roomNumber: roomNum,
+          guestName,
+          baseRatePerNight: override.originalRate,
+          newRatePerNight: override.newRate,
+          discountAmount: override.discountAmount,
+          discountPercent: override.discountPercent,
+          overrideType: override.overrideType,
+          reason: override.reason,
+          justification: override.justification,
+          approvalTier: override.approvalTier,
+          approvedByName: override.approvedByName,
+          approvedAt: override.approvedAt,
+          managerPinVerified: override.managerPinVerified,
+        });
+      });
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          totalOverridesApplied: auditList.length,
+          totalRevenueWaived,
+          complimentaryStaysCount,
+          serviceRecoveryCount,
+        },
+        auditLogs: auditList,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'AUDIT_LOG_ERROR', message: err.message });
+  }
+};
+
 
 

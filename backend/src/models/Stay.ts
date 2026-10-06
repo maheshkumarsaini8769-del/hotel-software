@@ -53,6 +53,33 @@ export interface ILateCheckOutRecord {
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
 
+export interface IRateOverrideRecord {
+  originalRate: number;
+  newRate: number;
+  discountAmount: number;
+  discountPercent: number;
+  overrideType: 'PERCENTAGE_DISCOUNT' | 'FIXED_TARIFF' | 'COMPLIMENTARY_WAIVER';
+  reason:
+    | 'SERVICE_RECOVERY'
+    | 'VIP_MANAGEMENT_GUEST'
+    | 'PROMOTIONAL_CORPORATE'
+    | 'CORPORATE_NEGOTIATED'
+    | 'LONG_STAY_RETENTION'
+    | 'LONG_STAY_CONCESSION'
+    | 'DIRECTOR_COMPLIMENTARY'
+    | 'MANAGEMENT_COURTESY'
+    | 'OTHER';
+  justification: string;
+  requestedByUserId?: Types.ObjectId;
+  requestedByName?: string;
+  approvedByUserId?: Types.ObjectId;
+  approvedByName?: string;
+  approvedAt: Date;
+  managerPinVerified: boolean;
+  approvalTier: 'AGENT_SELF' | 'SUPERVISOR' | 'DUTY_MANAGER' | 'GENERAL_MANAGER';
+  status: 'APPROVED' | 'REJECTED';
+}
+
 export interface IStay extends Document {
   hotelId: Types.ObjectId;
   bookingId: Types.ObjectId;
@@ -83,6 +110,11 @@ export interface IStay extends Document {
   roomMoveHistory?: IRoomMoveRecord[];
   earlyCheckInRecord?: IEarlyCheckInRecord;
   lateCheckOutRecord?: ILateCheckOutRecord;
+  baseRatePerNight?: number;
+  effectiveRatePerNight?: number;
+  isComplimentaryWaiver?: boolean;
+  activeRateOverride?: IRateOverrideRecord;
+  rateOverrideHistory?: IRateOverrideRecord[];
   keycardExpiresAt?: Date;
   delayedDepartureTime?: Date;
   createdAt: Date;
@@ -178,6 +210,91 @@ const StaySchema = new Schema<IStay>(
     },
     keycardExpiresAt: { type: Date },
     delayedDepartureTime: { type: Date },
+    baseRatePerNight: { type: Number },
+    effectiveRatePerNight: { type: Number },
+    isComplimentaryWaiver: { type: Boolean, default: false },
+    activeRateOverride: {
+      originalRate: { type: Number },
+      newRate: { type: Number },
+      discountAmount: { type: Number },
+      discountPercent: { type: Number },
+      overrideType: {
+        type: String,
+        enum: ['PERCENTAGE_DISCOUNT', 'FIXED_TARIFF', 'COMPLIMENTARY_WAIVER'],
+      },
+      reason: {
+        type: String,
+        enum: [
+          'SERVICE_RECOVERY',
+          'VIP_MANAGEMENT_GUEST',
+          'PROMOTIONAL_CORPORATE',
+          'CORPORATE_NEGOTIATED',
+          'LONG_STAY_RETENTION',
+          'LONG_STAY_CONCESSION',
+          'DIRECTOR_COMPLIMENTARY',
+          'MANAGEMENT_COURTESY',
+          'OTHER',
+        ],
+      },
+      justification: { type: String, trim: true },
+      requestedByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+      requestedByName: { type: String },
+      approvedByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+      approvedByName: { type: String },
+      approvedAt: { type: Date },
+      managerPinVerified: { type: Boolean, default: false },
+      approvalTier: {
+        type: String,
+        enum: ['AGENT_SELF', 'SUPERVISOR', 'DUTY_MANAGER', 'GENERAL_MANAGER'],
+      },
+      status: {
+        type: String,
+        enum: ['APPROVED', 'REJECTED'],
+        default: 'APPROVED',
+      },
+    },
+    rateOverrideHistory: [
+      {
+        originalRate: { type: Number },
+        newRate: { type: Number },
+        discountAmount: { type: Number },
+        discountPercent: { type: Number },
+        overrideType: {
+          type: String,
+          enum: ['PERCENTAGE_DISCOUNT', 'FIXED_TARIFF', 'COMPLIMENTARY_WAIVER'],
+        },
+        reason: {
+          type: String,
+          enum: [
+            'SERVICE_RECOVERY',
+            'VIP_MANAGEMENT_GUEST',
+            'PROMOTIONAL_CORPORATE',
+            'CORPORATE_NEGOTIATED',
+            'LONG_STAY_RETENTION',
+            'LONG_STAY_CONCESSION',
+            'DIRECTOR_COMPLIMENTARY',
+            'MANAGEMENT_COURTESY',
+            'OTHER',
+          ],
+        },
+        justification: { type: String, trim: true },
+        requestedByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+        requestedByName: { type: String },
+        approvedByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+        approvedByName: { type: String },
+        approvedAt: { type: Date },
+        managerPinVerified: { type: Boolean, default: false },
+        approvalTier: {
+          type: String,
+          enum: ['AGENT_SELF', 'SUPERVISOR', 'DUTY_MANAGER', 'GENERAL_MANAGER'],
+        },
+        status: {
+          type: String,
+          enum: ['APPROVED', 'REJECTED'],
+          default: 'APPROVED',
+        },
+      },
+    ],
   },
   { timestamps: true }
 );

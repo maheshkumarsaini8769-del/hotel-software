@@ -61,6 +61,24 @@ interface InHouseGuest {
     keycardExtendedTo?: string;
   };
   keycardExpiresAt?: string;
+  baseRatePerNight?: number;
+  effectiveRatePerNight?: number;
+  isComplimentaryWaiver?: boolean;
+  activeRateOverride?: {
+    originalRate: number;
+    newRate: number;
+    discountAmount: number;
+    discountPercent?: number;
+    overrideType: string;
+    reason: string;
+    justification: string;
+    requestedByName?: string;
+    approvedByName?: string;
+    approvedAt?: string;
+    managerPinVerified?: boolean;
+    approvalTier?: string;
+    status?: string;
+  };
 }
 
 interface CheckoutPreviewData {
@@ -280,6 +298,18 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [waiveLateFee, setWaiveLateFee] = useState<boolean>(false);
   const [lateWaiverReason, setLateWaiverReason] = useState<string>('');
   const [submittingLateCheckout, setSubmittingLateCheckout] = useState<boolean>(false);
+
+  // Shift 67: In-House Rate Override & PIN Approval Modal State
+  const [rateOverrideModalOpen, setRateOverrideModalOpen] = useState(false);
+  const [selectedGuestForOverride, setSelectedGuestForOverride] = useState<InHouseGuest | null>(null);
+  const [overrideType, setOverrideType] = useState<'PERCENTAGE_DISCOUNT' | 'FIXED_TARIFF' | 'COMPLIMENTARY_WAIVER'>('PERCENTAGE_DISCOUNT');
+  const [overrideDiscountPercent, setOverrideDiscountPercent] = useState<number>(15);
+  const [overrideFixedRate, setOverrideFixedRate] = useState<number>(3000);
+  const [overrideReason, setOverrideReason] = useState<string>('SERVICE_RECOVERY');
+  const [overrideJustification, setOverrideJustification] = useState<string>('AC repair delay during stay. Approved customer recovery discount.');
+  const [overrideManagerPin, setOverrideManagerPin] = useState<string>('9921');
+  const [overrideCalculation, setOverrideCalculation] = useState<any | null>(null);
+  const [submittingOverride, setSubmittingOverride] = useState<boolean>(false);
 
   // Check-In Form State
   const [guestName, setGuestName] = useState('');
@@ -681,6 +711,124 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       showToast(`Error approving late check-out: ${err.response?.data?.message || err.message}`);
     } finally {
       setSubmittingLateCheckout(false);
+    }
+  };
+
+  // Shift 67: Front Desk Manager Rate Override Handlers
+  const handleOpenRateOverrideModal = async (guest: InHouseGuest) => {
+    setSelectedGuestForOverride(guest);
+    setOverrideType('PERCENTAGE_DISCOUNT');
+    setOverrideDiscountPercent(15);
+    const base = guest.baseRatePerNight || guest.effectiveRatePerNight || 3500;
+    setOverrideFixedRate(Math.round(base * 0.85));
+    setOverrideReason('SERVICE_RECOVERY');
+    setOverrideJustification('AC cooling delay service recovery credit');
+    setOverrideManagerPin('9921');
+    setRateOverrideModalOpen(true);
+    await fetchRateOverrideCalculation(guest.stayId, guest.roomNumber, 'PERCENTAGE_DISCOUNT', 15, Math.round(base * 0.85));
+  };
+
+  const fetchRateOverrideCalculation = async (
+    stayId: string,
+    roomNumber: string,
+    type: string,
+    percent: number,
+    fixedRate: number
+  ) => {
+    try {
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/rate-override/calculate`,
+        {
+          stayId,
+          roomNumber,
+          overrideType: type,
+          discountPercent: percent,
+          newFixedRate: fixedRate,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        setOverrideCalculation(res.data.data);
+      }
+    } catch (err: any) {
+      console.warn('Error calculating rate override:', err);
+    }
+  };
+
+  const handleChangeOverrideType = async (type: 'PERCENTAGE_DISCOUNT' | 'FIXED_TARIFF' | 'COMPLIMENTARY_WAIVER') => {
+    setOverrideType(type);
+    if (selectedGuestForOverride) {
+      await fetchRateOverrideCalculation(
+        selectedGuestForOverride.stayId,
+        selectedGuestForOverride.roomNumber,
+        type,
+        overrideDiscountPercent,
+        overrideFixedRate
+      );
+    }
+  };
+
+  const handleChangeDiscountPercent = async (pct: number) => {
+    setOverrideDiscountPercent(pct);
+    if (selectedGuestForOverride) {
+      await fetchRateOverrideCalculation(
+        selectedGuestForOverride.stayId,
+        selectedGuestForOverride.roomNumber,
+        'PERCENTAGE_DISCOUNT',
+        pct,
+        overrideFixedRate
+      );
+    }
+  };
+
+  const handleChangeFixedRate = async (rate: number) => {
+    setOverrideFixedRate(rate);
+    if (selectedGuestForOverride) {
+      await fetchRateOverrideCalculation(
+        selectedGuestForOverride.stayId,
+        selectedGuestForOverride.roomNumber,
+        'FIXED_TARIFF',
+        overrideDiscountPercent,
+        rate
+      );
+    }
+  };
+
+  const handleExecuteRateOverride = async () => {
+    if (!selectedGuestForOverride) return;
+    if (!overrideJustification || overrideJustification.trim().length < 3) {
+      showToast('⚠️ Mandatory justification note (min 3 chars) is required');
+      return;
+    }
+    if (overrideCalculation?.pinRequired && !overrideManagerPin) {
+      showToast('⚠️ Manager Security PIN is required for this discount tier');
+      return;
+    }
+    setSubmittingOverride(true);
+    try {
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/rate-override/apply`,
+        {
+          stayId: selectedGuestForOverride.stayId,
+          roomNumber: selectedGuestForOverride.roomNumber,
+          overrideType,
+          discountPercent: overrideDiscountPercent,
+          newFixedRate: overrideFixedRate,
+          reason: overrideReason,
+          justification: overrideJustification,
+          managerPin: overrideManagerPin,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🏷️ Rate Override Approved for Room ${selectedGuestForOverride.roomNumber}! New Rate: ₹${res.data.data?.effectiveRatePerNight}/night. Folio credit synced.`);
+        setRateOverrideModalOpen(false);
+        loadData();
+      }
+    } catch (err: any) {
+      showToast(`Error applying rate override: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setSubmittingOverride(false);
     }
   };
 
@@ -1723,7 +1871,37 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       </div>
                     )}
 
-                    <div className="grid grid-cols-3 gap-1.5">
+                    {guest.activeRateOverride && (
+                      <div
+                        data-testid={`badge-rate-override-${guest.roomNumber}`}
+                        className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/40 text-amber-200 text-xs flex items-center justify-between shadow-lg"
+                      >
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <span>🏷️</span>
+                          <span>
+                            {guest.activeRateOverride.overrideType === 'COMPLIMENTARY_WAIVER'
+                              ? '100% Complimentary Waiver'
+                              : `Override: ₹${guest.activeRateOverride.newRate}/nt`}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30">
+                          {guest.activeRateOverride.overrideType === 'PERCENTAGE_DISCOUNT'
+                            ? `-${guest.activeRateOverride.discountPercent}% OFF`
+                            : guest.activeRateOverride.approvalTier}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      <button
+                        type="button"
+                        data-testid={`btn-rate-override-${guest.roomNumber}`}
+                        onClick={() => handleOpenRateOverrideModal(guest)}
+                        className="py-2.5 rounded-xl font-bold text-[11px] bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-zinc-700/80 transition flex items-center justify-center gap-1 hover:border-amber-500/50"
+                      >
+                        <span>🏷️</span>
+                        <span>Override</span>
+                      </button>
                       <button
                         type="button"
                         data-testid={`btn-late-checkout-${guest.roomNumber}`}
@@ -3587,6 +3765,297 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   className="flex-2 py-3 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-purple-950/40 disabled:opacity-50"
                 >
                   {submittingLateCheckout ? 'Extending Keycard...' : 'Approve Late Departure & Sync Keycard'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 67: MANAGER RATE OVERRIDE & SECURITY PIN APPROVAL MODAL */}
+        {rateOverrideModalOpen && selectedGuestForOverride && (
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div
+              data-testid="modal-rate-override"
+              className="bg-zinc-950 border border-amber-500/40 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl text-xs relative max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 rounded-2xl bg-amber-500/20 text-amber-400 text-lg">🏷️</span>
+                  <div>
+                    <h3 className="text-base font-black text-white">Manager Rate Override & Security PIN Terminal</h3>
+                    <p className="text-[11px] text-zinc-400">Tiered discount matrix, complimentary waiver & live Master Folio adjustment</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-testid="btn-close-rate-override-modal"
+                  onClick={() => setRateOverrideModalOpen(false)}
+                  className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Guest & Room Context Banner */}
+              <div className="bg-amber-950/20 border border-amber-500/30 p-3.5 rounded-2xl flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-black text-white">Room {selectedGuestForOverride.roomNumber}</span>
+                    <span className="text-[10px] font-mono font-bold bg-zinc-800 px-2 py-0.5 rounded text-zinc-400">
+                      Floor {selectedGuestForOverride.floor}
+                    </span>
+                    {selectedGuestForOverride.vipTier !== 'REGULAR' && (
+                      <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                        ⭐ {selectedGuestForOverride.vipTier} VIP
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-zinc-300 font-bold mt-0.5">{selectedGuestForOverride.guestName}</div>
+                  <div className="text-[11px] text-zinc-400 font-mono">
+                    Base Rate: ₹{selectedGuestForOverride.baseRatePerNight || selectedGuestForOverride.effectiveRatePerNight || 3500}/night
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-black text-amber-400 block">Folio Balance Due</span>
+                  <span className="text-base font-black text-white font-mono">₹{selectedGuestForOverride.balanceDue}</span>
+                </div>
+              </div>
+
+              {/* Override Type Mode Selector */}
+              <div className="space-y-2">
+                <label className="text-zinc-300 font-bold block">Select Rate Override Mode</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    data-testid="btn-override-type-PERCENTAGE_DISCOUNT"
+                    onClick={() => handleChangeOverrideType('PERCENTAGE_DISCOUNT')}
+                    className={`p-3 rounded-2xl border text-center transition-all ${
+                      overrideType === 'PERCENTAGE_DISCOUNT'
+                        ? 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/20'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="font-black text-xs">Percentage (%)</div>
+                    <div className="text-[10px] text-amber-300/80 mt-0.5 font-bold">Tiered Discount</div>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="btn-override-type-FIXED_TARIFF"
+                    onClick={() => handleChangeOverrideType('FIXED_TARIFF')}
+                    className={`p-3 rounded-2xl border text-center transition-all ${
+                      overrideType === 'FIXED_TARIFF'
+                        ? 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/20'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="font-black text-xs">Fixed Rate (₹)</div>
+                    <div className="text-[10px] text-amber-300/80 mt-0.5 font-bold">Custom Nightly</div>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="btn-override-type-COMPLIMENTARY_WAIVER"
+                    onClick={() => handleChangeOverrideType('COMPLIMENTARY_WAIVER')}
+                    className={`p-3 rounded-2xl border text-center transition-all ${
+                      overrideType === 'COMPLIMENTARY_WAIVER'
+                        ? 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/20'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="font-black text-xs">Complimentary</div>
+                    <div className="text-[10px] text-amber-300/80 mt-0.5 font-bold">100% Waiver (₹0)</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Mode Input Controls */}
+              {overrideType === 'PERCENTAGE_DISCOUNT' && (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-zinc-300 font-bold block">Discount Percentage</label>
+                    <span className="text-amber-400 font-mono font-bold text-sm">{overrideDiscountPercent}% OFF</span>
+                  </div>
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {[5, 10, 15, 25, 50, 75].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        data-testid={`btn-quick-pct-${pct}`}
+                        onClick={() => handleChangeDiscountPercent(pct)}
+                        className={`py-2 rounded-xl border text-center font-bold text-xs transition ${
+                          overrideDiscountPercent === pct
+                            ? 'bg-amber-500 text-zinc-950 border-amber-400'
+                            : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700'
+                        }`}
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                  <div className="pt-1 flex items-center gap-2">
+                    <span className="text-zinc-400 text-xs">Custom percentage:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      data-testid="input-discount-percent"
+                      value={overrideDiscountPercent}
+                      onChange={(e) => handleChangeDiscountPercent(Number(e.target.value) || 0)}
+                      className="w-24 bg-zinc-900 border border-zinc-800 text-white rounded-xl px-3 py-1.5 font-mono text-xs focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="text-zinc-400 text-xs">%</span>
+                  </div>
+                </div>
+              )}
+
+              {overrideType === 'FIXED_TARIFF' && (
+                <div className="space-y-2">
+                  <label className="text-zinc-300 font-bold block">New Fixed Tariff Per Night (₹)</label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-amber-400 font-bold text-base">₹</span>
+                    <input
+                      type="number"
+                      min={0}
+                      data-testid="input-fixed-tariff"
+                      value={overrideFixedRate}
+                      onChange={(e) => handleChangeFixedRate(Number(e.target.value) || 0)}
+                      className="flex-1 bg-zinc-900 border border-zinc-800 text-white rounded-xl px-3 py-2 font-mono text-sm focus:outline-none focus:border-amber-500"
+                      placeholder="e.g. 2800"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {overrideType === 'COMPLIMENTARY_WAIVER' && (
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-amber-300">
+                    <span>👑</span> 100% Complimentary Tariff Waiver Active
+                  </div>
+                  <p className="text-zinc-400 text-[11px]">
+                    The entire room tariff will be adjusted to ₹0/night. Applicable GST will also be reduced to ₹0.
+                    Requires General Manager authorization PIN.
+                  </p>
+                </div>
+              )}
+
+              {/* Reason & Justification */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-zinc-300 font-bold block mb-1">Approval Category / Reason</label>
+                  <select
+                    data-testid="select-override-reason"
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="SERVICE_RECOVERY">Service Recovery / Inconvenience Compensation</option>
+                    <option value="VIP_MANAGEMENT_GUEST">VIP / Management Guest Courtesy</option>
+                    <option value="CORPORATE_NEGOTIATED">Corporate Negotiated Discretion</option>
+                    <option value="LONG_STAY_CONCESSION">Long Stay Concession</option>
+                    <option value="MANAGEMENT_COURTESY">General Manager Discretionary Waiver</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-zinc-300 font-bold block mb-1">
+                    Audit Justification Note <span className="text-amber-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    data-testid="input-override-justification"
+                    value={overrideJustification}
+                    onChange={(e) => setOverrideJustification(e.target.value)}
+                    placeholder="Enter mandatory justification for financial audit (min 3 chars)"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500 font-sans"
+                  />
+                </div>
+              </div>
+
+              {/* Real-time Calculation Breakdown Box */}
+              {overrideCalculation && (
+                <div
+                  data-testid="box-override-calculation"
+                  className="bg-zinc-900/60 p-4 rounded-2xl border border-zinc-800/90 space-y-2 font-mono"
+                >
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-zinc-400">Approval Tier:</span>
+                    <span
+                      data-testid="badge-approval-tier"
+                      className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                        overrideCalculation.approvalTier === 'AGENT_SELF'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          : overrideCalculation.approvalTier === 'SUPERVISOR'
+                          ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                          : overrideCalculation.approvalTier === 'DUTY_MANAGER'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                      }`}
+                    >
+                      {overrideCalculation.approvalTier}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-zinc-400 text-xs">
+                    <span>Base Tariff / Night:</span>
+                    <strong className="text-zinc-200">₹{overrideCalculation.baseRatePerNight}</strong>
+                  </div>
+                  <div className="flex justify-between text-zinc-400 text-xs">
+                    <span>Discount Impact:</span>
+                    <strong className="text-amber-400">-₹{overrideCalculation.discountAmount} ({overrideCalculation.discountPercent}%)</strong>
+                  </div>
+                  <div className="flex justify-between text-zinc-400 text-xs">
+                    <span>GST Savings (12%):</span>
+                    <strong className="text-emerald-400">-₹{overrideCalculation.taxSavings}</strong>
+                  </div>
+                  <div className="pt-2 border-t border-zinc-800 flex justify-between items-center text-sm font-black">
+                    <span className="text-white">New Effective Rate:</span>
+                    <span className="text-amber-300 text-base">₹{overrideCalculation.newRatePerNight} / night</span>
+                  </div>
+                  <div className="text-[10px] text-zinc-500 font-sans mt-1">
+                    {overrideCalculation.tierDescription}
+                  </div>
+                </div>
+              )}
+
+              {/* Manager Security PIN Authorization Input */}
+              {overrideCalculation?.pinRequired && (
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-300 text-xs">
+                      <span>🔒</span>
+                      <span>Manager Security PIN Required ({overrideCalculation.approvalTier})</span>
+                    </div>
+                    <span className="text-[10px] text-zinc-400 font-mono">Master: 9921</span>
+                  </div>
+                  <input
+                    type="password"
+                    data-testid="input-manager-pin"
+                    maxLength={6}
+                    value={overrideManagerPin}
+                    onChange={(e) => setOverrideManagerPin(e.target.value)}
+                    placeholder="Enter Manager PIN (e.g. 9921)"
+                    className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-xl px-3 py-2 text-center text-sm font-mono tracking-widest focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              )}
+
+              {/* Modal Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  data-testid="btn-cancel-rate-override"
+                  onClick={() => setRateOverrideModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs uppercase tracking-wider transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-confirm-rate-override"
+                  disabled={submittingOverride}
+                  onClick={handleExecuteRateOverride}
+                  className="flex-2 py-3 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-amber-950/40 disabled:opacity-50"
+                >
+                  {submittingOverride ? 'Authorizing & Updating Folio...' : 'Authorize Rate Override & Update Folio'}
                 </button>
               </div>
             </div>

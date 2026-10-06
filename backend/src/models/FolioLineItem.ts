@@ -7,7 +7,8 @@ export enum DepartmentType {
   LAUNDRY = 'LAUNDRY',
   MINIBAR = 'MINIBAR',
   DAMAGE = 'DAMAGE',
-  PAID_AMENITY = 'PAID_AMENITY'
+  PAID_AMENITY = 'PAID_AMENITY',
+  DISCOUNT = 'DISCOUNT'
 }
 
 export interface IFolioLineItem extends Document {
@@ -39,11 +40,11 @@ const FolioLineItemSchema = new Schema<IFolioLineItem>(
     },
     description: { type: String, required: true, trim: true },
     referenceId: { type: Schema.Types.ObjectId },
-    rate: { type: Number, required: true, min: 0 },
+    rate: { type: Number, required: true },
     quantity: { type: Number, required: true, min: 1, default: 1 },
     taxRate: { type: Number, default: 0, min: 0 },
     taxAmount: { type: Number, default: 0, min: 0 },
-    netAmount: { type: Number, required: true, min: 0 },
+    netAmount: { type: Number, required: true },
     postedAt: { type: Date, default: Date.now },
     postedByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
   },

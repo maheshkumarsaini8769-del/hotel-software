@@ -50,6 +50,10 @@ import {
   calculateLateCheckOutSurcharge,
   approveLateCheckOut,
   getLateCheckOutSchedule,
+  calculateRateOverride,
+  applyRateOverride,
+  waiveFolioIncidental,
+  getRateOverrideAuditLog,
 } from '../controllers/frontDeskController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
@@ -157,6 +161,12 @@ router.post('/frontdesk/early-checkin/calculate', authenticateFrontDeskTerminal,
 router.post('/frontdesk/late-checkout/calculate', authenticateFrontDeskTerminal, calculateLateCheckOutSurcharge);
 router.post('/frontdesk/late-checkout/approve', authenticateFrontDeskTerminal, approveLateCheckOut);
 router.get('/frontdesk/late-checkout/schedule', authenticateFrontDeskTerminal, getLateCheckOutSchedule);
+
+// Shift 67: Front Desk Manager Rate Override, Complimentary Tariff Waiver & Security PIN Approval Matrix
+router.post('/frontdesk/rate-override/calculate', authenticateFrontDeskTerminal, calculateRateOverride);
+router.post('/frontdesk/rate-override/apply', authenticateFrontDeskTerminal, applyRateOverride);
+router.post('/frontdesk/rate-override/waive-incidental', authenticateFrontDeskTerminal, waiveFolioIncidental);
+router.get('/frontdesk/rate-override/audit-log', authenticateFrontDeskTerminal, getRateOverrideAuditLog);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

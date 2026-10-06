@@ -63,6 +63,14 @@ import {
   acknowledgeHandover,
   getCashierShiftHistory,
 } from '../controllers/cashierShiftHandoverController';
+import {
+  getSafeDepositBoxes,
+  allotSafeDepositBox,
+  logBoxAccessVisit,
+  surrenderSafeDepositBox,
+  toggleBoxMaintenance,
+  getBoxAuditLog,
+} from '../controllers/safeDepositBoxController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
 import { Response, NextFunction } from 'express';
@@ -189,6 +197,20 @@ router.post('/frontdesk/cashier/shift/acknowledge-handover', authenticateFrontDe
 router.post('/cashier/shift/acknowledge-handover', authenticateFrontDeskTerminal, acknowledgeHandover);
 router.get('/frontdesk/cashier/shift/history', authenticateFrontDeskTerminal, getCashierShiftHistory);
 router.get('/cashier/shift/history', authenticateFrontDeskTerminal, getCashierShiftHistory);
+
+// Shift 69: Front Desk Safe Deposit Box (SDB) Locker Management, Key Duo Allotment & High-Value Guest Asset Custody
+router.get('/frontdesk/sdb/boxes', authenticateFrontDeskTerminal, getSafeDepositBoxes);
+router.get('/sdb/boxes', authenticateFrontDeskTerminal, getSafeDepositBoxes);
+router.post('/frontdesk/sdb/allot', authenticateFrontDeskTerminal, allotSafeDepositBox);
+router.post('/sdb/allot', authenticateFrontDeskTerminal, allotSafeDepositBox);
+router.post('/frontdesk/sdb/access', authenticateFrontDeskTerminal, logBoxAccessVisit);
+router.post('/sdb/access', authenticateFrontDeskTerminal, logBoxAccessVisit);
+router.post('/frontdesk/sdb/surrender', authenticateFrontDeskTerminal, surrenderSafeDepositBox);
+router.post('/sdb/surrender', authenticateFrontDeskTerminal, surrenderSafeDepositBox);
+router.post('/frontdesk/sdb/maintenance', authenticateFrontDeskTerminal, toggleBoxMaintenance);
+router.post('/sdb/maintenance', authenticateFrontDeskTerminal, toggleBoxMaintenance);
+router.get('/frontdesk/sdb/audit-log/:boxNumber', authenticateFrontDeskTerminal, getBoxAuditLog);
+router.get('/sdb/audit-log/:boxNumber', authenticateFrontDeskTerminal, getBoxAuditLog);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

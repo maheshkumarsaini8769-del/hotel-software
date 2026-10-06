@@ -265,11 +265,46 @@ export interface CashierShift {
   closedAt?: string;
 }
 
+export interface SDBAccessVisit {
+  visitId: string;
+  visitedAt: string;
+  guestName: string;
+  roomNumber?: string;
+  witnessStaffName: string;
+  duoKeyTurnConfirmed: boolean;
+  purpose: 'DEPOSIT' | 'WITHDRAWAL' | 'INSPECTION';
+  remarks?: string;
+}
+
+export interface SDBBox {
+  _id: string;
+  boxNumber: string;
+  size: 'SMALL' | 'MEDIUM' | 'LARGE' | 'EXTRA_LARGE';
+  locationLockerRow: string;
+  status: 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE' | 'LOCKED_DISPUTED';
+  currentGuestName?: string;
+  currentGuestPhone?: string;
+  currentRoomNumber?: string;
+  masterKeySerial: string;
+  guestKeySerial: string;
+  tamperSealNumber?: string;
+  keyDepositAmount: number;
+  keyDepositStatus: 'PAID' | 'REFUNDED' | 'FORFEITED_LOST_KEY' | 'WAIVED';
+  allottedAt?: string;
+  allottedByStaffName?: string;
+  accessVisits: SDBAccessVisit[];
+  releasedAt?: string;
+  releasedByStaffName?: string;
+  emptyBoxVerifiedByStaff?: boolean;
+  keyReturnedByGuest?: boolean;
+  lostKeyPenaltyAmount?: number;
+}
+
 export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   authToken,
   hotelId: propHotelId,
 }) => {
-  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER'>('CHECKIN');
+  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER' | 'SDB'>('CHECKIN');
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -368,6 +403,37 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [newShiftFloatAmount, setNewShiftFloatAmount] = useState<number>(5000);
   const [newShiftType, setNewShiftType] = useState<'MORNING' | 'EVENING' | 'NIGHT'>('MORNING');
   const [newCashierName, setNewCashierName] = useState<string>('Morning Receptionist Ananya');
+
+  // Shift 69: Front Desk Safe Deposit Box (SDB) Locker State
+  const [sdbBoxes, setSdbBoxes] = useState<SDBBox[]>([]);
+  const [sdbMetrics, setSdbMetrics] = useState<{ totalBoxes: number; availableCount: number; occupiedCount: number; maintenanceCount: number } | null>(null);
+  const [loadingSDB, setLoadingSDB] = useState<boolean>(false);
+  const [selectedSDBBox, setSelectedSDBBox] = useState<SDBBox | null>(null);
+  const [sdbFilterStatus, setSdbFilterStatus] = useState<string>('ALL');
+
+  // Allot Modal State
+  const [allotModalOpen, setAllotModalOpen] = useState<boolean>(false);
+  const [allotGuestName, setAllotGuestName] = useState<string>('Princess Gayatri Devi');
+  const [allotGuestPhone, setAllotGuestPhone] = useState<string>('9844005511');
+  const [allotRoomNumber, setAllotRoomNumber] = useState<string>('102');
+  const [allotSealNumber, setAllotSealNumber] = useState<string>('SEAL-2026-9901');
+  const [allotKeySerial, setAllotKeySerial] = useState<string>('GK-101-ROYAL');
+  const [allotKeyDeposit, setAllotKeyDeposit] = useState<number>(2000);
+
+  // Access Visit Modal State
+  const [accessModalOpen, setAccessModalOpen] = useState<boolean>(false);
+  const [accessPurpose, setAccessPurpose] = useState<'DEPOSIT' | 'WITHDRAWAL' | 'INSPECTION'>('INSPECTION');
+  const [accessStaffPin, setAccessStaffPin] = useState<string>('9921');
+  const [accessRemarks, setAccessRemarks] = useState<string>('Guest accessed vault to inspect diamond jewelry before dinner.');
+
+  // Surrender Modal State
+  const [surrenderModalOpen, setSurrenderModalOpen] = useState<boolean>(false);
+  const [surrenderKeyReturned, setSurrenderKeyReturned] = useState<boolean>(true);
+  const [surrenderEmptyVerified, setSurrenderEmptyVerified] = useState<boolean>(true);
+  const [surrenderStaffPin, setSurrenderStaffPin] = useState<string>('9921');
+  const [surrenderPenalty, setSurrenderPenalty] = useState<number>(0);
+  const [surrenderRemarks, setSurrenderRemarks] = useState<string>('Contents verified 100% empty. Key returned in pristine condition.');
+  const [sdbSubmitting, setSdbSubmitting] = useState<boolean>(false);
 
   // Check-In Form State
   const [guestName, setGuestName] = useState('');
@@ -533,6 +599,23 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
         }
       } catch (err: any) {
         console.warn('Cashier shift load note:', err.message);
+      }
+
+      // 8. Fetch Front Desk Safe Deposit Boxes (Shift 69)
+      try {
+        const sdbRes = await axios.get(`${apiBase}/pms/frontdesk/sdb/boxes`, {
+          headers: authHeaders,
+          params: { hotelId },
+        });
+        if (sdbRes.data.success && sdbRes.data.data) {
+          setSdbBoxes(sdbRes.data.data.boxes || []);
+          setSdbMetrics(sdbRes.data.data.metrics || null);
+          if (sdbRes.data.data.boxes && sdbRes.data.data.boxes.length > 0) {
+            setSelectedSDBBox(sdbRes.data.data.boxes[0]);
+          }
+        }
+      } catch (err: any) {
+        console.warn('SDB boxes load note:', err.message);
       }
     } finally {
       setLoading(false);
@@ -719,6 +802,139 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       showToast(`❌ Error acknowledging handover: ${err.response?.data?.message || err.message}`);
     } finally {
       setCashierSubmitting(false);
+    }
+  };
+
+  // Shift 69: Safe Deposit Box (SDB) Data Loader & Handlers
+  const loadSDBBoxes = async () => {
+    try {
+      setLoadingSDB(true);
+      const res = await axios.get(`${apiBase}/pms/frontdesk/sdb/boxes`, {
+        headers: authHeaders,
+        params: { hotelId },
+      });
+      if (res.data.success && res.data.data) {
+        setSdbBoxes(res.data.data.boxes || []);
+        setSdbMetrics(res.data.data.metrics || null);
+        if (res.data.data.boxes && res.data.data.boxes.length > 0) {
+          setSelectedSDBBox((prev) => prev ? (res.data.data.boxes.find((b: any) => b.boxNumber === prev.boxNumber) || res.data.data.boxes[0]) : res.data.data.boxes[0]);
+        }
+      }
+    } catch (err: any) {
+      console.warn('SDB boxes load note:', err.message);
+    } finally {
+      setLoadingSDB(false);
+    }
+  };
+
+  const handleAllotSDBBox = async () => {
+    if (!selectedSDBBox) return;
+    if (!allotGuestName.trim()) {
+      showToast('⚠️ Please enter guest name for SDB allotment.');
+      return;
+    }
+    try {
+      setSdbSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/sdb/allot`,
+        {
+          boxNumber: selectedSDBBox.boxNumber,
+          guestName: allotGuestName.trim(),
+          guestPhone: allotGuestPhone.trim(),
+          roomNumber: allotRoomNumber.trim(),
+          tamperSealNumber: allotSealNumber.trim(),
+          guestKeySerial: allotKeySerial.trim(),
+          keyDepositAmount: Number(allotKeyDeposit) || 2000,
+          keyDepositStatus: 'PAID',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🔒 Safe Deposit Box ${selectedSDBBox.boxNumber} allotted to ${allotGuestName}! Key ${allotKeySerial} issued.`);
+        setAllotModalOpen(false);
+        await loadSDBBoxes();
+      }
+    } catch (err: any) {
+      showToast(`❌ Error allotting SDB: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setSdbSubmitting(false);
+    }
+  };
+
+  const handleLogSDBAccess = async () => {
+    if (!selectedSDBBox) return;
+    try {
+      setSdbSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/sdb/access`,
+        {
+          boxNumber: selectedSDBBox.boxNumber,
+          purpose: accessPurpose,
+          staffSecurityPin: accessStaffPin,
+          remarks: accessRemarks,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`✓ Vault Duo-Key access authorized for ${selectedSDBBox.boxNumber}! Visit logged.`);
+        setAccessModalOpen(false);
+        await loadSDBBoxes();
+      }
+    } catch (err: any) {
+      showToast(`❌ Access authorization error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setSdbSubmitting(false);
+    }
+  };
+
+  const handleSurrenderSDBBox = async () => {
+    if (!selectedSDBBox) return;
+    if (!surrenderEmptyVerified) {
+      showToast('⚠️ Both staff and guest must verify the box is completely empty.');
+      return;
+    }
+    try {
+      setSdbSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/sdb/surrender`,
+        {
+          boxNumber: selectedSDBBox.boxNumber,
+          keyReturned: surrenderKeyReturned,
+          emptyBoxVerified: surrenderEmptyVerified,
+          lostKeyPenaltyAmount: !surrenderKeyReturned ? Number(surrenderPenalty) || 3500 : 0,
+          staffSecurityPin: surrenderStaffPin,
+          remarks: surrenderRemarks,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🎉 Box ${selectedSDBBox.boxNumber} surrendered! ${surrenderKeyReturned ? 'Deposit ₹2,000 refunded.' : 'Lost key penalty charged.'} Box restored to AVAILABLE.`);
+        setSurrenderModalOpen(false);
+        await loadSDBBoxes();
+      }
+    } catch (err: any) {
+      showToast(`❌ Surrender error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setSdbSubmitting(false);
+    }
+  };
+
+  const handleToggleSDBMaintenance = async (boxNumber: string) => {
+    try {
+      setSdbSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/sdb/maintenance`,
+        { boxNumber },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🔧 Box ${boxNumber} status updated to ${res.data.data.status}`);
+        await loadSDBBoxes();
+      }
+    } catch (err: any) {
+      showToast(`⚠️ Maintenance error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setSdbSubmitting(false);
     }
   };
 
@@ -1632,6 +1848,21 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }`}
         >
           <span>💼</span> Cashier Drawer & Shift Handover
+        </button>
+        <button
+          type="button"
+          data-testid="tab-sdb"
+          onClick={() => {
+            setActiveTab('SDB');
+            loadSDBBoxes();
+          }}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'SDB'
+              ? 'border-cyan-400 text-cyan-400 bg-cyan-500/10'
+              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <span>🔒</span> Safe Deposit Vault (SDB)
         </button>
       </div>
 
@@ -3634,6 +3865,636 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 disabled:opacity-50"
                 >
                   Open Shift Float
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 9: FRONT DESK SAFE DEPOSIT BOX (SDB) VAULT MANAGEMENT (SHIFT 69) */}
+        {activeTab === 'SDB' && (
+          <div className="space-y-6" data-testid="sdb-vault-workspace">
+            {/* Header banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-black text-white">Front Desk Safe Deposit Box (SDB) Vault Management</h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                    SHIFT 69 • DUO-KEY CUSTODY VAULT
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Master & Guest Duo-Key protocol, tamper-evident envelope seals, guest access visit logging & empty-box release verification.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  data-testid="btn-refresh-sdb"
+                  onClick={loadSDBBoxes}
+                  disabled={loadingSDB}
+                  className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs uppercase tracking-wider transition border border-zinc-700 flex items-center gap-1.5"
+                >
+                  <span>🔄</span> Refresh Vault
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-zinc-900/80 border border-zinc-800/80 p-4 rounded-2xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Total SDB Lockers</span>
+                <p className="text-xl font-black text-white mt-0.5" data-testid="badge-sdb-total">
+                  {sdbMetrics?.totalBoxes || sdbBoxes.length}
+                </p>
+                <span className="text-[10px] text-zinc-400">Vault Strongroom 01</span>
+              </div>
+              <div className="bg-zinc-900/80 border border-zinc-800/80 p-4 rounded-2xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Available Lockers</span>
+                <p className="text-xl font-black text-emerald-400 mt-0.5" data-testid="badge-sdb-available">
+                  {sdbMetrics?.availableCount || sdbBoxes.filter((b) => b.status === 'AVAILABLE').length}
+                </p>
+                <span className="text-[10px] text-emerald-500/80">Ready for allotment</span>
+              </div>
+              <div className="bg-zinc-900/80 border border-zinc-800/80 p-4 rounded-2xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Occupied (In Custody)</span>
+                <p className="text-xl font-black text-amber-400 mt-0.5" data-testid="badge-sdb-occupied">
+                  {sdbMetrics?.occupiedCount || sdbBoxes.filter((b) => b.status === 'OCCUPIED').length}
+                </p>
+                <span className="text-[10px] text-amber-500/80">Active guest valuables</span>
+              </div>
+              <div className="bg-zinc-900/80 border border-zinc-800/80 p-4 rounded-2xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Maintenance</span>
+                <p className="text-xl font-black text-red-400 mt-0.5" data-testid="badge-sdb-maint">
+                  {sdbMetrics?.maintenanceCount || sdbBoxes.filter((b) => b.status === 'MAINTENANCE').length}
+                </p>
+                <span className="text-[10px] text-zinc-400">Lock cylinder inspection</span>
+              </div>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-2">
+              {['ALL', 'AVAILABLE', 'OCCUPIED', 'MAINTENANCE'].map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setSdbFilterStatus(st)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+                    sdbFilterStatus === st
+                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                      : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-white'
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+
+            {/* Main Vault Workspace Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Column (7 cols): Locker Grid Visualizer */}
+              <div className="lg:col-span-7 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-4">
+                <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <span>🗝️</span> Vault Locker Matrix
+                  </h3>
+                  <span className="text-xs text-zinc-400 font-mono">
+                    Showing {sdbBoxes.filter((b) => sdbFilterStatus === 'ALL' || b.status === sdbFilterStatus).length} Boxes
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5" data-testid="grid-sdb-lockers">
+                  {sdbBoxes
+                    .filter((b) => sdbFilterStatus === 'ALL' || b.status === sdbFilterStatus)
+                    .map((box) => {
+                      const isSelected = selectedSDBBox?.boxNumber === box.boxNumber;
+                      return (
+                        <div
+                          key={box._id}
+                          data-testid={`card-sdb-${box.boxNumber}`}
+                          onClick={() => setSelectedSDBBox(box)}
+                          className={`p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between h-36 ${
+                            isSelected
+                              ? 'ring-2 ring-cyan-400 bg-cyan-950/20 border-cyan-400'
+                              : box.status === 'AVAILABLE'
+                              ? 'bg-zinc-950/60 border-zinc-800 hover:border-emerald-500/50'
+                              : box.status === 'OCCUPIED'
+                              ? 'bg-amber-950/15 border-amber-500/40 hover:border-amber-400'
+                              : 'bg-red-950/15 border-red-500/40'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <span className="text-sm font-black font-mono text-white">{box.boxNumber}</span>
+                              <span className="block text-[10px] text-zinc-400">{box.locationLockerRow}</span>
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                                box.status === 'AVAILABLE'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : box.status === 'OCCUPIED'
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                  : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                              }`}
+                            >
+                              {box.status}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1">
+                            {box.status === 'OCCUPIED' ? (
+                              <>
+                                <p className="text-xs font-bold text-amber-300 truncate">{box.currentGuestName}</p>
+                                <p className="text-[10px] text-zinc-400 font-mono">
+                                  {box.currentRoomNumber ? `Room ${box.currentRoomNumber}` : 'VIP Non-Resident'} • {box.tamperSealNumber}
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-[11px] text-zinc-500 font-medium">Empty & Unlocked</p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between text-[10px] text-zinc-400 font-mono pt-1 border-t border-zinc-800/60">
+                            <span>Size: {box.size}</span>
+                            <span>Key: {box.guestKeySerial.slice(-8)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Right Column (5 cols): Selected Locker Details & Actions */}
+              <div className="lg:col-span-5 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-5" data-testid="panel-sdb-details">
+                {selectedSDBBox ? (
+                  <>
+                    <div className="flex items-start justify-between border-b border-zinc-800/80 pb-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-black text-white font-mono">{selectedSDBBox.boxNumber}</h3>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              selectedSDBBox.status === 'AVAILABLE'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : selectedSDBBox.status === 'OCCUPIED'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                            }`}
+                          >
+                            {selectedSDBBox.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          Size: {selectedSDBBox.size} • Location: {selectedSDBBox.locationLockerRow}
+                        </p>
+                      </div>
+
+                      {selectedSDBBox.status !== 'OCCUPIED' && (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSDBMaintenance(selectedSDBBox.boxNumber)}
+                          className="px-2.5 py-1 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-bold border border-zinc-700 transition"
+                        >
+                          {selectedSDBBox.status === 'MAINTENANCE' ? 'Restore Available' : 'Set Maintenance'}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Custody Info */}
+                    {selectedSDBBox.status === 'OCCUPIED' ? (
+                      <div className="space-y-4">
+                        <div className="bg-zinc-950/80 border border-zinc-800 p-4 rounded-2xl space-y-2.5 text-xs">
+                          <div className="flex justify-between border-b border-zinc-800/60 pb-1.5">
+                            <span className="text-zinc-400">Custody Guest:</span>
+                            <strong className="text-white font-bold">{selectedSDBBox.currentGuestName}</strong>
+                          </div>
+                          <div className="flex justify-between border-b border-zinc-800/60 pb-1.5">
+                            <span className="text-zinc-400">Room Number:</span>
+                            <strong className="text-amber-300 font-mono">{selectedSDBBox.currentRoomNumber || 'N/A'}</strong>
+                          </div>
+                          <div className="flex justify-between border-b border-zinc-800/60 pb-1.5">
+                            <span className="text-zinc-400">Tamper Seal #:</span>
+                            <strong className="text-cyan-300 font-mono">{selectedSDBBox.tamperSealNumber}</strong>
+                          </div>
+                          <div className="flex justify-between border-b border-zinc-800/60 pb-1.5">
+                            <span className="text-zinc-400">Master Guard Key:</span>
+                            <span className="text-zinc-300 font-mono">{selectedSDBBox.masterKeySerial}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-zinc-800/60 pb-1.5">
+                            <span className="text-zinc-400">Guest Custody Key:</span>
+                            <span className="text-zinc-300 font-mono">{selectedSDBBox.guestKeySerial}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-zinc-400">Key Deposit:</span>
+                            <span className="text-emerald-400 font-mono font-bold">
+                              ₹{selectedSDBBox.keyDepositAmount} ({selectedSDBBox.keyDepositStatus})
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-col gap-2.5">
+                          <button
+                            type="button"
+                            data-testid="btn-open-sdb-access"
+                            onClick={() => {
+                              setAccessPurpose('INSPECTION');
+                              setAccessStaffPin('9921');
+                              setAccessRemarks(`Guest ${selectedSDBBox.currentGuestName} accessed box.`);
+                              setAccessModalOpen(true);
+                            }}
+                            className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-cyan-300 font-bold text-xs uppercase tracking-wider transition border border-cyan-500/30 flex items-center justify-center gap-2"
+                          >
+                            <span>🔓</span> Log Duo-Key Access Visit
+                          </button>
+
+                          <button
+                            type="button"
+                            data-testid="btn-open-sdb-surrender"
+                            onClick={() => {
+                              setSurrenderKeyReturned(true);
+                              setSurrenderEmptyVerified(true);
+                              setSurrenderStaffPin('9921');
+                              setSurrenderPenalty(0);
+                              setSurrenderModalOpen(true);
+                            }}
+                            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
+                          >
+                            <span>🔐</span> Surrender Box & Key Return
+                          </button>
+                        </div>
+                      </div>
+                    ) : selectedSDBBox.status === 'AVAILABLE' ? (
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-2xl text-center space-y-1">
+                          <span className="text-2xl">✨</span>
+                          <h4 className="text-xs font-bold text-emerald-300">Locker is Ready & Available</h4>
+                          <p className="text-[11px] text-zinc-400">
+                            Can be allotted to any staying or walk-in VIP guest with duo-key issue.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          data-testid="btn-open-sdb-allot"
+                          onClick={() => {
+                            setAllotGuestName('Princess Gayatri Devi');
+                            setAllotRoomNumber('102');
+                            setAllotGuestPhone('9844005511');
+                            setAllotKeySerial(`GK-${selectedSDBBox.boxNumber}-ROYAL`);
+                            setAllotSealNumber(`SEAL-${Date.now().toString().slice(-6)}`);
+                            setAllotModalOpen(true);
+                          }}
+                          className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2"
+                        >
+                          <span>🔑</span> Allot Box to Guest
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-2xl text-center space-y-1">
+                        <span className="text-2xl">🛠️</span>
+                        <h4 className="text-xs font-bold text-red-300">Under Lock Maintenance</h4>
+                        <p className="text-[11px] text-zinc-400">Box cannot be allotted until maintenance inspection is passed.</p>
+                      </div>
+                    )}
+
+                    {/* Access Log Register */}
+                    <div className="border-t border-zinc-800/80 pt-4 space-y-2.5">
+                      <h4 className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
+                        <span>📜</span> Chain-of-Custody Access History ({selectedSDBBox.accessVisits?.length || 0})
+                      </h4>
+                      {selectedSDBBox.accessVisits && selectedSDBBox.accessVisits.length > 0 ? (
+                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                          {selectedSDBBox.accessVisits.map((v, idx) => (
+                            <div key={idx} className="bg-zinc-950/70 border border-zinc-800 p-2.5 rounded-xl text-[11px] space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-cyan-300 font-mono">{v.purpose}</span>
+                                <span className="text-zinc-500 text-[10px]">{new Date(v.visitedAt).toLocaleTimeString()}</span>
+                              </div>
+                              <p className="text-zinc-300 text-[10px]">{v.remarks}</p>
+                              <div className="flex justify-between text-[9px] text-zinc-400 font-mono">
+                                <span>Witness: {v.witnessStaffName}</span>
+                                <span className="text-emerald-400">✓ Duo-Key Confirmed</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-zinc-500">No access visits recorded yet.</p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-12 text-zinc-500 text-xs">
+                    Select a safe deposit box from the left matrix to view details.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 69: ALLOT SDB BOX MODAL */}
+        {allotModalOpen && selectedSDBBox && (
+          <div
+            data-testid="modal-allot-sdb"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <span>🔑</span> Allot Box {selectedSDBBox.boxNumber}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setAllotModalOpen(false)}
+                  className="text-zinc-400 hover:text-white font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Guest Full Name *</label>
+                  <input
+                    type="text"
+                    data-testid="input-sdb-allot-guest"
+                    value={allotGuestName}
+                    onChange={(e) => setAllotGuestName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-cyan-400 focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Room Number</label>
+                    <input
+                      type="text"
+                      data-testid="input-sdb-allot-room"
+                      value={allotRoomNumber}
+                      onChange={(e) => setAllotRoomNumber(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-cyan-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Guest Phone</label>
+                    <input
+                      type="text"
+                      data-testid="input-sdb-allot-phone"
+                      value={allotGuestPhone}
+                      onChange={(e) => setAllotGuestPhone(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-cyan-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Tamper-Evident Bag Seal # *</label>
+                  <input
+                    type="text"
+                    data-testid="input-sdb-allot-seal"
+                    value={allotSealNumber}
+                    onChange={(e) => setAllotSealNumber(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-cyan-300 font-mono font-bold focus:border-cyan-400 focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Guest Key Serial *</label>
+                    <input
+                      type="text"
+                      data-testid="input-sdb-allot-key"
+                      value={allotKeySerial}
+                      onChange={(e) => setAllotKeySerial(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-cyan-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Key Deposit (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      data-testid="input-sdb-allot-deposit"
+                      value={allotKeyDeposit}
+                      onChange={(e) => setAllotKeyDeposit(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-emerald-400 font-mono font-bold focus:border-cyan-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAllotModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-confirm-allot-sdb"
+                  onClick={handleAllotSDBBox}
+                  disabled={sdbSubmitting}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/20 disabled:opacity-50"
+                >
+                  Issue Duo-Key
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 69: LOG DUO-KEY ACCESS VISIT MODAL */}
+        {accessModalOpen && selectedSDBBox && (
+          <div
+            data-testid="modal-access-sdb"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <span>🔓</span> Duo-Key Vault Access • {selectedSDBBox.boxNumber}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setAccessModalOpen(false)}
+                  className="text-zinc-400 hover:text-white font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Access Purpose</label>
+                  <select
+                    value={accessPurpose}
+                    onChange={(e) => setAccessPurpose(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-cyan-400 focus:outline-none"
+                  >
+                    <option value="INSPECTION">Inspection (View Valuables)</option>
+                    <option value="DEPOSIT">Deposit Additional Items</option>
+                    <option value="WITHDRAWAL">Partial Withdrawal</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Remarks / Note</label>
+                  <input
+                    type="text"
+                    data-testid="input-sdb-access-remarks"
+                    value={accessRemarks}
+                    onChange={(e) => setAccessRemarks(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-cyan-400 focus:outline-none"
+                  />
+                </div>
+
+                <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                      <span>🛡️</span> Vault Custodian Security PIN
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAccessStaffPin('9921')}
+                      className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30"
+                    >
+                      Quick PIN: 9921
+                    </button>
+                  </div>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    data-testid="input-sdb-access-pin"
+                    value={accessStaffPin}
+                    onChange={(e) => setAccessStaffPin(e.target.value)}
+                    placeholder="Enter Staff PIN"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-amber-500/40 text-amber-400 font-mono font-bold tracking-widest text-center text-sm focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAccessModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-confirm-access-sdb"
+                  onClick={handleLogSDBAccess}
+                  disabled={sdbSubmitting}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/20 disabled:opacity-50"
+                >
+                  Authorize Duo-Key Turn
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 69: SURRENDER BOX & KEY RETURN MODAL */}
+        {surrenderModalOpen && selectedSDBBox && (
+          <div
+            data-testid="modal-surrender-sdb"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <span>🔐</span> Surrender Box {selectedSDBBox.boxNumber}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setSurrenderModalOpen(false)}
+                  className="text-zinc-400 hover:text-white font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3.5 text-xs">
+                <label className="flex items-center gap-2.5 p-3 rounded-xl bg-zinc-900 border border-zinc-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    data-testid="input-sdb-empty-verified"
+                    checked={surrenderEmptyVerified}
+                    onChange={(e) => setSurrenderEmptyVerified(e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-500 focus:ring-0"
+                  />
+                  <span className="font-bold text-white">Empty Box Verified by Staff & Guest (Mandatory)</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 p-3 rounded-xl bg-zinc-900 border border-zinc-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    data-testid="input-sdb-key-returned"
+                    checked={surrenderKeyReturned}
+                    onChange={(e) => {
+                      setSurrenderKeyReturned(e.target.checked);
+                      if (!e.target.checked) setSurrenderPenalty(3500);
+                      else setSurrenderPenalty(0);
+                    }}
+                    className="w-4 h-4 rounded text-emerald-500 focus:ring-0"
+                  />
+                  <span className="font-bold text-white">Physical Custody Key Returned by Guest</span>
+                </label>
+
+                {!surrenderKeyReturned && (
+                  <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl space-y-1">
+                    <span className="font-bold text-red-300">Lost Key Replacement Penalty: ₹3,500</span>
+                    <p className="text-[10px] text-zinc-400">Lock cylinder drilling and re-keying fee will be debited.</p>
+                  </div>
+                )}
+
+                <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                      <span>🛡️</span> Supervisor Authorization PIN
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSurrenderStaffPin('9921')}
+                      className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30"
+                    >
+                      Quick PIN: 9921
+                    </button>
+                  </div>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    data-testid="input-sdb-surrender-pin"
+                    value={surrenderStaffPin}
+                    onChange={(e) => setSurrenderStaffPin(e.target.value)}
+                    placeholder="Enter Staff PIN"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-amber-500/40 text-amber-400 font-mono font-bold tracking-widest text-center text-sm focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSurrenderModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-confirm-surrender-sdb"
+                  onClick={handleSurrenderSDBBox}
+                  disabled={sdbSubmitting || !surrenderEmptyVerified}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                >
+                  Confirm Surrender
                 </button>
               </div>
             </div>

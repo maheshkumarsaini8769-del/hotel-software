@@ -55,6 +55,14 @@ import {
   waiveFolioIncidental,
   getRateOverrideAuditLog,
 } from '../controllers/frontDeskController';
+import {
+  openFrontDeskShift,
+  getActiveFrontDeskShift,
+  reconcileCashDrawer,
+  handoverShift,
+  acknowledgeHandover,
+  getCashierShiftHistory,
+} from '../controllers/cashierShiftHandoverController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
 import { Response, NextFunction } from 'express';
@@ -167,6 +175,20 @@ router.post('/frontdesk/rate-override/calculate', authenticateFrontDeskTerminal,
 router.post('/frontdesk/rate-override/apply', authenticateFrontDeskTerminal, applyRateOverride);
 router.post('/frontdesk/rate-override/waive-incidental', authenticateFrontDeskTerminal, waiveFolioIncidental);
 router.get('/frontdesk/rate-override/audit-log', authenticateFrontDeskTerminal, getRateOverrideAuditLog);
+
+// Shift 68: Front Desk Cashier Shift Handover, Float Balancing & Physical Cash Drawer Reconciliation
+router.post('/frontdesk/cashier/shift/open', authenticateFrontDeskTerminal, openFrontDeskShift);
+router.post('/cashier/shift/open', authenticateFrontDeskTerminal, openFrontDeskShift);
+router.get('/frontdesk/cashier/shift/active', authenticateFrontDeskTerminal, getActiveFrontDeskShift);
+router.get('/cashier/shift/active', authenticateFrontDeskTerminal, getActiveFrontDeskShift);
+router.post('/frontdesk/cashier/shift/reconcile', authenticateFrontDeskTerminal, reconcileCashDrawer);
+router.post('/cashier/shift/reconcile', authenticateFrontDeskTerminal, reconcileCashDrawer);
+router.post('/frontdesk/cashier/shift/handover', authenticateFrontDeskTerminal, handoverShift);
+router.post('/cashier/shift/handover', authenticateFrontDeskTerminal, handoverShift);
+router.post('/frontdesk/cashier/shift/acknowledge-handover', authenticateFrontDeskTerminal, acknowledgeHandover);
+router.post('/cashier/shift/acknowledge-handover', authenticateFrontDeskTerminal, acknowledgeHandover);
+router.get('/frontdesk/cashier/shift/history', authenticateFrontDeskTerminal, getCashierShiftHistory);
+router.get('/cashier/shift/history', authenticateFrontDeskTerminal, getCashierShiftHistory);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

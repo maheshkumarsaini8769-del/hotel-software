@@ -239,11 +239,37 @@ export interface AvailableUpgradeRoom {
   status: string;
 }
 
+export interface CashierShift {
+  _id: string;
+  shiftNumber: string;
+  cashierId: string;
+  cashierName: string;
+  terminalId: string;
+  status: 'OPEN' | 'CLOSED';
+  shiftType: 'MORNING' | 'EVENING' | 'NIGHT' | 'GENERAL';
+  openingFloat: number;
+  totalCashCollected: number;
+  expectedCashInDrawer: number;
+  actualCashCounted?: number;
+  cashVariance?: number;
+  safeDropAmount?: number;
+  safeDropReceiptNumber?: string;
+  closingFloatRetained?: number;
+  discrepancyReason?: string;
+  discrepancyStatus?: 'NONE' | 'RESOLVED' | 'UNDER_REVIEW' | 'FLAGGED';
+  handoverToCashierName?: string;
+  incomingCashierAcknowledged?: boolean;
+  supervisorVerified?: boolean;
+  supervisorRemarks?: string;
+  openedAt: string;
+  closedAt?: string;
+}
+
 export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   authToken,
   hotelId: propHotelId,
 }) => {
-  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE'>('CHECKIN');
+  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER'>('CHECKIN');
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -310,6 +336,38 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [overrideManagerPin, setOverrideManagerPin] = useState<string>('9921');
   const [overrideCalculation, setOverrideCalculation] = useState<any | null>(null);
   const [submittingOverride, setSubmittingOverride] = useState<boolean>(false);
+
+  // Shift 68: Cashier Shift Handover & Drawer Balancing State
+  const [activeCashierShift, setActiveCashierShift] = useState<CashierShift | null>(null);
+  const [cashierHistory, setCashierHistory] = useState<CashierShift[]>([]);
+  const [cashierSummary, setCashierSummary] = useState<any | null>(null);
+  const [loadingCashier, setLoadingCashier] = useState<boolean>(false);
+
+  // Denomination breakdown state
+  const [denom500, setDenom500] = useState<number>(0);
+  const [denom200, setDenom200] = useState<number>(0);
+  const [denom100, setDenom100] = useState<number>(0);
+  const [denom50, setDenom50] = useState<number>(0);
+  const [denom20, setDenom20] = useState<number>(0);
+  const [denom10, setDenom10] = useState<number>(0);
+  const [denomCoins, setDenomCoins] = useState<number>(0);
+
+  // Safe drop & float allocation state
+  const [safeDropAmount, setSafeDropAmount] = useState<number>(0);
+  const [closingFloatRetained, setClosingFloatRetained] = useState<number>(5000);
+  const [safeDropReceiptNumber, setSafeDropReceiptNumber] = useState<string>('');
+  const [handoverToCashierName, setHandoverToCashierName] = useState<string>('Evening Receptionist Rohan');
+  const [discrepancyReason, setDiscrepancyReason] = useState<string>('');
+  const [supervisorPin, setSupervisorPin] = useState<string>('9921');
+  const [supervisorRemarks, setSupervisorRemarks] = useState<string>('Discrepancy & safe drop verified by duty supervisor.');
+  const [showSupervisorPinModal, setShowSupervisorPinModal] = useState<boolean>(false);
+  const [cashierSubmitting, setCashierSubmitting] = useState<boolean>(false);
+
+  // New Shift Opening Modal State
+  const [openShiftModalVisible, setOpenShiftModalVisible] = useState<boolean>(false);
+  const [newShiftFloatAmount, setNewShiftFloatAmount] = useState<number>(5000);
+  const [newShiftType, setNewShiftType] = useState<'MORNING' | 'EVENING' | 'NIGHT'>('MORNING');
+  const [newCashierName, setNewCashierName] = useState<string>('Morning Receptionist Ananya');
 
   // Check-In Form State
   const [guestName, setGuestName] = useState('');
@@ -449,8 +507,218 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       } catch (err: any) {
         console.warn('Maintenance tickets note:', err.message);
       }
+
+      // 7. Fetch Front Desk Cashier Shift & Handover State (Shift 68)
+      try {
+        const [activeRes, histRes] = await Promise.all([
+          axios.get(`${apiBase}/pms/frontdesk/cashier/shift/active`, {
+            headers: authHeaders,
+            params: { hotelId, terminalId: 'FD_COUNTER_01' },
+          }),
+          axios.get(`${apiBase}/pms/frontdesk/cashier/shift/history`, {
+            headers: authHeaders,
+            params: { hotelId },
+          }),
+        ]);
+
+        if (activeRes.data.success && activeRes.data.data) {
+          setActiveCashierShift(activeRes.data.data);
+        } else {
+          setActiveCashierShift(null);
+        }
+
+        if (histRes.data.success && histRes.data.data) {
+          setCashierHistory(histRes.data.data.shifts || []);
+          setCashierSummary(histRes.data.data.summary || null);
+        }
+      } catch (err: any) {
+        console.warn('Cashier shift load note:', err.message);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCashierShiftData = async () => {
+    try {
+      setLoadingCashier(true);
+      const [activeRes, histRes] = await Promise.all([
+        axios.get(`${apiBase}/pms/frontdesk/cashier/shift/active`, {
+          headers: authHeaders,
+          params: { hotelId, terminalId: 'FD_COUNTER_01' },
+        }),
+        axios.get(`${apiBase}/pms/frontdesk/cashier/shift/history`, {
+          headers: authHeaders,
+          params: { hotelId },
+        }),
+      ]);
+
+      if (activeRes.data.success && activeRes.data.data) {
+        setActiveCashierShift(activeRes.data.data);
+      } else {
+        setActiveCashierShift(null);
+      }
+
+      if (histRes.data.success && histRes.data.data) {
+        setCashierHistory(histRes.data.data.shifts || []);
+        setCashierSummary(histRes.data.data.summary || null);
+      }
+    } catch (err: any) {
+      console.warn('Cashier shift load note:', err.message);
+    } finally {
+      setLoadingCashier(false);
+    }
+  };
+
+  const handleOpenNewShift = async () => {
+    try {
+      setCashierSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/cashier/shift/open`,
+        {
+          openingFloat: Number(newShiftFloatAmount) || 0,
+          shiftType: newShiftType,
+          terminalId: 'FD_COUNTER_01',
+          cashierName: newCashierName,
+          notes: `Shift opened on FD_COUNTER_01 by ${newCashierName}`,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`💼 Cashier shift opened successfully with ₹${newShiftFloatAmount} base float!`);
+        setOpenShiftModalVisible(false);
+        await loadCashierShiftData();
+      }
+    } catch (err: any) {
+      showToast(`❌ Error opening shift: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setCashierSubmitting(false);
+    }
+  };
+
+  // Real-time calculations for drawer reconciliation
+  const totalCountedCash =
+    (denom500 * 500) +
+    (denom200 * 200) +
+    (denom100 * 100) +
+    (denom50 * 50) +
+    (denom20 * 20) +
+    (denom10 * 10) +
+    Number(denomCoins || 0);
+
+  const totalAllocated = Number(safeDropAmount || 0) + Number(closingFloatRetained || 0);
+  const allocationDelta = totalCountedCash - totalAllocated;
+  const expectedDrawerCash = activeCashierShift?.expectedCashInDrawer || 0;
+  const cashVariance = totalCountedCash - expectedDrawerCash;
+  const isSupervisorRequired = Math.abs(cashVariance) > 100 || Number(safeDropAmount || 0) > 5000;
+
+  const handleReconcilePreview = async () => {
+    if (!activeCashierShift) return;
+    try {
+      setCashierSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/cashier/shift/reconcile`,
+        {
+          shiftId: activeCashierShift._id,
+          denominationBreakdown: {
+            count500: denom500,
+            count200: denom200,
+            count100: denom100,
+            count50: denom50,
+            count20: denom20,
+            count10: denom10,
+            coins: denomCoins,
+          },
+          safeDropAmount: Number(safeDropAmount || 0),
+          closingFloatRetained: Number(closingFloatRetained || 0),
+          discrepancyReason: discrepancyReason || undefined,
+          supervisorPin: isSupervisorRequired ? supervisorPin : undefined,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`✓ Cash drawer verified! Counted: ₹${res.data.data.actualCashCounted}, Variance: ₹${res.data.data.cashVariance}`);
+      }
+    } catch (err: any) {
+      showToast(`⚠️ Reconciliation note: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setCashierSubmitting(false);
+    }
+  };
+
+  const handleExecuteHandover = async () => {
+    if (!activeCashierShift) return;
+    if (allocationDelta !== 0) {
+      showToast(`⚠️ Allocation mismatch: Safe Drop (₹${safeDropAmount}) + Retained (₹${closingFloatRetained}) != Counted (₹${totalCountedCash})`);
+      return;
+    }
+    if (cashVariance !== 0 && (!discrepancyReason || discrepancyReason.trim().length < 3)) {
+      showToast(`⚠️ Physical cash discrepancy of ₹${cashVariance} detected. Please document a reason.`);
+      return;
+    }
+    if (isSupervisorRequired && (!supervisorPin || supervisorPin.length < 4)) {
+      setShowSupervisorPinModal(true);
+      return;
+    }
+
+    try {
+      setCashierSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/cashier/shift/handover`,
+        {
+          shiftId: activeCashierShift._id,
+          denominationBreakdown: {
+            count500: denom500,
+            count200: denom200,
+            count100: denom100,
+            count50: denom50,
+            count20: denom20,
+            count10: denom10,
+            coins: denomCoins,
+          },
+          safeDropAmount: Number(safeDropAmount || 0),
+          closingFloatRetained: Number(closingFloatRetained || 0),
+          safeDropReceiptNumber: safeDropReceiptNumber || `DROP-${Date.now().toString().slice(-6)}`,
+          handoverToCashierName,
+          discrepancyReason: discrepancyReason || undefined,
+          supervisorPin: isSupervisorRequired ? supervisorPin : undefined,
+          supervisorRemarks: isSupervisorRequired ? supervisorRemarks : undefined,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🎉 Shift ${res.data.data.shiftNumber} closed & handed over to ${handoverToCashierName}! Safe Drop: ₹${safeDropAmount}`);
+        setShowSupervisorPinModal(false);
+        await loadCashierShiftData();
+      }
+    } catch (err: any) {
+      showToast(`❌ Handover error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setCashierSubmitting(false);
+    }
+  };
+
+  const handleAcknowledgeHandover = async (shiftId: string) => {
+    try {
+      setCashierSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/cashier/shift/acknowledge-handover`,
+        {
+          shiftId,
+          acknowledgedByCashierName: handoverToCashierName || 'Incoming Cashier',
+          autoOpenNextShift: true,
+          nextShiftType: 'EVENING',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`✅ Handover accepted! New shift ${res.data.data.nextShift?.shiftNumber || ''} opened with float ₹${res.data.data.previousShift?.closingFloatRetained}.`);
+        await loadCashierShiftData();
+      }
+    } catch (err: any) {
+      showToast(`❌ Error acknowledging handover: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setCashierSubmitting(false);
     }
   };
 
@@ -1349,6 +1617,21 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }`}
         >
           <span>🛠️</span> Room Maintenance & OOS Desk ({maintenanceTickets.filter((t) => t.status !== 'CLOSED').length})
+        </button>
+        <button
+          type="button"
+          data-testid="tab-cashier"
+          onClick={() => {
+            setActiveTab('CASHIER');
+            loadCashierShiftData();
+          }}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'CASHIER'
+              ? 'border-amber-400 text-amber-400 bg-amber-500/10'
+              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <span>💼</span> Cashier Drawer & Shift Handover
         </button>
       </div>
 
@@ -2745,6 +3028,615 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 8: FRONT DESK CASHIER SHIFT HANDOVER & DRAWER BALANCING (SHIFT 68) */}
+        {activeTab === 'CASHIER' && (
+          <div className="space-y-6" data-testid="cashier-shift-workspace">
+            {/* Header banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-black text-white">Front Desk Cashier Shift Handover & Physical Drawer Balancing</h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    SHIFT 68 • SAFE DROP AUDIT
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Physical currency denomination counting, drop-safe envelope sealing, dual-cashier shift handover signoff & supervisor PIN discrepancy authorization.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  data-testid="btn-refresh-cashier-drawer"
+                  onClick={loadCashierShiftData}
+                  disabled={loadingCashier}
+                  className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs uppercase tracking-wider transition border border-zinc-700 flex items-center gap-1.5"
+                >
+                  <span>🔄</span> Refresh Drawer
+                </button>
+                {!activeCashierShift && (
+                  <button
+                    type="button"
+                    data-testid="btn-open-new-shift-modal"
+                    onClick={() => setOpenShiftModalVisible(true)}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-amber-500/20 flex items-center gap-1.5"
+                  >
+                    <span>➕</span> Open Shift Float
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-zinc-900/80 border border-zinc-800/80 p-4 rounded-2xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Current Shift</span>
+                <p className="text-sm font-black text-amber-400 mt-0.5" data-testid="badge-active-shift-number">
+                  {activeCashierShift ? activeCashierShift.shiftNumber : 'NO ACTIVE SHIFT'}
+                </p>
+                <span className="text-[10px] text-zinc-400">
+                  {activeCashierShift ? `${activeCashierShift.cashierName} (${activeCashierShift.shiftType})` : 'Drawer is locked'}
+                </span>
+              </div>
+              <div className="bg-zinc-900/80 border border-zinc-800/80 p-4 rounded-2xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Expected Drawer Cash</span>
+                <p className="text-xl font-black text-white mt-0.5" data-testid="badge-drawer-expected-cash">
+                  ₹{expectedDrawerCash.toLocaleString('en-IN')}
+                </p>
+                <span className="text-[10px] text-emerald-400">Base Float + Folio Advances</span>
+              </div>
+              <div className="bg-zinc-900/80 border border-zinc-800/80 p-4 rounded-2xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Counted Physical Cash</span>
+                <p className="text-xl font-black text-amber-300 mt-0.5" data-testid="badge-drawer-counted-cash">
+                  ₹{totalCountedCash.toLocaleString('en-IN')}
+                </p>
+                <span className="text-[10px] text-zinc-400">Sum of notes & coins</span>
+              </div>
+              <div className="bg-zinc-900/80 border border-zinc-800/80 p-4 rounded-2xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Physical Variance</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <p
+                    className={`text-xl font-black ${
+                      cashVariance === 0 ? 'text-emerald-400' : cashVariance > 0 ? 'text-blue-400' : 'text-red-400'
+                    }`}
+                    data-testid="badge-drawer-variance"
+                  >
+                    {cashVariance === 0 ? '₹0' : cashVariance > 0 ? `+₹${cashVariance}` : `-₹${Math.abs(cashVariance)}`}
+                  </p>
+                </div>
+                <span
+                  className={`text-[10px] font-bold ${
+                    cashVariance === 0 ? 'text-emerald-400' : cashVariance > 0 ? 'text-blue-400' : 'text-red-400'
+                  }`}
+                >
+                  {cashVariance === 0 ? '✓ Exact Match' : cashVariance > 0 ? 'Surplus (Excess Cash)' : 'Shortage (Requires Reason)'}
+                </span>
+              </div>
+            </div>
+
+            {/* Main Interactive Reconciliation Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Column (7 cols): Physical Currency Denomination Counter */}
+              <div className="lg:col-span-7 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-6">
+                <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4">
+                  <div>
+                    <h3 className="text-base font-black text-white flex items-center gap-2">
+                      <span>💵</span> Physical Cash Currency Denominations
+                    </h3>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      Count each denomination note from the physical cash drawer and enter the quantity.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="btn-preset-float-5000"
+                    onClick={() => {
+                      setDenom500(10); // 5000
+                      setDenom200(0);
+                      setDenom100(0);
+                      setDenom50(0);
+                      setDenom20(0);
+                      setDenom10(0);
+                      setDenomCoins(0);
+                      setSafeDropAmount(0);
+                      setClosingFloatRetained(5000);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs border border-amber-500/30 transition"
+                  >
+                    Preset Standard Float (10x ₹500)
+                  </button>
+                </div>
+
+                {/* Denominations Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* ₹500 */}
+                  <div className="bg-zinc-950/70 border border-zinc-800 p-3.5 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-mono font-black text-amber-400">₹500 Notes</span>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">Subtotal: ₹{(denom500 * 500).toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400 font-bold">Qty:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        data-testid="input-denom-500"
+                        value={denom500}
+                        onChange={(e) => setDenom500(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-20 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold text-sm text-right focus:border-amber-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* ₹200 */}
+                  <div className="bg-zinc-950/70 border border-zinc-800 p-3.5 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-mono font-black text-amber-400">₹200 Notes</span>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">Subtotal: ₹{(denom200 * 200).toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400 font-bold">Qty:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        data-testid="input-denom-200"
+                        value={denom200}
+                        onChange={(e) => setDenom200(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-20 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold text-sm text-right focus:border-amber-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* ₹100 */}
+                  <div className="bg-zinc-950/70 border border-zinc-800 p-3.5 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-mono font-black text-amber-400">₹100 Notes</span>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">Subtotal: ₹{(denom100 * 100).toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400 font-bold">Qty:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        data-testid="input-denom-100"
+                        value={denom100}
+                        onChange={(e) => setDenom100(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-20 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold text-sm text-right focus:border-amber-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* ₹50 */}
+                  <div className="bg-zinc-950/70 border border-zinc-800 p-3.5 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-mono font-black text-amber-400">₹50 Notes</span>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">Subtotal: ₹{(denom50 * 50).toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400 font-bold">Qty:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        data-testid="input-denom-50"
+                        value={denom50}
+                        onChange={(e) => setDenom50(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-20 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold text-sm text-right focus:border-amber-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* ₹20 */}
+                  <div className="bg-zinc-950/70 border border-zinc-800 p-3.5 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-mono font-black text-amber-400">₹20 Notes</span>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">Subtotal: ₹{(denom20 * 20).toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400 font-bold">Qty:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        data-testid="input-denom-20"
+                        value={denom20}
+                        onChange={(e) => setDenom20(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-20 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold text-sm text-right focus:border-amber-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* ₹10 */}
+                  <div className="bg-zinc-950/70 border border-zinc-800 p-3.5 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-mono font-black text-amber-400">₹10 Notes</span>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">Subtotal: ₹{(denom10 * 10).toLocaleString('en-IN')}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400 font-bold">Qty:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        data-testid="input-denom-10"
+                        value={denom10}
+                        onChange={(e) => setDenom10(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-20 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold text-sm text-right focus:border-amber-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Coins Total */}
+                  <div className="sm:col-span-2 bg-zinc-950/70 border border-zinc-800 p-3.5 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-mono font-black text-amber-400">🪙 Loose Coins Total (₹1, ₹2, ₹5, ₹10)</span>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">Total loose change in cash tray</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400 font-bold">₹:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        data-testid="input-denom-coins"
+                        value={denomCoins}
+                        onChange={(e) => setDenomCoins(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-24 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold text-sm text-right focus:border-amber-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Subtotal Summary footer */}
+                <div className="flex items-center justify-between bg-zinc-950/80 border border-zinc-800/80 p-4 rounded-2xl">
+                  <span className="text-xs font-bold text-zinc-300">Total Counted Physical Currency:</span>
+                  <span className="text-lg font-black text-amber-400 font-mono">₹{totalCountedCash.toLocaleString('en-IN')}</span>
+                </div>
+              </div>
+
+              {/* Right Column (5 cols): Safe Drop, Handover & Supervisor Signoff */}
+              <div className="lg:col-span-5 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-5">
+                <div className="border-b border-zinc-800/80 pb-4">
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <span>🔐</span> Safe Drop & Float Allocation
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Allocate counted cash into treasury drop safe vs retained drawer float.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Safe Drop Amount */}
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-300 mb-1.5 flex items-center justify-between">
+                      <span>Safe Drop Amount (Deposit to Safe)</span>
+                      <span className="text-[10px] text-zinc-400">Envelope Voucher</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-2.5 text-zinc-400 font-bold text-sm">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        data-testid="input-safe-drop-amount"
+                        value={safeDropAmount}
+                        onChange={(e) => setSafeDropAmount(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-full pl-8 pr-4 py-2 rounded-xl bg-zinc-950 border border-zinc-700 text-white font-mono font-bold text-sm focus:border-amber-400 focus:outline-none"
+                        placeholder="e.g. 15000"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Safe Drop Voucher # */}
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-300 mb-1.5">
+                      Safe Drop Receipt / Envelope Tracking ID
+                    </label>
+                    <input
+                      type="text"
+                      data-testid="input-safe-drop-receipt"
+                      value={safeDropReceiptNumber}
+                      onChange={(e) => setSafeDropReceiptNumber(e.target.value)}
+                      placeholder="e.g. DROP-20261006-001"
+                      className="w-full px-3.5 py-2 rounded-xl bg-zinc-950 border border-zinc-700 text-white font-mono text-xs focus:border-amber-400 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Retained Float for Next Shift */}
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-300 mb-1.5 flex items-center justify-between">
+                      <span>Retained Float (Left in Drawer)</span>
+                      <span className="text-[10px] text-amber-400">Standard: ₹5,000</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-2.5 text-zinc-400 font-bold text-sm">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        data-testid="input-retained-float"
+                        value={closingFloatRetained}
+                        onChange={(e) => setClosingFloatRetained(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-full pl-8 pr-4 py-2 rounded-xl bg-zinc-950 border border-zinc-700 text-white font-mono font-bold text-sm focus:border-amber-400 focus:outline-none"
+                        placeholder="e.g. 5000"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Allocation Check Alert */}
+                  <div
+                    className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between ${
+                      allocationDelta === 0
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        : 'bg-red-500/10 border-red-500/30 text-red-300'
+                    }`}
+                  >
+                    <span>Allocated: ₹{totalAllocated.toLocaleString('en-IN')} / Counted: ₹{totalCountedCash.toLocaleString('en-IN')}</span>
+                    <span>{allocationDelta === 0 ? '✓ Balanced' : `⚠️ Mismatch: ₹${Math.abs(allocationDelta)}`}</span>
+                  </div>
+
+                  {/* Handover to Cashier */}
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-300 mb-1.5">
+                      Incoming Cashier Name (Handover Signoff)
+                    </label>
+                    <input
+                      type="text"
+                      data-testid="input-handover-cashier-name"
+                      value={handoverToCashierName}
+                      onChange={(e) => setHandoverToCashierName(e.target.value)}
+                      placeholder="e.g. Evening Receptionist Rohan"
+                      className="w-full px-3.5 py-2 rounded-xl bg-zinc-950 border border-zinc-700 text-white text-xs focus:border-amber-400 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Discrepancy Reason (Mandatory if variance != 0) */}
+                  {cashVariance !== 0 && (
+                    <div className="bg-red-500/10 border border-red-500/30 p-3.5 rounded-2xl space-y-2">
+                      <label className="block text-xs font-bold text-red-300 flex items-center justify-between">
+                        <span>Discrepancy Justification Reason *</span>
+                        <span className="text-[10px] font-mono text-red-400">Required</span>
+                      </label>
+                      <input
+                        type="text"
+                        data-testid="input-discrepancy-reason"
+                        value={discrepancyReason}
+                        onChange={(e) => setDiscrepancyReason(e.target.value)}
+                        placeholder="e.g. Guest short change ₹10 uncollected, approved by manager"
+                        className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-red-500/40 text-white text-xs focus:outline-none focus:border-red-400"
+                      />
+                    </div>
+                  )}
+
+                  {/* Supervisor PIN Terminal (If Variance > 100 or Safe Drop > 5000) */}
+                  {isSupervisorRequired && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                          <span>🛡️</span> Supervisor Authorization PIN
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSupervisorPin('9921')}
+                          className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30"
+                        >
+                          Quick PIN: 9921
+                        </button>
+                      </div>
+                      <input
+                        type="password"
+                        maxLength={6}
+                        data-testid="input-cashier-supervisor-pin"
+                        value={supervisorPin}
+                        onChange={(e) => setSupervisorPin(e.target.value)}
+                        placeholder="Enter Supervisor PIN"
+                        className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-amber-500/40 text-amber-400 font-mono font-bold tracking-widest text-center text-sm focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="pt-2 flex flex-col gap-2.5">
+                    <button
+                      type="button"
+                      data-testid="btn-verify-reconcile-drawer"
+                      onClick={handleReconcilePreview}
+                      disabled={cashierSubmitting || !activeCashierShift}
+                      className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold text-xs uppercase tracking-wider transition border border-zinc-700 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      <span>🔍</span> Verify & Preview Drawer Balancing
+                    </button>
+
+                    <button
+                      type="button"
+                      data-testid="btn-execute-shift-handover"
+                      onClick={handleExecuteHandover}
+                      disabled={cashierSubmitting || !activeCashierShift || allocationDelta !== 0}
+                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <span>🔐</span> Finalize Shift Handover & Lock Drawer
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Shift History & Safe Drop Audit Log Table */}
+            <div className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <span>📜</span> Cashier Shift Handover & Safe Drop Audit Register
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Comprehensive audit trail of closed cashier shifts, physical variances, and safe deposit receipts.
+                  </p>
+                </div>
+                {cashierSummary && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 px-3 py-1 rounded-xl">
+                      Safe Dropped: ₹{cashierSummary.totalSafeDropped?.toLocaleString('en-IN') || 0}
+                    </span>
+                    <span className="text-xs font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700 px-3 py-1 rounded-xl">
+                      Closed Shifts: {cashierSummary.totalClosedShifts || 0}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {cashierHistory.length === 0 ? (
+                <div className="text-center py-8 text-zinc-400 text-xs">
+                  No previous cashier shifts logged.
+                </div>
+              ) : (
+                <div className="overflow-x-auto" data-testid="table-cashier-history">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-800 text-zinc-400 uppercase tracking-wider text-[10px]">
+                        <th className="py-2.5 px-3">Shift #</th>
+                        <th className="py-2.5 px-3">Cashier</th>
+                        <th className="py-2.5 px-3">Handover To</th>
+                        <th className="py-2.5 px-3 text-right">Opening Float</th>
+                        <th className="py-2.5 px-3 text-right">Counted Cash</th>
+                        <th className="py-2.5 px-3 text-right">Safe Drop</th>
+                        <th className="py-2.5 px-3 text-right">Retained Float</th>
+                        <th className="py-2.5 px-3 text-right">Variance</th>
+                        <th className="py-2.5 px-3 text-center">Status</th>
+                        <th className="py-2.5 px-3 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/60 font-mono">
+                      {cashierHistory.map((shift) => (
+                        <tr key={shift._id} className="hover:bg-zinc-800/40 transition">
+                          <td className="py-3 px-3 font-bold text-amber-400">{shift.shiftNumber}</td>
+                          <td className="py-3 px-3 text-zinc-200 font-sans">{shift.cashierName}</td>
+                          <td className="py-3 px-3 text-zinc-300 font-sans">{shift.handoverToCashierName || '—'}</td>
+                          <td className="py-3 px-3 text-right text-zinc-300">₹{shift.openingFloat}</td>
+                          <td className="py-3 px-3 text-right text-zinc-200">₹{shift.actualCashCounted ?? '—'}</td>
+                          <td className="py-3 px-3 text-right text-amber-300">
+                            {shift.safeDropAmount ? `₹${shift.safeDropAmount}` : '₹0'}
+                            {shift.safeDropReceiptNumber && (
+                              <span className="block text-[9px] text-zinc-400 font-sans">{shift.safeDropReceiptNumber}</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right text-emerald-300">₹{shift.closingFloatRetained ?? '—'}</td>
+                          <td
+                            className={`py-3 px-3 text-right font-bold ${
+                              (shift.cashVariance || 0) === 0 ? 'text-emerald-400' : 'text-red-400'
+                            }`}
+                          >
+                            {(shift.cashVariance || 0) === 0 ? '₹0' : `₹${shift.cashVariance}`}
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                shift.status === 'OPEN'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+                              }`}
+                            >
+                              {shift.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            {shift.status === 'CLOSED' && !shift.incomingCashierAcknowledged && (
+                              <button
+                                type="button"
+                                data-testid={`btn-ack-handover-${shift.shiftNumber}`}
+                                onClick={() => handleAcknowledgeHandover(shift._id)}
+                                className="px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 font-sans font-bold text-[10px] border border-amber-500/30 transition"
+                              >
+                                Accept Float
+                              </button>
+                            )}
+                            {shift.incomingCashierAcknowledged && (
+                              <span className="text-[10px] text-emerald-400 font-sans font-bold">✓ Accepted</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 68: OPEN NEW CASHIER SHIFT MODAL */}
+        {openShiftModalVisible && (
+          <div
+            data-testid="modal-open-cashier-shift"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <span>💼</span> Open New Cashier Shift
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setOpenShiftModalVisible(false)}
+                  className="text-zinc-400 hover:text-white font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-300 mb-1">Cashier Name</label>
+                  <input
+                    type="text"
+                    value={newCashierName}
+                    onChange={(e) => setNewCashierName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs focus:border-amber-400 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-300 mb-1">Shift Type</label>
+                  <select
+                    value={newShiftType}
+                    onChange={(e) => setNewShiftType(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs focus:border-amber-400 focus:outline-none"
+                  >
+                    <option value="MORNING">Morning Shift (06:00 - 14:00)</option>
+                    <option value="EVENING">Evening Shift (14:00 - 22:00)</option>
+                    <option value="NIGHT">Night Audit Shift (22:00 - 06:00)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-300 mb-1">Base Drawer Float (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    data-testid="input-new-shift-float"
+                    value={newShiftFloatAmount}
+                    onChange={(e) => setNewShiftFloatAmount(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold text-sm focus:border-amber-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setOpenShiftModalVisible(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-confirm-open-shift"
+                  onClick={handleOpenNewShift}
+                  disabled={cashierSubmitting}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                >
+                  Open Shift Float
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

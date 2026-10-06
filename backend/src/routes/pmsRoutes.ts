@@ -71,6 +71,15 @@ import {
   toggleBoxMaintenance,
   getBoxAuditLog,
 } from '../controllers/safeDepositBoxController';
+import {
+  getLeftLuggageClaims,
+  tagNewLuggageClaim,
+  requestLuggageDispatch,
+  completeLuggageDelivery,
+  releaseLuggageAtCounter,
+  logLuggageDiscrepancy,
+  getLuggageAuditLog,
+} from '../controllers/leftLuggageController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
 import { Response, NextFunction } from 'express';
@@ -211,6 +220,22 @@ router.post('/frontdesk/sdb/maintenance', authenticateFrontDeskTerminal, toggleB
 router.post('/sdb/maintenance', authenticateFrontDeskTerminal, toggleBoxMaintenance);
 router.get('/frontdesk/sdb/audit-log/:boxNumber', authenticateFrontDeskTerminal, getBoxAuditLog);
 router.get('/sdb/audit-log/:boxNumber', authenticateFrontDeskTerminal, getBoxAuditLog);
+
+// Shift 70: Front Desk Left Luggage Cloakroom & Bell Desk Baggage Tagging Pipeline
+router.get('/frontdesk/luggage/claims', authenticateFrontDeskTerminal, getLeftLuggageClaims);
+router.get('/luggage/claims', authenticateFrontDeskTerminal, getLeftLuggageClaims);
+router.post('/frontdesk/luggage/tag', authenticateFrontDeskTerminal, tagNewLuggageClaim);
+router.post('/luggage/tag', authenticateFrontDeskTerminal, tagNewLuggageClaim);
+router.post('/frontdesk/luggage/dispatch', authenticateFrontDeskTerminal, requestLuggageDispatch);
+router.post('/luggage/dispatch', authenticateFrontDeskTerminal, requestLuggageDispatch);
+router.post('/frontdesk/luggage/complete-delivery', authenticateFrontDeskTerminal, completeLuggageDelivery);
+router.post('/luggage/complete-delivery', authenticateFrontDeskTerminal, completeLuggageDelivery);
+router.post('/frontdesk/luggage/release', authenticateFrontDeskTerminal, releaseLuggageAtCounter);
+router.post('/luggage/release', authenticateFrontDeskTerminal, releaseLuggageAtCounter);
+router.post('/frontdesk/luggage/discrepancy', authenticateFrontDeskTerminal, logLuggageDiscrepancy);
+router.post('/luggage/discrepancy', authenticateFrontDeskTerminal, logLuggageDiscrepancy);
+router.get('/frontdesk/luggage/audit-log/:claimTag', authenticateFrontDeskTerminal, getLuggageAuditLog);
+router.get('/luggage/audit-log/:claimTag', authenticateFrontDeskTerminal, getLuggageAuditLog);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

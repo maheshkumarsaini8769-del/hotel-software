@@ -300,11 +300,61 @@ export interface SDBBox {
   lostKeyPenaltyAmount?: number;
 }
 
+// Shift 70: Left Luggage Cloakroom & Bell Desk Baggage Tagging Pipeline
+export interface LuggagePiece {
+  pieceId: string;
+  type: 'SUITCASE' | 'BACKPACK' | 'DUFFEL' | 'GARMENT_BAG' | 'CARTON' | 'OTHER';
+  colorDescription: string;
+  isFragile: boolean;
+  hasPerishables: boolean;
+}
+
+export interface PorterDispatchLog {
+  dispatchId: string;
+  dispatchedAt: string;
+  porterName: string;
+  targetLocation: string;
+  completedAt?: string;
+  status: 'ASSIGNED' | 'IN_TRANSIT' | 'COMPLETED' | 'RETURNED_TO_RACK';
+  notes?: string;
+}
+
+export interface LeftLuggageClaimItem {
+  _id: string;
+  claimTag: string;
+  guestName: string;
+  guestPhone: string;
+  guestEmail?: string;
+  roomNumber?: string;
+  storageType: 'EARLY_ARRIVAL' | 'POST_CHECKOUT' | 'LONG_TERM_STORAGE' | 'TRANSIT_HOLD';
+  status: 'STORED' | 'DISPATCH_REQUESTED' | 'OUT_FOR_DELIVERY' | 'DELIVERED_TO_ROOM' | 'CLAIMED_AT_COUNTER' | 'OVERDUE_UNCLAIMED' | 'DISPUTED_LOST';
+  rackLocation: string;
+  pieces: LuggagePiece[];
+  totalPieces: number;
+  checkInTime: string;
+  expectedPickupTime: string;
+  actualReleaseTime?: string;
+  claimPin: string;
+  dispatches: PorterDispatchLog[];
+  currentPorterName?: string;
+  receivedByStaffName: string;
+  releasedByStaffName?: string;
+  releaseNotes?: string;
+}
+
+export interface LuggageMetrics {
+  totalStored: number;
+  earlyArrivals: number;
+  postCheckout: number;
+  activeDispatches: number;
+  totalPiecesInVault: number;
+}
+
 export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   authToken,
   hotelId: propHotelId,
 }) => {
-  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER' | 'SDB'>('CHECKIN');
+  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER' | 'SDB' | 'LUGGAGE'>('CHECKIN');
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -434,6 +484,42 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [surrenderPenalty, setSurrenderPenalty] = useState<number>(0);
   const [surrenderRemarks, setSurrenderRemarks] = useState<string>('Contents verified 100% empty. Key returned in pristine condition.');
   const [sdbSubmitting, setSdbSubmitting] = useState<boolean>(false);
+
+  // Shift 70: Left Luggage Cloakroom & Bell Desk State
+  const [luggageClaims, setLuggageClaims] = useState<LeftLuggageClaimItem[]>([]);
+  const [luggageMetrics, setLuggageMetrics] = useState<LuggageMetrics | null>(null);
+  const [loadingLuggage, setLoadingLuggage] = useState<boolean>(false);
+  const [selectedLuggage, setSelectedLuggage] = useState<LeftLuggageClaimItem | null>(null);
+  const [luggageFilterStatus, setLuggageFilterStatus] = useState<string>('ALL');
+  const [luggageFilterStorageType, setLuggageFilterStorageType] = useState<string>('ALL');
+  const [luggageSearchQuery, setLuggageSearchQuery] = useState<string>('');
+
+  // Tag Modal State
+  const [tagLuggageModalOpen, setTagLuggageModalOpen] = useState<boolean>(false);
+  const [tagGuestName, setTagGuestName] = useState<string>('Lord Mountbatten');
+  const [tagGuestPhone, setTagGuestPhone] = useState<string>('+44 7911 123456');
+  const [tagRoomNumber, setTagRoomNumber] = useState<string>('204');
+  const [tagStorageType, setTagStorageType] = useState<'EARLY_ARRIVAL' | 'POST_CHECKOUT' | 'LONG_TERM_STORAGE' | 'TRANSIT_HOLD'>('EARLY_ARRIVAL');
+  const [tagRackLocation, setTagRackLocation] = useState<string>('CLOAKROOM-BAY-02');
+  const [tagPieceCount, setTagPieceCount] = useState<number>(2);
+  const [tagPieceDescription, setTagPieceDescription] = useState<string>('British Racing Green Leather Carry-On & Suiter');
+  const [tagFragile, setTagFragile] = useState<boolean>(false);
+  const [tagPerishable, setTagPerishable] = useState<boolean>(false);
+  const [tagClaimPin, setTagClaimPin] = useState<string>('4491');
+  const [tagNotes, setTagNotes] = useState<string>('Guest arriving before 2 PM check-in. Deliver bags to Room 204 once ready.');
+
+  // Dispatch Modal State
+  const [dispatchLuggageModalOpen, setDispatchLuggageModalOpen] = useState<boolean>(false);
+  const [dispatchPorterName, setDispatchPorterName] = useState<string>('Porter Raju Sharma');
+  const [dispatchTargetLocation, setDispatchTargetLocation] = useState<string>('Room 204');
+  const [dispatchNotes, setDispatchNotes] = useState<string>('Room ready for check-in. Front desk approved room delivery.');
+
+  // Counter Release Modal State
+  const [counterReleaseModalOpen, setCounterReleaseModalOpen] = useState<boolean>(false);
+  const [counterClaimPin, setCounterClaimPin] = useState<string>('');
+  const [counterSupervisorPin, setCounterSupervisorPin] = useState<string>('9921');
+  const [counterReleaseNotes, setCounterReleaseNotes] = useState<string>('Bags inspected and released directly to guest at Bell Desk.');
+  const [luggageSubmitting, setLuggageSubmitting] = useState<boolean>(false);
 
   // Check-In Form State
   const [guestName, setGuestName] = useState('');
@@ -935,6 +1021,158 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       showToast(`⚠️ Maintenance error: ${err.response?.data?.message || err.message}`);
     } finally {
       setSdbSubmitting(false);
+    }
+  };
+
+  // Shift 70: Left Luggage Cloakroom Data Loader & Handlers
+  const loadLuggageClaims = async () => {
+    try {
+      setLoadingLuggage(true);
+      const res = await axios.get(`${apiBase}/pms/frontdesk/luggage/claims`, {
+        headers: authHeaders,
+        params: {
+          hotelId,
+          status: luggageFilterStatus !== 'ALL' ? luggageFilterStatus : undefined,
+          storageType: luggageFilterStorageType !== 'ALL' ? luggageFilterStorageType : undefined,
+          search: luggageSearchQuery.trim() || undefined,
+        },
+      });
+      if (res.data.success && res.data.data) {
+        setLuggageClaims(res.data.data.claims || []);
+        setLuggageMetrics(res.data.data.metrics || null);
+        if (res.data.data.claims && res.data.data.claims.length > 0) {
+          setSelectedLuggage((prev) =>
+            prev ? (res.data.data.claims.find((c: any) => c.claimTag === prev.claimTag) || res.data.data.claims[0]) : res.data.data.claims[0]
+          );
+        }
+      }
+    } catch (err: any) {
+      console.warn('Luggage load note:', err.message);
+    } finally {
+      setLoadingLuggage(false);
+    }
+  };
+
+  const handleTagNewLuggage = async () => {
+    if (!tagGuestName.trim() || !tagGuestPhone.trim()) {
+      showToast('⚠️ Guest Name and Contact Phone are required.');
+      return;
+    }
+    try {
+      setLuggageSubmitting(true);
+      const pieces = Array.from({ length: Math.max(1, tagPieceCount) }).map((_, idx) => ({
+        pieceId: `P${idx + 1}`,
+        type: 'SUITCASE',
+        colorDescription: tagPieceDescription,
+        isFragile: tagFragile,
+        hasPerishables: tagPerishable,
+      }));
+
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/luggage/tag`,
+        {
+          guestName: tagGuestName.trim(),
+          guestPhone: tagGuestPhone.trim(),
+          roomNumber: tagRoomNumber.trim() || undefined,
+          storageType: tagStorageType,
+          rackLocation: tagRackLocation.trim(),
+          pieces,
+          claimPin: tagClaimPin.trim() || undefined,
+          notes: tagNotes.trim() || undefined,
+        },
+        { headers: authHeaders }
+      );
+
+      if (res.data.success) {
+        showToast(`🧳 Luggage claim ticket ${res.data.data.claimTag} issued for ${tagGuestName}!`);
+        setTagLuggageModalOpen(false);
+        await loadLuggageClaims();
+      }
+    } catch (err: any) {
+      showToast(`❌ Error tagging luggage: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setLuggageSubmitting(false);
+    }
+  };
+
+  const handleDispatchLuggage = async () => {
+    if (!selectedLuggage) return;
+    if (!dispatchPorterName.trim()) {
+      showToast('⚠️ Porter name is required for baggage dispatch.');
+      return;
+    }
+    try {
+      setLuggageSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/luggage/dispatch`,
+        {
+          claimTag: selectedLuggage.claimTag,
+          porterName: dispatchPorterName.trim(),
+          targetLocation: dispatchTargetLocation.trim() || (selectedLuggage.roomNumber ? `Room ${selectedLuggage.roomNumber}` : 'Main Porch Valet'),
+          notes: dispatchNotes.trim(),
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🚚 Porter ${dispatchPorterName} dispatched with ${selectedLuggage.claimTag}!`);
+        setDispatchLuggageModalOpen(false);
+        await loadLuggageClaims();
+      }
+    } catch (err: any) {
+      showToast(`❌ Dispatch error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setLuggageSubmitting(false);
+    }
+  };
+
+  const handleCompleteDelivery = async () => {
+    if (!selectedLuggage) return;
+    try {
+      setLuggageSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/luggage/complete-delivery`,
+        {
+          claimTag: selectedLuggage.claimTag,
+          deliveredToRoom: true,
+          recipientConfirmation: selectedLuggage.guestName,
+          staffPin: '9921',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`✅ Luggage ${selectedLuggage.claimTag} delivered to room & confirmed!`);
+        await loadLuggageClaims();
+      }
+    } catch (err: any) {
+      showToast(`❌ Completion error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setLuggageSubmitting(false);
+    }
+  };
+
+  const handleCounterRelease = async () => {
+    if (!selectedLuggage) return;
+    try {
+      setLuggageSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/luggage/release`,
+        {
+          claimTag: selectedLuggage.claimTag,
+          claimPin: counterClaimPin.trim() || selectedLuggage.claimPin,
+          staffPin: counterSupervisorPin.trim(),
+          releaseNotes: counterReleaseNotes.trim(),
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🤝 Luggage ${selectedLuggage.claimTag} successfully released to guest at counter!`);
+        setCounterReleaseModalOpen(false);
+        await loadLuggageClaims();
+      }
+    } catch (err: any) {
+      showToast(`❌ Counter release error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setLuggageSubmitting(false);
     }
   };
 
@@ -1863,6 +2101,21 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }`}
         >
           <span>🔒</span> Safe Deposit Vault (SDB)
+        </button>
+        <button
+          type="button"
+          data-testid="tab-luggage"
+          onClick={() => {
+            setActiveTab('LUGGAGE');
+            loadLuggageClaims();
+          }}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'LUGGAGE'
+              ? 'border-indigo-400 text-indigo-400 bg-indigo-500/10'
+              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <span>🧳</span> Left Luggage & Bell Desk
         </button>
       </div>
 
@@ -4495,6 +4748,676 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 disabled:opacity-50"
                 >
                   Confirm Surrender
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 70: LEFT LUGGAGE CLOAKROOM & BELL DESK WORKSPACE */}
+        {activeTab === 'LUGGAGE' && (
+          <div className="space-y-6">
+            {/* Header & Metrics Ribbon */}
+            <div className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-6 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-black text-white">Left Luggage Cloakroom & Bell Desk</h2>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      SHIFT 70 • BAGGAGE PIPELINE
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Secure temporary custody, claim tag issuance, room porter dispatches & counter release verification.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    data-testid="btn-open-tag-luggage"
+                    onClick={() => {
+                      setTagGuestName('Lord Mountbatten');
+                      setTagGuestPhone('+44 7911 123456');
+                      setTagRoomNumber('204');
+                      setTagStorageType('EARLY_ARRIVAL');
+                      setTagRackLocation('CLOAKROOM-BAY-02');
+                      setTagPieceCount(2);
+                      setTagPieceDescription('British Racing Green Leather Carry-On & Suiter');
+                      setTagClaimPin('4491');
+                      setTagLuggageModalOpen(true);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-bold text-xs uppercase tracking-wider transition shadow-lg shadow-indigo-500/20 flex items-center gap-2"
+                  >
+                    <span>➕</span> Tag New Luggage
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="btn-refresh-luggage"
+                    onClick={loadLuggageClaims}
+                    disabled={loadingLuggage}
+                    className="px-3.5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold transition flex items-center gap-1.5"
+                  >
+                    <span>🔄</span> Refresh
+                  </button>
+                </div>
+              </div>
+
+              {/* Metrics Bar */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="bg-zinc-950/70 border border-zinc-800/80 p-3.5 rounded-2xl">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">In Cloakroom</span>
+                  <span className="text-xl font-black text-white">{luggageMetrics?.totalStored ?? luggageClaims.filter(c => c.status === 'STORED').length}</span>
+                  <span className="text-[10px] text-zinc-500 block mt-0.5">Holding in rack</span>
+                </div>
+                <div className="bg-zinc-950/70 border border-zinc-800/80 p-3.5 rounded-2xl">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Early Arrivals</span>
+                  <span className="text-xl font-black text-amber-400">{luggageMetrics?.earlyArrivals ?? 0}</span>
+                  <span className="text-[10px] text-zinc-500 block mt-0.5">Awaiting room key</span>
+                </div>
+                <div className="bg-zinc-950/70 border border-zinc-800/80 p-3.5 rounded-2xl">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Post-Checkout</span>
+                  <span className="text-xl font-black text-indigo-400">{luggageMetrics?.postCheckout ?? 0}</span>
+                  <span className="text-[10px] text-zinc-500 block mt-0.5">Flight / train holds</span>
+                </div>
+                <div className="bg-zinc-950/70 border border-zinc-800/80 p-3.5 rounded-2xl">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Porter Dispatches</span>
+                  <span className="text-xl font-black text-cyan-400">{luggageMetrics?.activeDispatches ?? 0}</span>
+                  <span className="text-[10px] text-zinc-500 block mt-0.5">In transit now</span>
+                </div>
+                <div className="bg-zinc-950/70 border border-zinc-800/80 p-3.5 rounded-2xl col-span-2 md:col-span-1">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Total Pieces Held</span>
+                  <span className="text-xl font-black text-emerald-400">{luggageMetrics?.totalPiecesInVault ?? 0}</span>
+                  <span className="text-[10px] text-zinc-500 block mt-0.5">Bags in custody</span>
+                </div>
+              </div>
+
+              {/* Status and Type Filter Tabs */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-zinc-800/80">
+                <div className="flex items-center gap-1.5 overflow-x-auto">
+                  {['ALL', 'STORED', 'OUT_FOR_DELIVERY', 'DELIVERED_TO_ROOM', 'CLAIMED_AT_COUNTER'].map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setLuggageFilterStatus(st)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                        luggageFilterStatus === st
+                          ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/20'
+                          : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      {st.replace(/_/g, ' ')}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={luggageFilterStorageType}
+                    onChange={(e) => setLuggageFilterStorageType(e.target.value)}
+                    className="bg-zinc-950 border border-zinc-700 text-zinc-300 text-xs rounded-xl px-3 py-1.5 font-bold focus:outline-none"
+                  >
+                    <option value="ALL">All Storage Types</option>
+                    <option value="EARLY_ARRIVAL">Early Arrival</option>
+                    <option value="POST_CHECKOUT">Post Checkout</option>
+                    <option value="TRANSIT_HOLD">Transit Hold</option>
+                    <option value="LONG_TERM_STORAGE">Long Term</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Split: Left Claims List, Right Deep Detail Panel */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column: Baggage Claims List */}
+              <div className="lg:col-span-2 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-4 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-black text-white flex items-center gap-2">
+                    <span>🏷️</span> Active Baggage Claims
+                  </h3>
+                  <span className="text-xs text-zinc-400 font-bold">
+                    Showing {luggageClaims.length} records
+                  </span>
+                </div>
+
+                {loadingLuggage ? (
+                  <div className="text-center py-12 text-zinc-400 text-xs">Loading cloakroom registry...</div>
+                ) : luggageClaims.length === 0 ? (
+                  <div className="text-center py-12 text-zinc-500 text-xs bg-zinc-950/50 rounded-2xl border border-zinc-800/60">
+                    No luggage claims found for this filter.
+                  </div>
+                ) : (
+                  <div data-testid="list-luggage-claims" className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {luggageClaims.map((claim) => {
+                      const isSelected = selectedLuggage?.claimTag === claim.claimTag;
+                      return (
+                        <div
+                          key={claim.claimTag}
+                          data-testid={`card-luggage-${claim.claimTag}`}
+                          onClick={() => setSelectedLuggage(claim)}
+                          className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-3 ${
+                            isSelected
+                              ? 'bg-indigo-950/30 border-indigo-500 ring-2 ring-indigo-500/30'
+                              : 'bg-zinc-950/60 border-zinc-800/80 hover:border-zinc-700'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/30">
+                                  {claim.claimTag}
+                                </span>
+                                {claim.roomNumber && (
+                                  <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                    Room {claim.roomNumber}
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="font-bold text-white text-sm mt-1">{claim.guestName}</h4>
+                              <span className="text-[11px] text-zinc-400">{claim.guestPhone}</span>
+                            </div>
+
+                            <span
+                              className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                claim.status === 'STORED'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                  : claim.status === 'OUT_FOR_DELIVERY'
+                                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse'
+                                  : claim.status === 'DELIVERED_TO_ROOM'
+                                  ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                                  : 'bg-purple-500/10 text-purple-400 border-purple-500/30'
+                              }`}
+                            >
+                              {claim.status.replace(/_/g, ' ')}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-zinc-400 pt-2 border-t border-zinc-800/70">
+                            <span className="flex items-center gap-1 font-mono text-zinc-300">
+                              <span>📍</span> {claim.rackLocation}
+                            </span>
+                            <span className="font-bold text-zinc-300">
+                              🧳 {claim.totalPieces || claim.pieces?.length || 1} Piece(s)
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Selected Claim Detail Panel */}
+              <div
+                data-testid="panel-luggage-details"
+                className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-5 shadow-xl flex flex-col justify-between"
+              >
+                {selectedLuggage ? (
+                  <div className="space-y-5">
+                    <div className="border-b border-zinc-800/80 pb-4">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-sm font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/30">
+                          {selectedLuggage.claimTag}
+                        </span>
+                        <span
+                          className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                            selectedLuggage.status === 'STORED'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : selectedLuggage.status === 'OUT_FOR_DELIVERY'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                              : selectedLuggage.status === 'DELIVERED_TO_ROOM'
+                              ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                              : 'bg-purple-500/10 text-purple-400 border-purple-500/30'
+                          }`}
+                        >
+                          {selectedLuggage.status.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <h3 className="text-base font-black text-white mt-2">{selectedLuggage.guestName}</h3>
+                      <div className="flex items-center gap-2 text-xs text-zinc-400 mt-0.5">
+                        <span>📞 {selectedLuggage.guestPhone}</span>
+                        {selectedLuggage.roomNumber && <span>• Room {selectedLuggage.roomNumber}</span>}
+                      </div>
+                    </div>
+
+                    {/* Metadata Specs */}
+                    <div className="space-y-2.5 text-xs">
+                      <div className="flex justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-zinc-800/60">
+                        <span className="text-zinc-400 font-bold">Storage Bay / Rack:</span>
+                        <span className="font-mono font-bold text-white">{selectedLuggage.rackLocation}</span>
+                      </div>
+                      <div className="flex justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-zinc-800/60">
+                        <span className="text-zinc-400 font-bold">Storage Type:</span>
+                        <span className="font-bold text-indigo-300">{selectedLuggage.storageType.replace(/_/g, ' ')}</span>
+                      </div>
+                      <div className="flex justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-zinc-800/60">
+                        <span className="text-zinc-400 font-bold">Security Claim PIN:</span>
+                        <span className="font-mono font-bold text-emerald-400">{selectedLuggage.claimPin}</span>
+                      </div>
+                    </div>
+
+                    {/* Pieces Breakdown */}
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Luggage Items ({selectedLuggage.pieces?.length || 1})</h4>
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                        {selectedLuggage.pieces && selectedLuggage.pieces.map((p, idx) => (
+                          <div key={idx} className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800/80 text-[11px] space-y-1">
+                            <div className="flex justify-between font-bold text-white">
+                              <span>🧳 {p.type}</span>
+                              <div className="flex gap-1">
+                                {p.isFragile && <span className="text-[9px] bg-red-500/20 text-red-300 px-1 rounded border border-red-500/30">FRAGILE</span>}
+                                {p.hasPerishables && <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 rounded border border-amber-500/30">PERISHABLE</span>}
+                              </div>
+                            </div>
+                            <p className="text-zinc-400 text-[10px]">{p.colorDescription}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Dispatch History / In Transit */}
+                    {selectedLuggage.dispatches && selectedLuggage.dispatches.length > 0 && (
+                      <div className="space-y-2 border-t border-zinc-800/80 pt-3">
+                        <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Porter Dispatch Logs</h4>
+                        <div className="space-y-1.5 max-h-28 overflow-y-auto">
+                          {selectedLuggage.dispatches.map((d, idx) => (
+                            <div key={idx} className="p-2 rounded-xl bg-zinc-950 text-[10px] space-y-0.5 border border-zinc-800/80">
+                              <div className="flex justify-between text-zinc-300 font-bold">
+                                <span>🚚 {d.porterName}</span>
+                                <span className={d.status === 'COMPLETED' ? 'text-emerald-400' : 'text-amber-400'}>{d.status}</span>
+                              </div>
+                              <div className="text-zinc-500">Destination: {d.targetLocation}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Operational Action Buttons */}
+                    <div className="space-y-2.5 pt-2">
+                      {selectedLuggage.status === 'STORED' && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            data-testid="btn-open-dispatch-luggage"
+                            onClick={() => {
+                              setDispatchPorterName('Porter Raju Sharma');
+                              setDispatchTargetLocation(selectedLuggage.roomNumber ? `Room ${selectedLuggage.roomNumber}` : 'Main Porch Valet');
+                              setDispatchNotes('Room ready for guest. Porter luggage delivery.');
+                              setDispatchLuggageModalOpen(true);
+                            }}
+                            className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-1.5"
+                          >
+                            <span>🚚</span> Dispatch Porter
+                          </button>
+                          <button
+                            type="button"
+                            data-testid="btn-open-release-luggage"
+                            onClick={() => {
+                              setCounterClaimPin(selectedLuggage.claimPin);
+                              setCounterSupervisorPin('9921');
+                              setCounterReleaseNotes('Verified physical claim ticket at counter. All bags surrendered in good order.');
+                              setCounterReleaseModalOpen(true);
+                            }}
+                            className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-1.5"
+                          >
+                            <span>🤝</span> Counter Release
+                          </button>
+                        </div>
+                      )}
+
+                      {selectedLuggage.status === 'OUT_FOR_DELIVERY' && (
+                        <button
+                          type="button"
+                          data-testid="btn-confirm-delivery-luggage"
+                          onClick={handleCompleteDelivery}
+                          disabled={luggageSubmitting}
+                          className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                        >
+                          <span>✅</span> Confirm Delivery Completed
+                        </button>
+                      )}
+
+                      {(selectedLuggage.status === 'DELIVERED_TO_ROOM' || selectedLuggage.status === 'CLAIMED_AT_COUNTER') && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl text-center space-y-1">
+                          <span className="text-emerald-400 font-bold text-xs">Custody Released Successfully</span>
+                          <p className="text-[10px] text-zinc-400">
+                            {selectedLuggage.releaseNotes || 'All items released to verified recipient.'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-16 text-zinc-500 text-xs">
+                    Select a baggage claim from the left list to view details and dispatch actions.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 70: TAG NEW LUGGAGE CLAIM MODAL */}
+        {tagLuggageModalOpen && (
+          <div
+            data-testid="modal-tag-luggage"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100 max-h-[92vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <span>🏷️</span> Tag New Left Luggage Claim
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setTagLuggageModalOpen(false)}
+                  className="text-zinc-400 hover:text-white font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3.5 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Guest Full Name *</label>
+                    <input
+                      type="text"
+                      data-testid="input-luggage-guest-name"
+                      value={tagGuestName}
+                      onChange={(e) => setTagGuestName(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:border-indigo-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Contact Phone *</label>
+                    <input
+                      type="text"
+                      data-testid="input-luggage-guest-phone"
+                      value={tagGuestPhone}
+                      onChange={(e) => setTagGuestPhone(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-indigo-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Room Number (if allotted/leaving)</label>
+                    <input
+                      type="text"
+                      data-testid="input-luggage-room-number"
+                      value={tagRoomNumber}
+                      onChange={(e) => setTagRoomNumber(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-indigo-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Storage Type</label>
+                    <select
+                      value={tagStorageType}
+                      onChange={(e: any) => setTagStorageType(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:border-indigo-400 focus:outline-none"
+                    >
+                      <option value="EARLY_ARRIVAL">Early Arrival (Pre-CheckIn)</option>
+                      <option value="POST_CHECKOUT">Post-Checkout Departure</option>
+                      <option value="TRANSIT_HOLD">Transit Hold / Day Attendee</option>
+                      <option value="LONG_TERM_STORAGE">Long Term Storage</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Storage Rack / Bay *</label>
+                    <input
+                      type="text"
+                      data-testid="input-luggage-rack-location"
+                      value={tagRackLocation}
+                      onChange={(e) => setTagRackLocation(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-indigo-300 font-mono font-bold focus:border-indigo-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Number of Pieces</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={tagPieceCount}
+                      onChange={(e) => setTagPieceCount(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold focus:border-indigo-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Piece Description</label>
+                  <input
+                    type="text"
+                    value={tagPieceDescription}
+                    onChange={(e) => setTagPieceDescription(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-indigo-400 focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex items-center gap-2 p-3 rounded-xl bg-zinc-900 border border-zinc-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tagFragile}
+                      onChange={(e) => setTagFragile(e.target.checked)}
+                      className="w-4 h-4 rounded text-red-500 focus:ring-0"
+                    />
+                    <span className="font-bold text-red-300">Contains Fragile Items</span>
+                  </label>
+                  <label className="flex items-center gap-2 p-3 rounded-xl bg-zinc-900 border border-zinc-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tagPerishable}
+                      onChange={(e) => setTagPerishable(e.target.checked)}
+                      className="w-4 h-4 rounded text-amber-500 focus:ring-0"
+                    />
+                    <span className="font-bold text-amber-300">Perishables Inside</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Security Claim PIN (4 Digits)</label>
+                  <input
+                    type="text"
+                    maxLength={4}
+                    data-testid="input-luggage-claim-pin"
+                    value={tagClaimPin}
+                    onChange={(e) => setTagClaimPin(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-emerald-400 font-mono font-bold tracking-widest text-center focus:border-indigo-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTagLuggageModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-submit-tag-luggage"
+                  onClick={handleTagNewLuggage}
+                  disabled={luggageSubmitting}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                >
+                  Issue Claim Tag
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 70: DISPATCH PORTER MODAL */}
+        {dispatchLuggageModalOpen && selectedLuggage && (
+          <div
+            data-testid="modal-dispatch-luggage"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <span>🚚</span> Dispatch Porter for {selectedLuggage.claimTag}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setDispatchLuggageModalOpen(false)}
+                  className="text-zinc-400 hover:text-white font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Porter / Bellboy Assigned *</label>
+                  <input
+                    type="text"
+                    data-testid="input-dispatch-porter-name"
+                    value={dispatchPorterName}
+                    onChange={(e) => setDispatchPorterName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:border-amber-400 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Delivery Destination *</label>
+                  <input
+                    type="text"
+                    data-testid="input-dispatch-destination"
+                    value={dispatchTargetLocation}
+                    onChange={(e) => setDispatchTargetLocation(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-amber-300 font-bold focus:border-amber-400 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Dispatch Notes</label>
+                  <input
+                    type="text"
+                    value={dispatchNotes}
+                    onChange={(e) => setDispatchNotes(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-amber-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDispatchLuggageModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-submit-dispatch-luggage"
+                  onClick={handleDispatchLuggage}
+                  disabled={luggageSubmitting}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                >
+                  Start Porter Dispatch
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT 70: COUNTER RELEASE MODAL */}
+        {counterReleaseModalOpen && selectedLuggage && (
+          <div
+            data-testid="modal-release-luggage"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <span>🤝</span> Counter Release for {selectedLuggage.claimTag}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setCounterReleaseModalOpen(false)}
+                  className="text-zinc-400 hover:text-white font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Guest Claim PIN (Presented on Slip)</label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    data-testid="input-release-claim-pin"
+                    value={counterClaimPin}
+                    onChange={(e) => setCounterClaimPin(e.target.value)}
+                    placeholder="Enter 4-digit PIN"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-indigo-500/50 text-indigo-300 font-mono font-bold text-center text-sm focus:outline-none"
+                  />
+                </div>
+
+                <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                      <span>🛡️</span> Supervisor Override PIN
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCounterSupervisorPin('9921')}
+                      className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30"
+                    >
+                      Quick PIN: 9921
+                    </button>
+                  </div>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    data-testid="input-release-supervisor-pin"
+                    value={counterSupervisorPin}
+                    onChange={(e) => setCounterSupervisorPin(e.target.value)}
+                    placeholder="Enter Staff PIN"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-amber-500/40 text-amber-400 font-mono font-bold tracking-widest text-center text-sm focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Release Verification Remarks</label>
+                  <input
+                    type="text"
+                    value={counterReleaseNotes}
+                    onChange={(e) => setCounterReleaseNotes(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-indigo-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCounterReleaseModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-submit-release-luggage"
+                  onClick={handleCounterRelease}
+                  disabled={luggageSubmitting}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                >
+                  Authorize Release
                 </button>
               </div>
             </div>

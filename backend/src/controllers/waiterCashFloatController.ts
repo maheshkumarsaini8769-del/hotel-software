@@ -4,23 +4,26 @@ import { WaiterCashFloat, WaiterFloatStatus } from '../models/WaiterCashFloat';
 import { CashierShiftFloat, CashierShiftStatus } from '../models/CashierShiftFloat';
 import { TenantRequest, UserRole } from '../types';
 
+const safeObjectId = (id?: any): Types.ObjectId | undefined => {
+  if (id && Types.ObjectId.isValid(String(id))) {
+    return new Types.ObjectId(String(id));
+  }
+  return undefined;
+};
+
 /**
  * 1. Open Waiter Daily Cash Float
  * POST /api/v1/waiter-cash-float/open
  */
 export const openWaiterFloat = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
-    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    const hotelId = req.hotelId || safeObjectId(req.user?.hotelId);
     if (!hotelId) {
       res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
       return;
     }
 
-    const waiterUserId = req.body.waiterUserId
-      ? new Types.ObjectId(req.body.waiterUserId)
-      : req.user?.userId
-      ? new Types.ObjectId(req.user.userId)
-      : new Types.ObjectId();
+    const waiterUserId = safeObjectId(req.body.waiterUserId) || safeObjectId(req.user?.userId) || new Types.ObjectId();
 
     const waiterName = req.body.waiterName || (req.user as any)?.name || 'Floor Waiter';
     const openingFloat = Number(req.body.openingFloat) || 0;
@@ -79,13 +82,13 @@ export const openWaiterFloat = async (req: TenantRequest, res: Response): Promis
  */
 export const recordCashCollection = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
-    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    const hotelId = req.hotelId || safeObjectId(req.user?.hotelId);
     if (!hotelId) {
       res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
       return;
     }
 
-    const waiterUserId = req.user?.userId ? new Types.ObjectId(req.user.userId) : undefined;
+    const waiterUserId = safeObjectId(req.user?.userId);
     const { billId, tableNumber, billAmount, amountTendered, changeGiven = 0 } = req.body;
 
     if (!billId || !tableNumber || billAmount === undefined || amountTendered === undefined) {
@@ -168,14 +171,16 @@ export const recordCashCollection = async (req: TenantRequest, res: Response): P
  */
 export const getActiveFloat = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
-    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
-    const waiterUserId = req.user?.userId ? new Types.ObjectId(req.user.userId) : undefined;
+    const hotelId = req.hotelId || safeObjectId(req.user?.hotelId);
+    const waiterUserId = safeObjectId(req.user?.userId);
 
-    const activeFloat = await WaiterCashFloat.findOne({
-      hotelId,
-      waiterUserId,
+    const query: any = {
       status: { $in: [WaiterFloatStatus.OPEN, WaiterFloatStatus.DROPPED_PENDING_APPROVAL] },
-    });
+    };
+    if (hotelId) query.hotelId = hotelId;
+    if (waiterUserId) query.waiterUserId = waiterUserId;
+
+    const activeFloat = await WaiterCashFloat.findOne(query);
 
     res.status(200).json({
       success: true,
@@ -193,8 +198,8 @@ export const getActiveFloat = async (req: TenantRequest, res: Response): Promise
  */
 export const requestCashDrop = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
-    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
-    const waiterUserId = req.user?.userId ? new Types.ObjectId(req.user.userId) : undefined;
+    const hotelId = req.hotelId || safeObjectId(req.user?.hotelId);
+    const waiterUserId = safeObjectId(req.user?.userId);
 
     const { actualCashHandedOver, varianceReason } = req.body;
 

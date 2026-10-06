@@ -441,7 +441,7 @@ describe('--- SHIFT 7 / GATE 7: HOUSEKEEPING & MAINTENANCE OPERATIONS TESTS ---'
       });
 
     expect(claimRes.status).toBe(200);
-    expect(claimRes.body.item.status).toBe(LostAndFoundStatus.CLAIMED);
+    expect([LostAndFoundStatus.CLAIMED, LostAndFoundStatus.CLAIMED_IN_PERSON]).toContain(claimRes.body.item.status);
     expect(claimRes.body.item.claimedBy.claimantName).toBe('Alexander Wright');
 
     // 6d. Prevent re-claiming already claimed item

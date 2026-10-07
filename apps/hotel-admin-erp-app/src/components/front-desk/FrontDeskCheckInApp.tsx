@@ -415,11 +415,94 @@ export interface ParcelMetrics {
   totalOutward: number;
 }
 
+// Shift 72: Front Desk Lost & Found Vault Workstation & Digital Custody Chain
+export interface LostAndFoundCustodyTransfer {
+  action: 'LOGGED' | 'MOVED_TO_VAULT' | 'INSPECTED' | 'VERIFIED' | 'DISPATCH_PREPARED' | 'HANDOVER' | 'DISPOSED';
+  performedByName?: string;
+  fromLocation?: string;
+  toLocation?: string;
+  timestamp: string;
+  notes?: string;
+}
+
+export interface LostAndFoundClaimVerification {
+  claimantName: string;
+  claimantPhone: string;
+  claimantEmail?: string;
+  idProofType: string;
+  idProofNumber: string;
+  verificationNotes?: string;
+  verifiedAt: string;
+  serialNumberMatched?: boolean;
+  matchConfidenceScore?: number;
+}
+
+export interface LostAndFoundCourierDispatch {
+  courierPartner: string;
+  waybillNumber: string;
+  recipientName: string;
+  recipientPhone: string;
+  shippingAddress: {
+    street: string;
+    city: string;
+    state?: string;
+    pincode?: string;
+    country?: string;
+  };
+  shippingFeePaidBy: string;
+  shippingFeeAmount?: number;
+  dispatchedAt: string;
+  courierStatus: string;
+  notes?: string;
+}
+
+export interface LostAndFoundItem {
+  _id: string;
+  trackingNumber: string;
+  description: string;
+  category: 'ELECTRONICS' | 'CLOTHING' | 'JEWELRY' | 'DOCUMENTS' | 'KEYS' | 'OTHER';
+  foundLocation: string;
+  finderName?: string;
+  guestName?: string;
+  storageLocation: string;
+  secureVaultLocker?: string;
+  estimatedValue: number;
+  isHighValue: boolean;
+  retentionExpiryDate: string;
+  retentionDays?: number;
+  photoUrl?: string;
+  status: 'LOGGED' | 'INQUIRY_RECEIVED' | 'VERIFIED_PENDING_DISPATCH' | 'CLAIMED' | 'CLAIMED_IN_PERSON' | 'COURIER_DISPATCHED' | 'DISPOSED' | 'AUCTIONED';
+  claimedBy?: {
+    claimantName: string;
+    contactNumber: string;
+    idProof: string;
+    claimedAt: string;
+    notes?: string;
+  };
+  claimVerification?: LostAndFoundClaimVerification;
+  courierDispatch?: LostAndFoundCourierDispatch;
+  custodyChain: LostAndFoundCustodyTransfer[];
+  disposedAt?: string;
+  disposalNotes?: string;
+  createdAt: string;
+}
+
+export interface LostAndFoundMetrics {
+  totalLogged: number;
+  activeInVault: number;
+  highValueSecured: number;
+  pendingDispatch: number;
+  claimedInPerson: number;
+  courierDispatched: number;
+  disposed: number;
+  retentionDueCount: number;
+}
+
 export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   authToken,
   hotelId: propHotelId,
 }) => {
-  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER' | 'SDB' | 'LUGGAGE' | 'PARCEL'>('CHECKIN');
+  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER' | 'SDB' | 'LUGGAGE' | 'PARCEL' | 'LOST_AND_FOUND'>('CHECKIN');
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -638,6 +721,66 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   // Parcel Audit Modal
   const [parcelAuditModalOpen, setParcelAuditModalOpen] = useState<boolean>(false);
   const [parcelSubmitting, setParcelSubmitting] = useState<boolean>(false);
+
+  // Shift 72: Front Desk Lost & Found Vault Workstation State
+  const [lostFoundItems, setLostFoundItems] = useState<LostAndFoundItem[]>([]);
+  const [lostFoundMetrics, setLostFoundMetrics] = useState<LostAndFoundMetrics | null>(null);
+  const [loadingLostFound, setLoadingLostFound] = useState<boolean>(false);
+  const [selectedLostItem, setSelectedLostItem] = useState<LostAndFoundItem | null>(null);
+  const [lostFoundFilterCategory, setLostFoundFilterCategory] = useState<string>('ALL');
+  const [lostFoundFilterStatus, setLostFoundFilterStatus] = useState<string>('ALL');
+  const [lostFoundSearchQuery, setLostFoundSearchQuery] = useState<string>('');
+
+  // Log Item Modal State
+  const [logLostItemModalOpen, setLogLostItemModalOpen] = useState<boolean>(false);
+  const [lostItemDesc, setLostItemDesc] = useState<string>('');
+  const [lostItemCategory, setLostItemCategory] = useState<'ELECTRONICS' | 'CLOTHING' | 'JEWELRY' | 'DOCUMENTS' | 'KEYS' | 'OTHER'>('ELECTRONICS');
+  const [lostItemLocation, setLostItemLocation] = useState<string>('');
+  const [lostItemGuestName, setLostItemGuestName] = useState<string>('');
+  const [lostItemStorage, setLostItemStorage] = useState<string>('Vault Safe Locker A-01');
+  const [lostItemVaultLocker, setLostItemVaultLocker] = useState<string>('VAULT-A01');
+  const [lostItemEstimatedValue, setLostItemEstimatedValue] = useState<number>(15000);
+  const [lostItemRetentionDays, setLostItemRetentionDays] = useState<number>(90);
+
+  // Claim Verification Modal State
+  const [verifyLostClaimModalOpen, setVerifyLostClaimModalOpen] = useState<boolean>(false);
+  const [claimantName, setClaimantName] = useState<string>('');
+  const [claimantPhone, setClaimantPhone] = useState<string>('');
+  const [claimantEmail, setClaimantEmail] = useState<string>('');
+  const [claimIdType, setClaimIdType] = useState<string>('AADHAAR');
+  const [claimIdNumber, setClaimIdNumber] = useState<string>('');
+  const [claimNotes, setClaimNotes] = useState<string>('Verified purchase invoice & device unlock');
+  const [claimSerialMatched, setClaimSerialMatched] = useState<boolean>(true);
+
+  // Counter Handover Modal State
+  const [lostHandoverModalOpen, setLostHandoverModalOpen] = useState<boolean>(false);
+  const [handoverClaimantNameInput, setHandoverClaimantNameInput] = useState<string>('');
+  const [handoverContactNumber, setHandoverContactNumber] = useState<string>('');
+  const [handoverIdProofInput, setHandoverIdProofInput] = useState<string>('');
+  const [handoverStaffWitness, setHandoverStaffWitness] = useState<string>('Duty Manager Sharma');
+  const [handoverNotesInput, setHandoverNotesInput] = useState<string>('Physical counter identification and handover completed');
+
+  // Courier Dispatch Modal State
+  const [lostCourierModalOpen, setLostCourierModalOpen] = useState<boolean>(false);
+  const [lostCourierPartner, setLostCourierPartner] = useState<string>('BLUE_DART');
+  const [lostCourierAwb, setLostCourierAwb] = useState<string>('');
+  const [lostRecipientName, setLostRecipientName] = useState<string>('');
+  const [lostRecipientPhone, setLostRecipientPhone] = useState<string>('');
+  const [lostShippingStreet, setLostShippingStreet] = useState<string>('');
+  const [lostShippingCity, setLostShippingCity] = useState<string>('');
+  const [lostShippingPincode, setLostShippingPincode] = useState<string>('');
+  const [lostShippingFee, setLostShippingFee] = useState<number>(1500);
+  const [lostFeePaidBy, setLostFeePaidBy] = useState<string>('GUEST');
+
+  // Disposal Modal State
+  const [lostDisposeModalOpen, setLostDisposeModalOpen] = useState<boolean>(false);
+  const [disposalActionType, setDisposalActionType] = useState<'DISPOSED' | 'AUCTIONED'>('DISPOSED');
+  const [disposalNotesInput, setDisposalNotesInput] = useState<string>('90-day retention window expired. Authorized disposal.');
+  const [disposalSupervisorPin, setDisposalSupervisorPin] = useState<string>('9921');
+
+  // Audit Modal State
+  const [lostAuditModalOpen, setLostAuditModalOpen] = useState<boolean>(false);
+  const [lostSubmitting, setLostSubmitting] = useState<boolean>(false);
 
   // Check-In Form State
   const [guestName, setGuestName] = useState('');
@@ -1471,6 +1614,196 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       showToast(`❌ Booking failed: ${err.response?.data?.error || err.message}`);
     } finally {
       setParcelSubmitting(false);
+    }
+  };
+
+  // Shift 72: Front Desk Lost & Found Vault API Handlers
+  const loadLostAndFound = async () => {
+    try {
+      setLoadingLostFound(true);
+      const res = await axios.get(`${apiBase}/pms/frontdesk/lost-and-found/vault`, {
+        headers: authHeaders,
+        params: {
+          hotelId,
+          status: lostFoundFilterStatus !== 'ALL' ? lostFoundFilterStatus : undefined,
+          category: lostFoundFilterCategory !== 'ALL' ? lostFoundFilterCategory : undefined,
+          search: lostFoundSearchQuery.trim() || undefined,
+        },
+      });
+      if (res.data.success) {
+        setLostFoundItems(res.data.items || []);
+        if (res.data.metrics) {
+          setLostFoundMetrics(res.data.metrics);
+        }
+      }
+    } catch (e: any) {
+      console.error('Failed to load lost and found vault:', e);
+    } finally {
+      setLoadingLostFound(false);
+    }
+  };
+
+  const handleLogInwardLostItem = async () => {
+    if (!lostItemDesc.trim() || !lostItemLocation.trim()) {
+      showToast('⚠️ Item description and found location are required.');
+      return;
+    }
+    try {
+      setLostSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/lost-and-found/inward`,
+        {
+          description: lostItemDesc.trim(),
+          category: lostItemCategory,
+          foundLocation: lostItemLocation.trim(),
+          guestName: lostItemGuestName.trim() || undefined,
+          storageLocation: lostItemStorage.trim(),
+          secureVaultLocker: lostItemVaultLocker.trim() || undefined,
+          estimatedValue: Number(lostItemEstimatedValue) || 0,
+          isHighValue: Number(lostItemEstimatedValue) >= 5000 || lostItemCategory === 'JEWELRY' || lostItemCategory === 'ELECTRONICS',
+          retentionDays: Number(lostItemRetentionDays) || 90,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`✅ Lost item logged successfully (${res.data.item.trackingNumber})!`);
+        setLogLostItemModalOpen(false);
+        setLostItemDesc('');
+        setLostItemLocation('');
+        setLostItemGuestName('');
+        await loadLostAndFound();
+      }
+    } catch (err: any) {
+      showToast(`❌ Logging failed: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setLostSubmitting(false);
+    }
+  };
+
+  const handleVerifyLostClaim = async () => {
+    if (!selectedLostItem) return;
+    if (!claimantName.trim() || !claimantPhone.trim() || !claimIdNumber.trim()) {
+      showToast('⚠️ Claimant Name, Phone, and ID proof number are required.');
+      return;
+    }
+    try {
+      setLostSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/lost-and-found/${selectedLostItem._id}/verify-claim`,
+        {
+          claimantName: claimantName.trim(),
+          claimantPhone: claimantPhone.trim(),
+          claimantEmail: claimantEmail.trim() || undefined,
+          idProofType: claimIdType,
+          idProofNumber: claimIdNumber.trim(),
+          verificationNotes: claimNotes.trim(),
+          serialNumberMatched: claimSerialMatched,
+          matchConfidenceScore: 100,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🔍 Ownership claim verified for ${claimantName}! Item ready for handover/dispatch.`);
+        setVerifyLostClaimModalOpen(false);
+        await loadLostAndFound();
+      }
+    } catch (err: any) {
+      showToast(`❌ Verification failed: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setLostSubmitting(false);
+    }
+  };
+
+  const handleCounterHandoverLostItem = async () => {
+    if (!selectedLostItem) return;
+    if (!handoverClaimantNameInput.trim() || !handoverContactNumber.trim() || !handoverIdProofInput.trim()) {
+      showToast('⚠️ Claimant Name, Contact, and ID proof are required for physical release.');
+      return;
+    }
+    try {
+      setLostSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/lost-and-found/${selectedLostItem._id}/handover`,
+        {
+          claimantName: handoverClaimantNameInput.trim(),
+          contactNumber: handoverContactNumber.trim(),
+          idProof: handoverIdProofInput.trim(),
+          notes: handoverNotesInput.trim(),
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🤝 Item (${selectedLostItem.trackingNumber}) released in-person to ${handoverClaimantNameInput}!`);
+        setLostHandoverModalOpen(false);
+        await loadLostAndFound();
+      }
+    } catch (err: any) {
+      showToast(`❌ Handover failed: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setLostSubmitting(false);
+    }
+  };
+
+  const handleDispatchCourierLostItem = async () => {
+    if (!selectedLostItem) return;
+    if (!lostCourierAwb.trim() || !lostRecipientName.trim() || !lostRecipientPhone.trim() || !lostShippingStreet.trim() || !lostShippingCity.trim()) {
+      showToast('⚠️ Waybill number, recipient name, phone, and shipping address are required.');
+      return;
+    }
+    try {
+      setLostSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/lost-and-found/${selectedLostItem._id}/dispatch-courier`,
+        {
+          courierPartner: lostCourierPartner,
+          waybillNumber: lostCourierAwb.trim(),
+          recipientName: lostRecipientName.trim(),
+          recipientPhone: lostRecipientPhone.trim(),
+          shippingAddress: {
+            street: lostShippingStreet.trim(),
+            city: lostShippingCity.trim(),
+            pincode: lostShippingPincode.trim(),
+            country: 'India',
+          },
+          shippingFeePaidBy: lostFeePaidBy,
+          shippingFeeAmount: Number(lostShippingFee) || 0,
+          notes: 'Outward express courier for guest lost property',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🚚 Dispatched via ${lostCourierPartner} (AWB: ${lostCourierAwb})!`);
+        setLostCourierModalOpen(false);
+        await loadLostAndFound();
+      }
+    } catch (err: any) {
+      showToast(`❌ Dispatch failed: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setLostSubmitting(false);
+    }
+  };
+
+  const handleDisposeLostItem = async () => {
+    if (!selectedLostItem) return;
+    try {
+      setLostSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/lost-and-found/${selectedLostItem._id}/dispose`,
+        {
+          action: disposalActionType,
+          disposalNotes: disposalNotesInput.trim(),
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🗑️ Item marked as ${disposalActionType}!`);
+        setLostDisposeModalOpen(false);
+        await loadLostAndFound();
+      }
+    } catch (err: any) {
+      showToast(`❌ Disposal failed: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setLostSubmitting(false);
     }
   };
 
@@ -2429,6 +2762,21 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }`}
         >
           <span>📦</span> Parcels & Courier Desk
+        </button>
+        <button
+          type="button"
+          data-testid="tab-lost-found"
+          onClick={() => {
+            setActiveTab('LOST_AND_FOUND');
+            loadLostAndFound();
+          }}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'LOST_AND_FOUND'
+              ? 'border-amber-400 text-amber-400 bg-amber-500/10'
+              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <span>🔍</span> Lost & Found Vault
         </button>
       </div>
 
@@ -6676,6 +7024,1106 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       className="w-full py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
                     >
                       Close Audit Log
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SHIFT 72: FRONT DESK LOST & FOUND VAULT WORKSPACE */}
+        {activeTab === 'LOST_AND_FOUND' && (
+          <div className="space-y-6">
+            {/* Header & Control Bar */}
+            <div className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">🔍</span>
+                  <div>
+                    <h2 className="text-xl font-black text-white">Lost & Found Vault Workstation</h2>
+                    <p className="text-xs text-zinc-400">
+                      Digital custody chain, secure safe locker vaulting, claimant identity verification & express courier dispatch
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => loadLostAndFound()}
+                  className="px-4 py-2.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-bold text-xs transition flex items-center gap-2 border border-zinc-700/50"
+                >
+                  <span>🔄</span> Refresh Vault
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-open-log-lost-modal"
+                  onClick={() => {
+                    setLostItemDesc('');
+                    setLostItemLocation('');
+                    setLostItemGuestName('');
+                    setLogLostItemModalOpen(true);
+                  }}
+                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black font-black text-xs transition shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                >
+                  <span>➕</span> Log Found Item
+                </button>
+              </div>
+            </div>
+
+            {/* KPI Summary Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-2xl">
+                <div className="text-[11px] font-bold uppercase text-zinc-400 tracking-wider">Vault Inventory</div>
+                <div className="text-2xl font-black text-white mt-1">
+                  {lostFoundMetrics?.totalLogged ?? lostFoundItems.length}
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-1">Total property items logged</div>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-amber-500/20 p-4 rounded-2xl bg-amber-500/5">
+                <div className="text-[11px] font-bold uppercase text-amber-400 tracking-wider">Safe Vaulted</div>
+                <div className="text-2xl font-black text-amber-300 mt-1">
+                  {lostFoundMetrics?.highValueSecured ?? lostFoundItems.filter((i) => i.isHighValue).length}
+                </div>
+                <div className="text-[10px] text-amber-400/70 mt-1">High-value in digital lockers</div>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-blue-500/20 p-4 rounded-2xl bg-blue-500/5">
+                <div className="text-[11px] font-bold uppercase text-blue-400 tracking-wider">Claims Verified</div>
+                <div className="text-2xl font-black text-blue-300 mt-1">
+                  {lostFoundMetrics?.pendingDispatch ?? lostFoundItems.filter((i) => i.status === 'VERIFIED_PENDING_DISPATCH').length}
+                </div>
+                <div className="text-[10px] text-blue-400/70 mt-1">Ready for handover / dispatch</div>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-emerald-500/20 p-4 rounded-2xl bg-emerald-500/5">
+                <div className="text-[11px] font-bold uppercase text-emerald-400 tracking-wider">Returned & Shipped</div>
+                <div className="text-2xl font-black text-emerald-300 mt-1">
+                  {(lostFoundMetrics?.claimedInPerson ?? 0) + (lostFoundMetrics?.courierDispatched ?? 0)}
+                </div>
+                <div className="text-[10px] text-emerald-400/70 mt-1">In-person & courier dispatches</div>
+              </div>
+
+              <div className="bg-zinc-900/80 border border-rose-500/20 p-4 rounded-2xl bg-rose-500/5">
+                <div className="text-[11px] font-bold uppercase text-rose-400 tracking-wider">Disposed / Auction</div>
+                <div className="text-2xl font-black text-rose-300 mt-1">
+                  {lostFoundMetrics?.disposed ?? lostFoundItems.filter((i) => i.status === 'DISPOSED' || i.status === 'AUCTIONED').length}
+                </div>
+                <div className="text-[10px] text-rose-400/70 mt-1">Post-retention statutory clear</div>
+              </div>
+            </div>
+
+            {/* Filters & Search Toolbar */}
+            <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-2xl flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="flex flex-1 items-center gap-3 w-full md:w-auto">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    data-testid="input-lost-search"
+                    placeholder="Search tracking #, description, room/location, or guest..."
+                    value={lostFoundSearchQuery}
+                    onChange={(e) => setLostFoundSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') loadLostAndFound();
+                    }}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                  />
+                  {lostFoundSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLostFoundSearchQuery('');
+                        setTimeout(loadLostAndFound, 50);
+                      }}
+                      className="absolute right-3 top-2 text-zinc-500 hover:text-white text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => loadLostAndFound()}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition whitespace-nowrap"
+                >
+                  Search
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <select
+                  value={lostFoundFilterCategory}
+                  onChange={(e) => {
+                    setLostFoundFilterCategory(e.target.value);
+                    setTimeout(loadLostAndFound, 50);
+                  }}
+                  className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-amber-500"
+                >
+                  <option value="ALL">All Categories</option>
+                  <option value="ELECTRONICS">Electronics & Gadgets</option>
+                  <option value="JEWELRY">Jewelry & Valuables</option>
+                  <option value="DOCUMENTS">Documents & Passports</option>
+                  <option value="CLOTHING">Clothing & Attire</option>
+                  <option value="KEYS">Keys & Access Cards</option>
+                  <option value="OTHER">Other Items</option>
+                </select>
+
+                <select
+                  value={lostFoundFilterStatus}
+                  onChange={(e) => {
+                    setLostFoundFilterStatus(e.target.value);
+                    setTimeout(loadLostAndFound, 50);
+                  }}
+                  className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-amber-500"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="LOGGED">Logged / Vaulted</option>
+                  <option value="CLAIMED">Claim Verified</option>
+                  <option value="RETURNED">Handed Over</option>
+                  <option value="DISPATCHED">Dispatched (Courier)</option>
+                  <option value="DISPOSED">Disposed</option>
+                  <option value="AUCTIONED">Auctioned</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Inventory Vault Table */}
+            <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl overflow-hidden shadow-xl">
+              <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>🗄️</span> Custody Register & Item Records ({lostFoundItems.length})
+                </h3>
+                {loadingLostFound && (
+                  <span className="text-xs text-amber-400 animate-pulse font-medium">Syncing vault...</span>
+                )}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-zinc-800 bg-zinc-950/60 text-zinc-400 uppercase font-black tracking-wider text-[10px]">
+                      <th className="py-3.5 px-4">Tracking & Tag</th>
+                      <th className="py-3.5 px-4">Item & Category</th>
+                      <th className="py-3.5 px-4">Found Location</th>
+                      <th className="py-3.5 px-4">Locker / Storage</th>
+                      <th className="py-3.5 px-4">Status</th>
+                      <th className="py-3.5 px-4 text-right">Vault Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/60">
+                    {lostFoundItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-zinc-500">
+                          <div className="flex flex-col items-center gap-2">
+                            <span className="text-3xl">🔍</span>
+                            <p className="text-sm font-bold text-zinc-400">No items found in vault register</p>
+                            <p className="text-xs text-zinc-600">Log inward guest lost property using the button above.</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      lostFoundItems.map((item) => {
+                        const statusColors: Record<string, string> = {
+                          LOGGED: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+                          CLAIMED: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+                          RETURNED: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+                          DISPATCHED: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+                          DISPOSED: 'bg-zinc-700/30 text-zinc-400 border-zinc-600/30',
+                          AUCTIONED: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+                        };
+
+                        return (
+                          <tr key={item._id} className="hover:bg-zinc-800/40 transition">
+                            <td className="py-4 px-4 font-mono font-bold text-white">
+                              <div className="flex items-center gap-2">
+                                <span>{item.trackingNumber}</span>
+                                {item.isHighValue && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                    🔒 Safe
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-zinc-500 font-sans mt-0.5">
+                                {new Date(item.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </div>
+                            </td>
+
+                            <td className="py-4 px-4">
+                              <div className="font-bold text-zinc-200">{item.description}</div>
+                              <div className="flex items-center gap-2 text-[10px] text-zinc-400 mt-0.5">
+                                <span className="uppercase font-semibold tracking-wider text-amber-400/90">{item.category}</span>
+                                {item.guestName && <span>• Guest: {item.guestName}</span>}
+                              </div>
+                            </td>
+
+                            <td className="py-4 px-4 text-zinc-300">
+                              <div>{item.foundLocation}</div>
+                              <div className="text-[10px] text-zinc-500">By: {item.finderName || 'Housekeeping'}</div>
+                            </td>
+
+                            <td className="py-4 px-4">
+                              <div className="font-semibold text-zinc-200">
+                                {item.secureVaultLocker || item.storageLocation || 'Vault Bay'}
+                              </div>
+                              <div className="text-[10px] text-zinc-400">
+                                Est. Value: ₹{item.estimatedValue?.toLocaleString() || '0'}
+                              </div>
+                            </td>
+
+                            <td className="py-4 px-4">
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-wider ${statusColors[item.status] || 'bg-zinc-800 text-zinc-400 border-zinc-700'}`}>
+                                {item.status}
+                              </span>
+                            </td>
+
+                            <td className="py-4 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                {(item.status === 'LOGGED' || item.status === 'INQUIRY_RECEIVED') && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      data-testid={`btn-claim-${item._id}`}
+                                      onClick={() => {
+                                        setSelectedLostItem(item);
+                                        setClaimantName(item.guestName || '');
+                                        setClaimantPhone('');
+                                        setClaimantEmail('');
+                                        setClaimIdNumber('');
+                                        setVerifyLostClaimModalOpen(true);
+                                      }}
+                                      className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-bold text-[11px] transition"
+                                    >
+                                      Verify Claim
+                                    </button>
+                                    <button
+                                      type="button"
+                                      data-testid={`btn-handover-${item._id}`}
+                                      onClick={() => {
+                                        setSelectedLostItem(item);
+                                        setHandoverClaimantNameInput(item.guestName || '');
+                                        setHandoverContactNumber('');
+                                        setHandoverIdProofInput('');
+                                        setLostHandoverModalOpen(true);
+                                      }}
+                                      className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold text-[11px] transition"
+                                    >
+                                      Handover
+                                    </button>
+                                  </>
+                                )}
+
+                                {(item.status === 'CLAIMED' || item.status === 'VERIFIED_PENDING_DISPATCH') && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      data-testid={`btn-handover-${item._id}`}
+                                      onClick={() => {
+                                        setSelectedLostItem(item);
+                                        setHandoverClaimantNameInput(item.claimVerification?.claimantName || item.guestName || '');
+                                        setHandoverContactNumber(item.claimVerification?.claimantPhone || '');
+                                        setHandoverIdProofInput(item.claimVerification?.idProofNumber || '');
+                                        setLostHandoverModalOpen(true);
+                                      }}
+                                      className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold text-[11px] transition"
+                                    >
+                                      Counter Handover
+                                    </button>
+                                    <button
+                                      type="button"
+                                      data-testid={`btn-dispatch-${item._id}`}
+                                      onClick={() => {
+                                        setSelectedLostItem(item);
+                                        setLostRecipientName(item.claimVerification?.claimantName || item.guestName || '');
+                                        setLostRecipientPhone(item.claimVerification?.claimantPhone || '');
+                                        setLostCourierAwb(`AWB-LF-${Date.now().toString().slice(-6)}`);
+                                        setLostCourierModalOpen(true);
+                                      }}
+                                      className="px-2.5 py-1 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 font-bold text-[11px] transition"
+                                    >
+                                      Courier Dispatch
+                                    </button>
+                                  </>
+                                )}
+
+                                {item.status !== 'CLAIMED_IN_PERSON' &&
+                                  item.status !== 'COURIER_DISPATCHED' &&
+                                  item.status !== 'DISPOSED' &&
+                                  item.status !== 'AUCTIONED' && (
+                                    <button
+                                      type="button"
+                                      data-testid={`btn-dispose-${item._id}`}
+                                      onClick={() => {
+                                        setSelectedLostItem(item);
+                                        setDisposalActionType('DISPOSED');
+                                        setLostDisposeModalOpen(true);
+                                      }}
+                                      className="px-2 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-bold text-[11px] transition"
+                                    >
+                                      Dispose
+                                    </button>
+                                  )}
+
+                                <button
+                                  type="button"
+                                  data-testid={`btn-audit-${item._id}`}
+                                  onClick={() => {
+                                    setSelectedLostItem(item);
+                                    setLostAuditModalOpen(true);
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-[11px] transition border border-zinc-700"
+                                >
+                                  Audit Log
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* MODAL 1: LOG INWARD FOUND PROPERTY */}
+            {logLostItemModalOpen && (
+              <div
+                data-testid="modal-log-lost-item"
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+              >
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">🔒</span>
+                      <div>
+                        <h3 className="text-base font-black text-white">Log Found Item into Vault</h3>
+                        <p className="text-xs text-zinc-400">Initiate chain of custody & safe locker allotment</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLogLostItemModalOpen(false)}
+                      className="text-zinc-500 hover:text-white text-lg font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="font-bold text-zinc-300">Item Description *</label>
+                      <input
+                        type="text"
+                        data-testid="input-lost-desc"
+                        placeholder="e.g. Apple iPad Pro 11-inch Space Gray with pencil"
+                        value={lostItemDesc}
+                        onChange={(e) => setLostItemDesc(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Category *</label>
+                      <select
+                        value={lostItemCategory}
+                        onChange={(e) => setLostItemCategory(e.target.value as any)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="ELECTRONICS">Electronics & Gadgets</option>
+                        <option value="JEWELRY">Jewelry & Precious Metals</option>
+                        <option value="DOCUMENTS">Documents / Passports</option>
+                        <option value="CLOTHING">Clothing & Accessories</option>
+                        <option value="KEYS">Keys & Access Cards</option>
+                        <option value="OTHER">Other Belongings</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Found Location *</label>
+                      <input
+                        type="text"
+                        data-testid="input-lost-location"
+                        placeholder="e.g. Room 402 Bedside Table / Pool Cabana"
+                        value={lostItemLocation}
+                        onChange={(e) => setLostItemLocation(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Guest Name (if known)</label>
+                      <input
+                        type="text"
+                        data-testid="input-lost-guest"
+                        placeholder="e.g. Rahul Sharma"
+                        value={lostItemGuestName}
+                        onChange={(e) => setLostItemGuestName(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Estimated Value (₹)</label>
+                      <input
+                        type="number"
+                        value={lostItemEstimatedValue}
+                        onChange={(e) => setLostItemEstimatedValue(Number(e.target.value))}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Digital Vault Safe Locker</label>
+                      <input
+                        type="text"
+                        value={lostItemVaultLocker}
+                        onChange={(e) => setLostItemVaultLocker(e.target.value)}
+                        placeholder="e.g. VAULT-A01"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Retention Window (Days)</label>
+                      <input
+                        type="number"
+                        value={lostItemRetentionDays}
+                        onChange={(e) => setLostItemRetentionDays(Number(e.target.value))}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setLogLostItemModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 hover:text-white text-xs font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="btn-submit-log-lost"
+                      disabled={lostSubmitting}
+                      onClick={handleLogInwardLostItem}
+                      className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition disabled:opacity-50"
+                    >
+                      {lostSubmitting ? 'Inwarding to Vault...' : 'Log & Deposit to Vault'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL 2: VERIFY CLAIM */}
+            {verifyLostClaimModalOpen && selectedLostItem && (
+              <div
+                data-testid="modal-verify-lost-claim"
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+              >
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">🔍</span>
+                      <div>
+                        <h3 className="text-base font-black text-white">Verify Ownership Claim</h3>
+                        <p className="text-xs text-zinc-400 font-mono">
+                          {selectedLostItem.trackingNumber} • {selectedLostItem.description}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setVerifyLostClaimModalOpen(false)}
+                      className="text-zinc-500 hover:text-white text-lg font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Claimant Full Name *</label>
+                      <input
+                        type="text"
+                        data-testid="input-claimant-name"
+                        placeholder="e.g. Vikramaditya Singhania"
+                        value={claimantName}
+                        onChange={(e) => setClaimantName(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Claimant Phone *</label>
+                      <input
+                        type="text"
+                        data-testid="input-claimant-phone"
+                        placeholder="e.g. +91 98765 43210"
+                        value={claimantPhone}
+                        onChange={(e) => setClaimantPhone(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Claimant Email</label>
+                      <input
+                        type="email"
+                        data-testid="input-claimant-email"
+                        placeholder="e.g. claimant@example.com"
+                        value={claimantEmail}
+                        onChange={(e) => setClaimantEmail(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Government ID Proof Type *</label>
+                      <select
+                        value={claimIdType}
+                        onChange={(e) => setClaimIdType(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="AADHAAR">Aadhaar Card</option>
+                        <option value="PASSPORT">Passport</option>
+                        <option value="DRIVING_LICENSE">Driving License</option>
+                        <option value="VOTER_ID">Voter ID</option>
+                        <option value="OTHER">Other Govt Issued ID</option>
+                      </select>
+                    </div>
+
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="font-bold text-zinc-300">ID Proof Number / Document Ref *</label>
+                      <input
+                        type="text"
+                        data-testid="input-claim-id-number"
+                        placeholder="e.g. 5432-8765-1234 or P1234567"
+                        value={claimIdNumber}
+                        onChange={(e) => setClaimIdNumber(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="font-bold text-zinc-300">Verification / Match Notes</label>
+                      <textarea
+                        rows={2}
+                        data-testid="input-claim-notes"
+                        value={claimNotes}
+                        onChange={(e) => setClaimNotes(e.target.value)}
+                        placeholder="Details verifying ownership (e.g. device passcode unlocked, invoice presented, serial matching)"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="serialMatchedCheck"
+                        checked={claimSerialMatched}
+                        onChange={(e) => setClaimSerialMatched(e.target.checked)}
+                        className="w-4 h-4 rounded text-amber-500 focus:ring-0 bg-zinc-900 border-zinc-700"
+                      />
+                      <label htmlFor="serialMatchedCheck" className="text-zinc-300 select-none cursor-pointer">
+                        Serial Number / Biometric / Passcode match verified by Front Desk agent
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setVerifyLostClaimModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 hover:text-white text-xs font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="btn-submit-verify-claim"
+                      disabled={lostSubmitting}
+                      onClick={handleVerifyLostClaim}
+                      className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition disabled:opacity-50"
+                    >
+                      {lostSubmitting ? 'Verifying...' : 'Confirm Ownership Claim'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL 3: IN-PERSON COUNTER HANDOVER */}
+            {lostHandoverModalOpen && selectedLostItem && (
+              <div
+                data-testid="modal-lost-handover"
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+              >
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">🤝</span>
+                      <div>
+                        <h3 className="text-base font-black text-white">Physical Counter Release & Handover</h3>
+                        <p className="text-xs text-zinc-400 font-mono">
+                          {selectedLostItem.trackingNumber} • {selectedLostItem.description}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLostHandoverModalOpen(false)}
+                      className="text-zinc-500 hover:text-white text-lg font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Claimant Recipient Name *</label>
+                      <input
+                        type="text"
+                        data-testid="input-handover-name"
+                        value={handoverClaimantNameInput}
+                        onChange={(e) => setHandoverClaimantNameInput(e.target.value)}
+                        placeholder="e.g. Vikramaditya Singhania"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Contact Number *</label>
+                      <input
+                        type="text"
+                        data-testid="input-handover-phone"
+                        value={handoverContactNumber}
+                        onChange={(e) => setHandoverContactNumber(e.target.value)}
+                        placeholder="e.g. +91 98765 43210"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">ID Proof Verified *</label>
+                      <input
+                        type="text"
+                        data-testid="input-handover-id"
+                        value={handoverIdProofInput}
+                        onChange={(e) => setHandoverIdProofInput(e.target.value)}
+                        placeholder="e.g. Aadhaar 5432-8765-1234"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Duty Staff Witness</label>
+                      <input
+                        type="text"
+                        data-testid="input-handover-witness"
+                        value={handoverStaffWitness}
+                        onChange={(e) => setHandoverStaffWitness(e.target.value)}
+                        placeholder="e.g. Duty Manager Sharma"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="font-bold text-zinc-300">Handover Remarks</label>
+                      <input
+                        type="text"
+                        value={handoverNotesInput}
+                        onChange={(e) => setHandoverNotesInput(e.target.value)}
+                        placeholder="Physical identification completed and acknowledged"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setLostHandoverModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 hover:text-white text-xs font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="btn-submit-handover"
+                      disabled={lostSubmitting}
+                      onClick={handleCounterHandoverLostItem}
+                      className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition disabled:opacity-50"
+                    >
+                      {lostSubmitting ? 'Releasing...' : 'Complete Physical Handover'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL 4: OUTWARD COURIER DISPATCH */}
+            {lostCourierModalOpen && selectedLostItem && (
+              <div
+                data-testid="modal-lost-courier"
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+              >
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">🚚</span>
+                      <div>
+                        <h3 className="text-base font-black text-white">Outward Express Courier Dispatch</h3>
+                        <p className="text-xs text-zinc-400 font-mono">
+                          {selectedLostItem.trackingNumber} • {selectedLostItem.description}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLostCourierModalOpen(false)}
+                      className="text-zinc-500 hover:text-white text-lg font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Courier Partner *</label>
+                      <select
+                        value={lostCourierPartner}
+                        onChange={(e) => setLostCourierPartner(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="BLUE_DART">Blue Dart Express</option>
+                        <option value="DHL">DHL Express Worldwide</option>
+                        <option value="FEDEX">FedEx India</option>
+                        <option value="DTDC">DTDC Courier</option>
+                        <option value="DELHIVERY">Delhivery Surface</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Air Waybill Number (AWB) *</label>
+                      <input
+                        type="text"
+                        data-testid="input-courier-awb"
+                        value={lostCourierAwb}
+                        onChange={(e) => setLostCourierAwb(e.target.value)}
+                        placeholder="e.g. BD-893274921"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Recipient Full Name *</label>
+                      <input
+                        type="text"
+                        data-testid="input-courier-recipient"
+                        value={lostRecipientName}
+                        onChange={(e) => setLostRecipientName(e.target.value)}
+                        placeholder="e.g. Vikramaditya Singhania"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Recipient Phone *</label>
+                      <input
+                        type="text"
+                        data-testid="input-courier-phone"
+                        value={lostRecipientPhone}
+                        onChange={(e) => setLostRecipientPhone(e.target.value)}
+                        placeholder="e.g. +91 98765 43210"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="font-bold text-zinc-300">Street Address *</label>
+                      <input
+                        type="text"
+                        data-testid="input-courier-street"
+                        value={lostShippingStreet}
+                        onChange={(e) => setLostShippingStreet(e.target.value)}
+                        placeholder="e.g. Flat 402, Sea Green Heights, Worli"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Destination City *</label>
+                      <input
+                        type="text"
+                        data-testid="input-courier-city"
+                        value={lostShippingCity}
+                        onChange={(e) => setLostShippingCity(e.target.value)}
+                        placeholder="e.g. Mumbai"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Pincode *</label>
+                      <input
+                        type="text"
+                        data-testid="input-courier-pincode"
+                        value={lostShippingPincode}
+                        onChange={(e) => setLostShippingPincode(e.target.value)}
+                        placeholder="e.g. 400018"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Shipping Fee Paid By</label>
+                      <select
+                        value={lostFeePaidBy}
+                        onChange={(e) => setLostFeePaidBy(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="GUEST">Guest (Prepaid / Billing)</option>
+                        <option value="HOTEL">Hotel Compliment / Courtesy</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Shipping Fee (₹)</label>
+                      <input
+                        type="number"
+                        value={lostShippingFee}
+                        onChange={(e) => setLostShippingFee(Number(e.target.value))}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setLostCourierModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 hover:text-white text-xs font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="btn-submit-courier"
+                      disabled={lostSubmitting}
+                      onClick={handleDispatchCourierLostItem}
+                      className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition disabled:opacity-50"
+                    >
+                      {lostSubmitting ? 'Dispatching...' : 'Dispatch Express Courier'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL 5: DISPOSAL / AUCTION MODAL */}
+            {lostDisposeModalOpen && selectedLostItem && (
+              <div
+                data-testid="modal-lost-dispose"
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+              >
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">🗑️</span>
+                      <div>
+                        <h3 className="text-base font-black text-white">Statutory Item Disposal / Auction</h3>
+                        <p className="text-xs text-zinc-400 font-mono">{selectedLostItem.trackingNumber}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLostDisposeModalOpen(false)}
+                      className="text-zinc-500 hover:text-white text-lg font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs space-y-1 text-amber-200">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <span>⚠️</span> Retention Policy Compliance
+                    </div>
+                    <p className="text-[11px] text-amber-300/80">
+                      Standard retention period is {selectedLostItem.retentionDays || 90} days. Items not claimed within this period may be disposed or auctioned according to hotel policy.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Disposal Action *</label>
+                      <select
+                        value={disposalActionType}
+                        onChange={(e) => setDisposalActionType(e.target.value as any)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="DISPOSED">Environmentally Sound Disposal / Recycling</option>
+                        <option value="AUCTIONED">Annual Staff / Charity Auction</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Disposal Notes & Justification *</label>
+                      <textarea
+                        rows={2}
+                        value={disposalNotesInput}
+                        onChange={(e) => setDisposalNotesInput(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-300">Supervisor Security PIN *</label>
+                      <input
+                        type="password"
+                        data-testid="input-disposal-pin"
+                        value={disposalSupervisorPin}
+                        onChange={(e) => setDisposalSupervisorPin(e.target.value)}
+                        placeholder="Enter 4-digit supervisor PIN"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setLostDisposeModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 hover:text-white text-xs font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="btn-submit-dispose"
+                      disabled={lostSubmitting}
+                      onClick={handleDisposeLostItem}
+                      className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition disabled:opacity-50"
+                    >
+                      {lostSubmitting ? 'Processing...' : 'Authorize Action'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL 6: DIGITAL CUSTODY CHAIN & AUDIT LOG */}
+            {lostAuditModalOpen && selectedLostItem && (
+              <div
+                data-testid="modal-lost-audit"
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+              >
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">📜</span>
+                      <div>
+                        <h3 className="text-base font-black text-white">Digital Chain of Custody</h3>
+                        <p className="text-xs text-zinc-400 font-mono">
+                          {selectedLostItem.trackingNumber} • {selectedLostItem.description}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLostAuditModalOpen(false)}
+                      className="text-zinc-500 hover:text-white text-lg font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 text-xs max-h-80 overflow-y-auto pr-1">
+                    {/* Custody Transfers Timeline */}
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+                        Custody Transfers ({selectedLostItem.custodyChain?.length || 0})
+                      </div>
+                      {selectedLostItem.custodyChain?.map((transfer, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-1"
+                        >
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-bold text-emerald-400">
+                              {transfer.action} {transfer.performedByName ? `• ${transfer.performedByName}` : ''}
+                            </span>
+                            <span className="text-zinc-500 font-mono">
+                              {new Date(transfer.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="text-zinc-300 font-medium">
+                            {transfer.fromLocation || transfer.toLocation
+                              ? `${transfer.fromLocation || 'Initial'} ➔ ${transfer.toLocation || 'Vault'}`
+                              : 'Vault Custody'}
+                          </div>
+                          {transfer.notes && <div className="text-[10px] text-zinc-500">{transfer.notes}</div>}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Claim Verification Details if any */}
+                    {selectedLostItem.claimVerification && (
+                      <div className="p-3 rounded-2xl bg-blue-950/20 border border-blue-800/30 text-xs space-y-1">
+                        <div className="font-bold text-blue-300">Claimant Verified:</div>
+                        <div className="text-zinc-300">
+                          {selectedLostItem.claimVerification.claimantName} • {selectedLostItem.claimVerification.claimantPhone}
+                        </div>
+                        <div className="text-[10px] text-zinc-400">
+                          ID: {selectedLostItem.claimVerification.idProofType} ({selectedLostItem.claimVerification.idProofNumber})
+                        </div>
+                        <div className="text-[10px] text-zinc-500">
+                          Notes: {selectedLostItem.claimVerification.verificationNotes}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Handover Details if any */}
+                    {selectedLostItem.claimedBy && (
+                      <div className="p-3 rounded-2xl bg-emerald-950/20 border border-emerald-800/30 text-xs space-y-1">
+                        <div className="font-bold text-emerald-300">Handover Complete:</div>
+                        <div className="text-zinc-300">
+                          Claimant: {selectedLostItem.claimedBy.claimantName} • Contact: {selectedLostItem.claimedBy.contactNumber}
+                        </div>
+                        <div className="text-[10px] text-zinc-400">
+                          ID: {selectedLostItem.claimedBy.idProof}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Courier Dispatch Details if any */}
+                    {selectedLostItem.courierDispatch && (
+                      <div className="p-3 rounded-2xl bg-purple-950/20 border border-purple-800/30 text-xs space-y-1">
+                        <div className="font-bold text-purple-300">Outward Courier Dispatched:</div>
+                        <div className="text-zinc-300">
+                          Partner: {selectedLostItem.courierDispatch.courierPartner} • AWB: {selectedLostItem.courierDispatch.waybillNumber}
+                        </div>
+                        <div className="text-[10px] text-zinc-400">
+                          Recipient: {selectedLostItem.courierDispatch.recipientName} ({selectedLostItem.courierDispatch.recipientPhone})
+                        </div>
+                        <div className="text-[10px] text-zinc-500">
+                          Address: {selectedLostItem.courierDispatch.shippingAddress?.street}, {selectedLostItem.courierDispatch.shippingAddress?.city}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setLostAuditModalOpen(false)}
+                      className="w-full py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                    >
+                      Close Custody Chain
                     </button>
                   </div>
                 </div>

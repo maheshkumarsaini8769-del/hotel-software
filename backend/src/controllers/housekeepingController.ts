@@ -1109,3 +1109,34 @@ export const getLostAndFound = async (req: TenantRequest, res: Response): Promis
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
   }
 };
+
+export const getLostAndFoundAuditLog = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    const itemId = String(req.params.itemId);
+
+    const query: any = { hotelId };
+    if (Types.ObjectId.isValid(itemId)) {
+      query.$or = [{ _id: new Types.ObjectId(itemId) }, { trackingNumber: itemId }];
+    } else {
+      query.trackingNumber = itemId;
+    }
+
+    const item = await LostAndFound.findOne(query);
+    if (!item) {
+      res.status(404).json({ success: false, errorCode: 'ITEM_NOT_FOUND', message: 'Lost and found item not found' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      trackingNumber: item.trackingNumber,
+      itemDescription: item.description,
+      status: item.status,
+      custodyChain: item.custodyChain,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+

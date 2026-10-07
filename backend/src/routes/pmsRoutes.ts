@@ -89,6 +89,16 @@ import {
   bookOutwardCourier,
   getParcelAuditLog,
 } from '../controllers/parcelController';
+import {
+  getLostAndFoundVault,
+  logLostItem,
+  inquireLostItem,
+  verifyAndApproveClaim,
+  dispatchCourier,
+  handoverInPerson,
+  disposeLostItem,
+  getLostAndFoundAuditLog,
+} from '../controllers/housekeepingController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
 import { Response, NextFunction } from 'express';
@@ -261,6 +271,23 @@ router.post('/frontdesk/parcels/outward', authenticateFrontDeskTerminal, bookOut
 router.post('/parcels/outward', authenticateFrontDeskTerminal, bookOutwardCourier);
 router.get('/frontdesk/parcels/audit-log/:parcelTag', authenticateFrontDeskTerminal, getParcelAuditLog);
 router.get('/parcels/audit-log/:parcelTag', authenticateFrontDeskTerminal, getParcelAuditLog);
+
+// Shift 72: Front Desk Lost & Found Vault Workstation & Digital Custody Chain
+router.get('/frontdesk/lost-and-found', authenticateFrontDeskTerminal, getLostAndFoundVault);
+router.get('/frontdesk/lost-and-found/vault', authenticateFrontDeskTerminal, getLostAndFoundVault);
+router.get('/lost-and-found/vault', authenticateFrontDeskTerminal, getLostAndFoundVault);
+router.post('/frontdesk/lost-and-found/inward', authenticateFrontDeskTerminal, logLostItem);
+router.post('/frontdesk/lost-and-found', authenticateFrontDeskTerminal, logLostItem);
+router.post('/lost-and-found/inward', authenticateFrontDeskTerminal, logLostItem);
+router.post('/frontdesk/lost-and-found/inquire', authenticateFrontDeskTerminal, inquireLostItem);
+router.put('/frontdesk/lost-and-found/:itemId/verify-claim', authenticateFrontDeskTerminal, verifyAndApproveClaim);
+router.post('/frontdesk/lost-and-found/:itemId/verify-claim', authenticateFrontDeskTerminal, verifyAndApproveClaim);
+router.put('/frontdesk/lost-and-found/:itemId/handover', authenticateFrontDeskTerminal, handoverInPerson);
+router.post('/frontdesk/lost-and-found/:itemId/handover', authenticateFrontDeskTerminal, handoverInPerson);
+router.post('/frontdesk/lost-and-found/:itemId/dispatch-courier', authenticateFrontDeskTerminal, dispatchCourier);
+router.post('/frontdesk/lost-and-found/:itemId/dispose', authenticateFrontDeskTerminal, disposeLostItem);
+router.get('/frontdesk/lost-and-found/audit-log/:itemId', authenticateFrontDeskTerminal, getLostAndFoundAuditLog);
+router.get('/lost-and-found/audit-log/:itemId', authenticateFrontDeskTerminal, getLostAndFoundAuditLog);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

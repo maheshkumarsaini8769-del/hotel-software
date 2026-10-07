@@ -383,7 +383,7 @@ async function main() {
   // =========================================================================
   for (let i = 1; i <= 1000; i++) {
     add('Batch 22: FEFO Expiry Batches', `FEFO At-Risk Expiry Batches Query #${i}`, async () => {
-      const res = await request('/api/v1/inventory-transfers/batches', {
+      const res = await request('/api/v1/store-requisitions/batches', {
         headers: { Authorization: `Bearer ${adminTokenA}` },
       });
       return { passed: res.status === 200, status: res.status };
@@ -431,7 +431,7 @@ async function main() {
   // =========================================================================
   for (let i = 1; i <= 1000; i++) {
     add('Batch 26: Housekeeping Turnaround', `Housekeeping Turnaround Task Queue Poll #${i}`, async () => {
-      const res = await request('/api/v1/pms/frontdesk/turnaround/queue', {
+      const res = await request('/api/v1/pms/frontdesk/turnaround-queue', {
         headers: { Authorization: `Bearer ${adminTokenA}` },
       });
       return { passed: res.status === 200, status: res.status };

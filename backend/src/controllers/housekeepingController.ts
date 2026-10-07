@@ -9,6 +9,7 @@ import { MasterFolio } from '../models/MasterFolio';
 import { FolioLineItem, DepartmentType } from '../models/FolioLineItem';
 import { MaintenanceRequest, MaintenanceStatus, MaintenancePriority } from '../models/MaintenanceRequest';
 import { TenantRequest } from '../types';
+import { escapeRegex } from '../utils/security';
 import { io } from '../index';
 
 const DEFAULT_CHECKLISTS: Record<HousekeepingTaskType, string[]> = {
@@ -957,16 +958,17 @@ export const inquireLostItem = async (req: TenantRequest, res: Response): Promis
     }
 
     if (keyword) {
+      const safeKeyword = escapeRegex(String(keyword).trim());
       filter.$or = [
-        { description: { $regex: keyword, $options: 'i' } },
-        { trackingNumber: { $regex: keyword, $options: 'i' } },
-        { foundLocation: { $regex: keyword, $options: 'i' } },
-        { guestName: { $regex: keyword, $options: 'i' } },
+        { description: { $regex: safeKeyword, $options: 'i' } },
+        { trackingNumber: { $regex: safeKeyword, $options: 'i' } },
+        { foundLocation: { $regex: safeKeyword, $options: 'i' } },
+        { guestName: { $regex: safeKeyword, $options: 'i' } },
       ];
     }
 
     if (foundLocation) {
-      filter.foundLocation = { $regex: foundLocation, $options: 'i' };
+      filter.foundLocation = { $regex: escapeRegex(String(foundLocation).trim()), $options: 'i' };
     }
 
     const matchedItems = await LostAndFound.find(filter).sort({ createdAt: -1 });
@@ -1001,11 +1003,11 @@ export const getLostAndFoundVault = async (req: TenantRequest, res: Response): P
     }
 
     if (locker) {
-      filter.secureVaultLocker = { $regex: String(locker), $options: 'i' };
+      filter.secureVaultLocker = { $regex: escapeRegex(String(locker).trim()), $options: 'i' };
     }
 
     if (search) {
-      const searchRegex = { $regex: String(search), $options: 'i' };
+      const searchRegex = { $regex: escapeRegex(String(search).trim()), $options: 'i' };
       filter.$or = [
         { description: searchRegex },
         { trackingNumber: searchRegex },

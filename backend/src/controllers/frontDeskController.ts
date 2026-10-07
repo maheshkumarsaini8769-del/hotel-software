@@ -33,6 +33,7 @@ import {
 } from '../models/MaintenanceRequest';
 import { User } from '../models/User';
 import { TenantRequest } from '../types';
+import { escapeRegex } from '../utils/security';
 import { io } from '../index';
 
 /**
@@ -446,7 +447,7 @@ export const getInRoomLiveStay = async (req: TenantRequest, res: Response): Prom
     const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
     const room = await Room.findOne({
       hotelId,
-      roomNumber: { $regex: new RegExp(`^${roomNumStr}$`, 'i') },
+      roomNumber: { $regex: new RegExp(`^${escapeRegex(roomNumStr)}$`, 'i') },
     }).populate('roomTypeId', 'name code basePriceOvernight');
 
     if (!room) {
@@ -579,7 +580,7 @@ export const postInRoomCharge = async (req: TenantRequest, res: Response): Promi
 
     const room = await Room.findOne({
       hotelId,
-      roomNumber: { $regex: new RegExp(`^${String(roomNumber).trim()}$`, 'i') },
+      roomNumber: { $regex: new RegExp(`^${escapeRegex(String(roomNumber).trim())}$`, 'i') },
     });
     if (!room) {
       res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
@@ -698,7 +699,7 @@ export const postConciergeRequest = async (req: TenantRequest, res: Response): P
 
     const room = await Room.findOne({
       hotelId,
-      roomNumber: { $regex: new RegExp(`^${String(roomNumber).trim()}$`, 'i') },
+      roomNumber: { $regex: new RegExp(`^${escapeRegex(String(roomNumber).trim())}$`, 'i') },
     });
 
     if (!room) {
@@ -954,7 +955,7 @@ export const postInRoomOrder = async (req: TenantRequest, res: Response): Promis
     const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
     const room = await Room.findOne({
       hotelId,
-      roomNumber: { $regex: new RegExp(`^${roomNumStr}$`, 'i') },
+      roomNumber: { $regex: new RegExp(`^${escapeRegex(roomNumStr)}$`, 'i') },
     });
 
     if (!room) {
@@ -1145,7 +1146,7 @@ export const getInRoomOrders = async (req: TenantRequest, res: Response): Promis
 
     const room = await Room.findOne({
       hotelId,
-      roomNumber: { $regex: new RegExp(`^${roomNumStr}$`, 'i') },
+      roomNumber: { $regex: new RegExp(`^${escapeRegex(roomNumStr)}$`, 'i') },
     });
 
     if (!room) {
@@ -1316,7 +1317,7 @@ export const getInRoomConciergeRequests = async (req: TenantRequest, res: Respon
     const { roomNumber } = req.params;
     const room = await Room.findOne({
       hotelId,
-      roomNumber: { $regex: new RegExp(`^${String(roomNumber).trim()}$`, 'i') },
+      roomNumber: { $regex: new RegExp(`^${escapeRegex(String(roomNumber).trim())}$`, 'i') },
     });
 
     if (!room) {
@@ -1436,7 +1437,7 @@ export const postExpressCheckoutRequest = async (req: TenantRequest, res: Respon
     const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
     const room = await Room.findOne({
       hotelId,
-      roomNumber: { $regex: new RegExp(`^${roomNumStr}$`, 'i') },
+      roomNumber: { $regex: new RegExp(`^${escapeRegex(roomNumStr)}$`, 'i') },
     });
 
     if (!room) {
@@ -1517,7 +1518,7 @@ export const getCheckoutPreviewByRoom = async (req: TenantRequest, res: Response
     const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
     const room = await Room.findOne({
       hotelId,
-      roomNumber: { $regex: new RegExp(`^${roomNumStr}$`, 'i') },
+      roomNumber: { $regex: new RegExp(`^${escapeRegex(roomNumStr)}$`, 'i') },
     });
 
     if (!room) {
@@ -1634,7 +1635,7 @@ export const settleAndCheckOutFrontDesk = async (req: TenantRequest, res: Respon
       const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
       room = await Room.findOne({
         hotelId,
-        roomNumber: { $regex: new RegExp(`^${roomNumStr}$`, 'i') },
+        roomNumber: { $regex: new RegExp(`^${escapeRegex(roomNumStr)}$`, 'i') },
       });
       if (room) {
         stay = await Stay.findOne({ hotelId, roomId: room._id, stayStatus: StayStatus.ACTIVE });
@@ -2537,7 +2538,7 @@ export const getAvailableUpgradeRooms = async (req: TenantRequest, res: Response
     if (currentRoomNumber) {
       currentRoom = await Room.findOne({
         hotelId,
-        roomNumber: { $regex: new RegExp(`^${currentRoomNumber}$`, 'i') },
+        roomNumber: { $regex: new RegExp(`^${escapeRegex(String(currentRoomNumber).trim())}$`, 'i') },
       }).populate('roomTypeId');
     }
 
@@ -2611,7 +2612,7 @@ export const executeRoomMove = async (req: TenantRequest, res: Response): Promis
     } else if (currentRoomNumber) {
       const curRoom = await Room.findOne({
         hotelId,
-        roomNumber: { $regex: new RegExp(`^${currentRoomNumber}$`, 'i') },
+        roomNumber: { $regex: new RegExp(`^${escapeRegex(String(currentRoomNumber).trim())}$`, 'i') },
       });
       if (curRoom) {
         stay = await Stay.findOne({ hotelId, roomId: curRoom._id, stayStatus: StayStatus.ACTIVE })
@@ -2635,7 +2636,7 @@ export const executeRoomMove = async (req: TenantRequest, res: Response): Promis
     // 2. Locate target room
     const targetRoom = await Room.findOne({
       hotelId,
-      roomNumber: { $regex: new RegExp(`^${targetRoomNumber}$`, 'i') },
+      roomNumber: { $regex: new RegExp(`^${escapeRegex(String(targetRoomNumber).trim())}$`, 'i') },
     }).populate('roomTypeId');
 
     if (!targetRoom) {

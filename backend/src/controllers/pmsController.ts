@@ -881,6 +881,16 @@ export const getCheckoutPreview = async (req: TenantRequest, res: Response): Pro
       return;
     }
 
+    if (stayId && !Types.ObjectId.isValid(stayId as string)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ID', message: 'Invalid stayId format' });
+      return;
+    }
+
+    if (roomId && !Types.ObjectId.isValid(roomId as string)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ID', message: 'Invalid roomId format' });
+      return;
+    }
+
     let stay: any = null;
     if (stayId) {
       stay = await Stay.findOne({

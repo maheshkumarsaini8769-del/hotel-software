@@ -59,7 +59,12 @@ export const openFrontDeskShift = async (req: TenantRequest, res: Response): Pro
       notes,
     } = req.body;
 
-    const floatNum = Math.max(0, Number(openingFloat) || 0);
+    if (Number(openingFloat) < 0) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_FLOAT_AMOUNT', message: 'Opening float amount cannot be negative' });
+      return;
+    }
+
+    const floatNum = Number(openingFloat) || 0;
 
     // Check if open shift already exists for this hotel and cashier or terminal
     const existingOpenShift = await CashierShiftFloat.findOne({

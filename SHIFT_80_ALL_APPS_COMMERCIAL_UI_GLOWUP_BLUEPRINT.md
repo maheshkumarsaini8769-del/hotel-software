@@ -74,3 +74,13 @@
 
 ---
 *Status: Scheduled for Shift 80. Implementation will commence when Shift 80 is activated.*
+
+---
+
+## 🔀 SHIFT 80.1: Modular Workstation Extraction & Standalone Terminal Switchboard
+* **Shift Number:** `Shift 80.1`
+* **Status:** Planned & Registered in Master Roadmap (Implementation on demand).
+* **Objective:**
+  * By default, Front Desk Reception (`FrontDeskCheckInApp`) and Cashier POS (`FastCashierPosApp`) remain unified inside `hotel-admin-erp-app` for seamless single-login counter operation.
+  * Provide an Admin / SuperAdmin configuration switch (`standaloneTerminalsEnabled: boolean`) to dynamically decouple and launch them as dedicated, standalone micro-frontends (`apps/reception-frontdesk-app` and `apps/cashier-pos-app`) for large enterprise multi-terminal properties.
+  * Allows independent URL routing, dedicated cashier terminal lockouts, and hardware-specific printer bindings.

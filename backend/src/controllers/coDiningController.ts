@@ -11,7 +11,7 @@ export class CoDiningController {
    */
   static async getCommunityTables(req: Request, res: Response): Promise<void> {
     try {
-      const hotelId = req.headers['x-hotel-id'] as string || req.query.hotelId as string;
+      const hotelId = (req as any).user?.hotelId || (req.headers['x-hotel-id'] as string) || (req.query.hotelId as string);
       if (!hotelId || !Types.ObjectId.isValid(hotelId)) {
         res.status(400).json({ success: false, message: 'Valid Hotel/Tenant ID is required' });
         return;

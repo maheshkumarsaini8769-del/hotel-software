@@ -1126,4 +1126,8 @@ PHASE 13 (SHIFT 80): Grand Unified Commercial SaaS UI/UX Glow-Up & Visual Polish
  ├── Website #4: Luxury Boutique Guest Portal, Visual Amenity Cards & Instant Concierge
  ├── Website #5: Dual-Mode Day/Night Theme Polish, High-Impact KPI Badges & Fluid PMS Matrix
  └── Website #6: Modern Multi-Tenant Switchboard, Tenant Health Pills & Zero-Lag Filter UX
+
+PHASE 13.1 (SHIFT 80.1): Modular Workstation Decoupling Switch (Front Desk & Cashier Standalone Extraction)
+ ├── Keep Reception Desk & Fast Cashier POS unified inside Hotel Admin ERP by default
+ └── SuperAdmin toggle (`standaloneTerminalsEnabled`) to extract into standalone SPAs on multi-counter hardware
 ```

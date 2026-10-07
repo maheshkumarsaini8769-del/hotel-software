@@ -350,11 +350,76 @@ export interface LuggageMetrics {
   totalPiecesInVault: number;
 }
 
+// Shift 71: Front Desk Parcel & Courier Inward/Outward Log & Delivery Loop
+export interface ParcelLogItem {
+  _id: string;
+  parcelTag: string;
+  direction: 'INWARD' | 'OUTWARD';
+  courierPartner: 'BLUE_DART' | 'DHL' | 'FEDEX' | 'AMAZON' | 'DELHIVERY' | 'INDIA_POST' | 'IN_PERSON_MESSENGER' | 'OTHER';
+  courierPartnerCustom?: string;
+  trackingAwb: string;
+  senderInfo: {
+    name: string;
+    organization?: string;
+    contactPhone?: string;
+    address?: string;
+  };
+  recipientInfo: {
+    guestName: string;
+    roomNumber?: string;
+    guestPhone: string;
+    guestEmail?: string;
+  };
+  packageType: 'BOX' | 'DOCUMENT' | 'ENVELOPE' | 'MEDICINE_PERISHABLE' | 'FRAGILE' | 'CRATE' | 'OTHER';
+  pieceCount: number;
+  isHighValue: boolean;
+  storageLocation: string;
+  status: 'RECEIVED_AT_DESK' | 'GUEST_NOTIFIED' | 'OUT_FOR_ROOM_DELIVERY' | 'DELIVERED_TO_GUEST' | 'RETURNED_TO_COURIER' | 'FORWARDED' | 'OUTWARD_BOOKED' | 'OUTWARD_DISPATCHED';
+  receivedAt: string;
+  receivedByStaffName: string;
+  verificationPin: string;
+  dispatchInfo?: {
+    dispatchedAt?: string;
+    porterName?: string;
+    targetLocation?: string;
+    notes?: string;
+  };
+  deliveryInfo?: {
+    deliveredAt?: string;
+    deliveredByStaffName?: string;
+    handoverMode?: 'ROOM_DELIVERY' | 'FRONT_DESK_COUNTER';
+    recipientAcknowledgedBy?: string;
+    signatureDataUrl?: string;
+    verificationMethod?: 'OTP_PIN' | 'KEYCARD_MATCH' | 'ID_VERIFIED';
+    notes?: string;
+  };
+  outwardDetails?: {
+    destinationAddress?: string;
+    estimatedCharge?: number;
+    folioPosted?: boolean;
+    folioChargeId?: string;
+  };
+  auditTrail: Array<{
+    timestamp: string;
+    action: string;
+    performedBy: string;
+    details?: string;
+  }>;
+}
+
+export interface ParcelMetrics {
+  totalInwardHolding: number;
+  pendingRoomDelivery: number;
+  highValueUrgentCount: number;
+  todayDelivered: number;
+  totalOutward: number;
+}
+
 export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   authToken,
   hotelId: propHotelId,
 }) => {
-  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER' | 'SDB' | 'LUGGAGE'>('CHECKIN');
+  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER' | 'SDB' | 'LUGGAGE' | 'PARCEL'>('CHECKIN');
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -520,6 +585,59 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [counterSupervisorPin, setCounterSupervisorPin] = useState<string>('9921');
   const [counterReleaseNotes, setCounterReleaseNotes] = useState<string>('Bags inspected and released directly to guest at Bell Desk.');
   const [luggageSubmitting, setLuggageSubmitting] = useState<boolean>(false);
+
+  // Shift 71: Front Desk Parcel & Courier Desk State
+  const [parcels, setParcels] = useState<ParcelLogItem[]>([]);
+  const [parcelMetrics, setParcelMetrics] = useState<ParcelMetrics | null>(null);
+  const [loadingParcels, setLoadingParcels] = useState<boolean>(false);
+  const [selectedParcel, setSelectedParcel] = useState<ParcelLogItem | null>(null);
+  const [parcelFilterDirection, setParcelFilterDirection] = useState<string>('ALL');
+  const [parcelFilterStatus, setParcelFilterStatus] = useState<string>('ALL');
+  const [parcelSearchQuery, setParcelSearchQuery] = useState<string>('');
+
+  // Inward Modal
+  const [inwardModalOpen, setInwardModalOpen] = useState<boolean>(false);
+  const [inwardCourier, setInwardCourier] = useState<string>('AMAZON');
+  const [inwardAwb, setInwardAwb] = useState<string>('');
+  const [inwardSenderName, setInwardSenderName] = useState<string>('');
+  const [inwardSenderOrg, setInwardSenderOrg] = useState<string>('');
+  const [inwardGuestName, setInwardGuestName] = useState<string>('');
+  const [inwardRoomNumber, setInwardRoomNumber] = useState<string>('');
+  const [inwardGuestPhone, setInwardGuestPhone] = useState<string>('');
+  const [inwardPackageType, setInwardPackageType] = useState<string>('BOX');
+  const [inwardPieceCount, setInwardPieceCount] = useState<number>(1);
+  const [inwardHighValue, setInwardHighValue] = useState<boolean>(false);
+  const [inwardStorageLocation, setInwardStorageLocation] = useState<string>('PARCEL-BAY-01');
+
+  // Dispatch to Room Modal
+  const [dispatchParcelModalOpen, setDispatchParcelModalOpen] = useState<boolean>(false);
+  const [dispatchParcelPorter, setDispatchParcelPorter] = useState<string>('Porter Ramesh');
+  const [dispatchParcelNotes, setDispatchParcelNotes] = useState<string>('Deliver before evening.');
+
+  // Handover & Signature Modal
+  const [handoverModalOpen, setHandoverModalOpen] = useState<boolean>(false);
+  const [handoverPin, setHandoverPin] = useState<string>('');
+  const [handoverRecipientName, setHandoverRecipientName] = useState<string>('');
+  const [handoverStaffName, setHandoverStaffName] = useState<string>('Concierge Anita');
+  const [handoverModeState, setHandoverModeState] = useState<'ROOM_DELIVERY' | 'FRONT_DESK_COUNTER'>('ROOM_DELIVERY');
+  const [handoverMethodState, setHandoverMethodState] = useState<'OTP_PIN' | 'KEYCARD_MATCH' | 'ID_VERIFIED'>('OTP_PIN');
+  const [handoverSignatureText, setHandoverSignatureText] = useState<string>('DIGITALLY_SIGNED_BY_GUEST');
+
+  // Outward Courier Booking Modal
+  const [outwardModalOpen, setOutwardModalOpen] = useState<boolean>(false);
+  const [outwardGuestName, setOutwardGuestName] = useState<string>('');
+  const [outwardRoomNumber, setOutwardRoomNumber] = useState<string>('');
+  const [outwardGuestPhone, setOutwardGuestPhone] = useState<string>('');
+  const [outwardDestination, setOutwardDestination] = useState<string>('');
+  const [outwardRecipientName, setOutwardRecipientName] = useState<string>('');
+  const [outwardCourierPartner, setOutwardCourierPartner] = useState<string>('BLUE_DART');
+  const [outwardAwb, setOutwardAwb] = useState<string>('');
+  const [outwardCharge, setOutwardCharge] = useState<number>(850);
+  const [outwardPostFolio, setOutwardPostFolio] = useState<boolean>(true);
+
+  // Parcel Audit Modal
+  const [parcelAuditModalOpen, setParcelAuditModalOpen] = useState<boolean>(false);
+  const [parcelSubmitting, setParcelSubmitting] = useState<boolean>(false);
 
   // Check-In Form State
   const [guestName, setGuestName] = useState('');
@@ -1173,6 +1291,186 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       showToast(`❌ Counter release error: ${err.response?.data?.message || err.message}`);
     } finally {
       setLuggageSubmitting(false);
+    }
+  };
+
+  // Shift 71: Front Desk Parcel & Courier Handlers
+  const loadParcels = async () => {
+    try {
+      setLoadingParcels(true);
+      const res = await axios.get(`${apiBase}/pms/frontdesk/parcels`, {
+        headers: authHeaders,
+        params: {
+          hotelId,
+          direction: parcelFilterDirection !== 'ALL' ? parcelFilterDirection : undefined,
+          status: parcelFilterStatus !== 'ALL' ? parcelFilterStatus : undefined,
+          search: parcelSearchQuery.trim() || undefined,
+        },
+      });
+      if (res.data.success) {
+        setParcels(res.data.parcels || []);
+        setParcelMetrics(res.data.metrics || null);
+      }
+    } catch (err: any) {
+      console.error('Error loading parcels:', err);
+    } finally {
+      setLoadingParcels(false);
+    }
+  };
+
+  const handleLogInwardParcel = async () => {
+    if (!inwardAwb.trim() || !inwardGuestName.trim() || !inwardGuestPhone.trim()) {
+      showToast('⚠️ Courier AWB, Guest Name, and Phone are required.');
+      return;
+    }
+    try {
+      setParcelSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/parcels/inward`,
+        {
+          courierPartner: inwardCourier,
+          trackingAwb: inwardAwb.trim(),
+          senderInfo: {
+            name: inwardSenderName.trim() || 'Logistics Partner',
+            organization: inwardSenderOrg.trim() || undefined,
+          },
+          recipientInfo: {
+            guestName: inwardGuestName.trim(),
+            roomNumber: inwardRoomNumber.trim() || undefined,
+            guestPhone: inwardGuestPhone.trim(),
+          },
+          packageType: inwardPackageType,
+          pieceCount: Number(inwardPieceCount) || 1,
+          isHighValue: inwardHighValue,
+          storageLocation: inwardStorageLocation.trim() || 'PARCEL-BAY-01',
+          receivedByStaffName: 'Front Desk Concierge',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`📦 Inward parcel logged (${res.data.parcel.parcelTag}) for ${inwardGuestName}! OTP: ${res.data.parcel.verificationPin}`);
+        setInwardModalOpen(false);
+        setInwardAwb('');
+        setInwardGuestName('');
+        setInwardGuestPhone('');
+        setInwardRoomNumber('');
+        setInwardSenderName('');
+        await loadParcels();
+      }
+    } catch (err: any) {
+      showToast(`❌ Error logging parcel: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setParcelSubmitting(false);
+    }
+  };
+
+  const handleNotifyGuestParcel = async (parcelTag: string) => {
+    try {
+      setParcelSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/parcels/${parcelTag}/notify`,
+        { staffName: 'Front Desk Concierge' },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`📲 Guest notified via SMS & In-Room Portal for ${parcelTag}!`);
+        await loadParcels();
+      }
+    } catch (err: any) {
+      showToast(`❌ Notification failed: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setParcelSubmitting(false);
+    }
+  };
+
+  const handleDispatchParcelToRoom = async () => {
+    if (!selectedParcel) return;
+    try {
+      setParcelSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/parcels/${selectedParcel.parcelTag}/dispatch-room`,
+        {
+          porterName: dispatchParcelPorter.trim() || 'Porter Ramesh',
+          notes: dispatchParcelNotes.trim() || undefined,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`🚚 Porter ${dispatchParcelPorter} dispatched to Room ${selectedParcel.recipientInfo.roomNumber || 'Guest'}!`);
+        setDispatchParcelModalOpen(false);
+        await loadParcels();
+      }
+    } catch (err: any) {
+      showToast(`❌ Dispatch failed: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setParcelSubmitting(false);
+    }
+  };
+
+  const handleCompleteParcelHandover = async () => {
+    if (!selectedParcel) return;
+    try {
+      setParcelSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/parcels/${selectedParcel.parcelTag}/complete-delivery`,
+        {
+          verificationPin: handoverPin.trim() || undefined,
+          recipientAcknowledgedBy: handoverRecipientName.trim() || selectedParcel.recipientInfo.guestName,
+          deliveredByStaffName: handoverStaffName.trim() || 'Front Desk Staff',
+          handoverMode: handoverModeState,
+          verificationMethod: handoverMethodState,
+          signatureDataUrl: handoverSignatureText.trim() || 'DIGITALLY_SIGNED_ON_TOUCHSCREEN',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`✅ Parcel ${selectedParcel.parcelTag} delivered and acknowledged!`);
+        setHandoverModalOpen(false);
+        setHandoverPin('');
+        await loadParcels();
+      }
+    } catch (err: any) {
+      showToast(`❌ Handover failed: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setParcelSubmitting(false);
+    }
+  };
+
+  const handleBookOutwardCourier = async () => {
+    if (!outwardGuestName.trim() || !outwardDestination.trim() || !outwardAwb.trim()) {
+      showToast('⚠️ Guest Name, Destination Address, and Courier AWB are required.');
+      return;
+    }
+    try {
+      setParcelSubmitting(true);
+      const res = await axios.post(
+        `${apiBase}/pms/frontdesk/parcels/outward`,
+        {
+          guestName: outwardGuestName.trim(),
+          roomNumber: outwardRoomNumber.trim() || undefined,
+          guestPhone: outwardGuestPhone.trim() || '+91 99999 00000',
+          destinationAddress: outwardDestination.trim(),
+          recipientName: outwardRecipientName.trim() || 'Recipient',
+          courierPartner: outwardCourierPartner,
+          trackingAwb: outwardAwb.trim(),
+          estimatedCharge: Number(outwardCharge) || 0,
+          postToFolio: outwardPostFolio,
+          staffName: 'Concierge Anita',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data.success) {
+        showToast(`📤 Outward courier booked (${res.data.parcel.parcelTag})! Charge: ₹${outwardCharge}${outwardPostFolio ? ' (Folio Posted)' : ''}`);
+        setOutwardModalOpen(false);
+        setOutwardGuestName('');
+        setOutwardDestination('');
+        setOutwardAwb('');
+        await loadParcels();
+      }
+    } catch (err: any) {
+      showToast(`❌ Booking failed: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setParcelSubmitting(false);
     }
   };
 
@@ -2116,6 +2414,21 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }`}
         >
           <span>🧳</span> Left Luggage & Bell Desk
+        </button>
+        <button
+          type="button"
+          data-testid="tab-parcels"
+          onClick={() => {
+            setActiveTab('PARCEL');
+            loadParcels();
+          }}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'PARCEL'
+              ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10'
+              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <span>📦</span> Parcels & Courier Desk
         </button>
       </div>
 
@@ -5421,6 +5734,953 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* SHIFT 71: FRONT DESK PARCELS & COURIER WORKSPACE */}
+        {activeTab === 'PARCEL' && (
+          <div className="space-y-6">
+            {/* Header & Metrics Ribbon */}
+            <div className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-6 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">📦</span>
+                    <div>
+                      <h2 className="text-xl font-black text-white tracking-tight">
+                        Front Desk Parcel & Courier Log Desk
+                      </h2>
+                      <p className="text-xs text-zinc-400 font-medium">
+                        Shift #71: Inward couriers, guest SMS/portal alerts, room delivery dispatch & signature acknowledgment loop
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    data-testid="btn-open-log-inward-parcel"
+                    onClick={() => setInwardModalOpen(true)}
+                    className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 hover:brightness-110 flex items-center gap-2"
+                  >
+                    <span>➕</span> Log Inward Parcel
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="btn-open-book-outward-courier"
+                    onClick={() => setOutwardModalOpen(true)}
+                    className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/20 hover:brightness-110 flex items-center gap-2"
+                  >
+                    <span>📤</span> Book Outward Courier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={loadParcels}
+                    className="p-2.5 rounded-2xl bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700/60"
+                    title="Refresh Parcels"
+                  >
+                    🔄
+                  </button>
+                </div>
+              </div>
+
+              {/* Real-time KPI Ribbon */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
+                <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800/80">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                    <span>📦</span> Inward Holding
+                  </div>
+                  <div className="text-2xl font-black text-white mt-1">
+                    {parcelMetrics?.totalInwardHolding ?? 0}
+                  </div>
+                  <div className="text-[10px] text-zinc-400 mt-0.5">Parcels at Front Desk</div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800/80">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                    <span>🚚</span> Out for Delivery
+                  </div>
+                  <div className="text-2xl font-black text-white mt-1">
+                    {parcelMetrics?.pendingRoomDelivery ?? 0}
+                  </div>
+                  <div className="text-[10px] text-zinc-400 mt-0.5">Dispatched to Rooms</div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800/80">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                    <span>🚨</span> Urgent / High-Value
+                  </div>
+                  <div className="text-2xl font-black text-white mt-1">
+                    {parcelMetrics?.highValueUrgentCount ?? 0}
+                  </div>
+                  <div className="text-[10px] text-zinc-400 mt-0.5">Medicine & Valuables</div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800/80">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
+                    <span>✅</span> Handed Over Today
+                  </div>
+                  <div className="text-2xl font-black text-white mt-1">
+                    {parcelMetrics?.todayDelivered ?? 0}
+                  </div>
+                  <div className="text-[10px] text-zinc-400 mt-0.5">Guest Signed & Delivered</div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800/80">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                    <span>📤</span> Outward Booked
+                  </div>
+                  <div className="text-2xl font-black text-white mt-1">
+                    {parcelMetrics?.totalOutward ?? 0}
+                  </div>
+                  <div className="text-[10px] text-zinc-400 mt-0.5">Guest Outward Couriers</div>
+                </div>
+              </div>
+
+              {/* Filters & Search */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-zinc-800/60">
+                <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setParcelFilterDirection('ALL')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      parcelFilterDirection === 'ALL'
+                        ? 'bg-zinc-100 text-zinc-950'
+                        : 'bg-zinc-800/80 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    All Parcels
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setParcelFilterDirection('INWARD')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      parcelFilterDirection === 'INWARD'
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-zinc-800/80 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Inward ({parcels.filter((p) => p.direction === 'INWARD').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setParcelFilterDirection('OUTWARD')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      parcelFilterDirection === 'OUTWARD'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-zinc-800/80 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Outward ({parcels.filter((p) => p.direction === 'OUTWARD').length})
+                  </button>
+                </div>
+
+                <div className="w-full sm:w-72">
+                  <input
+                    type="text"
+                    data-testid="input-parcel-search"
+                    placeholder="Search AWB, guest, room..."
+                    value={parcelSearchQuery}
+                    onChange={(e) => setParcelSearchQuery(e.target.value)}
+                    className="w-full px-4 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Parcels List */}
+            {loadingParcels ? (
+              <div className="p-12 text-center text-zinc-500 font-bold">
+                <span className="inline-block animate-spin mr-2">🔄</span> Loading parcels & couriers...
+              </div>
+            ) : parcels.length === 0 ? (
+              <div className="p-12 text-center bg-zinc-900/40 border border-zinc-800/80 rounded-3xl space-y-3">
+                <span className="text-4xl block">📭</span>
+                <div className="text-base font-bold text-zinc-200">No parcels in registry</div>
+                <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+                  Log your first inward courier delivery or outward guest package to start tracking custody.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setInwardModalOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs"
+                >
+                  ➕ Log Inward Parcel
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {parcels
+                  .filter((p) => {
+                    if (parcelFilterDirection !== 'ALL' && p.direction !== parcelFilterDirection) return false;
+                    if (parcelSearchQuery.trim()) {
+                      const q = parcelSearchQuery.toLowerCase();
+                      const matchAwb = p.trackingAwb.toLowerCase().includes(q);
+                      const matchGuest = p.recipientInfo.guestName.toLowerCase().includes(q);
+                      const matchRoom = p.recipientInfo.roomNumber?.toLowerCase().includes(q);
+                      const matchTag = p.parcelTag.toLowerCase().includes(q);
+                      if (!matchAwb && !matchGuest && !matchRoom && !matchTag) return false;
+                    }
+                    return true;
+                  })
+                  .map((parcel) => {
+                    const isDelivered = parcel.status === 'DELIVERED_TO_GUEST';
+                    const isOutForDelivery = parcel.status === 'OUT_FOR_ROOM_DELIVERY';
+                    const isGuestNotified = parcel.status === 'GUEST_NOTIFIED';
+
+                    return (
+                      <div
+                        key={parcel._id}
+                        data-testid={`parcel-card-${parcel.parcelTag}`}
+                        className={`p-5 rounded-3xl border transition-all space-y-4 shadow-lg ${
+                          isDelivered
+                            ? 'bg-zinc-950/60 border-zinc-800/60 opacity-80'
+                            : parcel.isHighValue || parcel.packageType === 'MEDICINE_PERISHABLE'
+                            ? 'bg-zinc-900/90 border-rose-500/40 shadow-rose-950/20'
+                            : 'bg-zinc-900/90 border-zinc-800 hover:border-zinc-700'
+                        }`}
+                      >
+                        {/* Top Tag & Badges */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-lg border ${
+                                parcel.direction === 'INWARD'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                  : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                              }`}
+                            >
+                              {parcel.direction}
+                            </span>
+                            <span className="font-mono text-xs font-bold text-white">
+                              {parcel.parcelTag}
+                            </span>
+                          </div>
+
+                          <span
+                            className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                              isDelivered
+                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                : isOutForDelivery
+                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 animate-pulse'
+                                : isGuestNotified
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            }`}
+                          >
+                            {parcel.status.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+
+                        {/* Recipient / Guest Info */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-black text-white flex items-center gap-1.5">
+                              <span>👤</span> {parcel.recipientInfo.guestName}
+                            </div>
+                            {parcel.recipientInfo.roomNumber && (
+                              <span className="px-2 py-0.5 text-xs font-bold font-mono bg-zinc-800 text-amber-300 rounded-md border border-zinc-700">
+                                Room {parcel.recipientInfo.roomNumber}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-zinc-400">
+                            📞 {parcel.recipientInfo.guestPhone}
+                          </div>
+                        </div>
+
+                        {/* Courier Details */}
+                        <div className="p-3 rounded-2xl bg-zinc-950/70 border border-zinc-800/80 space-y-1 text-xs">
+                          <div className="flex items-center justify-between text-zinc-400">
+                            <span className="font-bold text-zinc-300">{parcel.courierPartner.replace(/_/g, ' ')}</span>
+                            <span className="font-mono text-zinc-400">{parcel.trackingAwb}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                            <span>Type: {parcel.packageType} ({parcel.pieceCount} pc)</span>
+                            <span>Bay: {parcel.storageLocation}</span>
+                          </div>
+                        </div>
+
+                        {/* OTP Claim PIN display for front desk staff */}
+                        {!isDelivered && (
+                          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-950/20 border border-emerald-800/30 text-xs">
+                            <span className="text-emerald-400 font-bold">Secure OTP PIN:</span>
+                            <span className="font-mono font-black text-emerald-300 tracking-widest text-sm">
+                              {parcel.verificationPin}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2 pt-1">
+                          {!isDelivered && (
+                            <>
+                              {!isGuestNotified && !isOutForDelivery && (
+                                <button
+                                  type="button"
+                                  data-testid={`btn-notify-guest-${parcel.parcelTag}`}
+                                  onClick={() => handleNotifyGuestParcel(parcel.parcelTag)}
+                                  disabled={parcelSubmitting}
+                                  className="flex-1 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold"
+                                >
+                                  📲 Notify
+                                </button>
+                              )}
+
+                              {!isOutForDelivery && (
+                                <button
+                                  type="button"
+                                  data-testid={`btn-dispatch-room-${parcel.parcelTag}`}
+                                  onClick={() => {
+                                    setSelectedParcel(parcel);
+                                    setDispatchParcelModalOpen(true);
+                                  }}
+                                  className="flex-1 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[11px] font-bold"
+                                >
+                                  🚚 Room Deliver
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                data-testid={`btn-complete-delivery-${parcel.parcelTag}`}
+                                onClick={() => {
+                                  setSelectedParcel(parcel);
+                                  setHandoverPin(parcel.verificationPin);
+                                  setHandoverRecipientName(parcel.recipientInfo.guestName);
+                                  setHandoverModeState(isOutForDelivery ? 'ROOM_DELIVERY' : 'FRONT_DESK_COUNTER');
+                                  setHandoverModalOpen(true);
+                                }}
+                                className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold shadow-md shadow-emerald-500/20"
+                              >
+                                ✍️ Handover & Sign
+                              </button>
+                            </>
+                          )}
+
+                          {isDelivered && (
+                            <div className="flex-1 text-center py-2 text-xs font-bold text-purple-400 bg-purple-950/20 border border-purple-800/30 rounded-xl">
+                              ✅ Delivered ({parcel.deliveryInfo?.recipientAcknowledgedBy || 'Guest'})
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            data-testid={`btn-audit-${parcel.parcelTag}`}
+                            onClick={() => {
+                              setSelectedParcel(parcel);
+                              setParcelAuditModalOpen(true);
+                            }}
+                            className="p-2 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-700/60"
+                            title="View Audit Trail"
+                          >
+                            📜
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            {/* MODAL 1: LOG INWARD PARCEL */}
+            {inwardModalOpen && (
+              <div
+                data-testid="modal-log-inward-parcel"
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+              >
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">📦</span>
+                      <h3 className="text-base font-black text-white">Log New Inward Parcel</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setInwardModalOpen(false)}
+                      className="text-zinc-500 hover:text-white text-lg font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 text-xs">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Courier Partner *</label>
+                        <select
+                          value={inwardCourier}
+                          onChange={(e) => setInwardCourier(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:outline-none"
+                        >
+                          <option value="AMAZON">Amazon Prime</option>
+                          <option value="BLUE_DART">Blue Dart Express</option>
+                          <option value="DHL">DHL Express</option>
+                          <option value="FEDEX">FedEx Express</option>
+                          <option value="DELHIVERY">Delhivery Logistics</option>
+                          <option value="INDIA_POST">India Post EMS</option>
+                          <option value="IN_PERSON_MESSENGER">In-Person Messenger</option>
+                          <option value="OTHER">Other Courier</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Tracking / AWB Number *</label>
+                        <input
+                          type="text"
+                          data-testid="input-inward-awb"
+                          placeholder="e.g. AMZ-IN-88912340"
+                          value={inwardAwb}
+                          onChange={(e) => setInwardAwb(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Guest Recipient Name *</label>
+                        <input
+                          type="text"
+                          data-testid="input-inward-guest-name"
+                          placeholder="e.g. Vikram Malhotra"
+                          value={inwardGuestName}
+                          onChange={(e) => setInwardGuestName(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Room Number</label>
+                        <input
+                          type="text"
+                          data-testid="input-inward-room"
+                          placeholder="e.g. 204 or lobby"
+                          value={inwardRoomNumber}
+                          onChange={(e) => setInwardRoomNumber(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-amber-400 font-mono font-bold focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Guest Phone Number *</label>
+                        <input
+                          type="text"
+                          data-testid="input-inward-phone"
+                          placeholder="+91 98765 43210"
+                          value={inwardGuestPhone}
+                          onChange={(e) => setInwardGuestPhone(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Sender / Merchant</label>
+                        <input
+                          type="text"
+                          data-testid="input-inward-sender"
+                          placeholder="e.g. Amazon Hub, Apollo"
+                          value={inwardSenderName}
+                          onChange={(e) => setInwardSenderName(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Package Type</label>
+                        <select
+                          data-testid="select-inward-type"
+                          value={inwardPackageType}
+                          onChange={(e) => setInwardPackageType(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none"
+                        >
+                          <option value="BOX">Box / Carton</option>
+                          <option value="DOCUMENT">Document</option>
+                          <option value="ENVELOPE">Envelope</option>
+                          <option value="MEDICINE_PERISHABLE">Medicine / Perishable</option>
+                          <option value="FRAGILE">Fragile Item</option>
+                          <option value="CRATE">Crate / Heavy</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Piece Count</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="20"
+                          value={inwardPieceCount}
+                          onChange={(e) => setInwardPieceCount(parseInt(e.target.value) || 1)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Storage Bay *</label>
+                        <input
+                          type="text"
+                          data-testid="input-inward-bay"
+                          value={inwardStorageLocation}
+                          onChange={(e) => setInwardStorageLocation(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-emerald-400 font-mono font-bold focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2 p-3 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        data-testid="toggle-inward-high-value"
+                        checked={inwardHighValue}
+                        onChange={(e) => setInwardHighValue(e.target.checked)}
+                        className="w-4 h-4 rounded text-rose-500 focus:ring-0"
+                      />
+                      <span className="font-bold text-rose-300">
+                        High Value / Urgent Package (Cold Storage / Safe Holding Required)
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="flex gap-3 pt-3 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setInwardModalOpen(false)}
+                      className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="btn-submit-inward-parcel"
+                      onClick={handleLogInwardParcel}
+                      disabled={parcelSubmitting}
+                      className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                    >
+                      Confirm Inward Log
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL 2: DISPATCH TO ROOM */}
+            {dispatchParcelModalOpen && selectedParcel && (
+              <div
+                data-testid="modal-dispatch-parcel"
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+              >
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">🚚</span>
+                      <div>
+                        <h3 className="text-base font-black text-white">Dispatch to Guest Room</h3>
+                        <p className="text-xs text-zinc-400">Parcel: {selectedParcel.parcelTag}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setDispatchParcelModalOpen(false)}
+                      className="text-zinc-500 hover:text-white text-lg font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 text-xs">
+                    <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-1">
+                      <div className="text-zinc-400">Recipient Guest:</div>
+                      <div className="font-bold text-white text-sm">
+                        {selectedParcel.recipientInfo.guestName}
+                      </div>
+                      <div className="text-amber-400 font-mono font-bold">
+                        Target Location: Room {selectedParcel.recipientInfo.roomNumber || 'Guest Lobby'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-300 mb-1">Assigned Bellboy / Porter *</label>
+                      <input
+                        type="text"
+                        data-testid="input-dispatch-porter"
+                        value={dispatchParcelPorter}
+                        onChange={(e) => setDispatchParcelPorter(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-300 mb-1">Dispatch Instructions</label>
+                      <input
+                        type="text"
+                        data-testid="input-dispatch-notes"
+                        value={dispatchParcelNotes}
+                        onChange={(e) => setDispatchParcelNotes(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-3 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setDispatchParcelModalOpen(false)}
+                      className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="btn-submit-dispatch-parcel"
+                      onClick={handleDispatchParcelToRoom}
+                      disabled={parcelSubmitting}
+                      className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/20 disabled:opacity-50"
+                    >
+                      Confirm Dispatch
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL 3: GUEST HANDOVER & DIGITAL SIGNATURE */}
+            {handoverModalOpen && selectedParcel && (
+              <div
+                data-testid="modal-handover-parcel"
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+              >
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">✍️</span>
+                      <div>
+                        <h3 className="text-base font-black text-white">Guest Handover & Signature</h3>
+                        <p className="text-xs text-zinc-400">{selectedParcel.parcelTag} • {selectedParcel.recipientInfo.guestName}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setHandoverModalOpen(false)}
+                      className="text-zinc-500 hover:text-white text-lg font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 text-xs">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Handover Mode</label>
+                        <select
+                          value={handoverModeState}
+                          onChange={(e: any) => setHandoverModeState(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:outline-none"
+                        >
+                          <option value="ROOM_DELIVERY">In-Room Delivery</option>
+                          <option value="FRONT_DESK_COUNTER">Front Desk Counter Handover</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Verification Method</label>
+                        <select
+                          value={handoverMethodState}
+                          onChange={(e: any) => setHandoverMethodState(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:outline-none"
+                        >
+                          <option value="OTP_PIN">4-Digit Secure OTP PIN</option>
+                          <option value="KEYCARD_MATCH">Room Keycard Match</option>
+                          <option value="ID_VERIFIED">Govt Photo ID Verified</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Guest 4-Digit OTP PIN *</label>
+                        <input
+                          type="text"
+                          maxLength={4}
+                          data-testid="input-handover-pin"
+                          value={handoverPin}
+                          onChange={(e) => setHandoverPin(e.target.value)}
+                          placeholder="e.g. 4192"
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-emerald-500/50 text-emerald-300 font-mono font-black tracking-widest text-center text-sm focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Claimant / Recipient Name *</label>
+                        <input
+                          type="text"
+                          data-testid="input-handover-claimant"
+                          value={handoverRecipientName}
+                          onChange={(e) => setHandoverRecipientName(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-300 mb-1">Delivering Staff Name</label>
+                      <input
+                        type="text"
+                        data-testid="input-handover-staff"
+                        value={handoverStaffName}
+                        onChange={(e) => setHandoverStaffName(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Digital Touchscreen Signature Pad Simulation */}
+                    <div>
+                      <label className="block font-bold text-zinc-300 mb-1">Digital Signature Acknowledgment</label>
+                      <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-700/80 space-y-2">
+                        <div className="h-20 bg-zinc-950 rounded-xl border border-dashed border-zinc-700 flex items-center justify-center text-zinc-500 font-mono text-xs">
+                          ✍️ [ Touchscreen Signature Captured & Digitally Sealed ]
+                        </div>
+                        <input
+                          type="text"
+                          data-testid="input-handover-signature"
+                          value={handoverSignatureText}
+                          onChange={(e) => setHandoverSignatureText(e.target.value)}
+                          className="w-full px-2 py-1 rounded-lg bg-zinc-950 text-zinc-400 font-mono text-[10px] border border-zinc-800"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-3 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setHandoverModalOpen(false)}
+                      className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="btn-submit-handover"
+                      onClick={handleCompleteParcelHandover}
+                      disabled={parcelSubmitting}
+                      className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                    >
+                      Confirm Delivery
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL 4: BOOK OUTWARD COURIER */}
+            {outwardModalOpen && (
+              <div
+                data-testid="modal-outward-courier"
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+              >
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">📤</span>
+                      <h3 className="text-base font-black text-white">Book Outward Guest Courier</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOutwardModalOpen(false)}
+                      className="text-zinc-500 hover:text-white text-lg font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 text-xs">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Guest Sender Name *</label>
+                        <input
+                          type="text"
+                          data-testid="input-outward-guest"
+                          placeholder="e.g. Pooja Hegde"
+                          value={outwardGuestName}
+                          onChange={(e) => setOutwardGuestName(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Room Number</label>
+                        <input
+                          type="text"
+                          data-testid="input-outward-room"
+                          placeholder="e.g. 204"
+                          value={outwardRoomNumber}
+                          onChange={(e) => setOutwardRoomNumber(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-amber-400 font-mono font-bold focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-300 mb-1">Destination Address *</label>
+                      <textarea
+                        rows={2}
+                        data-testid="input-outward-address"
+                        placeholder="Complete postal address with city, state and PIN code"
+                        value={outwardDestination}
+                        onChange={(e) => setOutwardDestination(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Courier Partner *</label>
+                        <select
+                          value={outwardCourierPartner}
+                          onChange={(e) => setOutwardCourierPartner(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:outline-none"
+                        >
+                          <option value="BLUE_DART">Blue Dart Express</option>
+                          <option value="DHL">DHL International Express</option>
+                          <option value="FEDEX">FedEx Express</option>
+                          <option value="DELHIVERY">Delhivery Surface</option>
+                          <option value="INDIA_POST">India Post Speed Post</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Tracking / AWB Number *</label>
+                        <input
+                          type="text"
+                          data-testid="input-outward-awb"
+                          placeholder="e.g. FDX-EXP-4412903"
+                          value={outwardAwb}
+                          onChange={(e) => setOutwardAwb(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Courier Fee (₹)</label>
+                        <input
+                          type="number"
+                          data-testid="input-outward-charge"
+                          value={outwardCharge}
+                          onChange={(e) => setOutwardCharge(parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-emerald-400 font-mono font-bold focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="flex items-center pt-5">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            data-testid="toggle-outward-folio"
+                            checked={outwardPostFolio}
+                            onChange={(e) => setOutwardPostFolio(e.target.checked)}
+                            className="w-4 h-4 rounded text-blue-500 focus:ring-0"
+                          />
+                          <span className="font-bold text-blue-300">Auto-Post Fee to Room Folio</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-3 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setOutwardModalOpen(false)}
+                      className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="btn-submit-outward-courier"
+                      onClick={handleBookOutwardCourier}
+                      disabled={parcelSubmitting}
+                      className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                    >
+                      Confirm Booking
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL 5: PARCEL AUDIT TRAIL MODAL */}
+            {parcelAuditModalOpen && selectedParcel && (
+              <div
+                data-testid="modal-parcel-audit"
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+              >
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">📜</span>
+                      <div>
+                        <h3 className="text-base font-black text-white">Parcel Custody Audit Trail</h3>
+                        <p className="text-xs text-zinc-400 font-mono">{selectedParcel.parcelTag}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setParcelAuditModalOpen(false)}
+                      className="text-zinc-500 hover:text-white text-lg font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 text-xs max-h-80 overflow-y-auto pr-1">
+                    {selectedParcel.auditTrail?.map((entry, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-1"
+                      >
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-emerald-400">{entry.action.replace(/_/g, ' ')}</span>
+                          <span className="text-zinc-500 font-mono">
+                            {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <div className="text-zinc-300 font-medium">{entry.details}</div>
+                        <div className="text-[10px] text-zinc-500">By: {entry.performedBy}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {selectedParcel.deliveryInfo && (
+                    <div className="p-3 rounded-2xl bg-purple-950/20 border border-purple-800/30 text-xs space-y-1">
+                      <div className="font-bold text-purple-300">Delivery Confirmation:</div>
+                      <div className="text-zinc-300">
+                        Recipient: {selectedParcel.deliveryInfo.recipientAcknowledgedBy} • Staff: {selectedParcel.deliveryInfo.deliveredByStaffName}
+                      </div>
+                      <div className="text-[10px] font-mono text-zinc-500">
+                        Signature: {selectedParcel.deliveryInfo.signatureDataUrl}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setParcelAuditModalOpen(false)}
+                      className="w-full py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                    >
+                      Close Audit Log
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

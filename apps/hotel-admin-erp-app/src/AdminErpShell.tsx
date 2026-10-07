@@ -80,6 +80,22 @@ const MODULE_REGISTRY: ErpModuleDef[] = [
 export const AdminErpShell: React.FC = () => {
   const [activeModule, setActiveModule] = useState<ErpModuleKey>('PMS');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('spicehub_erp_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    }
+    return 'dark';
+  });
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('spicehub_erp_theme', nextTheme);
+    }
+  };
+
   const matrixStore = MatrixStore.getInstance();
 
   const token = typeof window !== 'undefined' ? (localStorage.getItem('spicehub_token') || localStorage.getItem('token') || '') : '';
@@ -271,31 +287,56 @@ export const AdminErpShell: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
+    <div
+      className={`flex h-screen w-screen overflow-hidden font-sans transition-colors duration-200 ${
+        theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-800'
+      }`}
+    >
       {/* Luxury Sidebar Navigation */}
       <aside
         className={`${
           sidebarCollapsed ? 'w-20' : 'w-72'
-        } transition-all duration-300 ease-in-out flex flex-col bg-slate-900/95 border-r border-slate-800/80 backdrop-blur-md select-none shrink-0 z-20`}
+        } transition-all duration-300 ease-in-out flex flex-col backdrop-blur-md select-none shrink-0 z-20 ${
+          theme === 'dark'
+            ? 'bg-slate-900/95 border-r border-slate-800/80 text-slate-100'
+            : 'bg-white/95 border-r border-slate-200 text-slate-700 shadow-sm'
+        }`}
       >
         {/* Brand Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-800/60 bg-slate-950/40">
+        <div
+          className={`flex items-center justify-between p-4 border-b ${
+            theme === 'dark' ? 'border-slate-800/60 bg-slate-950/40' : 'border-slate-200 bg-slate-50'
+          }`}
+        >
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-amber-900/30 shrink-0">
               S
             </div>
             {!sidebarCollapsed && (
               <div>
-                <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
-                  SpiceHub <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">ERP</span>
+                <h1
+                  className={`text-base font-bold tracking-tight flex items-center gap-1.5 ${
+                    theme === 'dark' ? 'text-white' : 'text-slate-900'
+                  }`}
+                >
+                  SpiceHub{' '}
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/40 font-semibold">
+                    ERP
+                  </span>
                 </h1>
-                <p className="text-xs text-slate-400 font-medium">Hotel Command Center</p>
+                <p className={`text-xs font-medium ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Hotel Command Center
+                </p>
               </div>
             )}
           </div>
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-300 hover:bg-slate-800/60 transition-colors"
+            className={`p-1.5 rounded-lg transition-colors ${
+              theme === 'dark'
+                ? 'text-slate-400 hover:text-amber-300 hover:bg-slate-800/60'
+                : 'text-slate-500 hover:text-amber-600 hover:bg-slate-200/60'
+            }`}
             title={sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
             {sidebarCollapsed ? '→' : '←'}
@@ -313,8 +354,12 @@ export const AdminErpShell: React.FC = () => {
                 onClick={() => setActiveModule(mod.key)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 group text-left ${
                   isActive
-                    ? 'bg-gradient-to-r from-amber-500/20 to-amber-500/5 text-amber-300 border border-amber-500/40 shadow-sm shadow-amber-950'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
+                    ? theme === 'dark'
+                      ? 'bg-gradient-to-r from-amber-500/20 to-amber-500/5 text-amber-300 border border-amber-500/40 shadow-sm shadow-amber-950 font-semibold'
+                      : 'bg-amber-100 text-amber-900 border border-amber-400/80 shadow-sm font-semibold'
+                    : theme === 'dark'
+                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent'
                 }`}
                 title={sidebarCollapsed ? mod.label : undefined}
               >
@@ -323,7 +368,7 @@ export const AdminErpShell: React.FC = () => {
                   <div className="flex-1 flex items-center justify-between truncate">
                     <span className="truncate">{mod.label}</span>
                     {mod.badge && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 uppercase">
                         {mod.badge}
                       </span>
                     )}
@@ -335,16 +380,28 @@ export const AdminErpShell: React.FC = () => {
         </div>
 
         {/* User Session Footer */}
-        <div className="p-3 border-t border-slate-800/60 bg-slate-950/50">
-          <div className="flex items-center gap-3 p-2 rounded-xl bg-slate-900/60 border border-slate-800/50">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-xs font-bold shrink-0">
+        <div
+          className={`p-3 border-t ${
+            theme === 'dark' ? 'border-slate-800/60 bg-slate-950/50' : 'border-slate-200 bg-slate-50'
+          }`}
+        >
+          <div
+            className={`flex items-center gap-3 p-2 rounded-xl border ${
+              theme === 'dark'
+                ? 'bg-slate-900/60 border-slate-800/50'
+                : 'bg-white border-slate-200 shadow-sm'
+            }`}
+          >
+            <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-500 border border-emerald-500/40 flex items-center justify-center text-xs font-bold shrink-0">
               HA
             </div>
             {!sidebarCollapsed && (
               <div className="overflow-hidden">
-                <p className="text-xs font-semibold text-slate-200 truncate">Hotel Admin</p>
-                <p className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Live Enterprise
+                <p className={`text-xs font-semibold truncate ${theme === 'dark' ? 'text-slate-200' : 'text-slate-800'}`}>
+                  Hotel Admin
+                </p>
+                <p className="text-[11px] text-emerald-500 flex items-center gap-1 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Live Enterprise
                 </p>
               </div>
             )}
@@ -353,21 +410,64 @@ export const AdminErpShell: React.FC = () => {
       </aside>
 
       {/* Main Workspace Body */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950">
+      <main
+        className={`flex-1 flex flex-col h-full overflow-hidden transition-colors duration-200 ${
+          theme === 'dark' ? 'bg-slate-950' : 'bg-slate-100/70'
+        }`}
+      >
         {/* Top Navbar */}
-        <header className="h-14 border-b border-slate-800/80 bg-slate-900/50 backdrop-blur-md px-6 flex items-center justify-between shrink-0">
+        <header
+          className={`h-14 border-b backdrop-blur-md px-6 flex items-center justify-between shrink-0 transition-colors duration-200 ${
+            theme === 'dark'
+              ? 'border-slate-800/80 bg-slate-900/50 text-white'
+              : 'border-slate-200 bg-white/90 text-slate-800 shadow-sm'
+          }`}
+        >
           <div className="flex items-center gap-3">
             <span className="text-2xl">{currentMod.icon}</span>
             <div>
-              <h2 className="text-base font-bold text-white tracking-tight">{currentMod.label}</h2>
-              <p className="text-[11px] text-slate-400">Enterprise Multi-Tenant Operation Suite</p>
+              <h2
+                className={`text-base font-bold tracking-tight ${
+                  theme === 'dark' ? 'text-white' : 'text-slate-900'
+                }`}
+              >
+                {currentMod.label}
+              </h2>
+              <p className={`text-[11px] ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                Enterprise Multi-Tenant Operation Suite
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-xs text-slate-300 font-medium flex items-center gap-2">
+            {/* Shift 71: Bright / Dark Theme Switcher Button */}
+            <button
+              data-testid="theme-toggle-btn"
+              onClick={toggleTheme}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-300 border shadow-sm ${
+                theme === 'dark'
+                  ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700 hover:border-amber-500/50'
+                  : 'bg-white hover:bg-slate-50 text-amber-700 border-slate-300 hover:border-amber-400'
+              }`}
+              title={`Switch to ${theme === 'dark' ? 'Bright / Light Mode' : 'Night / Dark Mode'}`}
+            >
+              <span>{theme === 'dark' ? '🌙 Dark Mode' : '☀️ Bright Mode'}</span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  theme === 'dark' ? 'bg-amber-400' : 'bg-emerald-500'
+                } animate-pulse`}
+              ></span>
+            </button>
+
+            <div
+              className={`px-3 py-1 rounded-full border text-xs font-medium flex items-center gap-2 ${
+                theme === 'dark'
+                  ? 'bg-slate-800/80 border-slate-700/60 text-slate-300'
+                  : 'bg-slate-100 border-slate-200 text-slate-700'
+              }`}
+            >
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Port 3005 Active
             </div>
-            <div className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 font-semibold">
+            <div className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs text-amber-500 font-semibold">
               Live SaaS Connected
             </div>
           </div>

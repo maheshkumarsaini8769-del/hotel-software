@@ -80,6 +80,15 @@ import {
   logLuggageDiscrepancy,
   getLuggageAuditLog,
 } from '../controllers/leftLuggageController';
+import {
+  getParcelLogs,
+  logInwardParcel,
+  notifyGuestParcelArrival,
+  dispatchParcelToRoom,
+  completeParcelDelivery,
+  bookOutwardCourier,
+  getParcelAuditLog,
+} from '../controllers/parcelController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
 import { Response, NextFunction } from 'express';
@@ -236,6 +245,22 @@ router.post('/frontdesk/luggage/discrepancy', authenticateFrontDeskTerminal, log
 router.post('/luggage/discrepancy', authenticateFrontDeskTerminal, logLuggageDiscrepancy);
 router.get('/frontdesk/luggage/audit-log/:claimTag', authenticateFrontDeskTerminal, getLuggageAuditLog);
 router.get('/luggage/audit-log/:claimTag', authenticateFrontDeskTerminal, getLuggageAuditLog);
+
+// Shift 71: Front Desk Parcel & Courier Inward/Outward Log, Guest Signature & Digital Delivery Acknowledgment Loop
+router.get('/frontdesk/parcels', authenticateFrontDeskTerminal, getParcelLogs);
+router.get('/parcels', authenticateFrontDeskTerminal, getParcelLogs);
+router.post('/frontdesk/parcels/inward', authenticateFrontDeskTerminal, logInwardParcel);
+router.post('/parcels/inward', authenticateFrontDeskTerminal, logInwardParcel);
+router.post('/frontdesk/parcels/:parcelTag/notify', authenticateFrontDeskTerminal, notifyGuestParcelArrival);
+router.post('/parcels/:parcelTag/notify', authenticateFrontDeskTerminal, notifyGuestParcelArrival);
+router.post('/frontdesk/parcels/:parcelTag/dispatch-room', authenticateFrontDeskTerminal, dispatchParcelToRoom);
+router.post('/parcels/:parcelTag/dispatch-room', authenticateFrontDeskTerminal, dispatchParcelToRoom);
+router.post('/frontdesk/parcels/:parcelTag/complete-delivery', authenticateFrontDeskTerminal, completeParcelDelivery);
+router.post('/parcels/:parcelTag/complete-delivery', authenticateFrontDeskTerminal, completeParcelDelivery);
+router.post('/frontdesk/parcels/outward', authenticateFrontDeskTerminal, bookOutwardCourier);
+router.post('/parcels/outward', authenticateFrontDeskTerminal, bookOutwardCourier);
+router.get('/frontdesk/parcels/audit-log/:parcelTag', authenticateFrontDeskTerminal, getParcelAuditLog);
+router.get('/parcels/audit-log/:parcelTag', authenticateFrontDeskTerminal, getParcelAuditLog);
 
 // Protected Front Desk PMS Routes
 router.post('/reception/check-in', authenticateJWT, requireTenant, receptionCheckIn);

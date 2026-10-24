@@ -42,9 +42,14 @@ export const CustomerAppRoot: React.FC = () => {
     urlParams.get('tableNumber') ||
     (urlParams.get('type') === 'table' ? urlParams.get('id') : null) ||
     queryTableId;
+  const crossRoomParam =
+    urlParams.get('room') ||
+    urlParams.get('roomNumber') ||
+    (urlParams.get('type') === 'room' ? urlParams.get('id') : null) ||
+    urlParams.get('roomId');
   const hasExplicitTable = Boolean(rawTableParam || (queryHotelId && queryTableId));
 
-  const [showLocationModal, setShowLocationModal] = useState<boolean>(() => !hasExplicitTable);
+  const [showLocationModal, setShowLocationModal] = useState<boolean>(() => !hasExplicitTable && !crossRoomParam);
   const [hotelId, setHotelId] = useState<string>('');
   const [hotelName, setHotelName] = useState<string>('SpiceHub Hotel');
   const [tableId, setTableId] = useState<string>('');
@@ -186,13 +191,33 @@ export const CustomerAppRoot: React.FC = () => {
   }, [fetchSessionOrders]);
 
   useEffect(() => {
+    if (crossRoomParam) {
+      const dest = new URL(getPortalUrl('guest'), window.location.href);
+      dest.searchParams.set('room', crossRoomParam);
+      dest.searchParams.set('redirectToast', 'from_table');
+      if (urlParams.get('hotelId')) dest.searchParams.set('hotelId', String(urlParams.get('hotelId')));
+      window.location.replace(dest.toString());
+      return;
+    }
+
+    if (urlParams.get('redirectToast') || urlParams.get('redirectReason')) {
+      setLiveToast({
+        message: '🍽️ Redirected to your Dine-in Table Menu',
+        type: 'info',
+      });
+      setTimeout(() => setLiveToast(null), 5000);
+    }
+  }, [crossRoomParam]);
+
+  useEffect(() => {
+    if (crossRoomParam) return;
     if (hasExplicitTable) {
       void bootstrap();
     } else {
       // In generic visits (no query params), prompt user to choose table or room
       setIsReady(true);
     }
-  }, [hasExplicitTable, bootstrap]);
+  }, [hasExplicitTable, crossRoomParam, bootstrap]);
 
   // Connect socket once hotel and session are initialized
   useEffect(() => {
@@ -497,6 +522,15 @@ export const CustomerAppRoot: React.FC = () => {
     setTimeout(() => setLiveToast(null), 5000);
     return result;
   };
+
+  if (crossRoomParam) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">
+        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-sm font-bold text-amber-400">Redirecting to In-Room Guest Portal...</p>
+      </div>
+    );
+  }
 
   if (!isReady) {
     return (

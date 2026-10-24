@@ -18,6 +18,11 @@ const rawRoomParam =
   urlParams.get('roomNumber') ||
   (urlParams.get('type') === 'room' ? urlParams.get('id') : null) ||
   urlParams.get('roomId');
+const crossTableParam =
+  urlParams.get('table') ||
+  urlParams.get('tableNumber') ||
+  (urlParams.get('type') === 'table' ? urlParams.get('id') : null) ||
+  urlParams.get('tableId');
 const hasExplicitRoom = Boolean(rawRoomParam);
 let targetRoom = rawRoomParam || '305';
 const roomIdFromUrl = urlParams.get('roomId') || '';
@@ -305,12 +310,38 @@ setInterval(() => {
 }, 5000);
 
 const GuestRoomPortalRoot: React.FC = () => {
-  const [showLocationModal, setShowLocationModal] = React.useState<boolean>(!hasExplicitRoom);
+  const [showLocationModal, setShowLocationModal] = React.useState<boolean>(!hasExplicitRoom && !crossTableParam);
   const [currentRoomNumber, setCurrentRoomNumber] = React.useState<string>(targetRoom);
   const [isCheckoutRequested, setIsCheckoutRequested] = React.useState(false);
   const [isStayCheckedOut, setIsStayCheckedOut] = React.useState(false);
   const [checkoutInvoice, setCheckoutInvoice] = React.useState<any>(null);
   const [hotelId, setHotelId] = React.useState<string>(resolvedHotelId);
+
+  const [crossPortalToast, setCrossPortalToast] = React.useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('redirectToast') || sp.get('redirectReason')) {
+      return '🛎️ Redirected to your In-Room Guest Portal';
+    }
+    return null;
+  });
+
+  React.useEffect(() => {
+    if (crossPortalToast) {
+      const timer = setTimeout(() => setCrossPortalToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [crossPortalToast]);
+
+  React.useEffect(() => {
+    if (crossTableParam) {
+      const dest = new URL(getPortalUrl('customer'), window.location.href);
+      dest.searchParams.set('table', crossTableParam);
+      dest.searchParams.set('redirectToast', 'from_room');
+      if (urlParams.get('hotelId')) dest.searchParams.set('hotelId', String(urlParams.get('hotelId')));
+      window.location.replace(dest.toString());
+    }
+  }, []);
 
   React.useEffect(() => {
     void guestSessionReady.then(async () => {
@@ -373,8 +404,25 @@ const GuestRoomPortalRoot: React.FC = () => {
     }
   }, []);
 
+  if (crossTableParam) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-sm font-bold text-blue-400">Redirecting to Dine-in Table Menu...</p>
+      </div>
+    );
+  }
+
   return (
     <>
+      {crossPortalToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-bounce">
+          <div className="px-4 py-3 rounded-2xl shadow-2xl border text-sm font-bold flex items-center justify-between gap-2 bg-blue-950 text-blue-200 border-blue-600">
+            <span>{crossPortalToast}</span>
+            <button onClick={() => setCrossPortalToast(null)} className="text-white/60 hover:text-white">✕</button>
+          </div>
+        </div>
+      )}
       <CustomerLocationSelectorModal
         isOpen={showLocationModal}
         currentApp="guest"

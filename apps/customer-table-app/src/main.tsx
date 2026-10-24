@@ -49,6 +49,16 @@ export const CustomerAppRoot: React.FC = () => {
     urlParams.get('roomId');
   const hasExplicitTable = Boolean(rawTableParam || (queryHotelId && queryTableId));
 
+  const paramFormat = React.useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.has('table')) return `?table=${sp.get('table')}`;
+    if (sp.has('tableId')) return `?tableId=${sp.get('tableId')}`;
+    if (sp.get('type') === 'table') return `?type=table&id=${sp.get('id')}`;
+    if (sp.has('tableNumber')) return `?tableNumber=${sp.get('tableNumber')}`;
+    return '';
+  }, []);
+
   const [showLocationModal, setShowLocationModal] = useState<boolean>(() => !hasExplicitTable && !crossRoomParam);
   const [hotelId, setHotelId] = useState<string>('');
   const [hotelName, setHotelName] = useState<string>('SpiceHub Hotel');
@@ -577,7 +587,7 @@ export const CustomerAppRoot: React.FC = () => {
       />
       <CustomerPortalSwitcherBar
         currentApp="customer"
-        currentLocationName={tableNumber ? `Table ${tableNumber}` : undefined}
+        currentLocationName={tableNumber ? `Table ${tableNumber}${paramFormat ? ` (${paramFormat})` : ''}` : undefined}
         destinationUrl={getPortalUrl('guest')}
       />
       {liveToast && (

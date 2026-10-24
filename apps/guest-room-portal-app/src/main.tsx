@@ -317,6 +317,16 @@ const GuestRoomPortalRoot: React.FC = () => {
   const [checkoutInvoice, setCheckoutInvoice] = React.useState<any>(null);
   const [hotelId, setHotelId] = React.useState<string>(resolvedHotelId);
 
+  const roomParamFormat = React.useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.has('room')) return `?room=${sp.get('room')}`;
+    if (sp.has('roomNumber')) return `?roomNumber=${sp.get('roomNumber')}`;
+    if (sp.get('type') === 'room') return `?type=room&id=${sp.get('id')}`;
+    if (sp.has('roomId')) return `?roomId=${sp.get('roomId')}`;
+    return '';
+  }, []);
+
   const [crossPortalToast, setCrossPortalToast] = React.useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     const sp = new URLSearchParams(window.location.search);
@@ -417,7 +427,7 @@ const GuestRoomPortalRoot: React.FC = () => {
     <>
       <CustomerPortalSwitcherBar
         currentApp="guest"
-        currentLocationName={currentRoomNumber ? `Room ${currentRoomNumber}` : undefined}
+        currentLocationName={currentRoomNumber ? `Room ${currentRoomNumber}${roomParamFormat ? ` (${roomParamFormat})` : ''}` : undefined}
         destinationUrl={getPortalUrl('customer')}
       />
       {crossPortalToast && (

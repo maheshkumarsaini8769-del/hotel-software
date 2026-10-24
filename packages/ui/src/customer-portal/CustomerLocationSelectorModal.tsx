@@ -132,6 +132,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
       role="dialog"
       aria-modal="true"
       aria-labelledby="selector-heading"
+      data-testid="customer-location-modal"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 overflow-y-auto"
     >
       <div className="w-full max-w-lg my-auto rounded-3xl border border-slate-800 bg-[#0c101a] p-5 sm:p-7 shadow-2xl text-slate-100 flex flex-col gap-5">
@@ -169,6 +170,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
         <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-900/90 border border-slate-800">
           <button
             type="button"
+            data-testid="mode-tab-table"
             onClick={() => setSelectedMode('table')}
             className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl text-xs sm:text-sm font-bold transition-all px-3 ${
               selectedMode === 'table'
@@ -177,10 +179,11 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
             }`}
           >
             <span>🍽️</span>
-            <span>Dining Table</span>
+            <span>Dining at a Table</span>
           </button>
           <button
             type="button"
+            data-testid="mode-tab-room"
             onClick={() => setSelectedMode('room')}
             className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl text-xs sm:text-sm font-bold transition-all px-3 ${
               selectedMode === 'room'
@@ -189,7 +192,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
             }`}
           >
             <span>🛎️</span>
-            <span>Hotel Room</span>
+            <span>Staying in a Room</span>
           </button>
         </div>
 
@@ -310,6 +313,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 type="button"
+                data-testid="demo-table-btn"
                 onClick={handleDemoTableClick}
                 className="min-h-[44px] px-3 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 transition"
               >
@@ -318,6 +322,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
               </button>
               <button
                 type="button"
+                data-testid="demo-room-btn"
                 onClick={handleDemoRoomClick}
                 className="min-h-[44px] px-3 py-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 font-bold text-xs flex items-center justify-center gap-2 transition"
               >

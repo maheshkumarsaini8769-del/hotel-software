@@ -510,7 +510,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   const CATEGORIES = dynamicCategories;
 
   return (
-    <div className={`min-h-screen w-full font-sans select-none antialiased flex flex-col transition-colors duration-200 ${
+    <div className={`min-h-screen w-full max-w-full overflow-x-hidden font-sans select-none antialiased flex flex-col transition-colors duration-200 ${
       isDark ? 'bg-[#0a0b10] text-slate-100' : 'bg-[#f8f9fa] text-slate-900'
     }`}>
       {/* Toast Notification */}
@@ -569,7 +569,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           </div>
 
           {/* Center (Desktop): Quick Search & Dietary Toggle */}
-          <div className="hidden md:flex items-center gap-3 flex-1 max-w-md mx-4">
+          <div className="hidden lg:flex items-center gap-3 flex-1 max-w-md mx-4">
             <div className="relative w-full">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               <input
@@ -735,12 +735,12 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {/* ========================================================================= */}
       {/* 2. MAIN BODY: RESPONSIVE MULTI-COLUMN WORKSPACE                          */}
       {/* ========================================================================= */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6">
+      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6 min-w-0">
         
         {/* ======================================================================= */}
         {/* LEFT / CENTER: MENU CATALOG & DISHES BROWSER                           */}
         {/* ======================================================================= */}
-        <div className={`flex-1 flex flex-col space-y-6 ${currentTab !== 'home' && currentTab !== 'menu' ? 'hidden lg:flex' : 'flex'}`}>
+        <div className={`flex-1 min-w-0 flex flex-col space-y-6 ${currentTab !== 'home' && currentTab !== 'menu' ? 'hidden lg:flex' : 'flex'}`}>
           
           {/* Active Live Order Tracker Banner (If any active orders) */}
           {activeOrders.length > 0 && (

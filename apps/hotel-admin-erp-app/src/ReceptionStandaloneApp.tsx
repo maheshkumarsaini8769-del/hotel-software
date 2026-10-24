@@ -22,9 +22,56 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({
 }) => {
   const token = getStoredToken();
   const hotelId = getStoredHotelId();
+  const [showBanner, setShowBanner] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      return localStorage.getItem('spicehub_dismiss_reception_embed_banner') !== 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const handleDismissBanner = () => {
+    setShowBanner(false);
+    try {
+      localStorage.setItem('spicehub_dismiss_reception_embed_banner', 'true');
+    } catch {}
+  };
 
   return (
     <div className="flex h-screen min-h-screen flex-col bg-[#07090e] text-zinc-100">
+      {showBanner && (
+        <div
+          data-testid="reception-embed-banner"
+          className="h-10 max-h-[48px] shrink-0 border-b border-indigo-500/30 bg-indigo-950/80 px-4 py-1 text-indigo-200 flex items-center justify-between gap-3 text-xs overflow-hidden"
+        >
+          <div className="flex items-center gap-2 min-w-0 truncate">
+            <span className="text-sm shrink-0">🏨</span>
+            <span className="truncate">
+              You are viewing the embedded reception widget. For complete PMS Reservation Matrix, Room Allocation & Lost & Found:
+            </span>
+            <a
+              data-testid="reception-standalone-link"
+              href={getPortalUrl('reception')}
+              target="_blank"
+              rel="noreferrer"
+              className="font-bold text-indigo-400 hover:text-indigo-300 underline shrink-0 inline-flex items-center gap-1 min-h-[32px]"
+            >
+              <span>Launch Dedicated Terminal (:3008)</span>
+              <span>↗</span>
+            </a>
+          </div>
+          <button
+            type="button"
+            data-testid="reception-banner-close-btn"
+            onClick={handleDismissBanner}
+            aria-label="Close reception standalone banner"
+            className="min-w-[32px] min-h-[32px] flex items-center justify-center rounded text-indigo-400/70 hover:text-indigo-200 hover:bg-indigo-900/50 shrink-0 transition"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-[#0b0f17] px-4 py-2.5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 text-white">

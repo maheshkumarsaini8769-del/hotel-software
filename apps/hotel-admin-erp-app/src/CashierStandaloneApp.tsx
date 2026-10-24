@@ -22,9 +22,56 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({
 }) => {
   const token = getStoredToken();
   const hotelId = getStoredHotelId();
+  const [showBanner, setShowBanner] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      return localStorage.getItem('spicehub_dismiss_cashier_embed_banner') !== 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const handleDismissBanner = () => {
+    setShowBanner(false);
+    try {
+      localStorage.setItem('spicehub_dismiss_cashier_embed_banner', 'true');
+    } catch {}
+  };
 
   return (
     <div className="flex h-screen min-h-screen flex-col bg-[#07090e] text-zinc-100">
+      {showBanner && (
+        <div
+          data-testid="cashier-embed-banner"
+          className="h-10 max-h-[48px] shrink-0 border-b border-emerald-500/30 bg-emerald-950/80 px-4 py-1 text-emerald-200 flex items-center justify-between gap-3 text-xs overflow-hidden"
+        >
+          <div className="flex items-center gap-2 min-w-0 truncate">
+            <span className="text-sm shrink-0">💳</span>
+            <span className="truncate">
+              You are viewing the embedded cashier widget. For high-volume POS, cash drawers & shift management:
+            </span>
+            <a
+              data-testid="cashier-standalone-link"
+              href={getPortalUrl('cashier')}
+              target="_blank"
+              rel="noreferrer"
+              className="font-bold text-emerald-400 hover:text-emerald-300 underline shrink-0 inline-flex items-center gap-1 min-h-[32px]"
+            >
+              <span>Launch Dedicated Terminal (:3007)</span>
+              <span>↗</span>
+            </a>
+          </div>
+          <button
+            type="button"
+            data-testid="cashier-banner-close-btn"
+            onClick={handleDismissBanner}
+            aria-label="Close cashier standalone banner"
+            className="min-w-[32px] min-h-[32px] flex items-center justify-center rounded text-emerald-400/70 hover:text-emerald-200 hover:bg-emerald-900/50 shrink-0 transition"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-[#0b0f17] px-4 py-2.5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-slate-950">

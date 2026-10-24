@@ -38,3 +38,44 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# ============================================
+# QA artifacts (never commit)
+# ============================================
+artifacts/
+*.trace.zip
+*.webm
+*.har
+playwright-report/
+test-results/
+
+# ============================================
+# Audit scratch scripts (QA-only, not production)
+# ============================================
+scripts/*_audit*
+scripts/*_test*
+scripts/master_qa_*
+scripts/master_continuous*
+scripts/master_e2e_qa_*
+scripts/master_virtual_*
+scripts/human_*
+scripts/deep_*
+scripts/verify_all_*
+scripts/track_b_*
+scripts/compile_qa_*
+scripts/ultra_*
+scripts/run_deduplicate*
+scripts/serve_all_portals*
+
+# ============================================
+# Root-level scratch files
+# ============================================
+/test_*.js
+/test_*.cjs
+/test_*.ts
+/deep_audit_*
+
+# ============================================
+# Tool configs
+# ============================================
+.zcodeignore

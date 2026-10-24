@@ -2,7 +2,7 @@ import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { GuestRoomPortalApp } from './GuestRoomPortalApp';
-import { ErrorBoundary, GuestPortalStore, LiveRoomOrder, CustomerLocationSelectorModal } from '@spicehub/ui';
+import { ErrorBoundary, GuestPortalStore, LiveRoomOrder, CustomerLocationSelectorModal, CustomerPortalSwitcherBar } from '@spicehub/ui';
 import { SpiceHubSocket } from '@spicehub/api-client';
 import { API_ORIGIN, SOCKET_URL } from './config/api';
 import { getPortalUrl } from './config/env';
@@ -415,6 +415,11 @@ const GuestRoomPortalRoot: React.FC = () => {
 
   return (
     <>
+      <CustomerPortalSwitcherBar
+        currentApp="guest"
+        currentLocationName={currentRoomNumber ? `Room ${currentRoomNumber}` : undefined}
+        destinationUrl={getPortalUrl('customer')}
+      />
       {crossPortalToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-bounce">
           <div className="px-4 py-3 rounded-2xl shadow-2xl border text-sm font-bold flex items-center justify-between gap-2 bg-blue-950 text-blue-200 border-blue-600">

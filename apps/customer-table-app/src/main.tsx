@@ -2,7 +2,7 @@ import './index.css';
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import { CustomerMenuApp, CustomerRequestType } from './CustomerMenuApp';
-import { ErrorBoundary, MenuCartStore, CustomerLocationSelectorModal } from '@spicehub/ui';
+import { ErrorBoundary, MenuCartStore, CustomerLocationSelectorModal, CustomerPortalSwitcherBar } from '@spicehub/ui';
 import { SpiceHubSocket, SpiceHubClient } from '@spicehub/api-client';
 import { API_ORIGIN, SOCKET_URL } from './config/api';
 import { getPortalUrl } from './config/env';
@@ -574,6 +574,11 @@ export const CustomerAppRoot: React.FC = () => {
           setShowLocationModal(false);
           void bootstrap('T-04');
         }}
+      />
+      <CustomerPortalSwitcherBar
+        currentApp="customer"
+        currentLocationName={tableNumber ? `Table ${tableNumber}` : undefined}
+        destinationUrl={getPortalUrl('guest')}
       />
       {liveToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-bounce">

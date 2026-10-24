@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../../config/api';
 import {
   Moon,
   ShieldCheck,
@@ -37,7 +38,7 @@ interface NightAuditAppProps {
 export const NightAuditApp: React.FC<NightAuditAppProps> = ({
   hotelId = '',
   token,
-  apiUrl = 'http://localhost:5000/api/v1',
+  apiUrl = API_BASE_URL,
 }) => {
   const [store] = useState(() => new NightAuditStore());
   const [history, setHistory] = useState<INightAuditSessionUI[]>([]);
@@ -204,7 +205,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
             </div>
           </div>
           <div className="text-2xl font-black text-amber-400" data-testid="kpi-room-revenue">
-            {latestAudit ? NightAuditHelper.formatCurrency(latestAudit.totalRoomRevenue) : '₹18,500'}
+            {latestAudit ? NightAuditHelper.formatCurrency(latestAudit.totalRoomRevenue) : '—'}
           </div>
           <div className="text-xs text-slate-400">Auto-post to Master Folios</div>
         </div>
@@ -218,7 +219,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
             </div>
           </div>
           <div className="text-2xl font-black text-white">
-            {latestAudit ? NightAuditHelper.formatCurrency(latestAudit.totalFoodAndBeverageRevenue) : '₹9,450'}
+            {latestAudit ? NightAuditHelper.formatCurrency(latestAudit.totalFoodAndBeverageRevenue) : '—'}
           </div>
           <div className="text-xs text-slate-400">Dining & In-Room Orders</div>
         </div>
@@ -232,7 +233,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
             </div>
           </div>
           <div className="text-2xl font-black text-cyan-400">
-            {latestAudit ? NightAuditHelper.formatCurrency(latestAudit.averageDailyRate) : '₹6,166'}
+            {latestAudit ? NightAuditHelper.formatCurrency(latestAudit.averageDailyRate) : '—'}
           </div>
           <div className="text-xs text-slate-400">Rev / Occupied Room</div>
         </div>
@@ -246,7 +247,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
             </div>
           </div>
           <div className="text-2xl font-black text-fuchsia-400">
-            {latestAudit ? NightAuditHelper.formatCurrency(latestAudit.revPAR) : '₹3,700'}
+            {latestAudit ? NightAuditHelper.formatCurrency(latestAudit.revPAR) : '—'}
           </div>
           <div className="text-xs text-slate-400">Rev / Total Available Room</div>
         </div>

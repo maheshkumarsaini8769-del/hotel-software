@@ -8,6 +8,9 @@ export interface IRoomType extends Document {
   baseCapacityChildren: number;
   maxCapacity: number;
   basePriceOvernight: number;
+  weekendPrice: number;
+  extraBedPrice: number;
+  gstRate: number;
   basePriceDayUse: number;
   basePriceHourly: number;
   amenities: string[];
@@ -28,6 +31,9 @@ const RoomTypeSchema = new Schema<IRoomType>(
     baseCapacityChildren: { type: Number, default: 1, min: 0 },
     maxCapacity: { type: Number, default: 3, min: 1 },
     basePriceOvernight: { type: Number, required: true, min: 0 },
+    weekendPrice: { type: Number, default: 0, min: 0 },
+    extraBedPrice: { type: Number, default: 0, min: 0 },
+    gstRate: { type: Number, default: 12, min: 0, max: 28 },
     basePriceDayUse: { type: Number, default: 0, min: 0 },
     basePriceHourly: { type: Number, default: 0, min: 0 },
     amenities: [{ type: String }],

@@ -6,6 +6,8 @@ interface GuestDietaryCardModalProps {
   onClose: () => void;
   guestProfile: any;
   pastReservations: any[];
+  loading?: boolean;
+  error?: string | null;
 }
 
 export const GuestDietaryCardModal: React.FC<GuestDietaryCardModalProps> = ({
@@ -13,10 +15,14 @@ export const GuestDietaryCardModal: React.FC<GuestDietaryCardModalProps> = ({
   onClose,
   guestProfile,
   pastReservations,
+  loading = false,
+  error = null,
 }) => {
-  if (!isOpen || !guestProfile) return null;
+  if (!isOpen) return null;
 
-  const vipBadge = DiningReservationHelper.getVipBadge(guestProfile.vipTier || 'REGULAR');
+  const vipBadge = guestProfile
+    ? DiningReservationHelper.getVipBadge(guestProfile.vipTier || 'REGULAR')
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
@@ -25,19 +31,21 @@ export const GuestDietaryCardModal: React.FC<GuestDietaryCardModalProps> = ({
         <div className="flex items-start justify-between pb-4 border-b border-zinc-800">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black text-white">{guestProfile.name}</h2>
-              <span
-                className="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                style={{
-                  backgroundColor: vipBadge.bg,
-                  color: vipBadge.text,
-                  border: vipBadge.border,
-                }}
-              >
-                {vipBadge.label}
-              </span>
+              <h2 className="text-lg font-black text-white">{guestProfile?.name || 'Guest Dietary Profile'}</h2>
+              {vipBadge && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                  style={{
+                    backgroundColor: vipBadge.bg,
+                    color: vipBadge.text,
+                    border: vipBadge.border,
+                  }}
+                >
+                  {vipBadge.label}
+                </span>
+              )}
             </div>
-            <p className="text-xs text-zinc-400 mt-0.5 font-mono">{guestProfile.phone}</p>
+            <p className="text-xs text-zinc-400 mt-0.5 font-mono">{guestProfile?.phone || 'Loading guest record…'}</p>
           </div>
           <button
             type="button"
@@ -50,6 +58,18 @@ export const GuestDietaryCardModal: React.FC<GuestDietaryCardModalProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-zinc-400">
+              <span className="h-8 w-8 animate-spin rounded-full border-2 border-rose-400 border-t-transparent" />
+              <span className="text-xs font-semibold">Loading guest preferences & dietary history…</span>
+            </div>
+          ) : error || !guestProfile ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-950/30 p-4 text-xs text-amber-200">
+              <div className="font-bold">Profile unavailable</div>
+              <p className="mt-1 text-amber-200/80">{error || 'This guest has no saved dining profile yet.'}</p>
+            </div>
+          ) : (
+            <>
           {/* Stats Bar */}
           <div className="grid grid-cols-2 gap-3 p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
             <div>
@@ -105,8 +125,13 @@ export const GuestDietaryCardModal: React.FC<GuestDietaryCardModalProps> = ({
                   <span className="text-zinc-400 font-medium">Party of {r.partySize}</span>
                 </div>
               ))}
+              {pastReservations.length === 0 && (
+                <p className="text-xs text-zinc-500">No previous table visits recorded.</p>
+              )}
             </div>
           </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}

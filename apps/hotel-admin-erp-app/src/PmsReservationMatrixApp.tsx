@@ -4,12 +4,12 @@ import { PmsCategoryFilter } from './components/pms/PmsCategoryFilter';
 import { PmsCalendarGrid } from './components/pms/PmsCalendarGrid';
 import { PmsQuickBookingDrawer } from './components/pms/PmsQuickBookingDrawer';
 import { PmsReservationDetailModal } from './components/pms/PmsReservationDetailModal';
-import { MatrixStore } from '../../../packages/ui/src/pms/MatrixStore';
+import { MatrixStore } from '@spicehub/ui';
 import {
   MatrixCalendarData,
   MatrixReservationBlock,
   QuickReserveTarget,
-} from '../../../packages/ui/src/pms/types';
+} from '@spicehub/ui';
 
 export interface PmsReservationMatrixAppProps {
   store: MatrixStore;

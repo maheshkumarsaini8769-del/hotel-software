@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { ApiClient } from '@spicehub/api-client';
+import { getApiClient } from '../../lib/apiClient';
 import {
   ReservationStore,
   RoomArrivalBookingDTO,
@@ -17,7 +18,7 @@ interface LiveReservationManagerAppProps {
 }
 
 export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps> = ({
-  apiClient = new ApiClient({ baseUrl: window.location.origin }),
+  apiClient = getApiClient(),
   hotelId,
 }) => {
   const store = useMemo(() => new ReservationStore(), []);

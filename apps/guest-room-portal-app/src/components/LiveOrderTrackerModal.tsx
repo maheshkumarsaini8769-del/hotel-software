@@ -30,8 +30,8 @@ export const LiveOrderTrackerModal: React.FC<LiveOrderTrackerModalProps> = ({
 
   const steps = [
     { num: 1, label: 'Order Placed', icon: '📝' },
-    { num: 2, label: 'Kitchen Preparing', icon: '👨‍🍳' },
-    { num: 3, label: 'On The Way', icon: '🛎️' },
+    { num: 2, label: 'Preparing', icon: '👨‍🍳' },
+    { num: 3, label: 'Out for Delivery', icon: '🛎️' },
     { num: 4, label: 'Delivered', icon: '🍽️' },
   ];
 

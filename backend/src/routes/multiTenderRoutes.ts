@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import { authenticateBackOffice } from '../middlewares/backOfficeAuth';
 import { MultiTenderController } from '../controllers/multiTenderController';
 
 const router = Router();
+
+router.use(authenticateBackOffice);
 
 // Shift Float management
 router.post('/shift/open', MultiTenderController.openShift);

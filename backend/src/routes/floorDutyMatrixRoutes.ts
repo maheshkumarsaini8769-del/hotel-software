@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import { authenticateBackOffice } from '../middlewares/backOfficeAuth';
 import { FloorDutyMatrixController } from '../controllers/floorDutyMatrixController';
 
 const router = Router();
+
+router.use(authenticateBackOffice);
 
 router.post('/init-sync', FloorDutyMatrixController.initOrSyncFloorMatrix);
 router.post('/assign-range', FloorDutyMatrixController.assignDynamicRange);

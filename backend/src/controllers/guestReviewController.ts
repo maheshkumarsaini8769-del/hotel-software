@@ -21,7 +21,10 @@ import { io } from '../index';
 // 1. Submit In-App Guest Review (with Automatic Negative Review Service Recovery Trigger)
 export const submitGuestReview = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
-    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    const hotelId =
+      req.hotelId ||
+      (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined) ||
+      (req.body?.hotelId && Types.ObjectId.isValid(req.body.hotelId) ? new Types.ObjectId(req.body.hotelId) : undefined);
     if (!hotelId) {
       res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
       return;

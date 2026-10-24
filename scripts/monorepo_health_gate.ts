@@ -28,6 +28,8 @@ const requiredApps = [
   'guest-room-portal-app',
   'hotel-admin-erp-app',
   'superadmin-saas-app',
+  'cashier-pos-app',
+  'reception-frontdesk-app',
 ];
 
 runCheck('Micro-Frontend App Structures & Configs', () => {

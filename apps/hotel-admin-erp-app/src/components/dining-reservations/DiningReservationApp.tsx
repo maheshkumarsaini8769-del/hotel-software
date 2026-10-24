@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { API_BASE_URL } from '../../config/api';
 import axios from 'axios';
 import {
   DiningReservationStore,
@@ -8,7 +9,7 @@ import {
 } from '@spicehub/ui';
 import { DiningReservationHeader } from './DiningReservationHeader';
 import { ReservationTimelineBoard } from './ReservationTimelineBoard';
-import { NewDiningReservationModal } from './NewDiningReservationModal';
+import { VipDiningReservationModal } from './VipDiningReservationModal';
 import { GuestDietaryCardModal } from './GuestDietaryCardModal';
 import { SeatGuestModal } from './SeatGuestModal';
 
@@ -19,7 +20,7 @@ interface DiningReservationAppProps {
 }
 
 export const DiningReservationApp: React.FC<DiningReservationAppProps> = ({
-  apiBaseUrl = 'http://localhost:5000/api/v1',
+  apiBaseUrl = API_BASE_URL,
   authToken,
   hotelId,
 }) => {
@@ -35,6 +36,8 @@ export const DiningReservationApp: React.FC<DiningReservationAppProps> = ({
     profile: null,
     pastReservations: [],
   });
+  const [dietaryLoading, setDietaryLoading] = useState(false);
+  const [dietaryError, setDietaryError] = useState<string | null>(null);
 
   const [selectedMealPeriod, setSelectedMealPeriod] = useState<MealPeriodUI | 'ALL'>('ALL');
 
@@ -143,21 +146,32 @@ export const DiningReservationApp: React.FC<DiningReservationAppProps> = ({
   };
 
   const handleViewGuestDietary = async (phone: string) => {
+    setIsDietaryModalOpen(true);
+    setDietaryLoading(true);
+    setDietaryError(null);
+    setGuestDietaryData({ profile: null, pastReservations: [] });
     try {
       const res = await axios.get(`${apiBaseUrl}/dining-reservations/guest-profile`, {
         headers: authHeaders,
         params: { phone },
       });
-      if (res.data.success) {
+      if (res.data?.success && res.data?.profile) {
         setGuestDietaryData({
           profile: res.data.profile,
           pastReservations: res.data.pastReservations || [],
         });
-        setIsDietaryModalOpen(true);
+      } else {
+        setDietaryError('Guest profile not yet registered.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading guest profile:', err);
-      alert('Guest profile not yet registered');
+      setDietaryError(
+        err.response?.status === 404
+          ? 'Guest profile not yet registered.'
+          : err.response?.data?.message || 'Unable to load guest dietary profile.'
+      );
+    } finally {
+      setDietaryLoading(false);
     }
   };
 
@@ -187,7 +201,7 @@ export const DiningReservationApp: React.FC<DiningReservationAppProps> = ({
       </main>
 
       {/* Modals */}
-      <NewDiningReservationModal
+      <VipDiningReservationModal
         isOpen={isNewBookingOpen}
         onClose={() => setIsNewBookingOpen(false)}
         onSubmit={handleCreateReservation}
@@ -210,6 +224,8 @@ export const DiningReservationApp: React.FC<DiningReservationAppProps> = ({
         onClose={() => setIsDietaryModalOpen(false)}
         guestProfile={guestDietaryData.profile}
         pastReservations={guestDietaryData.pastReservations}
+        loading={dietaryLoading}
+        error={dietaryError}
       />
     </div>
   );

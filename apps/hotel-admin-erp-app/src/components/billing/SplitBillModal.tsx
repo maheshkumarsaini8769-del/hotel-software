@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { formatCurrency } from '../../../../../packages/ui/src/index';
-import { BillingCalculatorHelper } from '../../../../../packages/ui/src/billing/BillingCalculatorHelper';
-import { SplitPersonShare } from '../../../../../packages/ui/src/billing/types';
+import { formatCurrency } from '@spicehub/ui';
+import { BillingCalculatorHelper } from '@spicehub/ui';
+import { SplitPersonShare } from '@spicehub/ui';
 
 export interface SplitBillModalProps {
   billNumber: string;

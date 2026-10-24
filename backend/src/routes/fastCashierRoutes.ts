@@ -1,6 +1,7 @@
 import { Router, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import {
+  getCashierSnapshot,
   lookupItemByShortcut,
   createFastCounterOrder,
   getTakeawayCallingQueue,
@@ -8,9 +9,14 @@ import {
   generateThermalReceipt,
   triggerCashDrawerKick,
   settleFastSplitPayment,
+  getPettyCashVouchers,
+  createPettyCashVoucher,
+  recordCashDrop,
+  getCashierReceipts,
 } from '../controllers/fastCashierController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
+import { isDevAuthBypassEnabled } from '../config/security';
 
 const router = Router();
 
@@ -25,7 +31,7 @@ export const authenticateFastCashier = async (
     return authenticateJWT(req, res, () => requireTenant(req, res, next));
   }
 
-  if (process.env.NODE_ENV !== 'test') {
+  if (isDevAuthBypassEnabled()) {
     try {
       const { Tenant } = await import('../models/Tenant');
       const { User } = await import('../models/User');
@@ -62,6 +68,7 @@ export const authenticateFastCashier = async (
 
 router.use(authenticateFastCashier);
 
+router.get('/snapshot', getCashierSnapshot);
 router.get('/lookup', lookupItemByShortcut);
 router.post('/order', createFastCounterOrder);
 router.get('/queue', getTakeawayCallingQueue);
@@ -69,5 +76,9 @@ router.patch('/order/:orderId/pickup', markTakeawayPickedUp);
 router.post('/thermal-receipt/:billId', generateThermalReceipt);
 router.post('/drawer-kick', triggerCashDrawerKick);
 router.post('/settle-split', settleFastSplitPayment);
+router.get('/expenses', getPettyCashVouchers);
+router.post('/expenses', createPettyCashVoucher);
+router.post('/cash-drop', recordCashDrop);
+router.get('/receipts', getCashierReceipts);
 
 export default router;

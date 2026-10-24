@@ -8,6 +8,7 @@ import {
 } from '../controllers/nightAuditController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
+import { isDevAuthBypassEnabled } from '../config/security';
 
 const router = Router();
 
@@ -23,7 +24,7 @@ export const authenticateNightAudit = async (
   }
 
   // Local Admin Terminal fallback only in non-test mode
-  if (process.env.NODE_ENV !== 'test') {
+  if (isDevAuthBypassEnabled()) {
     try {
       const { Tenant } = await import('../models/Tenant');
       const { User } = await import('../models/User');

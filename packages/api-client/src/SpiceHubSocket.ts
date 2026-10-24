@@ -6,6 +6,7 @@ export interface SocketConnectionOptions {
   station?: string;
   userId?: string;
   tableSessionId?: string;
+  token?: string;
 }
 
 export type SocketEventHandler = (data: any) => void;
@@ -28,22 +29,32 @@ export class SpiceHubSocket {
 
   private joinRooms(options: SocketConnectionOptions): void {
     if (!this.socket) return;
+    const token =
+      options.token ||
+      (typeof window !== 'undefined'
+        ? window.localStorage.getItem('spicehub_token') || window.localStorage.getItem('token') || undefined
+        : undefined);
+
     if (options.hotelId) {
       this.socket.emit('join_tenant_room', {
         hotelId: options.hotelId,
         station: options.station,
         userId: options.userId,
         tableSessionId: options.tableSessionId,
+        token,
       });
     }
     if (options.userId) {
       this.socket.emit('join_tenant_room', {
         hotelId: `waiter_${options.userId}`,
+        token,
       });
     }
     if (options.tableSessionId) {
       this.socket.emit('join_tenant_room', {
         hotelId: `session_${options.tableSessionId}`,
+        tableSessionId: options.tableSessionId,
+        token,
       });
     }
   }

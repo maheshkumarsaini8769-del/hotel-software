@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import { authenticateBackOffice } from '../middlewares/backOfficeAuth';
 import { FoodPickupSlaController } from '../controllers/foodPickupSlaController';
 
 const router = Router();
+
+router.use(authenticateBackOffice);
 
 // 1. Get or update SLA configuration (slider 2-10 min)
 router.get('/config', FoodPickupSlaController.getOrUpdateSlaConfig);

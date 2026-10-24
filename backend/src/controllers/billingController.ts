@@ -9,18 +9,40 @@ import { ShiftReconciliation } from '../models/ShiftReconciliation';
 import { TaxRule, TaxApplicability } from '../models/TaxRule';
 import { TenantRequest } from '../types';
 import { io } from '../index';
+import { isDevAuthBypassEnabled } from '../config/security';
 
 // 1. Authoritative Bill Generation & Snapshot Locking
 export const generateTableBill = async (req: Request, res: Response): Promise<void> => {
   try {
     const { hotelId, tableSessionId, discountType, discountValue, discountReason } = req.body;
 
-    if (!hotelId || !tableSessionId || !Types.ObjectId.isValid(tableSessionId)) {
+    const authHotelId = (req as TenantRequest).hotelId
+      ? String((req as TenantRequest).hotelId)
+      : '';
+
+    if (
+      !hotelId ||
+      !Types.ObjectId.isValid(hotelId) ||
+      !tableSessionId ||
+      !Types.ObjectId.isValid(tableSessionId)
+    ) {
       res.status(400).json({ success: false, errorCode: 'INVALID_INPUT', message: 'Missing or invalid parameters' });
       return;
     }
+    if (authHotelId && authHotelId !== String(hotelId)) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'TENANT_MISMATCH',
+        message: 'Requested hotel does not match the authenticated tenant',
+      });
+      return;
+    }
 
-    const session = await TableSession.findById(tableSessionId);
+    const scopedHotelId = new Types.ObjectId(authHotelId || hotelId);
+    const session = await TableSession.findOne({
+      _id: new Types.ObjectId(tableSessionId),
+      hotelId: scopedHotelId,
+    });
     if (!session || session.status === SessionStatus.CLOSED) {
       res.status(400).json({ success: false, errorCode: 'INVALID_SESSION', message: 'Session is closed or not found' });
       return;
@@ -28,7 +50,7 @@ export const generateTableBill = async (req: Request, res: Response): Promise<vo
 
     // Check if a bill is already generated for this session
     let bill = await RestaurantBill.findOne({
-      hotelId: new Types.ObjectId(hotelId),
+      hotelId: scopedHotelId,
       tableSessionId: session._id,
       billStatus: { $ne: BillStatus.VOID },
     });
@@ -44,7 +66,7 @@ export const generateTableBill = async (req: Request, res: Response): Promise<vo
 
     // Fetch all active orders for this table session
     const orders = await RestaurantOrder.find({
-      hotelId: new Types.ObjectId(hotelId),
+      hotelId: scopedHotelId,
       tableSessionId: session._id,
       orderStatus: { $ne: OverallOrderStatus.CANCELLED },
     });
@@ -79,7 +101,7 @@ export const generateTableBill = async (req: Request, res: Response): Promise<vo
 
     // Dynamic Tax Rule Resolution from database or fallback to standard 5% GST
     const activeTaxRule = await TaxRule.findOne({
-      hotelId: new Types.ObjectId(hotelId),
+      hotelId: scopedHotelId,
       applicableTo: { $in: [TaxApplicability.RESTAURANT_DINE_IN, TaxApplicability.ALL] },
       isActive: true,
     }).sort({ isDefault: -1 });
@@ -108,7 +130,7 @@ export const generateTableBill = async (req: Request, res: Response): Promise<vo
     }
 
     bill = await RestaurantBill.create({
-      hotelId: new Types.ObjectId(hotelId),
+      hotelId: scopedHotelId,
       billNumber,
       tableSessionId: session._id,
       tableId: session.tableId,
@@ -152,8 +174,20 @@ export const generateTableBill = async (req: Request, res: Response): Promise<vo
 export const calculateSplitBill = async (req: Request, res: Response): Promise<void> => {
   try {
     const { billId, splitType, splitCount } = req.body;
+    const hotelId = (req as TenantRequest).hotelId;
+    if (!hotelId || !billId || !Types.ObjectId.isValid(billId)) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_INPUT',
+        message: 'A valid billId and hotel context are required',
+      });
+      return;
+    }
 
-    const bill = await RestaurantBill.findById(billId);
+    const bill = await RestaurantBill.findOne({
+      _id: new Types.ObjectId(billId),
+      hotelId: new Types.ObjectId(String(hotelId)),
+    });
     if (!bill) {
       res.status(404).json({ success: false, errorCode: 'BILL_NOT_FOUND' });
       return;
@@ -216,25 +250,63 @@ export const processBillPayment = async (req: Request, res: Response): Promise<v
     const {
       hotelId,
       billId,
-      paymentMode,
+      tableSessionId,
+      paymentMode = PaymentMode.UPI,
       amount,
       cashReceived,
       utrNumber,
       gatewayTransactionId,
     } = req.body;
 
-    const idempotencyKey = req.headers['x-idempotency-key'] as string;
-    if (!idempotencyKey) {
-      res.status(400).json({ success: false, errorCode: 'IDEMPOTENCY_KEY_REQUIRED' });
+    const providedIdempotencyKey =
+      (req.headers['x-idempotency-key'] as string) ||
+      req.body?.idempotencyKey;
+
+    if (!providedIdempotencyKey) {
+      if (!isDevAuthBypassEnabled() && process.env.NODE_ENV !== 'test') {
+        res.status(400).json({
+          success: false,
+          errorCode: 'IDEMPOTENCY_KEY_REQUIRED',
+          message: 'x-idempotency-key header is required for payment processing',
+        });
+        return;
+      }
+      console.warn('[Billing] Missing idempotency key accepted for local development/test only');
+    }
+
+    const idempotencyKey =
+      providedIdempotencyKey ||
+      `pay_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    const authHotelId = (req as TenantRequest).hotelId
+      ? String((req as TenantRequest).hotelId)
+      : '';
+    const requestedHotelId = hotelId ? String(hotelId) : authHotelId;
+
+    if (!requestedHotelId || !Types.ObjectId.isValid(requestedHotelId)) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_HOTEL',
+        message: 'A valid hotelId is required',
+      });
+      return;
+    }
+    if (authHotelId && String(requestedHotelId) !== authHotelId) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'TENANT_MISMATCH',
+        message: 'Requested hotel does not match the authenticated tenant',
+      });
       return;
     }
 
+    const scopedHotelId = new Types.ObjectId(authHotelId || requestedHotelId);
+
     // Check duplicate payment submission
     const existingPayment = await Payment.findOne({
-      hotelId: new Types.ObjectId(hotelId),
+      hotelId: scopedHotelId,
       idempotencyKey,
     });
-
     if (existingPayment) {
       res.status(200).json({
         success: true,
@@ -244,37 +316,102 @@ export const processBillPayment = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const bill = await RestaurantBill.findById(billId);
+    let bill =
+      billId && Types.ObjectId.isValid(billId)
+        ? await RestaurantBill.findOne({ _id: new Types.ObjectId(billId), hotelId: scopedHotelId })
+        : null;
+    if (!bill && tableSessionId && Types.ObjectId.isValid(tableSessionId)) {
+      bill = await RestaurantBill.findOne({
+        hotelId: scopedHotelId,
+        tableSessionId: new Types.ObjectId(tableSessionId),
+        billStatus: { $ne: BillStatus.PAID },
+      }).sort({ createdAt: -1 });
+    }
+
+    // Auto-generate bill snapshot if not yet created for session
+    if (!bill && tableSessionId && Types.ObjectId.isValid(tableSessionId)) {
+      const session = await TableSession.findOne({
+        _id: new Types.ObjectId(tableSessionId),
+        hotelId: scopedHotelId,
+      });
+      if (session) {
+        const orders = await RestaurantOrder.find({
+          hotelId: scopedHotelId,
+          tableSessionId: session._id,
+          orderStatus: { $ne: OverallOrderStatus.CANCELLED },
+        });
+        let subTotal = 0;
+        orders.forEach((o) => {
+          o.items.forEach((it) => {
+            if (it.itemStatus !== 'CANCELLED') subTotal += it.subtotal;
+          });
+        });
+        const grandTotal = Math.round(subTotal * 1.05);
+        const totalTax = grandTotal - subTotal;
+        bill = await RestaurantBill.create({
+          hotelId: session.hotelId,
+          billNumber: `BILL-${Date.now().toString().slice(-6)}`,
+          tableSessionId: session._id,
+          tableId: session.tableId,
+          orderIds: orders.map((o) => o._id),
+          subTotal,
+          totalTax,
+          grandTotal,
+          roundOff: 0,
+          paidAmount: 0,
+          dueAmount: grandTotal,
+          billStatus: BillStatus.UNPAID,
+          isSnapshotLocked: true,
+        });
+      }
+    }
+
     if (!bill || bill.billStatus === BillStatus.PAID) {
       res.status(400).json({ success: false, errorCode: 'INVALID_BILL', message: 'Bill is already paid or not found' });
       return;
     }
 
+    const payAmount = amount !== undefined ? Number(amount) : bill.dueAmount;
+
+    if (!Number.isFinite(payAmount) || payAmount <= 0) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_AMOUNT', message: 'Payment amount must be greater than zero' });
+      return;
+    }
+
+    if (payAmount > bill.dueAmount + 0.01) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'PAYMENT_EXCEEDS_DUE',
+        message: `Payment amount ₹${payAmount} exceeds outstanding due ₹${bill.dueAmount}`,
+      });
+      return;
+    }
+
     let changeReturned = 0;
     if (paymentMode === PaymentMode.CASH) {
-      if (!cashReceived || cashReceived < amount) {
+      if (!cashReceived || cashReceived < payAmount) {
         res.status(400).json({ success: false, errorCode: 'INSUFFICIENT_CASH', message: 'Cash received is less than payment amount' });
         return;
       }
-      changeReturned = cashReceived - amount;
+      changeReturned = cashReceived - payAmount;
     }
 
     // Create Payment Record
     const payment = await Payment.create({
-      hotelId: new Types.ObjectId(hotelId),
+      hotelId: bill.hotelId,
       billId: bill._id,
       paymentMode,
-      amount,
+      amount: payAmount,
       status: PaymentStatus.SUCCESS,
       cashReceived: paymentMode === PaymentMode.CASH ? cashReceived : undefined,
       cashChangeReturned: changeReturned,
-      utrNumber,
+      utrNumber: utrNumber || (paymentMode === PaymentMode.UPI ? `UPI${Date.now()}` : undefined),
       gatewayTransactionId,
       idempotencyKey,
     });
 
     // Update Bill
-    bill.paidAmount += amount;
+    bill.paidAmount += payAmount;
     bill.dueAmount = Math.max(0, bill.grandTotal - bill.paidAmount);
     if (bill.dueAmount === 0) {
       bill.billStatus = BillStatus.PAID;
@@ -292,12 +429,18 @@ export const processBillPayment = async (req: Request, res: Response): Promise<v
     }
 
     // Broadcast Real-time event
-    io.to(`${hotelId}_admin`).emit('payment:verified', {
+    const activeHotelId = bill.hotelId.toString();
+    io.to(`${activeHotelId}_admin`).to(`${activeHotelId}_cashier`).emit('payment:verified', {
       billId: bill._id,
-      amount,
+      amount: payAmount,
       paymentMode,
       billStatus: bill.billStatus,
       changeReturned,
+    });
+
+    io.to(`${activeHotelId}_waiters`).to(`${activeHotelId}_cashier`).to(`${activeHotelId}_global`).emit('table:status_changed', {
+      tableId: bill.tableId?.toString(),
+      currentStatus: TableStatus.PAYMENT_SETTLED,
     });
 
     res.status(201).json({

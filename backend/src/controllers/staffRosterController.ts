@@ -18,6 +18,7 @@ import {
 import { User } from '../models/User';
 import argon2 from 'argon2';
 import { TenantRequest } from '../types';
+import { isProduction } from '../config/security';
 
 // 1. Create Shift Roster Schedules (Single or Bulk)
 export const createRosterSchedule = async (req: TenantRequest, res: Response): Promise<void> => {
@@ -127,7 +128,8 @@ export const clockInStaff = async (req: TenantRequest, res: Response): Promise<v
             isMatch = false;
           }
         } else {
-          isMatch = targetUser.pinCodeHash === String(staffPin);
+          // Legacy plaintext seed PINs are tolerated only outside production.
+          isMatch = !isProduction() && targetUser.pinCodeHash === String(staffPin);
         }
         if (!isMatch) {
           res.status(401).json({ success: false, errorCode: 'INVALID_PIN', message: 'Incorrect staff PIN' });
@@ -147,7 +149,8 @@ export const clockInStaff = async (req: TenantRequest, res: Response): Promise<v
               isMatch = false;
             }
           } else {
-            isMatch = u.pinCodeHash === String(staffPin);
+            // Legacy plaintext seed PINs are tolerated only outside production.
+            isMatch = !isProduction() && u.pinCodeHash === String(staffPin);
           }
           if (isMatch) {
             targetUser = u;

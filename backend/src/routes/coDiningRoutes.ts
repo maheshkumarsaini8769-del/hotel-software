@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import { authenticateBackOffice } from '../middlewares/backOfficeAuth';
 import { CoDiningController } from '../controllers/coDiningController';
 
 const router = Router();
+
+router.use(authenticateBackOffice);
 
 router.get('/tables', CoDiningController.getCommunityTables);
 router.post('/table/:tableId/enable-sharing', CoDiningController.enableTableSharing);

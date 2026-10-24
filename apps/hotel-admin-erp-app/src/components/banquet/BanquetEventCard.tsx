@@ -3,6 +3,7 @@ import {
   IBanquetBookingUI,
   BanquetHelper,
   BanquetBookingStatus,
+  SeatingLayoutType,
 } from '@spicehub/ui';
 
 interface BanquetEventCardProps {
@@ -23,10 +24,11 @@ export const BanquetEventCard: React.FC<BanquetEventCardProps> = ({
   const typeInfo = BanquetHelper.getEventTypeInfo(booking.eventType);
   const slotInfo = BanquetHelper.getTimeSlotInfo(booking.timeSlot);
   const statusInfo = BanquetHelper.getStatusInfo(booking.status);
-  const layoutLabel = BanquetHelper.getSeatingLayoutLabel(booking.functionProspectus.seatingLayout);
-
   const fp = booking.functionProspectus;
-  const isFpReady = fp.chefSignOff && fp.banquetManagerSignOff && fp.electricianAvSignOff;
+  const layoutLabel = BanquetHelper.getSeatingLayoutLabel(
+    fp?.seatingLayout ?? SeatingLayoutType.THEATER
+  );
+  const isFpReady = Boolean(fp?.chefSignOff && fp?.banquetManagerSignOff && fp?.electricianAvSignOff);
 
   const totalContract = booking.totalEstimatedAmount;
   const advancePaid = (booking.paidAmount || 0) + (booking.advanceDepositPaid || 0);
@@ -106,13 +108,13 @@ export const BanquetEventCard: React.FC<BanquetEventCardProps> = ({
           </div>
 
           <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-            <div className={`p-1.5 rounded-lg border text-center ${fp.chefSignOff ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
+            <div className={`p-1.5 rounded-lg border text-center ${fp?.chefSignOff ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
               👨‍🍳 Kitchen Chef
             </div>
-            <div className={`p-1.5 rounded-lg border text-center ${fp.banquetManagerSignOff ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
+            <div className={`p-1.5 rounded-lg border text-center ${fp?.banquetManagerSignOff ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
               🧑‍💼 Service Lead
             </div>
-            <div className={`p-1.5 rounded-lg border text-center ${fp.electricianAvSignOff ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
+            <div className={`p-1.5 rounded-lg border text-center ${fp?.electricianAvSignOff ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
               🔊 AV & Stage
             </div>
           </div>

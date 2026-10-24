@@ -1,5 +1,5 @@
 import React from 'react';
-import { FloorOverviewSummaryDTO, FloorDutyHelper } from '../../../../../packages/ui/src/floor-duty-matrix';
+import { FloorOverviewSummaryDTO, FloorDutyHelper } from '@spicehub/ui';
 
 export interface FloorDutyMatrixViewProps {
   floors: FloorOverviewSummaryDTO[];

@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { TableCard } from './TableCard';
 import { TableActionDrawer } from './TableActionDrawer';
 import { FloorSectionTabs } from './FloorSectionTabs';
-import { FloorPlanStore } from '../../../../../packages/ui/src/floor-plan/FloorPlanStore';
-import { FloorLayoutHelper } from '../../../../../packages/ui/src/floor-plan/FloorLayoutHelper';
-import { LiveTableCardModel, TableActionPayload, FloorPlanFilterOptions } from '../../../../../packages/ui/src/floor-plan/types';
+import { FloorPlanStore } from '@spicehub/ui';
+import { FloorLayoutHelper } from '@spicehub/ui';
+import { LiveTableCardModel, TableActionPayload, FloorPlanFilterOptions } from '@spicehub/ui';
 
 export interface FloorPlanViewProps {
   store: FloorPlanStore;

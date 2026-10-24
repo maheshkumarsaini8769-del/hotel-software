@@ -66,8 +66,8 @@ export * from './components/dining-reservations';
 // KOT Lock & Manager Security PIN Void Control Exports
 export * from './components/kot-void';
 
-
-
-
-
-
+// Shift 80.1 Dedicated Standalone Portals Exports
+export * from './CashierStandaloneApp';
+export * from './ReceptionStandaloneApp';
+export * from './HotelPortalRouter';
+export * from './AdminErpShell';

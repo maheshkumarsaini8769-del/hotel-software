@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
+import { API_BASE_URL } from '../../config/api';
 import {
   IGroupBookingUI,
   IGroupSummaryUI,
   INewGroupBookingPayload,
   IBulkCheckInPayload,
   IPostIncidentalPayload,
-  CorporateStore,
 } from '@spicehub/ui';
 import { CorporateHeader } from './CorporateHeader';
 import { GroupBookingCard } from './GroupBookingCard';
@@ -22,12 +22,10 @@ interface CorporateMasterFolioAppProps {
 }
 
 export const CorporateMasterFolioApp: React.FC<CorporateMasterFolioAppProps> = ({
-  apiBaseUrl = 'http://localhost:5000/api/v1',
+  apiBaseUrl = API_BASE_URL,
   token = '',
   hotelId = '',
 }) => {
-  const store = useMemo(() => new CorporateStore(), []);
-
   const [groupBookings, setGroupBookings] = useState<IGroupBookingUI[]>([]);
   const [summary, setSummary] = useState<IGroupSummaryUI>({
     totalGroups: 0,

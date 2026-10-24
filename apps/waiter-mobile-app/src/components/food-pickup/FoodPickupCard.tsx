@@ -34,10 +34,12 @@ export const FoodPickupCard: React.FC<FoodPickupCardProps> = ({
     return '#16A34A';
   };
 
+  const ticketId = ticket._id || (ticket as any).id || '';
+
   const handleSnooze = async () => {
     setLoading(true);
     try {
-      await onSnooze(ticket._id);
+      await onSnooze(ticketId);
     } finally {
       setLoading(false);
     }
@@ -46,7 +48,7 @@ export const FoodPickupCard: React.FC<FoodPickupCardProps> = ({
   const handleConfirm = async () => {
     setLoading(true);
     try {
-      await onConfirmPickup(ticket._id);
+      await onConfirmPickup(ticketId);
     } finally {
       setLoading(false);
     }

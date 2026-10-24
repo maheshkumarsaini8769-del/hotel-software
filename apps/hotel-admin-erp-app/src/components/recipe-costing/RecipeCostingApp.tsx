@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../../config/api';
 import {
   RecipeCostingStore,
   IRecipeUI,
@@ -11,6 +12,7 @@ import {
 import { RecipeCostingHeader } from './RecipeCostingHeader';
 import { RecipeCard } from './RecipeCard';
 import { RecipeBomEditorModal } from './RecipeBomEditorModal';
+import { RecipeSopViewModal } from './RecipeSopViewModal';
 import { FoodWasteLogModal } from './FoodWasteLogModal';
 import { FoodWasteAuditTable } from './FoodWasteAuditTable';
 
@@ -20,7 +22,7 @@ interface RecipeCostingAppProps {
 }
 
 export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
-  apiBaseUrl = 'http://localhost:5000/api/v1',
+  apiBaseUrl = API_BASE_URL,
   token,
 }) => {
   const [store] = useState(() => new RecipeCostingStore());
@@ -280,6 +282,13 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
         onClose={() => store.setActiveModal(null)}
         onSave={handleSaveRecipe}
         loading={loading}
+      />
+
+      {/* Read-only Recipe SOP */}
+      <RecipeSopViewModal
+        isOpen={activeModal === 'VIEW_RECIPE'}
+        recipe={selectedRecipe}
+        onClose={() => store.setActiveModal(null)}
       />
 
       {/* Food Waste Log Modal */}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { RequestType } from '@spicehub/shared-types';
 import { WaiterServiceRequestModel, WaiterRequestLifecycle } from '@spicehub/ui';
+import { Droplets, Utensils, Receipt, Bell, Sparkles, HelpCircle } from 'lucide-react';
 
 export interface ServiceRequestCardProps {
   request: WaiterServiceRequestModel;
@@ -8,12 +9,12 @@ export interface ServiceRequestCardProps {
   onComplete: (requestId: string) => void | Promise<void>;
 }
 
-const RequestTypeIconMap: Record<string, { icon: string; label: string; bg: string }> = {
-  [RequestType.WATER]: { icon: '💧', label: 'Water Request', bg: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300' },
-  [RequestType.CUTLERY]: { icon: '🍴', label: 'Cutlery Needed', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300' },
-  [RequestType.BILL]: { icon: '🧾', label: 'Bill / Settle', bg: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300' },
-  [RequestType.CALL_WAITER]: { icon: '🔔', label: 'Call Waiter', bg: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300' },
-  [RequestType.CLEANING]: { icon: '🧹', label: 'Table Cleaning', bg: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300' },
+const RequestTypeIconMap: Record<string, { icon: React.ComponentType<{ className?: string }>; label: string; bg: string; color: string }> = {
+  [RequestType.WATER]: { icon: Droplets, label: 'Water Request', bg: 'bg-blue-500/10 border-blue-500/30', color: 'text-blue-400' },
+  [RequestType.CUTLERY]: { icon: Utensils, label: 'Cutlery Needed', bg: 'bg-emerald-500/10 border-emerald-500/30', color: 'text-emerald-400' },
+  [RequestType.BILL]: { icon: Receipt, label: 'Bill / Settle', bg: 'bg-amber-500/10 border-amber-500/30', color: 'text-amber-400' },
+  [RequestType.CALL_WAITER]: { icon: Bell, label: 'Call Waiter', bg: 'bg-purple-500/10 border-purple-500/30', color: 'text-purple-400' },
+  [RequestType.CLEANING]: { icon: Sparkles, label: 'Table Cleaning', bg: 'bg-orange-500/10 border-orange-500/30', color: 'text-orange-400' },
 };
 
 export const ServiceRequestCard: React.FC<ServiceRequestCardProps> = ({
@@ -23,10 +24,12 @@ export const ServiceRequestCard: React.FC<ServiceRequestCardProps> = ({
 }) => {
   const rawType = ((request as any).type || request.requestType || 'CALL_WAITER').toUpperCase();
   const typeMeta = RequestTypeIconMap[rawType] || {
-    icon: rawType === 'CALL_WAITER' ? '🛎️' : rawType === 'WATER' ? '💧' : rawType === 'BILL' ? '💵' : '📌',
+    icon: Bell,
     label: rawType.replace(/_/g, ' '),
-    bg: 'bg-purple-950/60 text-purple-300 border-purple-700/60',
+    bg: 'bg-purple-950/60 border-purple-700/60',
+    color: 'text-purple-300',
   };
+  const IconComponent = typeMeta.icon;
 
   const tableStr = String(request.tableNumber || (request as any).table || '4');
   const displayTable = tableStr.toLowerCase().startsWith('table') ? tableStr : `Table ${tableStr}`;
@@ -48,7 +51,9 @@ export const ServiceRequestCard: React.FC<ServiceRequestCardProps> = ({
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center space-x-2.5">
-          <span className="text-2xl">{typeMeta.icon}</span>
+          <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${typeMeta.bg}`}>
+            <IconComponent className={`w-4 h-4 ${typeMeta.color}`} />
+          </div>
           <div>
             <div className="font-extrabold text-sm text-white">
               {typeMeta.label}

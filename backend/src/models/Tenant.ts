@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document, Types } from 'mongoose';
 
 export interface ITenant extends Document {
   name: string;
@@ -18,6 +18,10 @@ export interface ITenant extends Document {
   contactPhone: string;
   currency: string;
   status: 'ACTIVE' | 'SUSPENDED' | 'TRIAL';
+  subscriptionPlanId?: Types.ObjectId;
+  subscriptionPlanCode?: string;
+  subscriptionPlanName?: string;
+  subscriptionMonthlyINR?: number;
   featureFlags: {
     pmsEnabled: boolean;
     kdsEnabled: boolean;
@@ -56,6 +60,10 @@ const TenantSchema = new Schema<ITenant>(
       default: 'TRIAL',
       index: true,
     },
+    subscriptionPlanId: { type: Schema.Types.ObjectId, ref: 'SubscriptionPlan' },
+    subscriptionPlanCode: { type: String, uppercase: true, trim: true },
+    subscriptionPlanName: { type: String, trim: true },
+    subscriptionMonthlyINR: { type: Number, default: 0, min: 0 },
     featureFlags: {
       pmsEnabled: { type: Boolean, default: true },
       kdsEnabled: { type: Boolean, default: true },

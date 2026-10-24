@@ -19,12 +19,12 @@ import {
   inquireLostItem,
   disposeLostItem,
 } from '../controllers/housekeepingController';
-import { authenticateJWT, requireTenant } from '../middlewares/auth';
+import { authenticateFrontDeskTerminal } from './pmsRoutes';
 
 const router = Router();
 
-// Apply auth & tenant isolation to all housekeeping operations
-router.use(authenticateJWT, requireTenant);
+// Apply auth & tenant isolation to all housekeeping operations (JWT + terminal mode)
+router.use(authenticateFrontDeskTerminal);
 
 // Tasks & Room Workflow
 router.post('/tasks', createHousekeepingTask);

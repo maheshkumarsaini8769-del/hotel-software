@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { API_BASE_URL } from '../../config/api';
 import axios from 'axios';
 import {
   StaffRosterStore,
@@ -17,7 +18,7 @@ interface StaffRosterAppProps {
 }
 
 export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
-  apiBaseUrl = 'http://localhost:5000/api/v1',
+  apiBaseUrl = API_BASE_URL,
   authToken,
   hotelId,
 }) => {

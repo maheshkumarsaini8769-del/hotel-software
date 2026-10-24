@@ -16,16 +16,22 @@
     "dev:kds": "npm run dev --workspace=@spicehub/kitchen-kds-app",
     "dev:guest": "npm run dev --workspace=@spicehub/guest-room-portal-app",
     "dev:admin": "npm run dev --workspace=@spicehub/hotel-admin-erp-app",
+    "dev:cashier": "npm run dev --workspace=@spicehub/cashier-pos-app",
+    "dev:reception": "npm run dev --workspace=@spicehub/reception-frontdesk-app",
     "dev:superadmin": "npm run dev --workspace=@spicehub/superadmin-saas-app",
-    "build:backend": "npm run build --workspace=backend",
+    "build:backend": "npm run build:shared-types && npm run build --workspace=backend",
+    "build:all": "npm run build:shared-types && npm run build --workspaces --if-present",
+    "typecheck:backend": "tsc -p backend/tsconfig.json --noEmit",
     "test:backend": "npm run test --workspace=backend",
     "test:luxury": "tsx scripts/verify_luxury_e2e.ts",
     "test:browser": "tsx scripts/browser_full_e2e_audit.ts",
+    "verify:emulator": "tsx scripts/verify_all_websites_emulator.ts",
     "test:shift53": "tsx scripts/test_shift53_bom_browser.ts",
     "integrity:check": "tsx scripts/monorepo_health_gate.ts",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f"
+    "docker:logs": "docker compose logs -f",
+    "build:shared-types": "npm run build --workspace=@spicehub/shared-types"
   },
   "keywords": [
     "spicehub",
@@ -47,6 +53,7 @@
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
+    "puppeteer": "^25.15.0",
     "vite": "^5.4.21"
   }
 }

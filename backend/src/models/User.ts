@@ -16,6 +16,13 @@ export interface IUser extends Document {
   isMfaEnabled: boolean;
   mfaSecret?: string;
   isActive: boolean;
+  avatar?: string;
+  shift?: string;
+  assignedSection?: string;
+  assignedStation?: string;
+  assignedTableStart?: number;
+  assignedTableEnd?: number;
+  assignedCounter?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,6 +59,13 @@ const UserSchema = new Schema<IUser>(
     activeDeviceId: { type: String },
     isMfaEnabled: { type: Boolean, default: false },
     mfaSecret: { type: String },
+    avatar: { type: String },
+    shift: { type: String },
+    assignedSection: { type: String },
+    assignedStation: { type: String },
+    assignedTableStart: { type: Number },
+    assignedTableEnd: { type: Number },
+    assignedCounter: { type: String },
     isActive: { type: Boolean, default: true, index: true },
   },
   { timestamps: true }

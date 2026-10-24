@@ -1,6 +1,12 @@
 import { TableStatus, RoomStatus, OrderStatus, FoodType } from '@spicehub/shared-types';
 export { TableStatus, RoomStatus, OrderStatus, FoodType };
 
+export { ErrorBoundary } from './ErrorBoundary';
+export type { ErrorBoundaryProps } from './ErrorBoundary';
+
+export { StaffLoginGate } from './StaffLoginGate';
+export type { StaffLoginGateProps, StaffSessionUser } from './StaffLoginGate';
+
 // Currency Formatter
 export const formatCurrency = (amount: number, currency = 'INR'): string => {
   if (currency === 'INR') {
@@ -194,6 +200,9 @@ export * from './kot-void';
 
 // PMS Express Check-Out, Atomic Folio Settlement & Keycard Void Engine Exports
 export * from './pms-checkout';
+
+// Quick Policy Reference & Front-Line SOP Modal
+export * from './pms/QuickPolicyReferenceModal';
 
 
 

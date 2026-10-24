@@ -74,8 +74,10 @@ export const createHousekeepingTask = async (req: TenantRequest, res: Response):
     });
     await task.save();
 
-    // Mark room as DIRTY if not already in maintenance or dirty
-    if (room.status !== RoomStatus.OUT_OF_SERVICE) {
+    // Stayover service must not flip an occupied room to DIRTY.
+    // Only departure / deep-clean workflows reset the room status.
+    const preserveOccupied = taskType === HousekeepingTaskType.STAYOVER_CLEAN && room.status === RoomStatus.OCCUPIED;
+    if (!preserveOccupied && room.status !== RoomStatus.OUT_OF_SERVICE) {
       room.status = RoomStatus.DIRTY;
       await room.save();
     }

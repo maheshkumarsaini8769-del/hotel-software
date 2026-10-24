@@ -1,5 +1,5 @@
 import React from 'react';
-import { MatrixKpis } from '../../../../../packages/ui/src/pms/types';
+import { MatrixKpis } from '@spicehub/ui';
 
 export interface PmsMatrixHeaderProps {
   startDate: string;

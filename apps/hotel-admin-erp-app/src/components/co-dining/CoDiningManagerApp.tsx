@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { CoDiningStore } from '../../../../../packages/ui/src/co-dining/CoDiningStore';
-import { CommunityTableDTO } from '../../../../../packages/ui/src/co-dining/types';
+import { CoDiningStore } from '@spicehub/ui';
+import { CommunityTableDTO } from '@spicehub/ui';
 import { SeatMapGrid } from './SeatMapGrid';
 
 export interface CoDiningManagerAppProps {

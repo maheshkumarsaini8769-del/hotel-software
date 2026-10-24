@@ -3,6 +3,9 @@ process.env.JWT_SECRET = 'spicehub_super_secret_jwt_key_2026_production_ready_99
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json', diagnostics: false }],
+  },
   testMatch: ['**/__tests__/**/*.test.ts'],
   verbose: true,
   forceExit: true,

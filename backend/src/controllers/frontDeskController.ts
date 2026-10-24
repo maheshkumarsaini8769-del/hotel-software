@@ -15,6 +15,8 @@ import {
   ItemProductionStatus,
 } from '../models/RestaurantOrder';
 import { KitchenStation } from '../models/KitchenStation';
+import { MenuItem } from '../models/MenuItem';
+import { Tenant } from '../models/Tenant';
 import {
   ServiceRequest,
   ServiceRequestType,
@@ -33,7 +35,14 @@ import {
 } from '../models/MaintenanceRequest';
 import { User } from '../models/User';
 import { TenantRequest } from '../types';
+import argon2 from 'argon2';
+import {
+  getManagerSecurityPin,
+  isDevAuthBypassEnabled,
+  isDemoDataSeedingEnabled,
+} from '../config/security';
 import { escapeRegex } from '../utils/security';
+import { generateReferenceNumber } from '../utils/referenceNumber';
 import { io } from '../index';
 
 /**
@@ -429,7 +438,182 @@ export const getActiveInHouseGuests = async (req: TenantRequest, res: Response):
   }
 };
 
+/**
+ * Helper to ensure a room, active stay and master folio exist for demo/in-room guest portal
+ */
+export const ensureRoomStayAndFolio = async (
+  hotelId: Types.ObjectId,
+  roomNumberStr: string,
+  createIfMissing = false
+): Promise<{ room: any; activeStay: any; masterFolio: any }> => {
+  let room = await Room.findOne({
+    hotelId,
+    roomNumber: { $regex: new RegExp(`^${escapeRegex(roomNumberStr)}$`, 'i') },
+  }).populate('roomTypeId');
+
+  if (!room) {
+    if (!createIfMissing) {
+      return { room: null, activeStay: null, masterFolio: null };
+    }
+    let roomType = await RoomType.findOne({ hotelId });
+    if (!roomType) {
+      roomType = await RoomType.create({
+        hotelId,
+        name: 'Deluxe Heritage Room',
+        code: 'DLX',
+        basePriceOvernight: 3500,
+        maxOccupancy: 3,
+      });
+    }
+    room = await Room.create({
+      hotelId,
+      roomNumber: roomNumberStr,
+      floorNumber: parseInt(roomNumberStr.charAt(0)) || 3,
+      roomTypeId: roomType._id,
+      status: RoomStatus.OCCUPIED,
+      permanentQrCodeHash: `qr_hash_${roomNumberStr}_${Date.now()}`,
+    });
+  }
+
+  let activeStay = await Stay.findOne({
+    hotelId,
+    roomId: room._id,
+    stayStatus: StayStatus.ACTIVE,
+  })
+    .populate('guestId', 'name phone email vipTier')
+    .populate('bookingId', 'bookingNumber grandTotal guestName guestPhone checkInDate checkOutDate')
+    .populate('masterFolioId');
+
+  let masterFolio: any = null;
+  if (!activeStay) {
+    if (!createIfMissing) {
+      return { room, activeStay: null, masterFolio: null };
+    }
+    let guest = await GuestProfile.findOne({ hotelId });
+    if (!guest) {
+      guest = await GuestProfile.create({
+        hotelId,
+        name: 'Vikramaditya & Ananya Singhania',
+        phone: '+91 98765 43210',
+        email: 'singhania@example.com',
+      });
+    }
+
+    let booking = await Booking.findOne({ hotelId });
+    if (!booking) {
+      booking = await Booking.create({
+        hotelId,
+        bookingNumber: `BK-${Date.now().toString().slice(-6)}`,
+        roomTypeId: room.roomTypeId,
+        roomsCount: 1,
+        guestName: 'Vikramaditya & Ananya Singhania',
+        guestPhone: '+91 98765 43210',
+        guestEmail: 'singhania@example.com',
+        checkInDate: new Date(Date.now() - 86400000),
+        checkOutDate: new Date(Date.now() + 2 * 86400000),
+        bookingStatus: BookingStatus.CHECKED_IN,
+        guestCountAdults: 2,
+        totalTariff: 8000,
+        taxAmount: 1019,
+        grandTotal: 9019,
+        advancePaymentAmount: 9019,
+        paymentStatus: 'PAID',
+      });
+    }
+
+    const stayId = new Types.ObjectId();
+    const folioId = new Types.ObjectId();
+
+    masterFolio = await MasterFolio.create({
+      _id: folioId,
+      hotelId,
+      stayId,
+      bookingId: booking._id,
+      roomId: room._id,
+      folioNumber: `FOLIO-${room.roomNumber}-2026`,
+      totalRoomTariff: 7000,
+      totalFoodAndBeverage: 1240,
+      totalLaundry: 250,
+      totalPaidServices: 100,
+      totalTaxes: 429,
+      advancePaid: 0,
+      paidAmount: 0,
+      netAmountPayable: 9019,
+      dueAmount: 9019,
+      folioStatus: 'OPEN',
+    });
+
+    activeStay = await Stay.create({
+      _id: stayId,
+      hotelId,
+      roomId: room._id,
+      bookingId: booking._id,
+      guestId: guest._id,
+      stayStatus: StayStatus.ACTIVE,
+      masterFolioId: folioId,
+      checkInTimestamp: new Date(Date.now() - 86400000),
+      expectedCheckOutTimestamp: new Date(Date.now() + 2 * 86400000),
+    });
+
+    activeStay = await Stay.findById(activeStay._id)
+      .populate('guestId', 'name phone email vipTier')
+      .populate('masterFolioId');
+  } else {
+    masterFolio = activeStay.masterFolioId
+      ? await MasterFolio.findById(activeStay.masterFolioId)
+      : await MasterFolio.findOne({ hotelId, stayId: activeStay._id, folioStatus: 'OPEN' });
+
+    if (!masterFolio) {
+      masterFolio = await MasterFolio.create({
+        hotelId,
+        folioNumber: `FOLIO-${room.roomNumber}-2026`,
+        stayId: activeStay._id,
+        totalRoomTariff: 7000,
+        totalFoodAndBeverage: 0,
+        totalLaundry: 0,
+        totalPaidServices: 0,
+        totalTaxes: 350,
+        advancePaid: 0,
+        paidAmount: 0,
+        netAmountPayable: 7350,
+        dueAmount: 7350,
+        folioStatus: 'OPEN',
+      });
+      activeStay.masterFolioId = masterFolio._id;
+      await activeStay.save();
+    }
+  }
+
+  return { room, activeStay, masterFolio };
+};
+
 // 4. Fetch In-Room Live Stay Details & Folio for In-Room Guest Portal (:3004)
+const findLatestSettledStayForRoom = async (
+  hotelId: Types.ObjectId,
+  roomId: Types.ObjectId
+): Promise<{ stay: any; folio: any }> => {
+  const stay = await Stay.findOne({
+    hotelId,
+    roomId,
+    $or: [
+      { stayStatus: StayStatus.CHECKED_OUT },
+      { taxInvoiceNumber: { $exists: true, $nin: [null, ''] } },
+    ],
+  })
+    .sort({ actualCheckOutTimestamp: -1, updatedAt: -1 })
+    .populate('guestId', 'name phone email vipTier')
+    .populate('bookingId', 'bookingNumber grandTotal guestName guestPhone checkInDate checkOutDate')
+    .populate('masterFolioId');
+
+  if (!stay) return { stay: null, folio: null };
+
+  const folio = stay.masterFolioId
+    ? await MasterFolio.findById(stay.masterFolioId)
+    : await MasterFolio.findOne({ hotelId, stayId: stay._id }).sort({ createdAt: -1 });
+
+  return { stay, folio };
+};
+
 export const getInRoomLiveStay = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
     const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
@@ -445,60 +629,20 @@ export const getInRoomLiveStay = async (req: TenantRequest, res: Response): Prom
     }
 
     const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
-    const room = await Room.findOne({
-      hotelId,
-      roomNumber: { $regex: new RegExp(`^${escapeRegex(roomNumStr)}$`, 'i') },
-    }).populate('roomTypeId', 'name code basePriceOvernight');
-
+    let { room, activeStay, masterFolio } = await ensureRoomStayAndFolio(hotelId, roomNumStr, false);
     if (!room) {
-      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
+      res.status(404).json({ success: false, errorCode: 'STAY_NOT_FOUND', message: `No active stay found for room ${roomNumStr}` });
       return;
     }
-
-    let activeStay = await Stay.findOne({
-      hotelId,
-      roomId: room._id,
-      stayStatus: StayStatus.ACTIVE,
-    })
-      .populate('guestId', 'name phone email vipTier')
-      .populate('bookingId', 'bookingNumber grandTotal guestName guestPhone checkInDate checkOutDate')
-      .populate('masterFolioId');
-
-    // If no active stay, check if there is a recently settled/checked-out stay for departure invoice review
     if (!activeStay) {
-      activeStay = await Stay.findOne({
-        hotelId,
-        roomId: room._id,
-      })
-        .sort({ actualCheckOutTimestamp: -1, updatedAt: -1, createdAt: -1 })
-        .populate('guestId', 'name phone email vipTier')
-        .populate('bookingId', 'bookingNumber grandTotal guestName guestPhone checkInDate checkOutDate')
-        .populate('masterFolioId');
+      const latest = await findLatestSettledStayForRoom(hotelId, room._id);
+      activeStay = latest.stay;
+      masterFolio = latest.folio;
     }
-
     if (!activeStay) {
-      res.status(200).json({
-        success: true,
-        message: `Room ${room.roomNumber} is currently vacant`,
-        data: {
-          room: {
-            id: room._id,
-            roomNumber: room.roomNumber,
-            floor: room.floorNumber,
-            status: room.status,
-            roomTypeName: (room.roomTypeId as any)?.name || 'Deluxe Heritage Room',
-          },
-          stay: null,
-          folio: null,
-        },
-      });
+      res.status(404).json({ success: false, errorCode: 'STAY_NOT_FOUND', message: `No stay found for room ${roomNumStr}` });
       return;
     }
-
-    const masterFolio: any = activeStay.masterFolioId
-      ? await MasterFolio.findById(activeStay.masterFolioId)
-      : await MasterFolio.findOne({ hotelId, stayId: activeStay._id, folioStatus: 'OPEN' });
-
     let lineItems: any[] = [];
     if (masterFolio) {
       lineItems = await FolioLineItem.find({ hotelId, folioId: masterFolio._id }).sort({ postedAt: -1 });
@@ -602,6 +746,15 @@ export const postInRoomCharge = async (req: TenantRequest, res: Response): Promi
       return;
     }
 
+    if (masterFolio.folioStatus === 'LOCKED') {
+      res.status(409).json({
+        success: false,
+        errorCode: 'FOLIO_LOCKED',
+        message: 'Folio is locked. Unlock it before posting additional charges.',
+      });
+      return;
+    }
+
     const taxAmount = Math.round((amount * 0.05) * 100) / 100;
     const netTotal = amount + taxAmount;
 
@@ -697,17 +850,16 @@ export const postConciergeRequest = async (req: TenantRequest, res: Response): P
       return;
     }
 
-    const room = await Room.findOne({
-      hotelId,
-      roomNumber: { $regex: new RegExp(`^${escapeRegex(String(roomNumber).trim())}$`, 'i') },
-    });
-
-    if (!room) {
-      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
+    const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
+    const { room, activeStay } = await ensureRoomStayAndFolio(hotelId, roomNumStr, isDemoDataSeedingEnabled());
+    if (!room || !activeStay) {
+      res.status(404).json({
+        success: false,
+        errorCode: 'STAY_NOT_FOUND',
+        message: `No active in-house stay found for room ${roomNumStr}`,
+      });
       return;
     }
-
-    const activeStay = await Stay.findOne({ hotelId, roomId: room._id, stayStatus: StayStatus.ACTIVE });
 
     let lineItem: any = null;
     let masterFolio: any = null;
@@ -715,6 +867,14 @@ export const postConciergeRequest = async (req: TenantRequest, res: Response): P
     // Handle billable services (e.g. Express Laundry or Paid Amenities)
     if (isBillable && Number(billableAmount) > 0 && activeStay?.masterFolioId) {
       masterFolio = await MasterFolio.findOne({ _id: activeStay.masterFolioId, hotelId });
+      if (masterFolio && masterFolio.folioStatus !== 'OPEN') {
+        res.status(409).json({
+          success: false,
+          errorCode: 'FOLIO_NOT_OPEN',
+          message: `Folio for room ${roomNumStr} is ${masterFolio.folioStatus}. Billable services cannot be posted to a settled folio.`,
+        });
+        return;
+      }
       if (masterFolio) {
         const amount = Number(billableAmount);
         const taxRate = 5;
@@ -953,31 +1113,21 @@ export const postInRoomOrder = async (req: TenantRequest, res: Response): Promis
     }
 
     const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
-    const room = await Room.findOne({
-      hotelId,
-      roomNumber: { $regex: new RegExp(`^${escapeRegex(roomNumStr)}$`, 'i') },
-    });
-
-    if (!room) {
-      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
+    const { room, activeStay, masterFolio } = await ensureRoomStayAndFolio(hotelId, roomNumStr, isDemoDataSeedingEnabled());
+    if (!room || !activeStay || !masterFolio) {
+      res.status(404).json({
+        success: false,
+        errorCode: 'STAY_NOT_FOUND',
+        message: `No active in-house stay with an open folio found for room ${roomNumStr}`,
+      });
       return;
     }
-
-    const activeStay = await Stay.findOne({ hotelId, roomId: room._id, stayStatus: StayStatus.ACTIVE })
-      .populate('guestId', 'name phone')
-      .populate('bookingId', 'guestName guestPhone');
-
-    if (!activeStay) {
-      res.status(400).json({ success: false, errorCode: 'ROOM_NOT_OCCUPIED', message: `Room ${roomNumber} is not currently occupied` });
-      return;
-    }
-
-    let masterFolio = activeStay.masterFolioId
-      ? await MasterFolio.findById(activeStay.masterFolioId)
-      : await MasterFolio.findOne({ hotelId, stayId: activeStay._id, folioStatus: 'OPEN' });
-
-    if (!masterFolio) {
-      res.status(404).json({ success: false, errorCode: 'FOLIO_NOT_FOUND', message: 'Active folio not found for room' });
+    if (masterFolio.folioStatus !== 'OPEN') {
+      res.status(409).json({
+        success: false,
+        errorCode: 'FOLIO_NOT_OPEN',
+        message: `Folio for room ${roomNumStr} is ${masterFolio.folioStatus}. New charges cannot be posted to a settled folio.`,
+      });
       return;
     }
 
@@ -992,29 +1142,65 @@ export const postInRoomOrder = async (req: TenantRequest, res: Response): Promis
       });
     }
 
-    const mappedItems = items.map((it: any) => {
+    const requireCatalogMatch = !isDemoDataSeedingEnabled();
+    const mappedItems: any[] = [];
+    for (const it of items) {
+      const rawMenuId = it.menuItemId || it.dishId;
+      let dbMenuItem: any = null;
+
+      if (rawMenuId && Types.ObjectId.isValid(String(rawMenuId))) {
+        dbMenuItem = await MenuItem.findOne({
+          _id: new Types.ObjectId(String(rawMenuId)),
+          hotelId,
+        });
+      }
+      if (!dbMenuItem && it.name) {
+        dbMenuItem = await MenuItem.findOne({
+          hotelId,
+          name: new RegExp(`^${escapeRegex(String(it.name).trim())}$`, 'i'),
+        });
+      }
+      if (!dbMenuItem && requireCatalogMatch) {
+        res.status(400).json({
+          success: false,
+          errorCode: 'MENU_ITEM_NOT_FOUND',
+          message: `Item '${it.name || rawMenuId || 'unknown'}' is not on this hotel's menu. Please refresh the menu and try again.`,
+        });
+        return;
+      }
+
       const qty = Number(it.quantity) || 1;
-      const price = Number(it.price || it.unitPrice) || 0;
-      return {
-        menuItemId: Types.ObjectId.isValid(it.menuItemId || it.dishId)
-          ? new Types.ObjectId(it.menuItemId || it.dishId)
-          : new Types.ObjectId(),
+      const price = dbMenuItem
+        ? Number(dbMenuItem.basePrice || dbMenuItem.price || 0)
+        : Number(it.price || it.unitPrice) || 0;
+
+      mappedItems.push({
+        menuItemId: dbMenuItem?._id || new Types.ObjectId(),
         kitchenStationId: kitchenStation._id,
-        name: it.name,
+        name: dbMenuItem?.name || it.name || 'In-Room Dining Item',
         quantity: qty,
         unitPrice: price,
         subtotal: qty * price,
         itemStatus: ItemProductionStatus.PENDING,
         specialInstructions: it.specialInstructions,
-      };
-    });
+      });
+    }
+
+    if (mappedItems.length === 0) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'EMPTY_ORDER',
+        message: 'At least one valid menu item is required',
+      });
+      return;
+    }
 
     const foodSubtotal = mappedItems.reduce((acc: number, it: any) => acc + it.subtotal, 0);
     const taxRate = 5; // 5% GST on Restaurant & In-Room Dining
     const taxAmount = Math.round((foodSubtotal * (taxRate / 100)) * 100) / 100;
     const orderGrandTotal = foodSubtotal + taxAmount;
 
-    const orderNumber = `ORD-RM${room.roomNumber}-${Date.now().toString().slice(-4)}`;
+    const orderNumber = generateReferenceNumber(`ORD-RM${room.roomNumber}`);
     const guestName = (activeStay.guestId as any)?.name || (activeStay.bookingId as any)?.guestName || 'In-Room Guest';
     const guestPhone = (activeStay.guestId as any)?.phone || (activeStay.bookingId as any)?.guestPhone || '';
 
@@ -1144,19 +1330,9 @@ export const getInRoomOrders = async (req: TenantRequest, res: Response): Promis
     const { roomNumber } = req.params;
     const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
 
-    const room = await Room.findOne({
-      hotelId,
-      roomNumber: { $regex: new RegExp(`^${escapeRegex(roomNumStr)}$`, 'i') },
-    });
-
-    if (!room) {
-      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
-      return;
-    }
-
-    const activeStay = await Stay.findOne({ hotelId, roomId: room._id, stayStatus: StayStatus.ACTIVE });
-    if (!activeStay) {
-      res.status(200).json({ success: true, count: 0, data: [] });
+    const { room, activeStay } = await ensureRoomStayAndFolio(hotelId, roomNumStr, false);
+    if (!room || !activeStay) {
+      res.status(404).json({ success: false, errorCode: 'STAY_NOT_FOUND', message: `No active stay found for room ${roomNumStr}` });
       return;
     }
 
@@ -1205,6 +1381,21 @@ export const updateInRoomOrderStatus = async (req: TenantRequest, res: Response)
     const { status } = req.body;
 
     if (!orderId || !Types.ObjectId.isValid(String(orderId))) {
+      if (typeof orderId === 'string' && (orderId.startsWith('ord-') || orderId.startsWith('#'))) {
+        res.status(200).json({
+          success: true,
+          message: `Demo in-room order ${orderId} status transitioned to ${status}`,
+          data: {
+            orderId,
+            orderNumber: `#${orderId}`,
+            orderStatus: status,
+            preparedAt: new Date(),
+            readyAt: new Date(),
+            servedAt: new Date(),
+          },
+        });
+        return;
+      }
       res.status(400).json({ success: false, errorCode: 'INVALID_ORDER_ID', message: 'Valid orderId is required' });
       return;
     }
@@ -1315,13 +1506,14 @@ export const getInRoomConciergeRequests = async (req: TenantRequest, res: Respon
     }
 
     const { roomNumber } = req.params;
-    const room = await Room.findOne({
-      hotelId,
-      roomNumber: { $regex: new RegExp(`^${escapeRegex(String(roomNumber).trim())}$`, 'i') },
-    });
-
-    if (!room) {
-      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: `Room ${roomNumber} not found` });
+    const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
+    const { room, activeStay } = await ensureRoomStayAndFolio(hotelId, roomNumStr, false);
+    if (!room || !activeStay) {
+      res.status(404).json({
+        success: false,
+        errorCode: 'STAY_NOT_FOUND',
+        message: `No active in-house stay found for room ${roomNumStr}`,
+      });
       return;
     }
 
@@ -1792,6 +1984,241 @@ export const settleAndCheckOutFrontDesk = async (req: TenantRequest, res: Respon
       success: true,
       message: `Room ${room.roomNumber} successfully checked out and settled! Tax Invoice ${invoiceNumber} issued. Room queued for Housekeeping Turnaround.`,
       data: invoicePayload,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 17b. Shift 80: Instant Master Folio Settle & Live Payment Gateway Integration
+export const settleFolioFrontDesk = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { roomNumber, paymentMode = 'UPI', amount, transactionRef, notes } = req.body;
+    if (!roomNumber) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PARAMS', message: 'roomNumber is required' });
+      return;
+    }
+
+    const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
+    const { room, activeStay, masterFolio } = await ensureRoomStayAndFolio(hotelId, roomNumStr, isDemoDataSeedingEnabled());
+
+    if (!room || !activeStay || !masterFolio) {
+      res.status(404).json({
+        success: false,
+        errorCode: 'STAY_NOT_FOUND',
+        message: `No active in-house stay with an open folio found for room ${roomNumStr}`,
+      });
+      return;
+    }
+
+    const currentDue = Math.max(0, Number(masterFolio.dueAmount || 0));
+    const payAmount = amount !== undefined && Number(amount) > 0 ? Number(amount) : currentDue;
+    if (!Number.isFinite(payAmount) || payAmount <= 0) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_PAYMENT_AMOUNT',
+        message: 'Payment amount must be greater than zero',
+      });
+      return;
+    }
+    if (payAmount > currentDue + 0.01) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'PAYMENT_EXCEEDS_DUE',
+        message: `Payment amount ₹${payAmount} exceeds the outstanding folio balance ₹${currentDue}`,
+      });
+      return;
+    }
+
+    masterFolio.paidAmount = (masterFolio.paidAmount || 0) + payAmount;
+    masterFolio.dueAmount = Math.max(0, (masterFolio.netAmountPayable || 0) - masterFolio.paidAmount);
+
+    if (masterFolio.dueAmount === 0) {
+      masterFolio.folioStatus = 'SETTLED';
+      masterFolio.settledAt = new Date();
+    }
+    const txId = transactionRef || `TXN-UPI-${Date.now().toString().slice(-6)}`;
+    masterFolio.settlementNotes = notes || `Settled via ${paymentMode} (${txId}) from Guest Room Portal`;
+    await masterFolio.save();
+
+    const invoiceNumber =
+      masterFolio.dueAmount === 0
+        ? `INV-${new Date().getFullYear()}-${room.roomNumber}-${Date.now().toString().slice(-4)}`
+        : null;
+    if (activeStay && invoiceNumber) {
+      activeStay.taxInvoiceNumber = invoiceNumber;
+      await activeStay.save();
+    }
+
+    const io = req.app.get('io') || (global as any).io;
+    const settlementPayload = {
+      roomNumber: room.roomNumber,
+      invoiceNumber,
+      paymentMode,
+      paidAmount: payAmount,
+      dueAmount: masterFolio.dueAmount,
+      folioStatus: masterFolio.folioStatus,
+      settledAt: masterFolio.settledAt || new Date(),
+    };
+
+    if (io) {
+      io.to(`${hotelId.toString()}_global`).emit('pms:folio_settled', settlementPayload);
+      io.to(`guest_room_${room.roomNumber}`).emit('pms:folio_settled', settlementPayload);
+      io.to(`${hotelId.toString()}_global`).emit('pms:folio_updated', {
+        roomNumber: room.roomNumber,
+        folioId: masterFolio._id,
+        dueAmount: masterFolio.dueAmount,
+        paidAmount: masterFolio.paidAmount,
+      });
+      io.to(`guest_room_${room.roomNumber}`).emit('pms:folio_updated', {
+        roomNumber: room.roomNumber,
+        folioId: masterFolio._id,
+        dueAmount: masterFolio.dueAmount,
+        paidAmount: masterFolio.paidAmount,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message:
+        masterFolio.dueAmount === 0
+          ? `Folio settled successfully via ${paymentMode}! Official GST invoice generated.`
+          : `Payment of ₹${payAmount} recorded via ${paymentMode}. Outstanding balance ₹${masterFolio.dueAmount} remains.`,
+      data: {
+        ...settlementPayload,
+        folio: {
+          folioNumber: masterFolio.folioNumber,
+          netAmountPayable: masterFolio.netAmountPayable,
+          paidAmount: masterFolio.paidAmount,
+          dueAmount: masterFolio.dueAmount,
+          folioStatus: masterFolio.folioStatus,
+        },
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 17c. Shift 80: Download Official GST Tax Invoice Receipt
+export const getTaxInvoiceFrontDesk = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { roomNumber } = req.params;
+    if (!roomNumber) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PARAMS', message: 'roomNumber is required' });
+      return;
+    }
+
+    const roomNumStr = String(Array.isArray(roomNumber) ? roomNumber[0] : roomNumber).trim();
+    let { room, activeStay, masterFolio } = await ensureRoomStayAndFolio(hotelId, roomNumStr, false);
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'FOLIO_NOT_FOUND', message: `No folio found for room ${roomNumStr}` });
+      return;
+    }
+    if (!activeStay) {
+      const latest = await findLatestSettledStayForRoom(hotelId, room._id);
+      activeStay = latest.stay;
+      masterFolio = latest.folio;
+    }
+    if (!activeStay || !masterFolio) {
+      res.status(404).json({ success: false, errorCode: 'FOLIO_NOT_FOUND', message: `No folio found for room ${roomNumStr}` });
+      return;
+    }
+    if (!activeStay.taxInvoiceNumber) {
+      res.status(409).json({
+        success: false,
+        errorCode: 'INVOICE_NOT_READY',
+        message: 'The GST tax invoice is generated only after the folio is settled.',
+      });
+      return;
+    }
+
+    const [lineItems, tenant] = await Promise.all([
+      FolioLineItem.find({ hotelId, folioId: masterFolio._id }).sort({ postedAt: 1 }),
+      Tenant.findById(hotelId),
+    ]);
+
+    const effectiveGuestName =
+      (activeStay.guestId as any)?.name ||
+      (activeStay.bookingId as any)?.guestName ||
+      'Valued Guest';
+    const invoiceNumber = activeStay.taxInvoiceNumber;
+    const tenantAddress = tenant?.address
+      ? [
+          tenant.address.street,
+          tenant.address.city,
+          tenant.address.state,
+          tenant.address.pincode,
+          tenant.address.country,
+        ].filter(Boolean).join(', ')
+      : '';
+    const roomTypeName = (room.roomTypeId as any)?.name || 'Room';
+    const totalTaxes = Number(masterFolio.totalTaxes || 0);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        invoiceNumber,
+        invoiceDate: masterFolio.settledAt || new Date().toISOString(),
+        hotel: {
+          name: tenant?.name || 'SpiceHub Hotel',
+          brand: tenant?.name || 'SpiceHub Hospitality',
+          gstin: tenant?.gstin || '',
+          hsnSacCode: '996311',
+          fssaiNumber: tenant?.fssai || '',
+          address: tenantAddress,
+          phone: tenant?.contactPhone || '',
+          email: tenant?.contactEmail || '',
+        },
+        guest: {
+          name: effectiveGuestName,
+          roomNumber: room.roomNumber,
+          roomType: roomTypeName,
+          checkInDate: activeStay.checkInTimestamp,
+          checkOutDate: activeStay.actualCheckOutTimestamp || activeStay.expectedCheckOutTimestamp,
+        },
+        billing: {
+          folioNumber: masterFolio.folioNumber,
+          folioStatus: masterFolio.folioStatus,
+          totalRoomTariff: masterFolio.totalRoomTariff || 0,
+          totalFoodAndBeverage: masterFolio.totalFoodAndBeverage || 0,
+          totalLaundry: masterFolio.totalLaundry || 0,
+          totalPaidServices: masterFolio.totalPaidServices || 0,
+          subtotal:
+            (masterFolio.totalRoomTariff || 0) +
+            (masterFolio.totalFoodAndBeverage || 0) +
+            (masterFolio.totalLaundry || 0) +
+            (masterFolio.totalPaidServices || 0),
+          cgst: Math.round(totalTaxes / 2),
+          sgst: Math.round(totalTaxes / 2),
+          totalTaxes,
+          grandTotal: masterFolio.netAmountPayable || 0,
+          paidAmount: masterFolio.paidAmount || 0,
+          balanceDue: masterFolio.dueAmount || 0,
+          paymentMode: masterFolio.settlementNotes || 'Settled',
+          settledAt: masterFolio.settledAt,
+        },
+        lineItems: lineItems.map((li) => ({
+          description: li.description,
+          department: li.department,
+          rate: li.rate,
+          taxAmount: li.taxAmount,
+          netAmount: li.netAmount,
+          postedAt: li.postedAt,
+        })),
+      },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
@@ -3304,8 +3731,8 @@ export const getLateCheckOutSchedule = async (req: TenantRequest, res: Response)
 
 const verifyManagerSecurityPin = async (hotelId: Types.ObjectId, pin?: string): Promise<boolean> => {
   if (!pin) return false;
-  const masterPin = process.env.MANAGER_SECURITY_PIN || '9921';
-  if (pin === masterPin) return true;
+  const masterPin = getManagerSecurityPin();
+  if (masterPin && pin === masterPin) return true;
 
   const managers = await User.find({
     hotelId,
@@ -3314,8 +3741,13 @@ const verifyManagerSecurityPin = async (hotelId: Types.ObjectId, pin?: string): 
   });
 
   for (const m of managers) {
-    if (m.pinCodeHash && (m.pinCodeHash === pin || m.pinCodeHash.includes(pin))) {
-      return true;
+    if (!m.pinCodeHash) continue;
+    try {
+      if (await argon2.verify(m.pinCodeHash, pin)) {
+        return true;
+      }
+    } catch {
+      // Ignore malformed / legacy non-Argon2 hashes – never compare plaintext.
     }
   }
 
@@ -3795,3 +4227,130 @@ export const getRateOverrideAuditLog = async (req: TenantRequest, res: Response)
 
 
 
+
+// 72. Room Type & Tariff Matrix (shared by reception tariff editor and group booking)
+export const getRoomTypes = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const roomTypes = await RoomType.find({ hotelId }).sort({ basePriceOvernight: 1 });
+    const counts = await Room.aggregate([
+      { $match: { hotelId: new Types.ObjectId(hotelId) } },
+      { $group: { _id: '$roomTypeId', count: { $sum: 1 } } },
+    ]);
+    const countByType = new Map(counts.map((row: any) => [String(row._id), row.count]));
+
+    res.status(200).json({
+      success: true,
+      roomTypes: roomTypes.map((roomType) => ({
+        _id: roomType._id,
+        id: roomType._id,
+        name: roomType.name,
+        code: roomType.code,
+        maxCapacity: roomType.maxCapacity,
+        maxPax: roomType.maxCapacity,
+        basePriceOvernight: roomType.basePriceOvernight,
+        basePrice: roomType.basePriceOvernight,
+        weekendPrice:
+          Number(roomType.weekendPrice) > 0
+            ? roomType.weekendPrice
+            : Math.round(roomType.basePriceOvernight * 1.2),
+        extraBedPrice: roomType.extraBedPrice || 0,
+        gstRate: roomType.gstRate ?? 12,
+        amenities: roomType.amenities || [],
+        totalRoomsCount: roomType.totalRoomsCount,
+        roomsCount: countByType.get(String(roomType._id)) || 0,
+        isActive: roomType.isActive,
+      })),
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'ROOM_TYPES_FETCH_ERROR', message: err.message });
+  }
+};
+
+export const updateRoomTypeTariff = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const roomTypeId = String(req.params.roomTypeId || '');
+    if (!Types.ObjectId.isValid(roomTypeId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ROOM_TYPE', message: 'Invalid room type id' });
+      return;
+    }
+
+    const allowedNumericFields = [
+      'basePriceOvernight',
+      'weekendPrice',
+      'extraBedPrice',
+      'gstRate',
+      'maxCapacity',
+      'totalRoomsCount',
+    ] as const;
+    const updates: Record<string, any> = {};
+    for (const field of allowedNumericFields) {
+      if (req.body[field] !== undefined) {
+        const value = Number(req.body[field]);
+        if (!Number.isFinite(value) || value < 0) {
+          res.status(400).json({
+            success: false,
+            errorCode: 'INVALID_TARIFF',
+            message: `${field} must be a valid non-negative number`,
+          });
+          return;
+        }
+        updates[field] = value;
+      }
+    }
+    if (req.body.name !== undefined) updates.name = String(req.body.name).trim();
+    if (req.body.code !== undefined) updates.code = String(req.body.code).trim().toUpperCase();
+    if (Array.isArray(req.body.amenities)) updates.amenities = req.body.amenities.map(String);
+    if (req.body.isActive !== undefined) updates.isActive = Boolean(req.body.isActive);
+
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ success: false, errorCode: 'NO_CHANGES', message: 'No tariff fields supplied' });
+      return;
+    }
+
+    const roomType = await RoomType.findOneAndUpdate(
+      { _id: roomTypeId, hotelId },
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
+    if (!roomType) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_TYPE_NOT_FOUND', message: 'Room type not found' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Room tariff updated',
+      roomType: {
+        _id: roomType._id,
+        id: roomType._id,
+        name: roomType.name,
+        code: roomType.code,
+        basePriceOvernight: roomType.basePriceOvernight,
+        weekendPrice:
+          Number(roomType.weekendPrice) > 0
+            ? roomType.weekendPrice
+            : Math.round(roomType.basePriceOvernight * 1.2),
+        extraBedPrice: roomType.extraBedPrice || 0,
+        gstRate: roomType.gstRate ?? 12,
+        maxCapacity: roomType.maxCapacity,
+        amenities: roomType.amenities || [],
+        totalRoomsCount: roomType.totalRoomsCount,
+        isActive: roomType.isActive,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'ROOM_TYPE_UPDATE_ERROR', message: err.message });
+  }
+};

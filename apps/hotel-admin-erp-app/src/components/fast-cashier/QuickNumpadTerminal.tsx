@@ -144,7 +144,7 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
                     key={key}
                     type="button"
                     onClick={handleClear}
-                    className="h-13 py-3 rounded-xl bg-red-950/50 hover:bg-red-900/60 border border-red-500/30 text-red-300 font-bold text-sm transition-all"
+                    className="h-12 py-3 rounded-xl bg-red-950/50 hover:bg-red-900/60 border border-red-500/30 text-red-300 font-bold text-sm transition-all"
                   >
                     CLR
                   </button>
@@ -155,7 +155,7 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
                   key={key}
                   type="button"
                   onClick={() => handleNumpadPress(key)}
-                  className="h-13 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-amber-500/40 text-white font-mono text-lg font-bold transition-all active:scale-95 shadow-sm"
+                  className="h-12 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-amber-500/40 text-white font-mono text-lg font-bold transition-all active:scale-95 shadow-sm"
                 >
                   {key}
                 </button>

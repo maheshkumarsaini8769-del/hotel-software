@@ -1,6 +1,6 @@
 import React from 'react';
-import { SeatSubFolioDTO } from '../../../../../packages/ui/src/seat-billing/types';
-import { SeatBillingHelper } from '../../../../../packages/ui/src/seat-billing/SeatBillingHelper';
+import { SeatSubFolioDTO } from '@spicehub/ui';
+import { SeatBillingHelper } from '@spicehub/ui';
 
 export interface SubFolioSplitCardProps {
   subFolio: SeatSubFolioDTO;

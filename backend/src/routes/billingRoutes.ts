@@ -11,6 +11,8 @@ import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TableSession, SessionStatus } from '../models/TableSession';
 import { RestaurantBill } from '../models/RestaurantBill';
 import { TenantRequest, AuthenticatedUserPayload } from '../types';
+import { getJwtSecret, isDevAuthBypassEnabled } from '../config/security';
+import { matchesTableSessionToken } from '../utils/tableSessionToken';
 
 const router = Router();
 
@@ -25,7 +27,7 @@ export const verifyBillingAccess = async (req: TenantRequest, res: Response, nex
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
-    const secret = process.env.JWT_SECRET || 'spicehub_super_secret_jwt_key_2026_production_ready_9921';
+    const secret = getJwtSecret();
     try {
       const decoded = jwt.verify(token, secret) as AuthenticatedUserPayload;
       req.user = decoded;
@@ -45,30 +47,50 @@ export const verifyBillingAccess = async (req: TenantRequest, res: Response, nex
 
   if (tableSessionId && Types.ObjectId.isValid(tableSessionId)) {
     const session = await TableSession.findById(tableSessionId);
-    if (session && session.status === SessionStatus.ACTIVE) {
-      // If sessionToken is provided, verify against cryptographic hash
-      if (sessionToken) {
-        const crypto = require('crypto');
-        const tokenHash = crypto.createHash('sha256').update(sessionToken).digest('hex');
-        if (session.sessionTokenHash === tokenHash) {
-          req.hotelId = session.hotelId;
-          return next();
-        }
-      } else {
-        // Fallback for active table session inside trusted local restaurant session
+    if (session && (session.status === SessionStatus.ACTIVE || session.status === SessionStatus.BILLING || session.status === SessionStatus.SETTLED)) {
+      if (sessionToken && matchesTableSessionToken(String(sessionToken), session)) {
+        req.hotelId = session.hotelId;
+        return next();
+      }
+
+      // Legacy local demo token, never accepted in production.
+      if (
+        isDevAuthBypassEnabled() &&
+        sessionToken &&
+        session.sessionTokenHash === String(sessionToken)
+      ) {
+        req.hotelId = session.hotelId;
+        return next();
+      }
+
+      // Local/test terminal fallback. Production requires a staff JWT or guest token.
+      if (!sessionToken && (isDevAuthBypassEnabled() || process.env.NODE_ENV === 'test')) {
         req.hotelId = session.hotelId;
         return next();
       }
     }
   }
 
-  // Bill-Level Operations: Authenticate via existing valid restaurant bill
+  // Bill-Level Operations: Require the token of the session that owns the bill.
   const billId = req.body.billId;
   if (billId && Types.ObjectId.isValid(billId)) {
     const bill = await RestaurantBill.findById(billId);
     if (bill) {
-      req.hotelId = bill.hotelId;
-      return next();
+      const billSession = bill.tableSessionId
+        ? await TableSession.findById(bill.tableSessionId)
+        : null;
+      if (
+        billSession &&
+        sessionToken &&
+        matchesTableSessionToken(String(sessionToken), billSession)
+      ) {
+        req.hotelId = bill.hotelId;
+        return next();
+      }
+      if (isDevAuthBypassEnabled() || process.env.NODE_ENV === 'test') {
+        req.hotelId = bill.hotelId;
+        return next();
+      }
     }
   }
 
@@ -83,6 +105,7 @@ export const verifyBillingAccess = async (req: TenantRequest, res: Response, nex
 router.post('/bill/generate', verifyBillingAccess, generateTableBill);
 router.post('/bill/split-calc', verifyBillingAccess, calculateSplitBill);
 router.post('/payment/process', verifyBillingAccess, processBillPayment);
+router.post('/settle', verifyBillingAccess, processBillPayment);
 
 // Staff Shift Blind Close Authentication (JWT or Local POS Terminal Fallback)
 export const authenticateCashierShift = async (req: TenantRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -92,7 +115,7 @@ export const authenticateCashierShift = async (req: TenantRequest, res: Response
   }
 
   // Local POS Terminal fallback only in non-test mode
-  if (process.env.NODE_ENV !== 'test') {
+  if (isDevAuthBypassEnabled()) {
     try {
       const { Tenant } = await import('../models/Tenant');
       const { User } = await import('../models/User');

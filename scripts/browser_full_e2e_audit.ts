@@ -40,6 +40,21 @@ async function runBrowserFullE2EAudit() {
     await waiterPage.goto('http://localhost:3002', { waitUntil: 'domcontentloaded' });
     console.log('✅ [Tab 1] Waiter App Loaded in Browser');
 
+    // Real waiters start from the staff picker; use the 1-Tap Login so the
+    // station receives live requests and pickup alerts.
+    const waiterLoggedIn = await waiterPage.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find((b) =>
+        b.innerText.includes('1-Tap Login')
+      );
+      if (btn) {
+        (btn as HTMLButtonElement).click();
+        return true;
+      }
+      return false;
+    });
+    console.log(waiterLoggedIn ? '✅ [Tab 1] Waiter 1-Tap Login completed' : '⚠️ [Tab 1] Waiter login screen not shown');
+    await new Promise((r) => setTimeout(r, 900));
+
     // -------------------------------------------------------------
     // Step 2: Open Kitchen KDS App (:3003) in Browser Tab 2
     // -------------------------------------------------------------
@@ -59,6 +74,10 @@ async function runBrowserFullE2EAudit() {
 
     await kdsPage.goto('http://localhost:3003', { waitUntil: 'domcontentloaded' });
     console.log('✅ [Tab 2] Kitchen KDS App Loaded in Browser');
+
+    const kdsT04Before = await kdsPage.evaluate(
+      () => (document.body.innerText.match(/T-04/g) || []).length
+    );
 
     // -------------------------------------------------------------
     // Step 3: Open Customer Table App (:3001) in Browser Tab 3
@@ -87,7 +106,7 @@ async function runBrowserFullE2EAudit() {
     const customerHeading = await customerPage.evaluate(() => {
       return {
         hotelName: document.querySelector('h1')?.innerText || '',
-        tableText: document.body.innerText.includes('Table T-04') ? 'Found Table T-04' : 'Missing',
+        tableText: /T-04|Table 4|Table T-04/i.test(document.body.innerText) ? 'Found Table T-04' : 'Missing',
         dishCount: document.querySelectorAll('[data-testid^="menu-item-"]').length,
         hasImages: Array.from(document.querySelectorAll('img')).filter((i) => i.src && i.src.startsWith('http')).length,
       };
@@ -159,24 +178,28 @@ async function runBrowserFullE2EAudit() {
     // Wait 1 second for cart state update
     await new Promise((r) => setTimeout(r, 1000));
 
-    // Open Cart Drawer
-    console.log('   -> Opening Cart Drawer...');
+    // Open Cart tab
+    console.log('   -> Opening Cart...');
     const cartOpened = await customerPage.evaluate(() => {
-      const bar = document.querySelector('[data-testid="floating-cart-bar"]') as HTMLElement;
-      if (bar) {
-        bar.click();
+      const btn = Array.from(document.querySelectorAll('button')).find((b) =>
+        b.innerText.trim().includes('Cart')
+      );
+      if (btn) {
+        (btn as HTMLButtonElement).click();
         return true;
       }
       return false;
     });
-    console.log('   -> Cart Drawer Open Clicked:', cartOpened);
+    console.log('   -> Cart Open Clicked:', cartOpened);
 
-    await new Promise((r) => setTimeout(r, 1200));
+    await new Promise((r) => setTimeout(r, 800));
 
-    // Submit Order in Cart Drawer
-    console.log('   -> Clicking "Confirm Order & Send to Kitchen"...');
+    // Fire the order to the kitchen from the cart panel
+    console.log('   -> Clicking "Fire Order to Kitchen"...');
     const orderPlaced = await customerPage.evaluate(() => {
-      const btn = document.querySelector('[data-testid="confirm-order-button"]') as HTMLButtonElement;
+      const btn = Array.from(document.querySelectorAll('button')).find((b) =>
+        b.innerText.includes('Fire Order to Kitchen')
+      ) as HTMLButtonElement | undefined;
       if (btn && !btn.disabled) {
         btn.click();
         return true;
@@ -184,9 +207,19 @@ async function runBrowserFullE2EAudit() {
       return false;
     });
     console.log('   -> Order Placement Clicked:', orderPlaced);
+    if (!orderPlaced) {
+      throw new Error('Could not fire the customer order to the kitchen!');
+    }
 
-    // Wait 2.5 seconds for order to route through Central Server to KDS
-    await new Promise((r) => setTimeout(r, 2500));
+    // Wait for the ticket to route through Central Server to KDS
+    let kdsT04After = kdsT04Before;
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      kdsT04After = await kdsPage.evaluate(
+        () => (document.body.innerText.match(/T-04/g) || []).length
+      );
+      if (kdsT04After > kdsT04Before) break;
+    }
 
     // -------------------------------------------------------------
     // Step 6: Verify Kitchen KDS Browser Tab (:3003) for New Ticket
@@ -202,7 +235,11 @@ async function runBrowserFullE2EAudit() {
     });
 
     console.log('   -> KDS Screen Table Match:', kdsTicketReceived.hasTable);
+    console.log(`   -> New T-04 Tickets on KDS: ${kdsT04Before} -> ${kdsT04After}`);
     console.log('   -> KDS Screen Order Ticket Match:', kdsTicketReceived.hasOrder);
+    if (kdsT04After <= kdsT04Before) {
+      throw new Error('Order was fired but no new T-04 ticket appeared on the KDS!');
+    }
     console.log('🎉 [CONFIRMED IN REAL BROWSER] Order appeared on Kitchen KDS Screen!');
 
     // -------------------------------------------------------------

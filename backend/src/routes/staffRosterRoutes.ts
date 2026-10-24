@@ -12,6 +12,7 @@ import {
 } from '../controllers/staffRosterController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
+import { isDevAuthBypassEnabled } from '../config/security';
 
 const router = Router();
 
@@ -26,7 +27,7 @@ export const authenticateStaffRosterTerminal = async (
     return authenticateJWT(req, res, () => requireTenant(req, res, next));
   }
 
-  if (process.env.NODE_ENV !== 'test') {
+  if (isDevAuthBypassEnabled()) {
     try {
       const { Tenant } = await import('../models/Tenant');
       const { User } = await import('../models/User');

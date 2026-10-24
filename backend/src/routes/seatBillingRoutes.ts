@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import { authenticateBackOffice } from '../middlewares/backOfficeAuth';
 import { SeatBillingController } from '../controllers/seatBillingController';
 
 const router = Router();
+
+router.use(authenticateBackOffice);
 
 router.post('/sub-folio', SeatBillingController.generateOrGetSubFolio);
 router.post('/sub-folio/:subFolioId/items', SeatBillingController.addItemsToSubFolio);

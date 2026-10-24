@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../../config/api';
 
 export interface ICustodyTransfer {
   action: string;
@@ -86,7 +87,7 @@ interface LostAndFoundVaultAppProps {
 export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
   authToken,
   hotelId,
-  apiBaseUrl = 'http://localhost:5000/api/v1',
+  apiBaseUrl = API_BASE_URL,
 }) => {
   const [items, setItems] = useState<ILostItem[]>([]);
   const [metrics, setMetrics] = useState<IVaultMetrics>({

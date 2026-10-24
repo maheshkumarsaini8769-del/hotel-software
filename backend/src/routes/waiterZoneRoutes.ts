@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import { authenticateBackOffice } from '../middlewares/backOfficeAuth';
 import { WaiterZoneController } from '../controllers/waiterZoneController';
 
 const router = Router();
+
+router.use(authenticateBackOffice);
 
 router.post('/assign', WaiterZoneController.assignZone);
 router.get('/active', WaiterZoneController.getActiveZones);

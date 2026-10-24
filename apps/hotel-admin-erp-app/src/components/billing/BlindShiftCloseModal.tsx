@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { formatCurrency } from '../../../../../packages/ui/src/index';
-import { BillingCalculatorHelper } from '../../../../../packages/ui/src/billing/BillingCalculatorHelper';
-import { CurrencyDenomination, DenominationItem } from '../../../../../packages/ui/src/billing/types';
+import { formatCurrency } from '@spicehub/ui';
+import { BillingCalculatorHelper } from '@spicehub/ui';
+import { CurrencyDenomination, DenominationItem } from '@spicehub/ui';
 
 export interface BlindShiftCloseModalProps {
   cashierName: string;

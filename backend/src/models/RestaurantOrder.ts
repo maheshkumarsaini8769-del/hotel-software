@@ -81,6 +81,7 @@ export interface IRestaurantOrder extends Document {
   cancellationReason?: string;
   cancellationApprovedBy?: Types.ObjectId;
   tokenNumber?: number;
+  tokenDayKey?: string;
   customerName?: string;
   customerPhone?: string;
   idempotencyKey: string;
@@ -164,6 +165,7 @@ const RestaurantOrderSchema = new Schema<IRestaurantOrder>(
     cancellationReason: { type: String },
     cancellationApprovedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     tokenNumber: { type: Number, index: true },
+    tokenDayKey: { type: String },
     customerName: { type: String, trim: true },
     customerPhone: { type: String, trim: true },
     idempotencyKey: { type: String, required: true, index: true },
@@ -178,5 +180,11 @@ const RestaurantOrderSchema = new Schema<IRestaurantOrder>(
 // Compound index to guarantee idempotency per hotel tenant
 RestaurantOrderSchema.index({ hotelId: 1, idempotencyKey: 1 }, { unique: true });
 RestaurantOrderSchema.index({ hotelId: 1, orderNumber: 1 }, { unique: true });
+// Guarantees a token number can never be handed out twice on the same day for the
+// same hotel, even when multiple cashier terminals punch orders concurrently.
+RestaurantOrderSchema.index(
+  { hotelId: 1, tokenDayKey: 1, tokenNumber: 1 },
+  { unique: true, partialFilterExpression: { tokenDayKey: { $exists: true } } }
+);
 
 export const RestaurantOrder = mongoose.model<IRestaurantOrder>('RestaurantOrder', RestaurantOrderSchema);

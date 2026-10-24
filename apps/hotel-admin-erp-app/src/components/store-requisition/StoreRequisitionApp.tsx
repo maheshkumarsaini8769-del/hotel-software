@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../../config/api';
 import {
   StoreRequisitionStore,
   IStoreRequisitionUI,
@@ -16,6 +17,7 @@ import { StoreRequisitionHeader } from './StoreRequisitionHeader';
 import { RequisitionCardList } from './RequisitionCardList';
 import { FefoBatchAlertBoard } from './FefoBatchAlertBoard';
 import { NewRequisitionModal } from './NewRequisitionModal';
+import { NewStockBatchModal, INewStockBatchPayload } from './NewStockBatchModal';
 import { IssueRequisitionModal } from './IssueRequisitionModal';
 import { InterKitchenTransferModal } from './InterKitchenTransferModal';
 
@@ -25,7 +27,7 @@ interface StoreRequisitionAppProps {
 }
 
 export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
-  apiBaseUrl = 'http://localhost:5000/api/v1',
+  apiBaseUrl = API_BASE_URL,
   token,
 }) => {
   const [store] = useState(() => new StoreRequisitionStore());
@@ -130,6 +132,26 @@ export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
         fetchRequisitions();
       }
     } catch {
+      store.setActiveModal(null);
+    } finally {
+      store.setLoading(false);
+    }
+  };
+
+  // Create Stock Batch (FEFO intake)
+  const handleSaveBatch = async (payload: INewStockBatchPayload) => {
+    try {
+      store.setLoading(true);
+      const res = await fetch(`${apiBaseUrl}/store-requisitions/batches`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || `Batch intake failed (HTTP ${res.status})`);
+      }
+      await fetchBatches();
       store.setActiveModal(null);
     } finally {
       store.setLoading(false);
@@ -264,6 +286,14 @@ export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
         isOpen={activeModal === 'NEW_TRANSFER'}
         onClose={() => store.setActiveModal(null)}
         onSave={handleSaveTransfer}
+        loading={loading}
+      />
+
+      {/* New Stock Batch Intake Modal */}
+      <NewStockBatchModal
+        isOpen={activeModal === 'NEW_BATCH'}
+        onClose={() => store.setActiveModal(null)}
+        onSave={handleSaveBatch}
         loading={loading}
       />
     </div>

@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { Types } from 'mongoose';
 import { TenantRequest, AuthenticatedUserPayload, UserRole } from '../types';
 import { Tenant, ITenant } from '../models/Tenant';
+import { getJwtSecret } from '../config/security';
 
 export const authenticateJWT = (
   req: TenantRequest,
@@ -20,7 +21,7 @@ export const authenticateJWT = (
   }
 
   const token = authHeader.split(' ')[1];
-  const secret = process.env.JWT_SECRET || 'spicehub_super_secret_jwt_key_2026_production_ready_9921';
+  const secret = getJwtSecret();
 
   try {
     const decoded = jwt.verify(token, secret) as AuthenticatedUserPayload;

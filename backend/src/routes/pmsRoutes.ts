@@ -34,6 +34,8 @@ import {
   postExpressCheckoutRequest,
   getCheckoutPreviewByRoom,
   settleAndCheckOutFrontDesk,
+  settleFolioFrontDesk,
+  getTaxInvoiceFrontDesk,
   getTurnaroundQueue,
   assignTurnaroundAttendant,
   submitTurnaroundChecklist,
@@ -54,6 +56,8 @@ import {
   applyRateOverride,
   waiveFolioIncidental,
   getRateOverrideAuditLog,
+  getRoomTypes,
+  updateRoomTypeTariff,
 } from '../controllers/frontDeskController';
 import {
   openFrontDeskShift,
@@ -101,6 +105,7 @@ import {
 } from '../controllers/housekeepingController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
+import { isDevAuthBypassEnabled } from '../config/security';
 import { Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 
@@ -117,7 +122,7 @@ export const authenticateFrontDeskTerminal = async (
     return authenticateJWT(req, res, () => requireTenant(req, res, next));
   }
 
-  if (process.env.NODE_ENV !== 'test') {
+  if (isDevAuthBypassEnabled()) {
     try {
       const { Tenant } = await import('../models/Tenant');
       const { User } = await import('../models/User');
@@ -157,6 +162,10 @@ export const authenticateFrontDeskTerminal = async (
 router.get('/rooms/search', searchAvailableRooms);
 router.post('/bookings/create', createRoomBooking);
 
+// Room Type & Tariff Matrix (reception editor + corporate group booking)
+router.get('/room-types', authenticateFrontDeskTerminal, getRoomTypes);
+router.put('/room-types/:roomTypeId', authenticateFrontDeskTerminal, updateRoomTypeTariff);
+
 // Shift 57 & Shift 58: Flexible Front Desk Check-in, Expected Arrivals & In-Room Guest Portal
 router.get('/frontdesk/available-rooms', authenticateFrontDeskTerminal, getFrontDeskAvailableRooms);
 router.post('/frontdesk/quick-checkin', authenticateFrontDeskTerminal, quickFrontDeskCheckIn);
@@ -181,6 +190,10 @@ router.patch('/frontdesk/concierge-request/:requestId/status', authenticateFront
 router.post('/frontdesk/express-checkout-request', authenticateFrontDeskTerminal, postExpressCheckoutRequest);
 router.get('/frontdesk/checkout-preview/:roomNumber', authenticateFrontDeskTerminal, getCheckoutPreviewByRoom);
 router.post('/frontdesk/settle-and-checkout', authenticateFrontDeskTerminal, settleAndCheckOutFrontDesk);
+
+// Shift 80: In-Room Folio Live Settle & Official GST Tax Invoice
+router.post('/frontdesk/settle-folio', authenticateFrontDeskTerminal, settleFolioFrontDesk);
+router.get('/frontdesk/tax-invoice/:roomNumber', authenticateFrontDeskTerminal, getTaxInvoiceFrontDesk);
 
 // Shift 62: Housekeeping Turnaround Execution, Room Inspection Checklist & Instant Ready Status Pipeline
 router.get('/frontdesk/turnaround-queue', authenticateFrontDeskTerminal, getTurnaroundQueue);

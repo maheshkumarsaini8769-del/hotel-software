@@ -1,6 +1,6 @@
 import React from 'react';
-import { MatrixRoomCategory } from '../../../../../packages/ui/src/pms/types';
-import { formatCurrency } from '../../../../../packages/ui/src/index';
+import { MatrixRoomCategory } from '@spicehub/ui';
+import { formatCurrency } from '@spicehub/ui';
 
 export interface PmsCategoryFilterProps {
   roomTypes: MatrixRoomCategory[];

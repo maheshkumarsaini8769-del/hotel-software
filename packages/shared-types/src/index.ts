@@ -17,6 +17,8 @@ export enum UserRole {
 export enum ShiftStatus {
   ON_DUTY = 'ON_DUTY',
   BUSY = 'BUSY',
+  TEA_BREAK = 'TEA_BREAK',
+  ON_BREAK = 'ON_BREAK',
   DO_NOT_ASSIGN = 'DO_NOT_ASSIGN',
   LOCATION_RECHECKING = 'LOCATION_RECHECKING',
   OUT_OF_AREA = 'OUT_OF_AREA',

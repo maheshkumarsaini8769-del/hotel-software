@@ -11,6 +11,7 @@ import {
   ItemProductionStatus,
 } from '../models/RestaurantOrder';
 import { MenuItem } from '../models/MenuItem';
+import { generateReferenceNumber } from '../utils/referenceNumber';
 
 export class TableQrLockerController {
   /**
@@ -197,7 +198,7 @@ export class TableQrLockerController {
       const now = new Date();
       // 10-Second Waiter SLA Deadline (10,000 ms)
       const approvalDeadline = new Date(now.getTime() + 10000);
-      const orderNumber = `KOT-${Date.now().toString().slice(-6)}`;
+      const orderNumber = generateReferenceNumber('KOT');
 
       const order = await RestaurantOrder.create({
         hotelId: new Types.ObjectId(hotelId),

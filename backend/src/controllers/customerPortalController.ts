@@ -21,6 +21,7 @@ import {
   ItemProductionStatus,
 } from '../models/RestaurantOrder';
 import { MenuItem } from '../models/MenuItem';
+import { generateReferenceNumber } from '../utils/referenceNumber';
 
 export class CustomerPortalController {
   /**
@@ -414,7 +415,7 @@ export class CustomerPortalController {
       const tax5Percent = Math.round(subTotal * 0.05);
       const grandTotal = subTotal + tax5Percent;
 
-      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+      const orderNumber = generateReferenceNumber('ORD');
       let orderType: OrderType = OrderType.DINE_IN;
 
       if (session.serviceMode === CustomerServiceMode.IN_ROOM_DINING) {

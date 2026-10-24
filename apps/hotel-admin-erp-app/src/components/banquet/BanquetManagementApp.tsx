@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
+import { API_BASE_URL } from '../../config/api';
 import {
   IBanquetBookingUI,
   IBanquetMetricsUI,
   INewBanquetBookingPayload,
   IUpdateProspectusPayload,
   IPostBanquetExtraChargePayload,
-  BanquetStore,
 } from '@spicehub/ui';
 import { BanquetHeader } from './BanquetHeader';
 import { BanquetEventCard } from './BanquetEventCard';
@@ -21,12 +21,10 @@ interface BanquetManagementAppProps {
 }
 
 export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
-  apiBaseUrl = 'http://localhost:5000/api/v1',
+  apiBaseUrl = API_BASE_URL,
   token = '',
   hotelId = '',
 }) => {
-  const store = useMemo(() => new BanquetStore(), []);
-
   const [bookings, setBookings] = useState<IBanquetBookingUI[]>([]);
   const [metrics, setMetrics] = useState<IBanquetMetricsUI>({
     totalEvents: 0,
@@ -39,8 +37,21 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [filterSlot, setFilterSlot] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [selectedBooking, setSelectedBooking] = useState<IBanquetBookingUI | null>(null);
+  const [pendingComplete, setPendingComplete] = useState<IBanquetBookingUI | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
+    setToast({ message, tone });
+    window.setTimeout(() => setToast(null), 4500);
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearchQuery(searchQuery), 350);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
 
   // Modals state
   const [activeModal, setActiveModal] = useState<'NEW_BOOKING' | 'VIEW_FP' | 'POST_CHARGE' | 'SETTLE_FOLIO' | null>(
@@ -65,7 +76,7 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
 
       // 2. Bookings List
       const bRes = await fetch(
-        `${apiBaseUrl}/banquets?status=${filterStatus}&timeSlot=${filterSlot}&search=${encodeURIComponent(searchQuery)}`,
+        `${apiBaseUrl}/banquets?status=${filterStatus}&timeSlot=${filterSlot}&search=${encodeURIComponent(debouncedSearchQuery)}`,
         { headers: getHeaders() }
       );
       if (bRes.ok) {
@@ -80,8 +91,8 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
   };
 
   useEffect(() => {
-    loadData();
-  }, [filterStatus, filterSlot, searchQuery]);
+    void loadData();
+  }, [filterStatus, filterSlot, debouncedSearchQuery]);
 
   // Create Booking
   const handleCreateBooking = async (payload: INewBanquetBookingPayload) => {
@@ -102,7 +113,7 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
         await loadData();
       }
     } catch (err: any) {
-      alert(`Booking Error: ${err.message}`);
+      showToast(`Booking error: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -123,10 +134,10 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
       if (data.success) {
         setActiveModal(null);
         await loadData();
-        alert('Function Prospectus (BEO) updated and distributed successfully!');
+        showToast('Function Prospectus (BEO) updated and distributed successfully.');
       }
     } catch (err: any) {
-      alert(`FP Update Error: ${err.message}`);
+      showToast(`FP update error: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -147,10 +158,10 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
       if (data.success) {
         setActiveModal(null);
         await loadData();
-        alert(`Charge of ₹${data.netAmount} successfully posted to Event Master Folio!`);
+        showToast(`Charge of ₹${data.netAmount} posted to the Event Master Folio.`);
       }
     } catch (err: any) {
-      alert(`Error posting extra charge: ${err.message}`);
+      showToast(`Could not post extra charge: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -173,17 +184,20 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
         await loadData();
       }
     } catch (err: any) {
-      alert(`Error settling folio: ${err.message}`);
+      showToast(`Could not settle folio: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
   };
 
   // Complete Event
-  const handleCompleteEvent = async (booking: IBanquetBookingUI) => {
-    const confirm = window.confirm(`Mark event "${booking.eventName}" as completed and release venue "${booking.venueName}"?`);
-    if (!confirm) return;
+  const handleCompleteEvent = (booking: IBanquetBookingUI) => {
+    setPendingComplete(booking);
+  };
 
+  const confirmCompleteEvent = async () => {
+    if (!pendingComplete) return;
+    const booking = pendingComplete;
     try {
       setLoading(true);
       const res = await fetch(`${apiBaseUrl}/banquets/${booking._id}/complete`, {
@@ -193,10 +207,12 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success) {
+        setPendingComplete(null);
         await loadData();
+        showToast(`"${booking.eventName}" completed and ${booking.venueName} released.`);
       }
     } catch (err: any) {
-      alert(`Error completing event: ${err.message}`);
+      showToast(`Could not complete event: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -297,6 +313,48 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
           onSubmit={handleSettleFolio}
           loading={loading}
         />
+      )}
+
+      {pendingComplete && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-amber-500/30 bg-[#0f131a] p-6 text-zinc-100 shadow-2xl">
+            <h3 className="text-lg font-black text-white">Release banquet venue?</h3>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+              Mark <span className="font-semibold text-amber-300">{pendingComplete.eventName}</span> as
+              completed and release <span className="font-semibold text-amber-300">{pendingComplete.venueName}</span>?
+              This action is recorded in the event audit trail.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setPendingComplete(null)}
+                disabled={loading}
+                className="rounded-xl border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
+              >
+                Keep Event Open
+              </button>
+              <button
+                onClick={() => void confirmCompleteEvent()}
+                disabled={loading}
+                className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+              >
+                {loading ? 'Releasing…' : 'Complete & Release'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div
+          className={`fixed bottom-5 right-5 z-[80] max-w-sm rounded-xl border px-4 py-3 text-xs font-semibold shadow-2xl ${
+            toast.tone === 'success'
+              ? 'border-emerald-500/40 bg-emerald-950 text-emerald-200'
+              : 'border-rose-500/40 bg-rose-950 text-rose-200'
+          }`}
+          role="status"
+        >
+          {toast.message}
+        </div>
       )}
     </div>
   );

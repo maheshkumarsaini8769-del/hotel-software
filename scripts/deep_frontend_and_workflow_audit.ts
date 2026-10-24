@@ -59,6 +59,50 @@ async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+
+/**
+ * Staff terminals are protected by the shared StaffLoginGate. The audit signs
+ * in through the same UI a real user uses before exercising the workflows.
+ */
+async function signInIfGated(page: Page, app: string): Promise<boolean> {
+  await sleep(800);
+  const needsLogin = await page.evaluate(
+    () =>
+      document.body.innerText.includes('PROTECTED STAFF TERMINAL') ||
+      document.body.innerText.includes('PLATFORM CONTROL PLANE')
+  );
+  if (!needsLogin) return false;
+
+  if (app === 'waiter') {
+    await page.evaluate(() => {
+      const demo = Array.from(document.querySelectorAll('button')).find((b) =>
+        b.innerText.includes('1-Tap Demo Login')
+      );
+      if (demo) {
+        demo.click();
+        return;
+      }
+      for (const digit of ['1', '2', '3', '4']) {
+        const key = Array.from(document.querySelectorAll('button')).find(
+          (b) => b.innerText.trim() === digit
+        );
+        if (key) key.click();
+      }
+    });
+  } else {
+    await page.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find((b) =>
+        b.innerText.includes('Use local demo account')
+      );
+      if (btn) btn.click();
+    });
+  }
+
+  await sleep(3500);
+  console.log(`   🔐 Signed in to ${app} staff terminal`);
+  return true;
+}
+
 async function runDeepFrontendWorkflowAudit() {
   console.log('================================================================================');
   console.log('🌐 [DEEP FRONTEND & WORKFLOW AUDIT] 6-APP CONCURRENT INTERACTIVE VERIFICATION');
@@ -126,9 +170,10 @@ async function runDeepFrontendWorkflowAudit() {
 
       // Check for Order / Cart button
       const placeOrderBtn = Array.from(document.querySelectorAll('button')).find((b) =>
+        b.innerText.toLowerCase().includes('fire order to kitchen') ||
         b.innerText.toLowerCase().includes('place order') ||
-        b.innerText.toLowerCase().includes('view cart') ||
-        b.innerText.toLowerCase().includes('order now')
+        b.innerText.toLowerCase().includes('confirm order') ||
+        b.innerText.toLowerCase().includes('view cart')
       );
       if (placeOrderBtn) {
         placeOrderBtn.click();
@@ -152,6 +197,7 @@ async function runDeepFrontendWorkflowAudit() {
 
     await waiterPage.goto('http://localhost:3002', { waitUntil: 'domcontentloaded' });
     await sleep(2500);
+    await signInIfGated(waiterPage, 'waiter');
 
     // Verify and handle pending service requests
     const waiterAcknowledged = await waiterPage.evaluate(() => {
@@ -184,6 +230,7 @@ async function runDeepFrontendWorkflowAudit() {
 
     await kdsPage.goto('http://localhost:3003', { waitUntil: 'domcontentloaded' });
     await sleep(2500);
+    await signInIfGated(kdsPage, 'kds');
 
     // Chef clicks "PREPARING" or "READY"
     const kdsUpdated = await kdsPage.evaluate(() => {
@@ -248,6 +295,7 @@ async function runDeepFrontendWorkflowAudit() {
 
     await adminPage.goto('http://localhost:3005', { waitUntil: 'domcontentloaded' });
     await sleep(2500);
+    await signInIfGated(adminPage, 'admin');
 
     // Module 5a: PMS Room Grid
     const pmsNav = await adminPage.evaluate(() => {
@@ -301,6 +349,7 @@ async function runDeepFrontendWorkflowAudit() {
 
     await saasPage.goto('http://localhost:3006', { waitUntil: 'domcontentloaded' });
     await sleep(2500);
+    await signInIfGated(saasPage, 'superadmin');
 
     const saasInteracted = await saasPage.evaluate(() => {
       const buttons = Array.from(document.querySelectorAll('button'));

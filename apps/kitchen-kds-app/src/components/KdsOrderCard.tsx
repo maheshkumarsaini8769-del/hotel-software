@@ -17,7 +17,32 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
   onToggleItemStatus,
 }) => {
   const urgencyStyle = KdsHelper.getUrgencyStyle(order.urgencyLevel);
-  const formattedTimer = KdsHelper.formatElapsedTimer(order.elapsedMinutes);
+
+  // Live second-by-second ticking timer for Kitchen Chefs
+  const [elapsedSeconds, setElapsedSeconds] = React.useState<number>(() => {
+    const p = new Date(order.placedAt).getTime();
+    return isNaN(p) ? 0 : Math.max(0, Math.floor((Date.now() - p) / 1000));
+  });
+
+  React.useEffect(() => {
+    const p = new Date(order.placedAt).getTime();
+    if (isNaN(p)) return;
+    const update = () => {
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - p) / 1000)));
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [order.placedAt]);
+
+  const formatLiveTimer = () => {
+    const mins = Math.floor(elapsedSeconds / 60);
+    const secs = elapsedSeconds % 60;
+    if (mins >= 20) {
+      return `${mins}m ${secs.toString().padStart(2, '0')}s (LATE)`;
+    }
+    return `${mins}m ${secs.toString().padStart(2, '0')}s`;
+  };
 
   const getLocationLabel = () => {
     if (order.roomNumber) {
@@ -69,13 +94,14 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
           </div>
         </div>
 
-        {/* Live Urgency Timer */}
+        {/* Live Urgency Timer with Seconds */}
         <div className="text-right">
-          <div className={`text-xs px-2 py-0.5 rounded border inline-block ${urgencyStyle.badge}`}>
-            ⏱️ {formattedTimer}
+          <div className={`text-xs px-2.5 py-1 rounded-lg border font-mono font-bold inline-flex items-center gap-1.5 shadow-sm ${urgencyStyle.badge}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-current animate-ping"></span>
+            <span>⏱️ {formatLiveTimer()}</span>
           </div>
           <div className="text-[10px] text-slate-400 mt-1">
-            {new Date(order.placedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {new Date(order.placedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
         </div>
       </div>

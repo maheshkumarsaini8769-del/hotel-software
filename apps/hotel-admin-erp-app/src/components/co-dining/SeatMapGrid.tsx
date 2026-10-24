@@ -1,6 +1,6 @@
 import React from 'react';
-import { CommunityTableDTO } from '../../../../../packages/ui/src/co-dining/types';
-import { CoDiningHelper } from '../../../../../packages/ui/src/co-dining/CoDiningHelper';
+import { CommunityTableDTO } from '@spicehub/ui';
+import { CoDiningHelper } from '@spicehub/ui';
 
 export interface SeatMapGridProps {
   table: CommunityTableDTO;

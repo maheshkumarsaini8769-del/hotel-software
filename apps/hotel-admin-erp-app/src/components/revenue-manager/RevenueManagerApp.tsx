@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../../config/api';
 import {
   TrendingUp,
   Sliders,
@@ -32,7 +33,7 @@ interface RevenueManagerAppProps {
 export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
   hotelId = '',
   token,
-  apiUrl = 'http://localhost:5000/api/v1',
+  apiUrl = API_BASE_URL,
 }) => {
   const [store] = useState(() => new RevenueManagerStore());
   const [strategies, setStrategies] = useState<IRevenueStrategyUI[]>([]);

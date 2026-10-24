@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import {
   MatrixReservationBlock,
   MatrixRoomCategory,
-} from '../../../../../packages/ui/src/pms/types';
-import { MatrixHelper } from '../../../../../packages/ui/src/pms/MatrixHelper';
-import { formatCurrency } from '../../../../../packages/ui/src/index';
+} from '@spicehub/ui';
+import { MatrixHelper } from '@spicehub/ui';
+import { formatCurrency } from '@spicehub/ui';
 
 export interface PmsReservationDetailModalProps {
   booking: MatrixReservationBlock | null;

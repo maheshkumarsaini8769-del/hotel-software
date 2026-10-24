@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 import {
   accessTableByQR,
   getDemoContext,
+  getActiveTableSession,
   placeRestaurantOrder,
   updateKDSOrderStatus,
   getDiningTables,
@@ -14,13 +15,19 @@ import {
   batchToggleItem86,
   getKitchenStations,
   getKdsOrders,
+  getRecentOrders,
   acknowledgeKdsItemAllergen,
   acknowledgeAllKdsOrderAllergens,
   mergeDiningTables,
   splitDiningTables,
+  getTableSessionOrders,
+  postKitchenBuzzer,
+  getKitchenBuzzers,
+  acknowledgeKitchenBuzzer,
 } from '../controllers/posController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TenantRequest } from '../types';
+import { isDevAuthBypassEnabled } from '../config/security';
 
 const router = Router();
 
@@ -35,7 +42,7 @@ export const authenticatePosTerminal = async (
     return authenticateJWT(req, res, () => requireTenant(req, res, next));
   }
 
-  if (process.env.NODE_ENV !== 'test') {
+  if (isDevAuthBypassEnabled()) {
     try {
       const { Tenant } = await import('../models/Tenant');
       const { User } = await import('../models/User');
@@ -75,14 +82,25 @@ export const authenticatePosTerminal = async (
 router.get('/demo-context', getDemoContext);
 router.get('/table/qr-entry', accessTableByQR);
 router.post('/orders/place', placeRestaurantOrder);
+router.get('/table-session/:tableSessionId/orders', getTableSessionOrders);
+router.get('/table-session/orders', getTableSessionOrders);
+router.get('/table/orders', getTableSessionOrders);
 router.get('/menu', getDiningMenu);
 
 // Protected Staff, POS & KDS Routes
 router.get('/kds/stations', authenticatePosTerminal, getKitchenStations);
 router.get('/kds/orders', authenticatePosTerminal, getKdsOrders);
+router.get('/kds-orders', authenticatePosTerminal, getKdsOrders);
+router.get('/orders/recent', authenticatePosTerminal, getRecentOrders);
 router.patch('/kds/order/:orderId/status', authenticatePosTerminal, updateKDSOrderStatus);
+router.patch('/orders/:orderId/status', authenticatePosTerminal, updateKDSOrderStatus);
+router.patch('/orders/:orderId/serve', authenticatePosTerminal, (req, res) => {
+  req.body = { ...req.body, status: 'SERVED' };
+  return updateKDSOrderStatus(req, res);
+});
 router.patch('/kds/orders/:orderId/items/:itemIndex/acknowledge-allergen', authenticatePosTerminal, acknowledgeKdsItemAllergen);
 router.patch('/kds/orders/:orderId/acknowledge-all-allergens', authenticatePosTerminal, acknowledgeAllKdsOrderAllergens);
+router.get('/table-session/active', authenticatePosTerminal, getActiveTableSession);
 router.get('/tables', authenticatePosTerminal, getDiningTables);
 router.patch('/tables/:tableId/status', authenticatePosTerminal, updateTableStatus);
 router.post('/tables/:tableId/seat', authenticatePosTerminal, seatTableWalkIn);
@@ -92,6 +110,14 @@ router.post('/tables/split', authenticatePosTerminal, splitDiningTables);
 router.get('/menu/86-items', authenticatePosTerminal, get86MenuItems);
 router.post('/menu/batch-86', authenticatePosTerminal, batchToggleItem86);
 router.patch('/menu/:itemId/toggle-86', authenticatePosTerminal, toggleItem86);
+
+// Kitchen Intercom & Waiter Call Buzzer routes
+router.post('/kds/buzzer', postKitchenBuzzer);
+router.post('/kitchen/buzzer', postKitchenBuzzer);
+router.get('/kds/buzzers', getKitchenBuzzers);
+router.get('/kitchen/buzzers', getKitchenBuzzers);
+router.patch('/kds/buzzer/:id/acknowledge', acknowledgeKitchenBuzzer);
+router.patch('/kitchen/buzzer/:id/acknowledge', acknowledgeKitchenBuzzer);
 
 export default router;
 

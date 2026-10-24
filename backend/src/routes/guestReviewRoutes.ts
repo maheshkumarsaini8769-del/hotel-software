@@ -6,12 +6,12 @@ import {
   trackGoogleReviewClick,
   getCsatAnalytics,
 } from '../controllers/guestReviewController';
-import { authenticateJWT, requireTenant } from '../middlewares/auth';
+import { authenticateBackOffice } from '../middlewares/backOfficeAuth';
 
 const router = Router();
 
-// Multi-tenant auth isolation
-router.use(authenticateJWT, requireTenant);
+// Multi-tenant auth isolation with back-office terminal support
+router.use(authenticateBackOffice);
 
 // Review submission & retrieval
 router.post('/submit', submitGuestReview);

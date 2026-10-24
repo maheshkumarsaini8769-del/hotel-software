@@ -5,6 +5,38 @@ import {
   LuggageStorageType,
   ILuggagePiece,
 } from '../models/LeftLuggageClaim';
+import { User } from '../models/User';
+import argon2 from 'argon2';
+import { getManagerSecurityPin } from '../config/security';
+
+/**
+ * Verify a manager/supervisor override against the configured master PIN or
+ * an active staff member's Argon2 PIN hash. Never compare against a literal
+ * PIN embedded in source.
+ */
+const verifyStaffSecurityPin = async (hotelId: any, pin?: string): Promise<boolean> => {
+  if (!pin) return false;
+
+  const masterPin = getManagerSecurityPin();
+  if (masterPin && pin === masterPin) return true;
+
+  const staff = await User.find({
+    hotelId,
+    role: { $in: ['HOTEL_ADMIN', 'MANAGER', 'RECEPTIONIST'] },
+    isActive: true,
+  });
+
+  for (const member of staff) {
+    if (!member.pinCodeHash) continue;
+    try {
+      if (await argon2.verify(member.pinCodeHash, pin)) return true;
+    } catch {
+      // Ignore malformed / legacy non-Argon2 hashes.
+    }
+  }
+
+  return false;
+};
 
 export const getLeftLuggageClaims = async (req: Request, res: Response) => {
   try {
@@ -314,7 +346,7 @@ export const completeLuggageDelivery = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Hotel ID is required.' });
     }
 
-    const { claimTag, deliveredToRoom, staffPin, recipientConfirmation } = req.body;
+    const { claimTag, deliveredToRoom, recipientConfirmation } = req.body;
     if (!claimTag) {
       return res.status(400).json({ success: false, message: 'Claim tag is required.' });
     }
@@ -324,11 +356,10 @@ export const completeLuggageDelivery = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, message: 'Luggage claim ticket not found.' });
     }
 
-    // Verify Supervisor / Staff PIN
-    if (staffPin && staffPin !== '9921' && staffPin !== '1234') {
-      return res.status(403).json({ success: false, message: 'Invalid Staff Verification PIN.' });
-    }
-
+    // This endpoint is already protected by authenticateFrontDeskTerminal.
+    // Delivery acknowledgement therefore relies on the signed staff session,
+    // not a client-supplied / hardcoded master PIN.
+    //
     // Complete latest active dispatch if present
     if (claim.dispatches.length > 0) {
       const activeDisp = claim.dispatches[claim.dispatches.length - 1];
@@ -378,8 +409,8 @@ export const releaseLuggageAtCounter = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Luggage has already been claimed and released.' });
     }
 
-    // Verify Claim PIN or Supervisor Override PIN
-    const isMasterOverride = staffPin === '9921' || staffPin === '1234';
+    // Verify Claim PIN or a real supervisor override (master env PIN / hashed staff PIN).
+    const isMasterOverride = await verifyStaffSecurityPin(hotelId, staffPin);
     const isPinMatch = claimPin && String(claimPin).trim() === claim.claimPin;
 
     if (!isMasterOverride && !isPinMatch) {

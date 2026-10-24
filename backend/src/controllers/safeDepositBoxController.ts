@@ -4,12 +4,14 @@ import { SafeDepositBox, SDBStatus, SDBSize, ISDBAccessVisit } from '../models/S
 import { Stay, StayStatus } from '../models/Stay';
 import { User } from '../models/User';
 import { TenantRequest } from '../types';
+import argon2 from 'argon2';
+import { getManagerSecurityPin } from '../config/security';
 import { io } from '../index';
 
 const verifyStaffSecurityPin = async (hotelId: Types.ObjectId, pin?: string): Promise<boolean> => {
   if (!pin) return false;
-  const masterPin = process.env.MANAGER_SECURITY_PIN || '9921';
-  if (pin === masterPin) return true;
+  const masterPin = getManagerSecurityPin();
+  if (masterPin && pin === masterPin) return true;
 
   const staff = await User.find({
     hotelId,
@@ -18,8 +20,13 @@ const verifyStaffSecurityPin = async (hotelId: Types.ObjectId, pin?: string): Pr
   });
 
   for (const s of staff) {
-    if (s.pinCodeHash && (s.pinCodeHash === pin || s.pinCodeHash.includes(pin))) {
-      return true;
+    if (!s.pinCodeHash) continue;
+    try {
+      if (await argon2.verify(s.pinCodeHash, pin)) {
+        return true;
+      }
+    } catch {
+      // Ignore malformed / legacy non-Argon2 hashes – never compare plaintext.
     }
   }
 
@@ -427,19 +434,26 @@ export const surrenderSafeDepositBox = async (req: TenantRequest, res: Response)
     box.lostKeyPenaltyAmount = penalty;
     box.keyDepositStatus = depositStatus;
 
-    // Reset active guest allotment
-    box.currentStayId = undefined;
-    box.currentBookingId = undefined;
-    box.currentGuestId = undefined;
-    box.currentGuestName = undefined;
-    box.currentGuestPhone = undefined;
-    box.currentRoomNumber = undefined;
-    box.tamperSealNumber = undefined;
-
     await box.save();
 
+    // Explicitly unset active allotment fields; assigning `undefined` is a no-op in Mongoose.
+    await SafeDepositBox.updateOne(
+      { _id: box._id },
+      {
+        $unset: {
+          currentStayId: 1,
+          currentBookingId: 1,
+          currentGuestId: 1,
+          currentGuestName: 1,
+          currentGuestPhone: 1,
+          currentRoomNumber: 1,
+          tamperSealNumber: 1,
+        },
+      }
+    );
+
     if (io) {
-      io.to(hotelId.toString()).emit('SDB_BOX_RELEASED', {
+      io.to(`${hotelId.toString()}_global`).emit('SDB_BOX_RELEASED', {
         boxId: box._id,
         boxNumber: box.boxNumber,
         surrenderedByGuest: prevGuest,

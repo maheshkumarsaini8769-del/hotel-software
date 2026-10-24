@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { SeatBillingStore } from '../../../../../packages/ui/src/seat-billing/SeatBillingStore';
-import { SeatSubFolioDTO, SettleSubFolioPayload } from '../../../../../packages/ui/src/seat-billing/types';
-import { SeatBillingHelper } from '../../../../../packages/ui/src/seat-billing/SeatBillingHelper';
+import { SeatBillingStore } from '@spicehub/ui';
+import { SeatSubFolioDTO, SettleSubFolioPayload } from '@spicehub/ui';
+import { SeatBillingHelper } from '@spicehub/ui';
 import { SubFolioSplitCard } from './SubFolioSplitCard';
 
 export interface SeatBillingAppProps {

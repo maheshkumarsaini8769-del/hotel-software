@@ -14,6 +14,16 @@ export interface InRoomDiningDish {
 
 const IN_ROOM_DISHES: InRoomDiningDish[] = [
   {
+    id: 'ird-pbm',
+    name: 'Paneer Butter Masala',
+    category: 'Mains',
+    price: 320,
+    prepTime: '10m',
+    foodType: 'VEG',
+    image: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400&auto=format&fit=crop&q=80',
+    description: 'Fresh cottage cheese cubes in rich and creamy tomato-cashew satin gravy with fenugreek butter.',
+  },
+  {
     id: 'ird-1',
     name: 'Paneer Tikka Angara',
     category: 'Starters',

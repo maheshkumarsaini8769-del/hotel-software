@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../../config/api';
 
 export interface FrontDeskCheckInAppProps {
   authToken?: string;
@@ -566,7 +567,9 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [overrideFixedRate, setOverrideFixedRate] = useState<number>(3000);
   const [overrideReason, setOverrideReason] = useState<string>('SERVICE_RECOVERY');
   const [overrideJustification, setOverrideJustification] = useState<string>('AC repair delay during stay. Approved customer recovery discount.');
-  const [overrideManagerPin, setOverrideManagerPin] = useState<string>('9921');
+  // PINs are never prefilled in the client. The backend must validate and
+  // rate-limit every manager/supervisor approval attempt.
+  const [overrideManagerPin, setOverrideManagerPin] = useState<string>('');
   const [overrideCalculation, setOverrideCalculation] = useState<any | null>(null);
   const [submittingOverride, setSubmittingOverride] = useState<boolean>(false);
 
@@ -591,7 +594,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [safeDropReceiptNumber, setSafeDropReceiptNumber] = useState<string>('');
   const [handoverToCashierName, setHandoverToCashierName] = useState<string>('Evening Receptionist Rohan');
   const [discrepancyReason, setDiscrepancyReason] = useState<string>('');
-  const [supervisorPin, setSupervisorPin] = useState<string>('9921');
+  const [supervisorPin, setSupervisorPin] = useState<string>('');
   const [supervisorRemarks, setSupervisorRemarks] = useState<string>('Discrepancy & safe drop verified by duty supervisor.');
   const [showSupervisorPinModal, setShowSupervisorPinModal] = useState<boolean>(false);
   const [cashierSubmitting, setCashierSubmitting] = useState<boolean>(false);
@@ -621,14 +624,14 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   // Access Visit Modal State
   const [accessModalOpen, setAccessModalOpen] = useState<boolean>(false);
   const [accessPurpose, setAccessPurpose] = useState<'DEPOSIT' | 'WITHDRAWAL' | 'INSPECTION'>('INSPECTION');
-  const [accessStaffPin, setAccessStaffPin] = useState<string>('9921');
+  const [accessStaffPin, setAccessStaffPin] = useState<string>('');
   const [accessRemarks, setAccessRemarks] = useState<string>('Guest accessed vault to inspect diamond jewelry before dinner.');
 
   // Surrender Modal State
   const [surrenderModalOpen, setSurrenderModalOpen] = useState<boolean>(false);
   const [surrenderKeyReturned, setSurrenderKeyReturned] = useState<boolean>(true);
   const [surrenderEmptyVerified, setSurrenderEmptyVerified] = useState<boolean>(true);
-  const [surrenderStaffPin, setSurrenderStaffPin] = useState<string>('9921');
+  const [surrenderStaffPin, setSurrenderStaffPin] = useState<string>('');
   const [surrenderPenalty, setSurrenderPenalty] = useState<number>(0);
   const [surrenderRemarks, setSurrenderRemarks] = useState<string>('Contents verified 100% empty. Key returned in pristine condition.');
   const [sdbSubmitting, setSdbSubmitting] = useState<boolean>(false);
@@ -665,7 +668,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   // Counter Release Modal State
   const [counterReleaseModalOpen, setCounterReleaseModalOpen] = useState<boolean>(false);
   const [counterClaimPin, setCounterClaimPin] = useState<string>('');
-  const [counterSupervisorPin, setCounterSupervisorPin] = useState<string>('9921');
+  const [counterSupervisorPin, setCounterSupervisorPin] = useState<string>('');
   const [counterReleaseNotes, setCounterReleaseNotes] = useState<string>('Bags inspected and released directly to guest at Bell Desk.');
   const [luggageSubmitting, setLuggageSubmitting] = useState<boolean>(false);
 
@@ -776,7 +779,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [lostDisposeModalOpen, setLostDisposeModalOpen] = useState<boolean>(false);
   const [disposalActionType, setDisposalActionType] = useState<'DISPOSED' | 'AUCTIONED'>('DISPOSED');
   const [disposalNotesInput, setDisposalNotesInput] = useState<string>('90-day retention window expired. Authorized disposal.');
-  const [disposalSupervisorPin, setDisposalSupervisorPin] = useState<string>('9921');
+  const [disposalSupervisorPin, setDisposalSupervisorPin] = useState<string>('');
 
   // Audit Modal State
   const [lostAuditModalOpen, setLostAuditModalOpen] = useState<boolean>(false);
@@ -810,13 +813,29 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [settleKeycardVoid, setSettleKeycardVoid] = useState<boolean>(true);
   const [settleSuccessVoucher, setSettleSuccessVoucher] = useState<any | null>(null);
 
-  const apiBase = 'http://localhost:5000/api/v1';
+  const apiBase = API_BASE_URL;
   const token = authToken || (typeof window !== 'undefined' ? (localStorage.getItem('spicehub_token') || localStorage.getItem('token') || '') : '');
   const hotelId = propHotelId || (typeof window !== 'undefined' ? (localStorage.getItem('spicehub_hotel_id') || localStorage.getItem('hotelId') || '') : '');
 
+  // Getters always read the latest persisted session so long-lived polling
+  // timers cannot hold on to a stale token or tenant id.
   const authHeaders = {
-    Authorization: token ? `Bearer ${token}` : '',
-    'x-hotel-id': hotelId,
+    get Authorization() {
+      const currentToken =
+        authToken ||
+        (typeof window !== 'undefined'
+          ? localStorage.getItem('spicehub_token') || localStorage.getItem('token') || ''
+          : '');
+      return currentToken ? `Bearer ${currentToken}` : '';
+    },
+    get 'x-hotel-id'() {
+      return (
+        propHotelId ||
+        (typeof window !== 'undefined'
+          ? localStorage.getItem('spicehub_hotel_id') || localStorage.getItem('hotelId') || ''
+          : '')
+      );
+    },
   };
 
   const showToast = (msg: string) => {
@@ -923,7 +942,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
 
       // 7. Fetch Front Desk Cashier Shift & Handover State (Shift 68)
       try {
-        const [activeRes, histRes] = await Promise.all([
+        const [activeResult, histResult] = await Promise.allSettled([
           axios.get(`${apiBase}/pms/frontdesk/cashier/shift/active`, {
             headers: authHeaders,
             params: { hotelId, terminalId: 'FD_COUNTER_01' },
@@ -934,15 +953,15 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }),
         ]);
 
-        if (activeRes.data.success && activeRes.data.data) {
-          setActiveCashierShift(activeRes.data.data);
+        if (activeResult.status === 'fulfilled' && activeResult.value.data.success && activeResult.value.data.data) {
+          setActiveCashierShift(activeResult.value.data.data);
         } else {
           setActiveCashierShift(null);
         }
 
-        if (histRes.data.success && histRes.data.data) {
-          setCashierHistory(histRes.data.data.shifts || []);
-          setCashierSummary(histRes.data.data.summary || null);
+        if (histResult.status === 'fulfilled' && histResult.value.data.success && histResult.value.data.data) {
+          setCashierHistory(histResult.value.data.data.shifts || []);
+          setCashierSummary(histResult.value.data.data.summary || null);
         }
       } catch (err: any) {
         console.warn('Cashier shift load note:', err.message);
@@ -972,7 +991,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const loadCashierShiftData = async () => {
     try {
       setLoadingCashier(true);
-      const [activeRes, histRes] = await Promise.all([
+      const [activeResult, histResult] = await Promise.allSettled([
         axios.get(`${apiBase}/pms/frontdesk/cashier/shift/active`, {
           headers: authHeaders,
           params: { hotelId, terminalId: 'FD_COUNTER_01' },
@@ -983,15 +1002,15 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
         }),
       ]);
 
-      if (activeRes.data.success && activeRes.data.data) {
-        setActiveCashierShift(activeRes.data.data);
+      if (activeResult.status === 'fulfilled' && activeResult.value.data.success && activeResult.value.data.data) {
+        setActiveCashierShift(activeResult.value.data.data);
       } else {
         setActiveCashierShift(null);
       }
 
-      if (histRes.data.success && histRes.data.data) {
-        setCashierHistory(histRes.data.data.shifts || []);
-        setCashierSummary(histRes.data.data.summary || null);
+      if (histResult.status === 'fulfilled' && histResult.value.data.success && histResult.value.data.data) {
+        setCashierHistory(histResult.value.data.data.shifts || []);
+        setCashierSummary(histResult.value.data.data.summary || null);
       }
     } catch (err: any) {
       console.warn('Cashier shift load note:', err.message);
@@ -1396,7 +1415,6 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           claimTag: selectedLuggage.claimTag,
           deliveredToRoom: true,
           recipientConfirmation: selectedLuggage.guestName,
-          staffPin: '9921',
         },
         { headers: authHeaders }
       );
@@ -2076,7 +2094,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
     setOverrideFixedRate(Math.round(base * 0.85));
     setOverrideReason('SERVICE_RECOVERY');
     setOverrideJustification('AC cooling delay service recovery credit');
-    setOverrideManagerPin('9921');
+    setOverrideManagerPin('');
     setRateOverrideModalOpen(true);
     await fetchRateOverrideCalculation(guest.stayId, guest.roomNumber, 'PERCENTAGE_DISCOUNT', 15, Math.round(base * 0.85));
   };
@@ -2430,15 +2448,55 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
     }
   };
 
+  const pollLoadersRef = useRef({
+    loadConciergeRequests,
+    loadActiveInHouseStays,
+    loadTurnaroundQueue,
+    loadMaintenanceTickets,
+  });
+
   useEffect(() => {
-    loadData();
-    const timer = setInterval(() => {
-      loadConciergeRequests();
-      loadActiveInHouseStays();
-      loadTurnaroundQueue();
-      loadMaintenanceTickets();
-    }, 3000);
-    return () => clearInterval(timer);
+    pollLoadersRef.current = {
+      loadConciergeRequests,
+      loadActiveInHouseStays,
+      loadTurnaroundQueue,
+      loadMaintenanceTickets,
+    };
+  });
+
+  useEffect(() => {
+    void loadData();
+    let inFlight = false;
+
+    const refreshLivePanels = async () => {
+      if (document.visibilityState !== 'visible' || inFlight) return;
+      inFlight = true;
+      try {
+        const loaders = pollLoadersRef.current;
+        await Promise.allSettled([
+          loaders.loadConciergeRequests(),
+          loaders.loadActiveInHouseStays(),
+          loaders.loadTurnaroundQueue(),
+          loaders.loadMaintenanceTickets(),
+        ]);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const timer = window.setInterval(() => {
+      void refreshLivePanels();
+    }, 15000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshLivePanels();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   // 1-Click Load Online Pre-Booking into Terminal
@@ -4558,13 +4616,6 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
                           <span>🛡️</span> Supervisor Authorization PIN
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => setSupervisorPin('9921')}
-                          className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30"
-                        >
-                          Quick PIN: 9921
-                        </button>
                       </div>
                       <input
                         type="password"
@@ -5014,7 +5065,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                             data-testid="btn-open-sdb-access"
                             onClick={() => {
                               setAccessPurpose('INSPECTION');
-                              setAccessStaffPin('9921');
+                              setAccessStaffPin('');
                               setAccessRemarks(`Guest ${selectedSDBBox.currentGuestName} accessed box.`);
                               setAccessModalOpen(true);
                             }}
@@ -5029,7 +5080,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                             onClick={() => {
                               setSurrenderKeyReturned(true);
                               setSurrenderEmptyVerified(true);
-                              setSurrenderStaffPin('9921');
+                              setSurrenderStaffPin('');
                               setSurrenderPenalty(0);
                               setSurrenderModalOpen(true);
                             }}
@@ -5272,13 +5323,6 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
                       <span>🛡️</span> Vault Custodian Security PIN
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setAccessStaffPin('9921')}
-                      className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30"
-                    >
-                      Quick PIN: 9921
-                    </button>
                   </div>
                   <input
                     type="password"
@@ -5373,13 +5417,6 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
                       <span>🛡️</span> Supervisor Authorization PIN
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setSurrenderStaffPin('9921')}
-                      className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30"
-                    >
-                      Quick PIN: 9921
-                    </button>
                   </div>
                   <input
                     type="password"
@@ -5715,7 +5752,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                             data-testid="btn-open-release-luggage"
                             onClick={() => {
                               setCounterClaimPin(selectedLuggage.claimPin);
-                              setCounterSupervisorPin('9921');
+                              setCounterSupervisorPin('');
                               setCounterReleaseNotes('Verified physical claim ticket at counter. All bags surrendered in good order.');
                               setCounterReleaseModalOpen(true);
                             }}
@@ -6033,13 +6070,6 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
                       <span>🛡️</span> Supervisor Override PIN
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setCounterSupervisorPin('9921')}
-                      className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30"
-                    >
-                      Quick PIN: 9921
-                    </button>
                   </div>
                   <input
                     type="password"
@@ -9408,7 +9438,6 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       <span>🔒</span>
                       <span>Manager Security PIN Required ({overrideCalculation.approvalTier})</span>
                     </div>
-                    <span className="text-[10px] text-zinc-400 font-mono">Master: 9921</span>
                   </div>
                   <input
                     type="password"
@@ -9416,7 +9445,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     maxLength={6}
                     value={overrideManagerPin}
                     onChange={(e) => setOverrideManagerPin(e.target.value)}
-                    placeholder="Enter Manager PIN (e.g. 9921)"
+                    placeholder="Enter Manager PIN (4-8 digits)"
                     className="w-full bg-zinc-950 border border-zinc-800 text-white rounded-xl px-3 py-2 text-center text-sm font-mono tracking-widest focus:outline-none focus:border-amber-500"
                   />
                 </div>

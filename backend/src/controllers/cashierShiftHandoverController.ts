@@ -3,12 +3,14 @@ import { Types } from 'mongoose';
 import { CashierShiftFloat, CashierShiftStatus, ShiftType, DiscrepancyStatus, IDenominationBreakdown } from '../models/CashierShiftFloat';
 import { User } from '../models/User';
 import { TenantRequest } from '../types';
+import argon2 from 'argon2';
+import { getManagerSecurityPin } from '../config/security';
 import { io } from '../index';
 
 const verifyManagerSecurityPin = async (hotelId: Types.ObjectId, pin?: string): Promise<boolean> => {
   if (!pin) return false;
-  const masterPin = process.env.MANAGER_SECURITY_PIN || '9921';
-  if (pin === masterPin) return true;
+  const masterPin = getManagerSecurityPin();
+  if (masterPin && pin === masterPin) return true;
 
   const managers = await User.find({
     hotelId,
@@ -17,8 +19,13 @@ const verifyManagerSecurityPin = async (hotelId: Types.ObjectId, pin?: string): 
   });
 
   for (const m of managers) {
-    if (m.pinCodeHash && (m.pinCodeHash === pin || m.pinCodeHash.includes(pin))) {
-      return true;
+    if (!m.pinCodeHash) continue;
+    try {
+      if (await argon2.verify(m.pinCodeHash, pin)) {
+        return true;
+      }
+    } catch {
+      // Ignore malformed / legacy non-Argon2 hashes – never compare plaintext.
     }
   }
 

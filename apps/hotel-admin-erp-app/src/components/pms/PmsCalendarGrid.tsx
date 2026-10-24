@@ -4,8 +4,8 @@ import {
   MatrixRoomCategory,
   MatrixReservationBlock,
   MatrixPhysicalRoom,
-} from '../../../../../packages/ui/src/pms/types';
-import { MatrixHelper } from '../../../../../packages/ui/src/pms/MatrixHelper';
+} from '@spicehub/ui';
+import { MatrixHelper } from '@spicehub/ui';
 
 export interface PmsCalendarGridProps {
   dates: MatrixDateHeader[];

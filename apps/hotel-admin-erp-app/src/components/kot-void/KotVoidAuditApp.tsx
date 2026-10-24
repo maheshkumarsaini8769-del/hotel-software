@@ -2,23 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   KotVoidStore,
   KotVoidAuditDTO,
-  KotVoidReason,
-  WasteDisposition,
   KotVoidHelper,
   formatCurrency,
 } from '@spicehub/ui';
 import { ApiClient } from '@spicehub/api-client';
-import {
-  ShieldAlert,
-  Trash2,
-  DollarSign,
-  TrendingDown,
-  Lock,
-  PlusCircle,
-  AlertTriangle,
-} from 'lucide-react';
+import { ShieldAlert, Trash2, DollarSign, TrendingDown } from 'lucide-react';
 import { VoidAuditLogTable } from './VoidAuditLogTable';
-import { ManagerPinVoidModal } from './ManagerPinVoidModal';
+import { getApiClient } from '../../lib/apiClient';
+import { getStoredHotelId } from '../../config/api';
 
 export interface KotVoidAuditAppProps {
   store?: KotVoidStore;
@@ -29,117 +20,49 @@ export interface KotVoidAuditAppProps {
 export const KotVoidAuditApp: React.FC<KotVoidAuditAppProps> = ({
   store,
   apiClient,
-  hotelId = 'tenant-1',
+  hotelId = getStoredHotelId(),
 }) => {
   const effectiveStore = useMemo(() => store || KotVoidStore.getInstance(), [store]);
-  const client = useMemo(() => apiClient || new ApiClient({ baseUrl: window.location.origin, hotelId }), [apiClient, hotelId]);
+  const client = useMemo(() => apiClient || getApiClient(), [apiClient]);
 
   const [logs, setLogs] = useState<KotVoidAuditDTO[]>(effectiveStore.getAuditLogs());
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalErr, setModalErr] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = effectiveStore.subscribe(() => {
       setLogs(effectiveStore.getAuditLogs());
     });
 
-    // Seed sample initial logs if empty
-    if (effectiveStore.getAuditLogs().length === 0) {
-      effectiveStore.setAuditLogs([
-        {
-          id: 'void-sample-1',
-          hotelId,
-          orderId: 'ord-101',
-          orderNumber: 'KOT #101',
-          tableNumber: 'Table 4',
-          itemId: 'itm-1',
-          menuItemId: 'mi-1',
-          itemName: 'Paneer Tikka Angara',
-          quantity: 1,
-          unitPrice: 320,
-          totalVoidAmount: 320,
-          voidReason: KotVoidReason.CUSTOMER_CANCELLED,
-          wasteDisposition: WasteDisposition.CANCELLED_BEFORE_COOKING,
-          authorizedByManagerUserId: 'mgr-1',
-          managerName: 'Vikram Singh (Manager)',
-          waiterName: 'Ramesh Kumar',
-          kitchenNotified: true,
-          notes: 'Guest ordered soup instead before chef started tandoor',
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: 'void-sample-2',
-          hotelId,
-          orderId: 'ord-102',
-          orderNumber: 'KOT #102',
-          tableNumber: 'Table 2',
-          itemId: 'itm-4',
-          menuItemId: 'mi-4',
-          itemName: 'Butter Chicken Aslam Style',
-          quantity: 1,
-          unitPrice: 420,
-          totalVoidAmount: 420,
-          voidReason: KotVoidReason.QUALITY_REJECTED,
-          wasteDisposition: WasteDisposition.WASTED_SCRAPPED,
-          authorizedByManagerUserId: 'mgr-1',
-          managerName: 'Vikram Singh (Manager)',
-          waiterName: 'Suresh Patil',
-          kitchenNotified: true,
-          notes: 'Guest found gravy too spicy, replaced with mild butter chicken',
-          createdAt: new Date(Date.now() - 3600000).toISOString(),
-        },
-      ]);
-    }
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
 
-    return () => unsub();
-  }, [effectiveStore, hotelId]);
+    client.kotVoid
+      .getAuditLogs({ limit: 200 })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success && Array.isArray(res.logs)) {
+          effectiveStore.setAuditLogs(res.logs);
+        }
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadError(err?.message || 'Could not load live KOT void audit logs.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, [effectiveStore, client, hotelId]);
 
   const kpis = useMemo(() => {
     return KotVoidHelper.calculateVoidWasteCost(logs);
   }, [logs]);
-
-  const handleAuthorizeVoid = async (payload: {
-    managerPin: string;
-    voidReason: KotVoidReason;
-    wasteDisposition: WasteDisposition;
-    notes?: string;
-  }) => {
-    setIsSubmitting(true);
-    setModalErr(null);
-
-    try {
-      // In production calls live backend endpoint:
-      // await client.kotVoid.voidItem({ ... })
-      const newAudit: KotVoidAuditDTO = {
-        id: `void-${Date.now()}`,
-        hotelId,
-        orderId: 'ord-101',
-        orderNumber: 'KOT #101',
-        tableNumber: 'Table 4',
-        itemId: `itm-${Date.now()}`,
-        menuItemId: 'mi-101',
-        itemName: 'Butter Garlic Naan',
-        quantity: 2,
-        unitPrice: 60,
-        totalVoidAmount: 120,
-        voidReason: payload.voidReason,
-        wasteDisposition: payload.wasteDisposition,
-        authorizedByManagerUserId: 'mgr-active',
-        managerName: 'Admin / Manager Verified',
-        kitchenNotified: true,
-        notes: payload.notes,
-        createdAt: new Date().toISOString(),
-      };
-
-      effectiveStore.addAuditLog(newAudit);
-      setIsModalOpen(false);
-    } catch (err: any) {
-      setModalErr(err.message || 'Failed to void item with provided Manager PIN');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   return (
     <div className="flex-1 overflow-y-auto bg-slate-950 p-6 space-y-6">
@@ -161,15 +84,22 @@ export const KotVoidAuditApp: React.FC<KotVoidAuditAppProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition shadow-lg shadow-rose-600/30"
-          >
-            <Lock className="w-4 h-4" /> Authorize KOT Void (Test Modal)
-          </button>
+        <div className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-[11px] font-semibold text-slate-300">
+          <span
+            className={`h-2 w-2 rounded-full ${
+              loading ? 'animate-pulse bg-amber-400' : loadError ? 'bg-rose-500' : 'bg-emerald-400'
+            }`}
+          />
+          {loading ? 'Syncing live audit log…' : loadError ? 'Live sync unavailable' : 'Live audit log'}
         </div>
       </div>
+
+      {loadError && (
+        <div className="rounded-xl border border-rose-500/40 bg-rose-950/40 px-4 py-3 text-xs font-semibold text-rose-200">
+          {loadError} Void authorization remains available from the live KOT card in
+          Kitchen KDS.
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -226,20 +156,6 @@ export const KotVoidAuditApp: React.FC<KotVoidAuditAppProps> = ({
 
       {/* Main Table */}
       <VoidAuditLogTable logs={logs} />
-
-      {/* Manager PIN Authorization Modal */}
-      <ManagerPinVoidModal
-        isOpen={isModalOpen}
-        orderNumber="KOT #101"
-        tableNumber="Table 4"
-        itemName="Butter Garlic Naan"
-        itemPrice={60}
-        quantity={2}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleAuthorizeVoid}
-        isLoading={isSubmitting}
-        errorMessage={modalErr}
-      />
     </div>
   );
 };

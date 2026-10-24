@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../../config/api';
 import {
   FastCashierStore,
   FastCashierHelper,
@@ -19,7 +20,7 @@ interface FastCashierPosAppProps {
 }
 
 export const FastCashierPosApp: React.FC<FastCashierPosAppProps> = ({
-  apiBaseUrl = 'http://localhost:5000/api/v1',
+  apiBaseUrl = API_BASE_URL,
   token,
 }) => {
   const [store] = useState(() => new FastCashierStore());

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../../config/api';
 import {
   InventoryPoStore,
   IPurchaseOrderUI,
@@ -22,7 +23,7 @@ interface InventoryPoAppProps {
 }
 
 export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
-  apiBaseUrl = 'http://localhost:5000/api/v1',
+  apiBaseUrl = API_BASE_URL,
   token,
 }) => {
   const [store] = useState(() => new InventoryPoStore());

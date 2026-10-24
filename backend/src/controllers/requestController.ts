@@ -95,11 +95,6 @@ export const acceptServiceRequest = async (req: TenantRequest, res: Response): P
       if (hotelId) filter.hotelId = hotelId;
       request = await ServiceRequest.findOne(filter);
     }
-    if (!request) {
-      const filter: any = { status: { $ne: ServiceRequestStatus.COMPLETED } };
-      if (hotelId) filter.hotelId = hotelId;
-      request = await ServiceRequest.findOne(filter).sort({ createdAt: -1 });
-    }
 
     if (!request) {
       res.status(404).json({ success: false, errorCode: 'REQUEST_NOT_FOUND' });
@@ -153,11 +148,6 @@ export const completeServiceRequest = async (req: TenantRequest, res: Response):
       if (hotelId) filter.hotelId = hotelId;
       request = await ServiceRequest.findOne(filter);
     }
-    if (!request) {
-      const filter: any = {};
-      if (hotelId) filter.hotelId = hotelId;
-      request = await ServiceRequest.findOne(filter).sort({ createdAt: -1 });
-    }
 
     if (!request) {
       res.status(404).json({ success: false, errorCode: 'REQUEST_NOT_FOUND' });
@@ -181,8 +171,10 @@ export const completeServiceRequest = async (req: TenantRequest, res: Response):
 
     if (waiterId) {
       io.to(`waiter_${waiterId}`).emit('request:status_updated', payload);
+      io.to(`waiter_${waiterId}`).emit('request:completed', payload);
     }
-    io.to(`${request.hotelId}_global`).emit('request:status_updated', payload);
+    io.to(`${request.hotelId}_waiters`).to(`${request.hotelId}_global`).emit('request:completed', payload);
+    io.to(`${request.hotelId}_waiters`).to(`${request.hotelId}_global`).emit('request:status_updated', payload);
 
     res.status(200).json({ success: true, message: 'Request marked as completed', data: request });
   } catch (error: any) {

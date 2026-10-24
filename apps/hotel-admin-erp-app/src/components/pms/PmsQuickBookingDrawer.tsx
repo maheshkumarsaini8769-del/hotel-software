@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { QuickReserveTarget, MatrixRoomCategory } from '../../../../../packages/ui/src/pms/types';
-import { MatrixHelper } from '../../../../../packages/ui/src/pms/MatrixHelper';
-import { formatCurrency } from '../../../../../packages/ui/src/index';
+import { QuickReserveTarget, MatrixRoomCategory } from '@spicehub/ui';
+import { MatrixHelper } from '@spicehub/ui';
+import { formatCurrency } from '@spicehub/ui';
 
 export interface PmsQuickBookingDrawerProps {
   target: QuickReserveTarget | null;

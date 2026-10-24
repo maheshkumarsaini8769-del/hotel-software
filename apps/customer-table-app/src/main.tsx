@@ -1,10 +1,11 @@
 import './index.css';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import { CustomerMenuApp, CustomerRequestType } from './CustomerMenuApp';
-import { ErrorBoundary, MenuCartStore } from '@spicehub/ui';
+import { ErrorBoundary, MenuCartStore, CustomerLocationSelectorModal } from '@spicehub/ui';
 import { SpiceHubSocket, SpiceHubClient } from '@spicehub/api-client';
 import { API_ORIGIN, SOCKET_URL } from './config/api';
+import { getPortalUrl } from './config/env';
 
 const store = MenuCartStore.getInstance();
 const socket = SpiceHubSocket.getInstance();
@@ -33,6 +34,17 @@ export interface PlacedOrder {
 }
 
 export const CustomerAppRoot: React.FC = () => {
+  const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const queryHotelId = urlParams.get('hotelId');
+  const queryTableId = urlParams.get('tableId');
+  const rawTableParam =
+    urlParams.get('table') ||
+    urlParams.get('tableNumber') ||
+    (urlParams.get('type') === 'table' ? urlParams.get('id') : null) ||
+    queryTableId;
+  const hasExplicitTable = Boolean(rawTableParam || (queryHotelId && queryTableId));
+
+  const [showLocationModal, setShowLocationModal] = useState<boolean>(() => !hasExplicitTable);
   const [hotelId, setHotelId] = useState<string>('');
   const [hotelName, setHotelName] = useState<string>('SpiceHub Hotel');
   const [tableId, setTableId] = useState<string>('');
@@ -53,7 +65,7 @@ export const CustomerAppRoot: React.FC = () => {
     }
   });
 
-  const fetchSessionOrders = async (sId: string) => {
+  const fetchSessionOrders = useCallback(async (sId: string) => {
     try {
       const ordersRes = await fetch(`${API_BASE}/api/v1/pos/table-session/${sId}/orders`);
       if (ordersRes.ok) {
@@ -70,97 +82,117 @@ export const CustomerAppRoot: React.FC = () => {
       console.warn('⚠️ [CustomerApp] Could not fetch session orders:', err);
     }
     return null;
-  };
+  }, []);
+
+  const bootstrap = useCallback(async (overrideTableNumber?: string) => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const qHotelId = searchParams.get('hotelId');
+      const qTableId = searchParams.get('tableId');
+      const rawTable =
+        overrideTableNumber ||
+        searchParams.get('table') ||
+        searchParams.get('tableNumber') ||
+        (searchParams.get('type') === 'table' ? searchParams.get('id') : null) ||
+        qTableId;
+      const qrToken = searchParams.get('qrToken') || searchParams.get('token');
+      const isQrEntry = Boolean(qHotelId && qTableId && !overrideTableNumber);
+
+      // Real QR entry is authoritative. Demo context is a local-only fallback.
+      if (isQrEntry) {
+        const qrUrl = new URL(`${API_BASE}/api/v1/pos/table/qr-entry`);
+        qrUrl.searchParams.set('hotelId', String(qHotelId));
+        qrUrl.searchParams.set('tableId', String(qTableId));
+        if (qrToken) qrUrl.searchParams.set('token', qrToken);
+
+        const qrRes = await fetch(qrUrl.toString());
+        const qrBody = await qrRes.json().catch(() => null);
+        if (!qrRes.ok || !qrBody?.success || !qrBody?.data?.sessionToken) {
+          throw new Error(qrBody?.message || 'This table QR code is invalid or has expired.');
+        }
+
+        const d = qrBody.data;
+        setHotelId(String(d.hotelId || qHotelId));
+        setHotelName(d.hotelName || 'SpiceHub Hotel');
+        setTableId(String(d.tableId));
+        setTableNumber(d.tableNumber);
+        setSection(d.section || 'Dining');
+        setTableSessionId(String(d.sessionId));
+        setSessionToken(String(d.sessionToken));
+        setGuestCount(Number(d.guestCount) > 0 ? Number(d.guestCount) : 2);
+
+        if (d.sessionId) {
+          await fetchSessionOrders(String(d.sessionId));
+        }
+        return;
+      }
+
+      // Local development / emulator bootstrap with selected or demo table.
+      const res = await fetch(`${API_BASE}/api/v1/pos/demo-context`);
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body?.success || !body?.data) {
+        throw new Error(body?.message || 'Unable to initialize a dining session.');
+      }
+
+      const d = body.data;
+      setHotelId(d.hotel.id);
+      setHotelName(d.hotel.name);
+
+      const targetTableStr = (rawTable || 'T-04').trim();
+      const numOnly = targetTableStr.replace(/[^0-9]/g, '');
+      const normalizedT = numOnly ? `T-${numOnly.padStart(2, '0')}` : targetTableStr;
+      const matchedTable =
+        d.tables?.find(
+          (t: any) =>
+            t.tableNumber === targetTableStr ||
+            t.tableNumber === normalizedT ||
+            t.tableNumber === `T-${numOnly}` ||
+            t.tableNumber === `Table ${numOnly}` ||
+            t.id === targetTableStr
+        ) ||
+        d.table || {
+          id: targetTableStr,
+          tableNumber: targetTableStr,
+          section: 'Indoor AC Dining',
+        };
+
+      setTableId(matchedTable.id);
+      setTableNumber(matchedTable.tableNumber);
+      setSection(matchedTable.section || 'Indoor AC Dining');
+
+      if (d.session) {
+        setTableSessionId(d.session.id);
+        setSessionToken(d.session.token);
+        setGuestCount(Number(d.session.guestCount) > 0 ? Number(d.session.guestCount) : 2);
+      }
+      if (d.orders && Array.isArray(d.orders) && d.orders.length > 0) {
+        setActiveOrders(d.orders);
+        try {
+          localStorage.setItem('spicehub_customer_active_orders', JSON.stringify(d.orders));
+        } catch {}
+      } else if (d.session?.id) {
+        await fetchSessionOrders(d.session.id);
+      }
+      if (d.menuItems && d.menuItems.length > 0) {
+        store.setMenuItems(d.menuItems);
+        console.log(`✅ [CustomerApp] Loaded ${d.menuItems.length} menu items from backend`);
+      }
+    } catch (err: any) {
+      console.warn('⚠️ [CustomerApp] Session bootstrap failed:', err);
+      setBootstrapError(err?.message || 'Unable to connect to this dining table.');
+    } finally {
+      setIsReady(true);
+    }
+  }, [fetchSessionOrders]);
 
   useEffect(() => {
-    let active = true;
-
-    async function bootstrap() {
-      try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const queryHotelId = urlParams.get('hotelId');
-        const queryTableId = urlParams.get('tableId');
-        const qrToken = urlParams.get('qrToken') || urlParams.get('token');
-        const isQrEntry = Boolean(queryHotelId && queryTableId);
-
-        // Real QR entry is authoritative. Demo context is a local-only fallback.
-        if (isQrEntry) {
-          const qrUrl = new URL(`${API_BASE}/api/v1/pos/table/qr-entry`);
-          qrUrl.searchParams.set('hotelId', String(queryHotelId));
-          qrUrl.searchParams.set('tableId', String(queryTableId));
-          if (qrToken) qrUrl.searchParams.set('token', qrToken);
-
-          const qrRes = await fetch(qrUrl.toString());
-          const qrBody = await qrRes.json().catch(() => null);
-          if (!qrRes.ok || !qrBody?.success || !qrBody?.data?.sessionToken) {
-            throw new Error(qrBody?.message || 'This table QR code is invalid or has expired.');
-          }
-
-          const d = qrBody.data;
-          if (!active) return;
-          setHotelId(String(d.hotelId || queryHotelId));
-          setHotelName(d.hotelName || 'SpiceHub Hotel');
-          setTableId(String(d.tableId));
-          setTableNumber(d.tableNumber);
-          setSection(d.section || 'Dining');
-          setTableSessionId(String(d.sessionId));
-          setSessionToken(String(d.sessionToken));
-          setGuestCount(Number(d.guestCount) > 0 ? Number(d.guestCount) : 2);
-
-          if (d.sessionId) {
-            await fetchSessionOrders(String(d.sessionId));
-          }
-          return;
-        }
-
-        // Local development / emulator bootstrap without QR query params.
-        const res = await fetch(`${API_BASE}/api/v1/pos/demo-context`);
-        const body = await res.json().catch(() => null);
-        if (!res.ok || !body?.success || !body?.data) {
-          throw new Error(body?.message || 'Unable to initialize a dining session.');
-        }
-
-        const d = body.data;
-        if (!active) return;
-        setHotelId(d.hotel.id);
-        setHotelName(d.hotel.name);
-        if (d.table) {
-          setTableId(d.table.id);
-          setTableNumber(d.table.tableNumber);
-          setSection(d.table.section || 'Indoor AC Dining');
-        }
-        if (d.session) {
-          setTableSessionId(d.session.id);
-          setSessionToken(d.session.token);
-          setGuestCount(Number(d.session.guestCount) > 0 ? Number(d.session.guestCount) : 2);
-        }
-        if (d.orders && Array.isArray(d.orders) && d.orders.length > 0) {
-          setActiveOrders(d.orders);
-          try {
-            localStorage.setItem('spicehub_customer_active_orders', JSON.stringify(d.orders));
-          } catch {}
-        } else if (d.session?.id) {
-          await fetchSessionOrders(d.session.id);
-        }
-        if (d.menuItems && d.menuItems.length > 0) {
-          store.setMenuItems(d.menuItems);
-          console.log(`✅ [CustomerApp] Loaded ${d.menuItems.length} menu items from backend`);
-        }
-      } catch (err: any) {
-        console.warn('⚠️ [CustomerApp] Session bootstrap failed:', err);
-        if (active) {
-          setBootstrapError(err?.message || 'Unable to connect to this dining table.');
-        }
-      } finally {
-        if (active) setIsReady(true);
-      }
+    if (hasExplicitTable) {
+      void bootstrap();
+    } else {
+      // In generic visits (no query params), prompt user to choose table or room
+      setIsReady(true);
     }
-
-    bootstrap();
-    return () => {
-      active = false;
-    };
-  }, []);
+  }, [hasExplicitTable, bootstrap]);
 
   // Connect socket once hotel and session are initialized
   useEffect(() => {
@@ -494,6 +526,21 @@ export const CustomerAppRoot: React.FC = () => {
 
   return (
     <>
+      <CustomerLocationSelectorModal
+        isOpen={showLocationModal}
+        currentApp="customer"
+        apiBaseUrl={API_BASE}
+        tablePortalUrl={getPortalUrl('customer')}
+        roomPortalUrl={getPortalUrl('guest')}
+        onSelectTable={(selectedTable) => {
+          setShowLocationModal(false);
+          void bootstrap(selectedTable);
+        }}
+        onSelectDemoTable={() => {
+          setShowLocationModal(false);
+          void bootstrap('T-04');
+        }}
+      />
       {liveToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-bounce">
           <div

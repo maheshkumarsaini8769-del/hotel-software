@@ -2,17 +2,24 @@ import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { GuestRoomPortalApp } from './GuestRoomPortalApp';
-import { ErrorBoundary, GuestPortalStore, LiveRoomOrder } from '@spicehub/ui';
+import { ErrorBoundary, GuestPortalStore, LiveRoomOrder, CustomerLocationSelectorModal } from '@spicehub/ui';
 import { SpiceHubSocket } from '@spicehub/api-client';
 import { API_ORIGIN, SOCKET_URL } from './config/api';
+import { getPortalUrl } from './config/env';
 
 const store = GuestPortalStore.getInstance();
 const socket = SpiceHubSocket.getInstance();
 const API_BASE = API_ORIGIN;
 
 // 1. Resolve target room, hotel and QR token from URL parameters
-const urlParams = new URLSearchParams(window.location.search);
-const targetRoom = urlParams.get('room') || urlParams.get('roomNumber') || '305';
+const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+const rawRoomParam =
+  urlParams.get('room') ||
+  urlParams.get('roomNumber') ||
+  (urlParams.get('type') === 'room' ? urlParams.get('id') : null) ||
+  urlParams.get('roomId');
+const hasExplicitRoom = Boolean(rawRoomParam);
+let targetRoom = rawRoomParam || '305';
 const roomIdFromUrl = urlParams.get('roomId') || '';
 const qrTokenFromUrl = urlParams.get('token') || urlParams.get('qrToken') || '';
 let resolvedHotelId =
@@ -62,7 +69,8 @@ async function probeGuestSession(token: string): Promise<boolean> {
   return false;
 }
 
-async function resolveGuestSession(): Promise<void> {
+async function resolveGuestSession(roomToUse?: string): Promise<void> {
+  if (roomToUse) targetRoom = roomToUse;
   const stored =
     typeof window !== 'undefined'
       ? localStorage.getItem('spicehub_guest_session') || ''
@@ -297,6 +305,8 @@ setInterval(() => {
 }, 5000);
 
 const GuestRoomPortalRoot: React.FC = () => {
+  const [showLocationModal, setShowLocationModal] = React.useState<boolean>(!hasExplicitRoom);
+  const [currentRoomNumber, setCurrentRoomNumber] = React.useState<string>(targetRoom);
   const [isCheckoutRequested, setIsCheckoutRequested] = React.useState(false);
   const [isStayCheckedOut, setIsStayCheckedOut] = React.useState(false);
   const [checkoutInvoice, setCheckoutInvoice] = React.useState<any>(null);
@@ -364,7 +374,35 @@ const GuestRoomPortalRoot: React.FC = () => {
   }, []);
 
   return (
-    <GuestRoomPortalApp
+    <>
+      <CustomerLocationSelectorModal
+        isOpen={showLocationModal}
+        currentApp="guest"
+        apiBaseUrl={API_BASE}
+        tablePortalUrl={getPortalUrl('customer')}
+        roomPortalUrl={getPortalUrl('guest')}
+        onSelectRoom={(r) => {
+          targetRoom = r;
+          setCurrentRoomNumber(r);
+          store.setStayDetails({ roomNumber: r });
+          setShowLocationModal(false);
+          void resolveGuestSession(r).then(() => {
+            void hydrateLiveRoomStay();
+            void hydrateInRoomOrders();
+          });
+        }}
+        onSelectDemoRoom={() => {
+          targetRoom = '305';
+          setCurrentRoomNumber('305');
+          store.setStayDetails({ roomNumber: '305' });
+          setShowLocationModal(false);
+          void resolveGuestSession('305').then(() => {
+            void hydrateLiveRoomStay();
+            void hydrateInRoomOrders();
+          });
+        }}
+      />
+      <GuestRoomPortalApp
       store={store}
       hotelId={hotelId}
       isCheckoutRequested={isCheckoutRequested}
@@ -537,6 +575,7 @@ const GuestRoomPortalRoot: React.FC = () => {
         }
       }}
     />
+    </>
   );
 };
 

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StaffLoginGate } from '@spicehub/ui';
+import { StaffLoginGate, SpiceHubPortalDirectoryModal } from '@spicehub/ui';
 import { AdminErpShell } from './AdminErpShell';
 import { CashierStandaloneApp } from './CashierStandaloneApp';
 import { ReceptionStandaloneApp } from './ReceptionStandaloneApp';
 import { API_BASE_URL } from './config/api';
 
-export type HotelPortalType = 'admin' | 'cashier' | 'reception';
+export type HotelPortalType = 'admin' | 'cashier' | 'reception' | 'launcher';
 
 export const HotelPortalRouter: React.FC = () => {
   const detectPortalFromUrl = (): HotelPortalType => {
@@ -13,6 +13,17 @@ export const HotelPortalRouter: React.FC = () => {
 
     const path = window.location.pathname.toLowerCase();
     const search = window.location.search.toLowerCase();
+
+    if (
+      path.includes('/launcher') ||
+      path.includes('/portals') ||
+      path.includes('/directory') ||
+      search.includes('mode=launcher') ||
+      search.includes('portal=launcher') ||
+      search.includes('app=launcher')
+    ) {
+      return 'launcher';
+    }
 
     if (
       path.includes('/cashier') ||
@@ -47,6 +58,8 @@ export const HotelPortalRouter: React.FC = () => {
       document.title = 'SpiceHub | Express Cashier POS';
     } else if (portal === 'reception') {
       document.title = 'SpiceHub | Front Desk & Reception PMS';
+    } else if (portal === 'launcher') {
+      document.title = 'SpiceHub | Unified Portal Directory';
     } else {
       document.title = 'SpiceHub | Hotel Admin ERP Command Center';
     }
@@ -76,6 +89,27 @@ export const HotelPortalRouter: React.FC = () => {
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, [currentPortal, updateDocumentTitle]);
+
+  if (currentPortal === 'launcher') {
+    return (
+      <StaffLoginGate
+        apiBaseUrl={API_BASE_URL}
+        appName="SpiceHub Portal Directory"
+        appSubtitle="Centralized launcher for all SpiceHub operational stations and guest portals."
+        accent="amber"
+        demoEmail="admin@tajgateway.com"
+        demoPassword="SpiceHub@123"
+      >
+        <div className="min-h-screen bg-[#07090e] flex flex-col items-center justify-center p-4">
+          <SpiceHubPortalDirectoryModal
+            isOpen={true}
+            onClose={() => navigatePortal('admin')}
+            currentPortalId="admin"
+          />
+        </div>
+      </StaffLoginGate>
+    );
+  }
 
   if (currentPortal === 'cashier') {
     return (

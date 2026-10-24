@@ -283,7 +283,7 @@ const bookingStatusClass = (status: string): string => {
 };
 
 export interface AdminErpShellProps {
-  onNavigatePortal?: (portal: 'admin' | 'cashier' | 'reception') => void;
+  onNavigatePortal?: (portal: 'admin' | 'cashier' | 'reception' | 'launcher') => void;
 }
 
 export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }) => {
@@ -1894,6 +1894,19 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
               <Building2 className="w-3.5 h-3.5 text-amber-400" />
               <span>Reception</span>
               <ArrowUpRight className="w-3 h-3 text-amber-400" />
+            </button>
+
+            {/* Unified 8-Portal Launcher Directory Button */}
+            <button
+              onClick={() => {
+                if (onNavigatePortal) onNavigatePortal('launcher');
+                else window.location.href = '/launcher';
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 hover:bg-indigo-500/20 transition"
+              title="Open Unified Portal Directory (:3005/launcher)"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Portals</span>
             </button>
 
             {/* Notifications Bell */}

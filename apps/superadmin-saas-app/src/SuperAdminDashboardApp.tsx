@@ -37,6 +37,8 @@ import {
   ArrowRight,
   ArrowLeft,
   Crown,
+  Menu,
+  X,
 } from 'lucide-react';
 
 // ============================================================================
@@ -282,7 +284,24 @@ const BRANCH_MAP_POSITIONS = [
 ];
 
 export const SuperAdminDashboardApp: React.FC = () => {
-  const [activeNav, setActiveNav] = useState<SuperAdminNavKey>('DASHBOARD');
+  const [activeNav, setActiveNav] = useState<SuperAdminNavKey>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const nav = params.get('nav') as SuperAdminNavKey;
+      if (nav) return nav;
+    }
+    return 'DASHBOARD';
+  });
+
+  useEffect(() => {
+    const handleSetNav = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') {
+        setActiveNav(e.detail as SuperAdminNavKey);
+      }
+    };
+    window.addEventListener('superadmin:set_nav', handleSetNav);
+    return () => window.removeEventListener('superadmin:set_nav', handleSetNav);
+  }, []);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedMapBranch, setSelectedMapBranch] = useState<BranchMapPin | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -297,6 +316,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
   const [isExportReportOpen, setIsExportReportOpen] = useState(false);
   const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false);
   const [activeSettingsModal, setActiveSettingsModal] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Theme (Dark / Light)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -925,9 +945,17 @@ export const SuperAdminDashboardApp: React.FC = () => {
       {/* ======================================================== */}
       {/* 1. LEFT SIDEBAR (EXACT PIXEL-PERFECT REPRODUCTION)        */}
       {/* ======================================================== */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
       <aside
         className={`${
-          sidebarCollapsed ? 'w-20' : 'w-64'
+          mobileMenuOpen ? 'flex fixed inset-y-0 left-0 z-50 w-64 shadow-2xl' : 'hidden md:flex'
+        } ${
+          sidebarCollapsed ? 'md:w-20' : 'md:w-64'
         } shrink-0 h-screen sticky top-0 flex flex-col z-30 transition-all duration-200 border-r ${
           theme === 'dark'
             ? 'bg-[#0b0e17] border-slate-800/80 text-slate-200'
@@ -967,7 +995,10 @@ export const SuperAdminDashboardApp: React.FC = () => {
             return (
               <button
                 key={item.key}
-                onClick={() => setActiveNav(item.key)}
+                onClick={() => {
+                  setActiveNav(item.key);
+                  setMobileMenuOpen(false);
+                }}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-all text-left ${
                   isActive
                     ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/25 font-semibold shadow-sm'
@@ -994,7 +1025,10 @@ export const SuperAdminDashboardApp: React.FC = () => {
         {/* Bottom Profile Card */}
         <div className="p-3 border-t border-slate-800/60">
           <div
-            onClick={() => setActiveNav('SETTINGS')}
+            onClick={() => {
+              setActiveNav('SETTINGS');
+              setMobileMenuOpen(false);
+            }}
             className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition cursor-pointer"
           >
             <div className="flex items-center gap-2.5 overflow-hidden">
@@ -1019,22 +1053,31 @@ export const SuperAdminDashboardApp: React.FC = () => {
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Top Navbar */}
         <header
-          className={`h-16 px-6 border-b flex items-center justify-between gap-4 sticky top-0 z-20 backdrop-blur-md transition-colors ${
+          className={`h-16 px-3 sm:px-6 border-b flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-20 backdrop-blur-md transition-colors ${
             theme === 'dark' ? 'bg-[#0b0e17]/90 border-slate-800/80' : 'bg-white/95 border-slate-200 shadow-sm'
           }`}
         >
+          {/* Mobile Menu Toggle Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 rounded-lg border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800/60 shrink-0"
+            title="Toggle Menu"
+          >
+            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </button>
+
           {/* Quick Search with Ctrl K Trigger */}
-          <div className="flex-1 max-w-xl">
+          <div className="flex-1 max-w-xs sm:max-w-xl min-w-0">
             <div
               onClick={() => setIsCommandPaletteOpen(true)}
-              className={`flex items-center gap-2.5 px-3.5 py-2 rounded-lg border text-xs transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg border text-xs transition-all cursor-pointer ${
                 theme === 'dark'
                   ? 'bg-slate-900/80 border-slate-800 text-slate-400 hover:border-indigo-500/60'
                   : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-indigo-500/60'
               }`}
             >
-              <Search className="w-4 h-4 text-slate-400" />
-              <span className="flex-1">Search branches, users, orders, rooms, or anything...</span>
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <span className="flex-1 truncate">Search branches, users...</span>
               <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-400 bg-slate-800 border border-slate-700/50 shrink-0">
                 ⌘K
               </span>
@@ -1042,7 +1085,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
           </div>
 
           {/* Top Right Controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Notifications Bell */}
             <button
               onClick={() => setActiveNav('NOTIFICATIONS')}
@@ -2274,7 +2317,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
           {/* ======================================================== */}
           {activeNav === 'USERS_ROLES' && (
             <div className="space-y-6 max-w-6xl mx-auto">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold flex items-center gap-2">
                     <span>👥</span>
@@ -2286,7 +2329,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 </div>
                 <button
                   onClick={() => setIsOnboardModalOpen(true)}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs self-start sm:self-auto shrink-0"
                 >
                   + Onboard Hotel Admin
                 </button>
@@ -2297,8 +2340,8 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                 }`}
               >
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                <div className="overflow-x-auto w-full custom-scrollbar">
+                  <table className="w-full text-left text-xs min-w-[580px]">
                     <thead>
                       <tr className="border-b border-slate-800/60 text-slate-400 text-[10px] uppercase">
                         <th className="pb-2">User Name</th>

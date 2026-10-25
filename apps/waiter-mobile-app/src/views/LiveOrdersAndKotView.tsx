@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Flame,
   Clock,
@@ -29,6 +29,7 @@ export interface OrderTicketItem {
 
 interface LiveOrdersAndKotViewProps {
   isDark: boolean;
+  initialTab?: 'All' | 'Ready' | 'Preparing' | 'Served';
   readyPickups?: {
     id: string;
     orderNumber: string;
@@ -67,6 +68,7 @@ interface LiveOrdersAndKotViewProps {
 
 export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
   isDark,
+  initialTab,
   readyPickups = [],
   servedOrders = [],
   cookingOrders = [],
@@ -75,7 +77,14 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
   onPunchKot,
   triggerToast,
 }) => {
-  const [activeTab, setActiveTab] = useState<'All' | 'Ready' | 'Preparing' | 'Served'>('Ready');
+  const [activeTab, setActiveTab] = useState<'All' | 'Ready' | 'Preparing' | 'Served'>(initialTab || 'Ready');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   const [search, setSearch] = useState('');
 
   // Extract ready pickups (from prop or activeOrders with status Ready)

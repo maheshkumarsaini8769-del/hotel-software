@@ -2266,6 +2266,15 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
       {(activeSidebarItem === 'Live Orders & KOT' || activeSidebarItem === 'New Orders' || activeSidebarItem === 'Active Orders' || activeSidebarItem === 'KOT & Status') && (
         <LiveOrdersAndKotView
           isDark={isDark}
+          initialTab={
+            activeSidebarItem === 'New Orders'
+              ? 'All'
+              : activeSidebarItem === 'Active Orders'
+              ? 'Preparing'
+              : activeSidebarItem === 'KOT & Status'
+              ? 'Served'
+              : 'Ready'
+          }
           readyPickups={myKitchenPickups}
           cookingOrders={myKitchenCooking}
           servedOrders={servedTickets}

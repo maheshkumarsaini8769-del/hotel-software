@@ -15,8 +15,8 @@ if (rootElement) {
           appName="Express Cashier POS"
           appSubtitle="Billing, open bills, split payments and shift control for your hotel."
           accent="emerald"
-          demoEmail="priya@tajgateway.com"
-          demoPassword="SpiceHub@123"
+          demoEmail="cashier.priya@test.com"
+          demoPassword="Cashier@123"
         >
           <CashierStandaloneApp />
         </StaffLoginGate>

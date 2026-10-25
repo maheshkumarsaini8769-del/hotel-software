@@ -68,6 +68,7 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
           <div className="relative mt-1">
             <span className="absolute left-4 top-3 text-lg font-bold text-slate-400">₹</span>
             <input
+              data-testid="cash-tendered-input"
               type="number"
               min={0}
               value={cashTendered}
@@ -131,11 +132,12 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
             Cancel
           </button>
           <button
+            data-testid="btn-settle-and-print"
             disabled={!calculation.isSufficient || isProcessing}
             onClick={handlePay}
             className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-md transition"
           >
-            {isProcessing ? 'Processing...' : 'Complete Payment & Settle'}
+            {isProcessing ? 'Processing...' : 'Settle & Print'}
           </button>
         </div>
       </div>

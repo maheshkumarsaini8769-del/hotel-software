@@ -2171,11 +2171,13 @@ export const SuperAdminDashboardApp: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-bold flex items-center gap-2">
-                    <span>🏢</span>
-                    <span>All Branches & Hotel Properties Directory</span>
+                    <span>{activeNav === 'HOTEL_ADMIN' ? '👤' : '🏢'}</span>
+                    <span>{activeNav === 'HOTEL_ADMIN' ? 'Hotel Administrators & Property Managers' : 'All Branches & Hotel Properties Directory'}</span>
                   </h2>
                   <p className="text-xs text-slate-400">
-                    Manage multi-tenant properties, onboard new branches, adjust capacity, and trigger kill-switches.
+                    {activeNav === 'HOTEL_ADMIN'
+                      ? 'Manage hotel tenant administrators, assign branch credentials and audit admin access.'
+                      : 'Manage multi-tenant properties, onboard new branches, adjust capacity, and trigger kill-switches.'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

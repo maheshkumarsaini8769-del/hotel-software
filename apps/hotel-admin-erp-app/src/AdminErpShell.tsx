@@ -1985,7 +1985,7 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
                 if (onNavigatePortal) onNavigatePortal('cashier');
                 else window.location.href = '/cashier';
               }}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/25 hover:bg-emerald-500/20 transition"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/25 hover:bg-emerald-500/20 transition"
               title="Open Standalone Cashier POS (:3005/cashier)"
             >
               <Zap className="w-3.5 h-3.5 text-emerald-400" />
@@ -1998,7 +1998,7 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
                 if (onNavigatePortal) onNavigatePortal('reception');
                 else window.location.href = '/reception';
               }}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/25 hover:bg-amber-500/20 transition"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/25 hover:bg-amber-500/20 transition"
               title="Open Standalone Reception Portal (:3005/reception)"
             >
               <Building2 className="w-3.5 h-3.5 text-amber-400" />
@@ -2012,7 +2012,7 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
                 if (onNavigatePortal) onNavigatePortal('launcher');
                 else window.location.href = '/launcher';
               }}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 hover:bg-indigo-500/20 transition"
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 hover:bg-indigo-500/20 transition"
               title="Open Unified Portal Directory (:3005/launcher)"
             >
               <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />

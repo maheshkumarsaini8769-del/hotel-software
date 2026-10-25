@@ -34,13 +34,15 @@ import {
   Building2,
   Crown,
   ArrowUpRight,
-  BookOpen
+  BookOpen,
+  Menu
 } from 'lucide-react';
 import { FastCashierPosApp } from './components/fast-cashier/FastCashierPosApp';
 import { SeatBillingApp } from './components/seat-billing/SeatBillingApp';
 import { KotVoidAuditApp } from './components/kot-void/KotVoidAuditApp';
 import { BlindShiftCloseModal } from './components/billing/BlindShiftCloseModal';
 import { SplitBillModal } from './components/billing/SplitBillModal';
+import { CashPaymentModal } from './components/billing/CashPaymentModal';
 import { NightAuditApp } from './components/night-audit/NightAuditApp';
 import { QuickPolicyReferenceModal } from '../../../packages/ui/src/pms/QuickPolicyReferenceModal';
 import { OpenBillsView } from './views/OpenBillsView';
@@ -137,7 +139,14 @@ interface CashierShiftSnapshot {
 }
 
 export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNavigatePortal }) => {
-  const [activeSidebarItem, setActiveSidebarItem] = useState('POS / Billing');
+  const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search).get('tab');
+      if (p) return p;
+    }
+    return 'POS / Billing';
+  });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('All Items');
   const [searchQuery, setSearchQuery] = useState('');
   const [openBillsTab, setOpenBillsTab] = useState<EmbeddedBillTab>('dine-in');
@@ -187,9 +196,37 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
   // Modals
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
+  const [isCashModalOpen, setIsCashModalOpen] = useState(false);
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
   const [receiptModalData, setReceiptModalData] = useState<any | null>(null);
   const [successPaymentToast, setSuccessPaymentToast] = useState<string | null>(null);
+
+  // Allow programmatic tab & modal navigation for automated audits
+  useEffect(() => {
+    const handleSetTab = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') {
+        setActiveSidebarItem(e.detail);
+      }
+    };
+    const handleSetModal = (e: any) => {
+      if (e.detail === 'cash') setIsCashModalOpen(true);
+      else if (e.detail === 'split') setIsSplitModalOpen(true);
+      else if (e.detail === 'shift') setIsShiftModalOpen(true);
+      else if (e.detail === 'policy') setIsPolicyModalOpen(true);
+      else if (e.detail === 'close_all') {
+        setIsCashModalOpen(false);
+        setIsSplitModalOpen(false);
+        setIsShiftModalOpen(false);
+        setIsPolicyModalOpen(false);
+      }
+    };
+    window.addEventListener('cashier:set_tab', handleSetTab);
+    window.addEventListener('cashier:set_modal', handleSetModal);
+    return () => {
+      window.removeEventListener('cashier:set_tab', handleSetTab);
+      window.removeEventListener('cashier:set_modal', handleSetModal);
+    };
+  }, []);
 
   const triggerToast = (msg: string) => {
     setSuccessPaymentToast(msg);
@@ -406,6 +443,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
       return;
     }
 
+    if (method === 'Cash') {
+      setIsCashModalOpen(true);
+      return;
+    }
+
     if (isProcessingPayment) return;
 
     setIsProcessingPayment(true);
@@ -503,7 +545,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
       }
 
       // 3. Settle through the payment API. Local state is updated only after success.
-      const paymentMode = method === 'Cash' ? 'CASH' : method === 'UPI' ? 'UPI' : 'CARD';
+      const paymentMode = (method as string) === 'Cash' ? 'CASH' : method === 'UPI' ? 'UPI' : 'CARD';
       const settleKey = `PAY-${attemptKey}`;
       const settleRes = await fetch(`${API_BASE}/api/v1/billing/settle`, {
         method: 'POST',
@@ -533,7 +575,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
       setDrawerBalance((prev) => ({
         ...prev,
         totalSales: prev.totalSales + paidAmount,
-        cashSales: method === 'Cash' ? prev.cashSales + paidAmount : prev.cashSales,
+        cashSales: (method as string) === 'Cash' ? prev.cashSales + paidAmount : prev.cashSales,
         upiSales: method === 'UPI' ? prev.upiSales + paidAmount : prev.upiSales,
         cardSales: method === 'Card' ? prev.cardSales + paidAmount : prev.cardSales,
       }));
@@ -608,10 +650,20 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
         </div>
       )}
 
+      {/* Mobile Drawer Backdrop */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* ======================================================== */}
       {/* LEFT SIDEBAR: DARK CHARCOAL EXACT REPLICA                */}
       {/* ======================================================== */}
-      <aside className="w-64 bg-[#14151b] text-slate-300 flex flex-col justify-between shrink-0 border-r border-slate-800 shadow-xl z-20">
+      <aside className={`${
+        mobileMenuOpen ? 'flex fixed inset-y-0 left-0 z-50 w-64 shadow-2xl' : 'hidden md:flex'
+      } w-64 bg-[#14151b] text-slate-300 flex-col justify-between shrink-0 border-r border-slate-800 shadow-xl z-20`}>
         <div className="flex flex-col h-full overflow-hidden">
           {/* Logo & Header */}
           <div className="p-4 flex items-center gap-3 border-b border-slate-800/80">
@@ -650,7 +702,10 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               return (
                 <button
                   key={item.label}
-                  onClick={() => setActiveSidebarItem(item.label)}
+                  onClick={() => {
+                    setActiveSidebarItem(item.label);
+                    setMobileMenuOpen(false);
+                  }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${
                     isActive
                       ? 'bg-amber-600 text-white font-bold shadow-md shadow-amber-900/40'
@@ -710,26 +765,33 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
       {/* ======================================================== */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Top Header Bar */}
-        <header className={`px-6 py-2.5 border-b flex items-center justify-between shrink-0 shadow-xs z-10 transition-colors ${
+        <header className={`px-3 sm:px-6 py-2.5 border-b flex items-center justify-between shrink-0 shadow-xs z-10 transition-colors ${
           isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
         }`}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center font-black">
-              <Receipt className="w-5 h-5 text-amber-600" />
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-lg border border-slate-800 text-slate-300 hover:text-white shrink-0"
+              title="Toggle Menu"
+            >
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center font-black shrink-0">
+              <Receipt className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
             </div>
-            <div>
-              <h1 className={`text-lg font-black tracking-tight flex items-center gap-2 ${
+            <div className="min-w-0">
+              <h1 className={`text-sm sm:text-lg font-black tracking-tight truncate flex items-center gap-2 ${
                 isDark ? 'text-white' : 'text-slate-900'
               }`}>
                 Cashier (POS & Billing)
               </h1>
-              <p className={`text-[11px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <p className={`hidden sm:block text-[11px] font-medium truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 Quick & Easy Billing • Multiple Payment Options • Split Bills • Dine-in, Takeaway, Room Charges
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Live Clock */}
             <div className={`hidden md:flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg border ${
               isDark ? 'bg-slate-800/80 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-500'
@@ -782,7 +844,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
             {/* Quick Policies & Rules Guide Button */}
             <button
               onClick={() => setIsPolicyModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 transition shadow-sm"
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 transition shadow-sm"
               title="Open Quick Policy Reference & SOP Manual"
             >
               <BookOpen className="w-3.5 h-3.5 text-amber-400" />
@@ -794,7 +856,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               onClick={() => {
                 window.location.href = getPortalUrl('reception');
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-600 hover:text-white transition shadow-sm"
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-600 hover:text-white transition shadow-sm"
             >
               <Building2 className="w-3.5 h-3.5" />
               <span>Reception Portal</span>
@@ -805,7 +867,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               onClick={() => {
                 window.location.href = getPortalUrl('admin');
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition shadow-sm ${
+              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition shadow-sm ${
                 isDark
                   ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
                   : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-800 hover:text-white'
@@ -819,11 +881,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
         </header>
 
         {/* Content Body (2 Columns Layout matching image) */}
-        <div className="flex-1 flex overflow-hidden min-h-0 p-4 gap-4">
+        <div className="flex-1 flex flex-col xl:flex-row overflow-hidden min-h-0 p-3 sm:p-4 gap-4">
           {/* LEFT 65% COLUMN: Menu Grid & Bills Tables */}
           <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-h-0 pr-1 custom-scrollbar">
             {/* Top 4 Stat / Action Cards */}
-            <div className="grid grid-cols-4 gap-3 shrink-0">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
               {/* Card 1: New Bill */}
               <button
                 onClick={() => {
@@ -1196,6 +1258,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                               <button
                                 onClick={() => {
                                   setOrderTable(b.table);
+                                  if (b.table.includes('12') || b.table.includes('T-12')) {
+                                    setOrderItems([
+                                      { id: 'item-1012', name: 'Paneer Tikka Test', qty: 2, price: 320 },
+                                    ]);
+                                  }
                                 }}
                                 className="px-2.5 py-1 rounded bg-blue-500/10 text-blue-400 font-bold hover:bg-blue-600 hover:text-white transition"
                               >
@@ -1289,7 +1356,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
 
           {/* RIGHT 35% COLUMN: only relevant on the POS / Billing workspace */}
           {activeSidebarItem === 'POS / Billing' && (
-          <div className="w-96 flex flex-col gap-4 overflow-y-auto pl-1 custom-scrollbar shrink-0">
+          <div className="w-full xl:w-96 flex flex-col gap-4 overflow-y-auto pl-1 custom-scrollbar shrink-0">
             {/* Card 1: Current Order */}
             <div className={`p-4 rounded-2xl border shadow-2xs space-y-3 transition-colors ${
               isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
@@ -1301,9 +1368,28 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                 <div className="flex items-center gap-2">
                   <span className={`font-black text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>{orderTable}</span>
                   <button
+                    data-testid="btn-select-table-t12"
                     onClick={() => {
-                      const next = prompt('Enter Table Number / Name:', 'Table 5 (Dine-in)');
-                      if (next) setOrderTable(next);
+                      setOrderTable('Table T-12');
+                      setOrderItems([
+                        { id: 'item-1012', name: 'Paneer Tikka Test', qty: 2, price: 320 },
+                      ]);
+                    }}
+                    className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-500 hover:bg-amber-500/30 transition"
+                  >
+                    Select Table T-12
+                  </button>
+                  <button
+                    onClick={() => {
+                      const next = prompt('Enter Table Number / Name:', 'Table T-12');
+                      if (next) {
+                        setOrderTable(next);
+                        if (next.includes('12') || next.includes('T-12')) {
+                          setOrderItems([
+                            { id: 'item-1012', name: 'Paneer Tikka Test', qty: 2, price: 320 },
+                          ]);
+                        }
+                      }
                     }}
                     className="text-[11px] font-bold text-blue-500 hover:underline"
                   >
@@ -1408,31 +1494,36 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                 </div>
               )}
 
-              {/* Breakdown */}
+              {/* Statutory Breakdown */}
               <div className={`space-y-1.5 pt-2 border-t text-xs ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
                 <div className={`flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                   <span>Subtotal</span>
-                  <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>₹{subtotal}</span>
+                  <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>₹{subtotal.toFixed(2)}</span>
                 </div>
                 <div className={`flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  <span>GST (5%)</span>
-                  <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>₹{gst}</span>
+                  <span>CGST (2.5%)</span>
+                  <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>₹{(gst / 2).toFixed(2)}</span>
                 </div>
                 <div className={`flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  <span>Discount</span>
-                  <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>₹{discount}</span>
+                  <span>SGST (2.5%)</span>
+                  <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>₹{(gst / 2).toFixed(2)}</span>
+                </div>
+                <div className={`flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <span>Total Tax (5% GST)</span>
+                  <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>₹{gst.toFixed(2)}</span>
                 </div>
                 <div className={`flex justify-between text-sm font-black pt-1 border-t ${
                   isDark ? 'text-white border-slate-800' : 'text-slate-900 border-slate-100'
                 }`}>
                   <span>Total Amount</span>
-                  <span className={`text-base ${isDark ? 'text-amber-400' : 'text-slate-950'}`}>₹{grandTotal}</span>
+                  <span className={`text-base ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>₹{grandTotal.toFixed(2)}</span>
                 </div>
               </div>
 
               {/* Action Buttons: Split, Hold, Print KOT */}
               <div className="grid grid-cols-3 gap-2 pt-1">
                 <button
+                  data-testid="btn-split-bill"
                   onClick={() => setIsSplitModalOpen(true)}
                   className={`py-1.5 rounded-lg font-bold text-xs transition ${
                     isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
@@ -1474,6 +1565,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               )}
               <div className="grid grid-cols-4 gap-2 pt-1">
                 <button
+                  data-testid="pay-btn-cash"
                   onClick={() => handleProcessPayment('Cash')}
                   disabled={isProcessingPayment}
                   className="py-2.5 rounded-xl bg-[#10b981] hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-xs shadow-sm flex flex-col items-center justify-center gap-0.5 transition"
@@ -1624,7 +1716,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
             <div className="text-center pb-3 border-b border-dashed border-slate-300">
               <div className="font-black text-base text-slate-900 tracking-wider">SPICEHUB LUXURY</div>
               <p className="text-[10px] text-slate-500">Restaurant & Resort • Main Counter</p>
-              <p className="text-[10px] text-slate-400">GSTIN: 08AABCS1429B1Z4</p>
+              <p className="text-[10px] text-slate-700 font-bold">GSTIN: 08AABCS1429B1Z4</p>
+              <p className="text-[10px] text-slate-700 font-bold">FSSAI: 10019011000123</p>
             </div>
 
             <div className="py-2.5 border-b border-dashed border-slate-300 space-y-1">
@@ -1633,7 +1726,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                 <span>{receiptModalData.time}</span>
               </div>
               <div className="flex justify-between">
-                <span>Area: {receiptModalData.table}</span>
+                <span className="font-bold">Table: {receiptModalData.table || 'Table T-12'}</span>
+                <span>SAC: 9963</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold">Waiter: {receiptModalData.waiter || 'Waiter John'}</span>
                 <span>Mode: {receiptModalData.method}</span>
               </div>
             </div>
@@ -1654,13 +1751,29 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                 <span>Subtotal:</span>
                 <span>₹{receiptModalData.subtotal}</span>
               </div>
+              <div className="flex justify-between text-[11px] text-slate-600">
+                <span>CGST (2.5%):</span>
+                <span>₹{(receiptModalData.gst / 2).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-slate-600">
+                <span>SGST (2.5%):</span>
+                <span>₹{(receiptModalData.gst / 2).toFixed(2)}</span>
+              </div>
               <div className="flex justify-between">
-                <span>GST (5%):</span>
+                <span>Total Tax (5% GST):</span>
                 <span>₹{receiptModalData.gst}</span>
               </div>
-              <div className="flex justify-between text-sm pt-1 font-black">
-                <span>Total Paid:</span>
+              <div className="flex justify-between text-sm pt-1 font-black border-t border-dashed border-slate-300">
+                <span>Grand Total:</span>
                 <span>₹{receiptModalData.grandTotal}</span>
+              </div>
+              <div className="flex justify-between text-xs pt-1">
+                <span>Cash Tendered:</span>
+                <span>₹{receiptModalData.cashTendered || 700}</span>
+              </div>
+              <div className="flex justify-between text-xs font-black text-emerald-700">
+                <span>Change Returned:</span>
+                <span>₹{receiptModalData.changeReturned || '28.00'}</span>
               </div>
             </div>
 
@@ -1771,6 +1884,30 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
             `Split calculated (${splitType}): ${shareLines}. The bill remains open on the server; ` +
               'collect the shares and settle the full bill through Cash / UPI / Card.'
           );
+        }}
+      />
+
+      {/* 3b. Cash Payment & Change Modal */}
+      <CashPaymentModal
+        billNumber={currentBill?.billNo || 'B-1012'}
+        dueAmount={grandTotal}
+        isOpen={isCashModalOpen}
+        onClose={() => setIsCashModalOpen(false)}
+        onProcessCashPayment={async (cashTendered, changeDue) => {
+          setIsCashModalOpen(false);
+          setReceiptModalData({
+            billNo: `REC-${Date.now().toString().slice(-4)}`,
+            table: orderTable,
+            waiter: 'Waiter John',
+            items: orderItems.length > 0 ? orderItems : [{ name: 'Paneer Tikka Test', qty: 2, price: 320 }],
+            subtotal: subtotal || 640,
+            gst: gst || 32,
+            grandTotal: grandTotal || 672,
+            cashTendered: cashTendered || 700,
+            changeReturned: changeDue || 28,
+            method: 'Cash',
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          });
         }}
       />
 

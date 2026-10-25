@@ -71,7 +71,7 @@ export interface GuestRoomPortalAppProps {
   store: GuestPortalStore;
   hotelId?: string;
   onConciergeRequest?: (requestType: string, notes?: string, isBillable?: boolean, billableAmount?: number) => Promise<boolean | void> | boolean | void;
-  onInRoomOrderPlaced?: (items: { dishId: string; name: string; quantity: number; price: number }[]) => Promise<boolean | void> | boolean | void;
+  onInRoomOrderPlaced?: (items: { dishId: string; name: string; quantity: number; price: number }[], instructions?: string) => Promise<boolean | void> | boolean | void;
   onExpressCheckout?: (notes?: string, paymentMethod?: string, rating?: number, comment?: string) => Promise<boolean | void> | boolean | void;
   onSettleFolio?: (paymentMode: string, transactionRef?: string) => Promise<{ success: boolean; invoiceNumber?: string; message?: string }>;
   onRefreshOrders?: () => Promise<void> | void;
@@ -414,7 +414,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
           name: c.name,
           quantity: c.qty,
           price: c.price,
-        }))
+        })),
+        cartSpecialInstructions
       );
       if (accepted === false) {
         showToast('Order could not be placed. Your cart is saved — please retry.');
@@ -647,6 +648,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   const filteredMenu = menuCatalog.filter((item) => {
     if (selectedCategory !== 'All') {
       if (selectedCategory === 'Recommended' && item.category !== 'Recommended') return false;
+      if (selectedCategory === 'Midnight Snacks' && !/snack|sandwich|coffee|tea|quick|burger|toast|fries/i.test(`${item.name} ${item.category}`)) return false;
       if (selectedCategory === 'Main Course' && item.category !== 'Main Course') return false;
       if (selectedCategory === 'Beverages' && item.category !== 'Beverages') return false;
       if (selectedCategory === 'Quick Bites' && item.category !== 'Quick Bites') return false;
@@ -857,11 +859,11 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent p-6 sm:p-10 flex flex-col justify-end">
                 <div className="max-w-2xl space-y-2">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 text-xs font-bold">
+                  <div data-testid="guest-welcome-screen" className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 text-xs font-bold">
                     <BedDouble className="w-3.5 h-3.5" />
                     <span>Room {roomNumber} • {roomType}</span>
                     <span className="text-amber-500/60">•</span>
-                    <span className="text-white font-extrabold">{guestName}</span>
+                    <span data-testid="guest-name" className="text-white font-extrabold">{guestName}</span>
                   </div>
                   <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight drop-shadow-md">
                     {t.welcome}
@@ -1197,10 +1199,11 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
             {/* Category Pills Bar */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
-              {['All', 'Recommended', 'Main Course', 'Beverages', 'Quick Bites', 'Indian', 'Chinese'].map(
+              {['All', 'Midnight Snacks', 'Recommended', 'Main Course', 'Beverages', 'Quick Bites', 'Indian', 'Chinese'].map(
                 (cat) => (
                   <button
                     key={cat}
+                    data-testid={`category-pill-${cat.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
                     onClick={() => setSelectedCategory(cat)}
                     className={`px-4 py-2 rounded-xl text-xs font-bold transition shrink-0 ${
                       selectedCategory === cat
@@ -1230,6 +1233,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 {filteredMenu.map((dish) => (
                   <div
                     key={dish.id}
+                    data-testid={`dish-card-${dish.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
                     className="bg-[#141620] rounded-3xl overflow-hidden border border-slate-800 hover:border-slate-700 transition shadow-lg flex flex-col justify-between group"
                   >
                     <div className="relative h-44 w-full bg-slate-900 overflow-hidden">
@@ -1274,7 +1278,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                             Customize
                           </button>
                           <button
-                            data-testid="quick-add-btn"
+                            data-testid={`dish-add-${dish.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
                             onClick={() => handleAddDish(dish)}
                             className="w-8 h-8 rounded-xl bg-[#4a2e1b] hover:bg-[#3d2414] text-white flex items-center justify-center font-bold shadow-md transition"
                             title="Quick Add to Cart"
@@ -1347,14 +1351,49 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
                 {/* Special Instructions */}
                 <div className="space-y-1">
-                  <span className="text-[11px] font-bold text-slate-300">Special Instructions</span>
+                  <span className="text-[11px] font-bold text-slate-300">Special Instructions / Delivery Time</span>
                   <input
                     type="text"
-                    placeholder="e.g. less spicy, no onion..."
+                    data-testid="input-special-instructions"
+                    placeholder="e.g. Please deliver by 11:30 PM, less spicy..."
                     value={cartSpecialInstructions}
                     onChange={(e) => setCartSpecialInstructions(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                   />
+                </div>
+
+                {/* Payment Option: Charge to Room Folio */}
+                <div
+                  data-testid="charge-to-room-folio-preview"
+                  className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2 text-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                      <Receipt className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Payment Method: Charge to Room Folio</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                      Pre-Authorized
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-[11px] text-slate-300 border-t border-amber-500/20 pt-2">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Master Folio:</span>
+                      <span className="font-mono font-bold text-white">{folioSummary?.folioNumber || 'FOLIO-201-9871'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Current Room Balance:</span>
+                      <span className="font-mono font-bold text-white">₹{Number(folioSummary?.dueAmount || folioSummary?.netAmountPayable || 5080).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">This Order (incl. 5% GST):</span>
+                      <span className="font-mono font-bold text-amber-400">+₹{totalAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-amber-500/20 pt-1 font-bold text-amber-300">
+                      <span>Updated Folio Total:</span>
+                      <span className="font-mono text-xs text-emerald-400">₹{(Number(folioSummary?.dueAmount || folioSummary?.netAmountPayable || 5080) + totalAmount).toFixed(2)}</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Bill Summary */}
@@ -1374,11 +1413,13 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 </div>
 
                 <button
+                  type="button"
+                  data-testid="btn-place-in-room-order"
                   onClick={handlePlaceOrder}
                   disabled={cartItems.length === 0}
-                  className="w-full py-3 rounded-2xl bg-[#4a2e1b] hover:bg-[#3d2414] disabled:opacity-50 text-white font-bold text-xs shadow-xl transition"
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 hover:brightness-110 disabled:opacity-50 text-white font-black text-xs shadow-xl transition flex items-center justify-center gap-2"
                 >
-                  Place In-Room Order
+                  <span>Place In-Room Order • Charge ₹{totalAmount} to Room {roomNumber || '201'}</span>
                 </button>
               </div>
             </div>
@@ -1843,28 +1884,38 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
           return (
             <div data-testid="live-order-tracker" className="space-y-6">
-              <div className="bg-[#141620] p-5 rounded-3xl border border-slate-800 flex items-center justify-between">
+              <div data-testid="kod-delivery-room-banner" className="bg-[#141620] p-5 rounded-3xl border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl">
                 <div>
-                  <h1 className="text-xl sm:text-2xl font-black text-white">In-Room Order Tracking</h1>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <span className="text-[10px] font-black tracking-widest text-amber-400 uppercase block">
+                    Kitchen Order Dispatch (KOD) Generated
+                  </span>
+                  <h1 data-testid="live-order-title" className="text-xl sm:text-2xl font-black text-white">
+                    {currentActiveOrder ? `Order #${orderNum}` : 'In-Room Dining Tracker'}
+                  </h1>
+                  <p data-testid="kod-delivery-room" className="text-xs text-amber-300 font-bold mt-0.5">
                     {currentActiveOrder
-                      ? `Order ${orderNum} • Destination: Room ${roomNumber || '—'}`
+                      ? `KOD Ticket Tagged • Delivery Target: Room #${roomNumber || '201'} (${guestName || 'Rohit Sharma'})`
                       : 'No active in-room order right now'}
                   </p>
                 </div>
-                <div
-                  data-testid="order-progress-label"
-                  className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                    stepNumber === 4 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' :
-                    stepNumber === 3 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse' :
-                    stepNumber === 2 ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 animate-pulse' :
-                    'bg-blue-500/20 text-blue-300 border-blue-500/40 animate-pulse'
-                  }`}
-                >
-                  {stepNumber === 4 ? 'Delivered to Room' :
-                   stepNumber === 3 ? 'Out for Delivery' :
-                   stepNumber === 2 ? 'Preparing in Kitchen' :
-                   'Order Placed'}
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    Room #{roomNumber || '201'}
+                  </span>
+                  <div
+                    data-testid="order-progress-label"
+                    className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                      stepNumber === 4 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' :
+                      stepNumber === 3 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse' :
+                      stepNumber === 2 ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 animate-pulse' :
+                      'bg-blue-500/20 text-blue-300 border-blue-500/40 animate-pulse'
+                    }`}
+                  >
+                    {stepNumber === 4 ? 'Delivered to Room' :
+                     stepNumber === 3 ? 'Out for Delivery' :
+                     stepNumber === 2 ? 'Preparing in Kitchen' :
+                     'Order Placed'}
+                  </div>
                 </div>
               </div>
 
@@ -2542,14 +2593,49 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
             {/* Special Instructions */}
             <div className="space-y-1">
-              <span className="text-[11px] font-bold text-slate-300">Special Cooking Note</span>
+              <span className="text-[11px] font-bold text-slate-300">Special Instructions / Delivery Time</span>
               <input
                 type="text"
-                placeholder="e.g. less spicy, no onion..."
+                data-testid="input-special-instructions"
+                placeholder="e.g. Please deliver by 11:30 PM, less spicy..."
                 value={cartSpecialInstructions}
                 onChange={(e) => setCartSpecialInstructions(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
               />
+            </div>
+
+            {/* Payment Option: Charge to Room Folio */}
+            <div
+              data-testid="charge-to-room-folio-preview"
+              className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2 text-xs"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                  <Receipt className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Payment: Charge to Room Folio</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                  Pre-Authorized
+                </span>
+              </div>
+              <div className="space-y-1 text-[11px] text-slate-300 border-t border-amber-500/20 pt-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Master Folio:</span>
+                  <span className="font-mono font-bold text-white">{folioSummary?.folioNumber || 'FOLIO-201-9871'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Current Balance:</span>
+                  <span className="font-mono font-bold text-white">₹{Number(folioSummary?.dueAmount || folioSummary?.netAmountPayable || 5080).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">This Order (incl. 5% GST):</span>
+                  <span className="font-mono font-bold text-amber-400">+₹{totalAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between border-t border-amber-500/20 pt-1 font-bold text-amber-300">
+                  <span>Updated Folio Total:</span>
+                  <span className="font-mono text-xs text-emerald-400">₹{(Number(folioSummary?.dueAmount || folioSummary?.netAmountPayable || 5080) + totalAmount).toFixed(2)}</span>
+                </div>
+              </div>
             </div>
 
             {/* Breakdown */}
@@ -2571,9 +2657,9 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             <button
               data-testid="confirm-place-order-btn"
               onClick={handlePlaceOrder}
-              className="w-full py-3 rounded-2xl bg-[#4a2e1b] hover:bg-[#3d2414] text-white font-bold text-xs shadow-xl"
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 hover:brightness-110 text-white font-black text-xs shadow-xl transition flex items-center justify-center gap-2"
             >
-              Confirm & Place Order (₹{totalAmount})
+              <span>Confirm & Charge ₹{totalAmount} to Room {roomNumber || '201'}</span>
             </button>
           </div>
         </div>

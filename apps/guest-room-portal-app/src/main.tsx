@@ -499,7 +499,7 @@ const GuestRoomPortalRoot: React.FC = () => {
           return false;
         }
       }}
-      onInRoomOrderPlaced={async (items) => {
+      onInRoomOrderPlaced={async (items, instructions) => {
         try {
           const res = await fetch(`${API_BASE}/api/v1/guest-portal/orders/place`, {
             method: 'POST',
@@ -513,7 +513,7 @@ const GuestRoomPortalRoot: React.FC = () => {
                 name: it.name,
                 quantity: it.quantity,
               })),
-              cookingInstructions: 'Freshly prepared for Guest In-Room Dining',
+              cookingInstructions: instructions || 'Freshly prepared for Guest In-Room Dining',
               chargeToRoom: true,
             }),
           });

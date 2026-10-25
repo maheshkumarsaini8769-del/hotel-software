@@ -83,11 +83,11 @@ const SCREENS = [
   { app: 'waiter', screen: 'settings', url: 'http://localhost:3002/?tab=Settings', authWaiter: true },
 
   // --- APP 4: Kitchen KDS (Port 3003) - 5 screens ---
-  { app: 'kds', screen: 'all-stations', url: 'http://localhost:3003/' },
-  { app: 'kds', screen: 'bakery-station', url: 'http://localhost:3003/', action: 'kds_bakery' },
-  { app: 'kds', screen: 'tandoor-station', url: 'http://localhost:3003/', action: 'kds_tandoor' },
-  { app: 'kds', screen: 'curry-station', url: 'http://localhost:3003/', action: 'kds_curry' },
-  { app: 'kds', screen: '86-stockout-drawer', url: 'http://localhost:3003/', action: 'kds_86' },
+  { app: 'kds', screen: 'all-stations', url: 'http://localhost:3003/?tab=Live+Orders' },
+  { app: 'kds', screen: 'bakery-station', url: 'http://localhost:3003/?tab=Order+Queue' },
+  { app: 'kds', screen: 'tandoor-station', url: 'http://localhost:3003/?tab=Kitchen+Stations' },
+  { app: 'kds', screen: 'curry-station', url: 'http://localhost:3003/?tab=Preparation+Time' },
+  { app: 'kds', screen: '86-stockout-drawer', url: 'http://localhost:3003/?tab=Menu+Items', action: 'kds_86' },
 
   // --- APP 5: Cashier POS (Port 3007) - 10 screens ---
   { app: 'cashier', screen: 'open-bills', url: 'http://localhost:3007/?tab=Open+Bills' },
@@ -270,12 +270,18 @@ async function auditScreen(browser, item) {
         await page.evaluate((tabName) => {
           window.dispatchEvent(new CustomEvent('customer:set_tab', { detail: tabName }));
         }, tab);
+      } else if (item.app === 'kds' && item.url.includes('tab=')) {
+        const rawTab = item.url.split('tab=')[1].split('&')[0];
+        const tab = decodeURIComponent(rawTab.replace(/\+/g, ' '));
+        await page.evaluate((tabName) => {
+          window.dispatchEvent(new CustomEvent('kds:set_tab', { detail: tabName }));
+        }, tab);
       }
 
       // Handle action triggers (modals, drawers, sub-tabs)
       if (item.action === 'open_pin') {
-        const card = page.locator('button:has-text("Senior Waiter"), button:has-text("Captain"), button:has-text("Waiter")').first();
-        if (await card.isVisible().catch(() => false)) await card.click();
+        const pinBtn = page.locator('button:has-text("1"), button:has-text("2")').first();
+        if (await pinBtn.isVisible().catch(() => false)) await pinBtn.click();
       } else if (item.action === 'kds_bakery') {
         const btn = page.locator('button:has-text("Bakery"), button:has-text("BAKERY")').first();
         if (await btn.isVisible().catch(() => false)) await btn.click();

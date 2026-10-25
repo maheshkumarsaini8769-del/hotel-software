@@ -171,8 +171,8 @@ export const recordCashCollection = async (req: TenantRequest, res: Response): P
  */
 export const getActiveFloat = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
-    const hotelId = req.hotelId || safeObjectId(req.user?.hotelId);
-    const waiterUserId = safeObjectId(req.user?.userId);
+    const hotelId = req.hotelId || safeObjectId(req.query.hotelId) || safeObjectId(req.user?.hotelId);
+    const waiterUserId = safeObjectId(req.query.waiterId) || safeObjectId(req.query.waiterUserId) || safeObjectId(req.user?.userId);
 
     const query: any = {
       status: { $in: [WaiterFloatStatus.OPEN, WaiterFloatStatus.DROPPED_PENDING_APPROVAL] },
@@ -185,6 +185,13 @@ export const getActiveFloat = async (req: TenantRequest, res: Response): Promise
     res.status(200).json({
       success: true,
       activeFloat: activeFloat || null,
+      data: activeFloat
+        ? {
+            ...activeFloat.toObject(),
+            totalCashCollected: activeFloat.totalCashCollected,
+            currentCashInHand: activeFloat.expectedCashInHand,
+          }
+        : null,
       hasActiveFloat: Boolean(activeFloat),
     });
   } catch (error: any) {

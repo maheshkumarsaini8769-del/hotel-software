@@ -82,6 +82,7 @@ export interface KitchenKdsAppProps {
   onBatchToggle86?: (itemIds: string[], isAvailable: boolean, reason?: string) => Promise<void> | void;
   kitchenBuzzers?: any[];
   onAcknowledgeBuzzer?: (id: string) => Promise<void> | void;
+  waiterEnabled?: boolean;
 }
 
 interface KdsItemDisplay {
@@ -117,6 +118,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
   onBatchToggle86,
   kitchenBuzzers = [],
   onAcknowledgeBuzzer,
+  waiterEnabled = true,
 }) => {
   const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -500,7 +502,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
         icon: Clock,
         color: 'text-amber-500',
       })),
-    ...(unackBuzzers.length > 0
+    ...(waiterEnabled && unackBuzzers.length > 0
       ? [
           {
             title: 'Waiter Call',
@@ -719,25 +721,27 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
             </button>
 
             {/* Waiter Calls / Intercom Buzzer Button */}
-            <button
-              onClick={() => setIsIntercomModalOpen(true)}
-              className={`relative px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-black flex items-center gap-1.5 transition ${
-                unackBuzzers.length > 0
-                  ? 'bg-rose-600 border-rose-500 text-white shadow-md shadow-rose-900/50 animate-pulse'
-                  : isDark
-                  ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
-                  : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-              }`}
-              title="Waiter Intercom & Urgent Call Buzzers"
-            >
-              <Radio className={`w-4 h-4 ${unackBuzzers.length > 0 ? 'text-amber-300 animate-spin' : 'text-amber-500'}`} />
-              <span className="hidden lg:inline">Waiter Calls</span>
-              {unackBuzzers.length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-white text-rose-600 text-[10px] font-black">
-                  {unackBuzzers.length}
-                </span>
-              )}
-            </button>
+            {waiterEnabled && (
+              <button
+                onClick={() => setIsIntercomModalOpen(true)}
+                className={`relative px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-black flex items-center gap-1.5 transition ${
+                  unackBuzzers.length > 0
+                    ? 'bg-rose-600 border-rose-500 text-white shadow-md shadow-rose-900/50 animate-pulse'
+                    : isDark
+                    ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
+                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                }`}
+                title="Waiter Intercom & Urgent Call Buzzers"
+              >
+                <Radio className={`w-4 h-4 ${unackBuzzers.length > 0 ? 'text-amber-300 animate-spin' : 'text-amber-500'}`} />
+                <span className="hidden lg:inline">Waiter Calls</span>
+                {unackBuzzers.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-white text-rose-600 text-[10px] font-black">
+                    {unackBuzzers.length}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* 86 Kitchen Stock Control Button */}
             <button
@@ -862,7 +866,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
         </header>
 
         {/* Urgent Live Waiter Intercom Banner */}
-        {unackBuzzers.length > 0 && (
+        {waiterEnabled && unackBuzzers.length > 0 && (
           <div className="bg-gradient-to-r from-rose-700 via-red-600 to-amber-600 px-5 py-2 text-white flex items-center justify-between shadow-md shrink-0 border-b border-rose-400/40">
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center animate-pulse">

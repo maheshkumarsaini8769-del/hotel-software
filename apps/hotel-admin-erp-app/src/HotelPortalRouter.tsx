@@ -114,6 +114,7 @@ export const HotelPortalRouter: React.FC = () => {
   if (currentPortal === 'cashier') {
     return (
       <StaffLoginGate
+        portalId="cashier"
         apiBaseUrl={API_BASE_URL}
         appName="Express Cashier POS"
         appSubtitle="Billing, open bills, split payments and shift control for your hotel."
@@ -129,6 +130,7 @@ export const HotelPortalRouter: React.FC = () => {
   if (currentPortal === 'reception') {
     return (
       <StaffLoginGate
+        portalId="reception"
         apiBaseUrl={API_BASE_URL}
         appName="Front Desk & Reception PMS"
         appSubtitle="Room inventory, check-in/out, folio charges and guest services."
@@ -143,6 +145,7 @@ export const HotelPortalRouter: React.FC = () => {
 
   return (
     <StaffLoginGate
+      portalId="admin"
       apiBaseUrl={API_BASE_URL}
       appName="Hotel Admin ERP"
       appSubtitle="Command center for hotel operations, revenue, staff and compliance."

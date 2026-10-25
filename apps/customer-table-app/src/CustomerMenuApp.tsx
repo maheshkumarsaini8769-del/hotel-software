@@ -79,6 +79,7 @@ export interface CustomerMenuAppProps {
   onRefreshOrders?: () => Promise<void> | void;
   initialGuestCount?: number;
   hotelId?: string;
+  waiterEnabled?: boolean;
 }
 
 interface CartItem {
@@ -88,6 +89,7 @@ interface CartItem {
   qty: number;
   image?: string;
   isVeg?: boolean;
+  specialInstructions?: string;
 }
 
 interface MenuItemData {
@@ -119,6 +121,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   onRefreshOrders,
   initialGuestCount = 4,
   hotelId,
+  waiterEnabled = true,
 }) => {
   // Navigation State with Session Persistence (Refresh Resilient)
   const [currentTab, setCurrentTabState] = useState<'home' | 'menu' | 'cart' | 'orders' | 'waiter' | 'split' | 'payment'>(() => {
@@ -160,6 +163,12 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       } catch {}
     }
   };
+
+  useEffect(() => {
+    if (!waiterEnabled && currentTab === 'waiter') {
+      setCurrentTab('home');
+    }
+  }, [waiterEnabled, currentTab]);
 
   const [selectedCategory, setSelectedCategory] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -697,13 +706,15 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {/* Right: Quick Service, Theme Switcher, Language & Cart Pill */}
           <div className="flex items-center gap-2 shrink-0">
             {/* Quick Call Waiter Button */}
-            <button
-              onClick={() => setCurrentTab('waiter')}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:brightness-110 text-white text-xs font-bold shadow-md shadow-orange-950/20 transition"
-            >
-              <Bell className="w-3.5 h-3.5" />
-              <span>Call Waiter</span>
-            </button>
+            {waiterEnabled && (
+              <button
+                onClick={() => setCurrentTab('waiter')}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:brightness-110 text-white text-xs font-bold shadow-md shadow-orange-950/20 transition"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                <span>Call Waiter</span>
+              </button>
+            )}
 
             {/* Bright / Dark Theme Switcher */}
             <button
@@ -893,13 +904,15 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   <span>✨</span>
                   <span>Clean</span>
                 </button>
-                <button
-                  onClick={() => setCurrentTab('waiter')}
-                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition"
-                >
-                  <Bell className="w-3.5 h-3.5" />
-                  <span>Call Waiter</span>
-                </button>
+                {waiterEnabled && (
+                  <button
+                    onClick={() => setCurrentTab('waiter')}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition"
+                  >
+                    <Bell className="w-3.5 h-3.5" />
+                    <span>Call Waiter</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1211,37 +1224,92 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                     <div
                       key={it.id}
                       data-testid={`cart-item-${it.name.toLowerCase().replace(/\s+/g, '-')}`}
-                      className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                      className={`p-2.5 rounded-xl border flex flex-col gap-2 ${
                         isDark ? 'bg-[#1c1f2e] border-slate-800' : 'bg-slate-50 border-slate-200'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {it.image && (
-                          <img src={it.image} alt={it.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
-                        )}
-                        <div className="min-w-0">
-                          <div className={`font-bold text-xs truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            {it.name}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {it.image && (
+                            <img src={it.image} alt={it.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <div className={`font-bold text-xs truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                              {it.name}
+                            </div>
+                            <div className="text-[11px] font-black text-orange-500">₹{it.price * it.qty}</div>
                           </div>
-                          <div className="text-[11px] font-black text-orange-500">₹{it.price * it.qty}</div>
+                        </div>
+
+                        {/* Stepper */}
+                        <div className="flex items-center border border-slate-700/50 rounded-lg overflow-hidden bg-black/20 text-xs font-black shrink-0">
+                          <button
+                            onClick={() => handleUpdateQty(it.id, -1)}
+                            className="px-2 py-1 hover:bg-orange-500/20 text-slate-400 hover:text-white"
+                          >
+                            -
+                          </button>
+                          <span className="px-2 text-white">{it.qty}</span>
+                          <button
+                            onClick={() => handleUpdateQty(it.id, 1)}
+                            className="px-2 py-1 hover:bg-orange-500/20 text-slate-400 hover:text-white"
+                          >
+                            +
+                          </button>
                         </div>
                       </div>
 
-                      {/* Stepper */}
-                      <div className="flex items-center border border-slate-700/50 rounded-lg overflow-hidden bg-black/20 text-xs font-black shrink-0">
-                        <button
-                          onClick={() => handleUpdateQty(it.id, -1)}
-                          className="px-2 py-1 hover:bg-orange-500/20 text-slate-400 hover:text-white"
-                        >
-                          -
-                        </button>
-                        <span className="px-2 text-white">{it.qty}</span>
-                        <button
-                          onClick={() => handleUpdateQty(it.id, 1)}
-                          className="px-2 py-1 hover:bg-orange-500/20 text-slate-400 hover:text-white"
-                        >
-                          +
-                        </button>
+                      {/* Customization Chips & Note */}
+                      <div className="pt-1.5 border-t border-slate-700/30 flex flex-col gap-1.5">
+                        <div className="flex flex-wrap gap-1">
+                          {[
+                            { label: '🧂 Kam Namak', val: 'Kam Namak (Less Salt)' },
+                            { label: '🌶️ Mirchi Kam', val: 'Mirchi Kam (Mild Spicy)' },
+                            { label: '🌿 Jain', val: 'No Onion Garlic (Jain)' },
+                            { label: '✨ Extra Crispy', val: 'Extra Crispy' },
+                          ].map((chip) => {
+                            const isSelected = it.specialInstructions?.includes(chip.val);
+                            return (
+                              <button
+                                key={chip.label}
+                                type="button"
+                                onClick={() => {
+                                  const current = it.specialInstructions || '';
+                                  let next = '';
+                                  if (isSelected) {
+                                    next = current.replace(chip.val, '').replace(/,\s*,/g, ',').replace(/^,\s*|,\s*$/g, '').trim();
+                                  } else {
+                                    next = current ? `${current}, ${chip.val}` : chip.val;
+                                  }
+                                  setCartItems((prev) =>
+                                    prev.map((item) => (item.id === it.id ? { ...item, specialInstructions: next } : item))
+                                  );
+                                }}
+                                className={`text-[10px] px-2 py-0.5 rounded-md font-semibold transition ${
+                                  isSelected
+                                    ? 'bg-amber-500 text-slate-950 font-bold'
+                                    : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
+                                }`}
+                              >
+                                {chip.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Dish note (e.g. kam namak, kam mirchi)..."
+                          value={it.specialInstructions || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCartItems((prev) =>
+                              prev.map((item) => (item.id === it.id ? { ...item, specialInstructions: val } : item))
+                            );
+                          }}
+                          className={`w-full px-2 py-1 rounded-lg text-[11px] border focus:outline-none focus:border-amber-400 ${
+                            isDark ? 'bg-slate-900 border-slate-800 text-slate-200 placeholder-slate-600' : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400'
+                          }`}
+                        />
                       </div>
                     </div>
                   ))
@@ -1880,7 +1948,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {/* --------------------------------------------------------------------- */}
           {/* TAB 5: CALL WAITER SCREEN                                             */}
           {/* --------------------------------------------------------------------- */}
-          {currentTab === 'waiter' && (
+          {waiterEnabled && currentTab === 'waiter' && (
             <div className={`p-4 rounded-2xl border space-y-4 shadow-sm ${
               isDark ? 'bg-[#141620] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}>
@@ -1972,7 +2040,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           { id: 'menu', label: 'Menu', icon: FileText },
           { id: 'cart', label: 'Cart', icon: ShoppingCart, badge: totalCartCount },
           { id: 'orders', label: 'Orders', icon: Clock, badge: activeOrders.length },
-          { id: 'waiter', label: 'Call Waiter', icon: Bell },
+          ...(waiterEnabled ? [{ id: 'waiter', label: 'Call Waiter', icon: Bell }] : []),
           { id: 'payment', label: 'Pay Bill', icon: CreditCard },
         ].map((tab) => {
           const Icon = tab.icon;

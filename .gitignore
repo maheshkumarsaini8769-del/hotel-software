@@ -31,6 +31,10 @@ coverage/
 .temp/
 tmp/
 *.tsbuildinfo
+.gradle/
+*/.gradle/
+local.properties
+*/local.properties
 
 # OS & IDE
 .DS_Store
@@ -43,6 +47,7 @@ Thumbs.db
 # QA artifacts (never commit)
 # ============================================
 artifacts/
+gui-test-screenshots/
 *.trace.zip
 *.webm
 *.har
@@ -79,3 +84,5 @@ scripts/serve_all_portals*
 # Tool configs
 # ============================================
 .zcodeignore
+.zcode/
+.claude/

@@ -97,6 +97,7 @@ export const KitchenKdsAppRoot: React.FC = () => {
   const [lowStockAlerts, setLowStockAlerts] = useState<LowStockAlertItem[]>([]);
   const [kitchenBuzzers, setKitchenBuzzers] = useState<any[]>([]);
   const [dishes86, setDishes86] = useState<Kds86DishItem[]>([]);
+  const [waiterEnabled, setWaiterEnabled] = useState<boolean>(true);
 
   const fetchDishes86 = async () => {
     if (!hotelId) return;
@@ -187,6 +188,17 @@ export const KitchenKdsAppRoot: React.FC = () => {
         return;
       }
       setHotelId(hId);
+
+      // Check tenant feature enablement
+      try {
+        const demoRes = await kdsFetch(`${API_BASE_URL}/pos/demo-context`);
+        if (demoRes.ok) {
+          const demoBody = await demoRes.json();
+          if (typeof demoBody?.data?.hotel?.waiterEnabled === 'boolean') {
+            setWaiterEnabled(demoBody.data.hotel.waiterEnabled);
+          }
+        }
+      } catch {}
 
       // Load the tenant's real kitchen stations instead of demo station IDs.
       try {
@@ -499,6 +511,7 @@ export const KitchenKdsAppRoot: React.FC = () => {
         onDismissStockAlert={(id) => setLowStockAlerts((prev) => prev.filter((a) => a.id !== id))}
         kitchenBuzzers={kitchenBuzzers}
         onAcknowledgeBuzzer={handleAcknowledgeBuzzer}
+        waiterEnabled={waiterEnabled}
         onStartPreparing={async (orderId) => {
           console.log(`🍳 [KDS] Cooking started: ${orderId}`);
           try {
@@ -619,6 +632,7 @@ if (rootElement) {
     <React.StrictMode>
       <ErrorBoundary>
         <StaffLoginGate
+          portalId="kds"
           apiBaseUrl={`${API_BASE_URL}`}
           appName="Kitchen KDS Display"
           appSubtitle="Protected kitchen terminal for live order tickets, stations and prep tracking."

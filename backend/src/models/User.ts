@@ -9,6 +9,9 @@ export interface IUser extends Document {
   phone: string;
   passwordHash: string;
   pinCodeHash?: string;
+  pinApprovedByAdmin?: boolean;
+  pendingPinHash?: string;
+  pinStatus?: 'NONE' | 'ACTIVE' | 'PENDING_APPROVAL';
   role: UserRole;
   permissions: string[];
   shiftStatus: ShiftStatus;
@@ -43,6 +46,13 @@ const UserSchema = new Schema<IUser>(
     phone: { type: String, required: true, trim: true },
     passwordHash: { type: String, required: true },
     pinCodeHash: { type: String },
+    pinApprovedByAdmin: { type: Boolean, default: true },
+    pendingPinHash: { type: String, select: false },
+    pinStatus: {
+      type: String,
+      enum: ['NONE', 'ACTIVE', 'PENDING_APPROVAL'],
+      default: 'NONE',
+    },
     role: {
       type: String,
       enum: Object.values(UserRole),

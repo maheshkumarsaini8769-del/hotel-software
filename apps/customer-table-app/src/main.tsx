@@ -68,6 +68,7 @@ export const CustomerAppRoot: React.FC = () => {
   const [tableSessionId, setTableSessionId] = useState<string>('');
   const [sessionToken, setSessionToken] = useState<string>('');
   const [guestCount, setGuestCount] = useState<number>(2);
+  const [waiterEnabled, setWaiterEnabled] = useState<boolean>(true);
   const [bootstrapError, setBootstrapError] = useState<string>('');
   const [isReady, setIsReady] = useState<boolean>(false);
   const [liveToast, setLiveToast] = useState<{ message: string; type: 'success' | 'info' | 'warn' } | null>(null);
@@ -135,6 +136,9 @@ export const CustomerAppRoot: React.FC = () => {
         setTableSessionId(String(d.sessionId));
         setSessionToken(String(d.sessionToken));
         setGuestCount(Number(d.guestCount) > 0 ? Number(d.guestCount) : 2);
+        if (typeof d.waiterEnabled === 'boolean') {
+          setWaiterEnabled(d.waiterEnabled);
+        }
 
         if (d.sessionId) {
           await fetchSessionOrders(String(d.sessionId));
@@ -150,6 +154,11 @@ export const CustomerAppRoot: React.FC = () => {
       }
 
       const d = body.data;
+      if (typeof d.waiterEnabled === 'boolean') {
+        setWaiterEnabled(d.waiterEnabled);
+      } else if (typeof d.hotel?.waiterEnabled === 'boolean') {
+        setWaiterEnabled(d.hotel.waiterEnabled);
+      }
       setHotelId(d.hotel.id);
       const urlHotel = searchParams.get('hotel') || searchParams.get('hotelName');
       setHotelName(urlHotel || d.hotel.name);
@@ -375,6 +384,7 @@ export const CustomerAppRoot: React.FC = () => {
         name: ci.name,
         price: ci.price || ci.unitPrice,
         quantity: ci.qty || ci.quantity || 1,
+        specialInstructions: ci.specialInstructions,
       })),
       cookingInstructions: instructions || '',
       idempotencyKey,
@@ -616,6 +626,7 @@ export const CustomerAppRoot: React.FC = () => {
         activeOrders={activeOrders}
         initialGuestCount={guestCount}
         hotelId={hotelId}
+        waiterEnabled={waiterEnabled}
         onRefreshOrders={() => {
           if (tableSessionId) fetchSessionOrders(tableSessionId);
         }}

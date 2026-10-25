@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "build": "vite build",
     "build:web": "vite build",
     "sync": "npx cap sync android",
     "open": "npx cap open android",

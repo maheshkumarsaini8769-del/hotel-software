@@ -95,6 +95,8 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
   const [isFloorModalOpen, setIsFloorModalOpen] = useState(false);
   const [isHallModalOpen, setIsHallModalOpen] = useState(false);
   const [selectedQrTable, setSelectedQrTable] = useState<TableDTO | null>(null);
+  const [isPrintableQrCenterOpen, setIsPrintableQrCenterOpen] = useState(false);
+  const [qrFilterType, setQrFilterType] = useState<'tables' | 'rooms' | 'reception'>('tables');
 
   // Form states for Table
   const [formTableNumber, setFormTableNumber] = useState('');
@@ -432,6 +434,14 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setIsPrintableQrCenterOpen(true)}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold border border-indigo-500/40 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition flex items-center gap-1.5 shadow-sm"
+          >
+            <Printer className="w-3.5 h-3.5 text-indigo-400" />
+            <span>🖨️ Printable QR Center</span>
+          </button>
+
           <button
             onClick={() => setIsFloorModalOpen(true)}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
@@ -1499,15 +1509,21 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
               </p>
             </div>
 
-            {/* QR Mockup Box */}
-            <div className="p-6 bg-white rounded-2xl shadow-inner inline-block my-2 border border-slate-200">
-              <div className="w-44 h-44 bg-slate-950 p-2 rounded-xl flex flex-col items-center justify-center text-white text-center">
-                <QrCode className="w-24 h-24 text-white mb-2" />
-                <span className="font-black text-xs tracking-wider text-amber-400">
+            {/* Scannable Dynamic QR Box */}
+            <div className="p-4 bg-white rounded-2xl shadow-inner inline-block my-2 border border-slate-200">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                  getPortalUrl('customer', `/?hotelId=${hotelId}&table=${selectedQrTable.tableNumber}`)
+                )}`}
+                alt={`QR for Table ${selectedQrTable.tableNumber}`}
+                className="w-44 h-44 object-contain mx-auto"
+              />
+              <div className="mt-2 text-center">
+                <span className="font-black text-xs tracking-wider text-slate-900 block">
                   SCAN TO DINE IN
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono">
-                  {selectedQrTable.tableNumber}
+                <span className="text-[10px] text-slate-500 font-mono">
+                  Table {selectedQrTable.tableNumber}
                 </span>
               </div>
             </div>
@@ -1515,14 +1531,14 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
             <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-left">
               <span className="text-[10px] text-slate-400 block font-bold">Direct Ordering URL:</span>
               <span className="text-xs font-mono text-amber-300 truncate block">
-                {getPortalUrl('customer', `/?table=${selectedQrTable.tableNumber}`)}
+                {getPortalUrl('customer', `/?hotelId=${hotelId}&table=${selectedQrTable.tableNumber}`)}
               </span>
             </div>
 
-            <div className="flex items-center gap-2 pt-2">
+            <div className="flex flex-wrap items-center gap-2 pt-2">
               <button
                 onClick={() => {
-                  window.open(getPortalUrl('customer', `/?table=${selectedQrTable.tableNumber}`), '_blank');
+                  window.open(getPortalUrl('customer', `/?hotelId=${hotelId}&table=${selectedQrTable.tableNumber}`), '_blank');
                 }}
                 className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md"
               >
@@ -1531,8 +1547,18 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
               </button>
               <button
                 onClick={() => {
+                  if (typeof window !== 'undefined') window.print();
+                }}
+                className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1 shadow-xs"
+                title="Print Standee"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Standee</span>
+              </button>
+              <button
+                onClick={() => {
                   navigator.clipboard?.writeText(
-                    getPortalUrl('customer', `/?table=${selectedQrTable.tableNumber}`)
+                    getPortalUrl('customer', `/?hotelId=${hotelId}&table=${selectedQrTable.tableNumber}`)
                   );
                   showToast('✓ Link copied to clipboard!');
                 }}
@@ -1541,6 +1567,252 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
               >
                 <Copy className="w-3.5 h-3.5" />
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 10. MODAL: 🖨️ PRINTABLE QR CODE CENTER (RECEPTION & TABLE STANDEES)         */}
+      {/* ========================================================================= */}
+      {isPrintableQrCenterOpen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in">
+          <div
+            className={`max-w-4xl w-full max-h-[92vh] overflow-y-auto rounded-3xl border p-6 space-y-5 shadow-2xl flex flex-col ${
+              isDark ? 'bg-[#101420] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+            }`}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-700/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                  <Printer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black tracking-tight">
+                    Reception & Dining Printable QR Center
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Preview, download, and print physical tent cards and standees for tables, rooms, and reception desk
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (typeof window !== 'undefined') window.print();
+                  }}
+                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Print Sheet (A4)</span>
+                </button>
+                <button
+                  onClick={() => setIsPrintableQrCenterOpen(false)}
+                  className="text-slate-400 hover:text-white font-bold p-1 rounded-lg"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex gap-2">
+              {[
+                { id: 'tables', label: '🍽️ Dining Tables (T-01 - T-24)' },
+                { id: 'rooms', label: '🏨 Guest Rooms (101 - 310)' },
+                { id: 'reception', label: '🛎️ Reception & Lobby Desk' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setQrFilterType(tab.id as any)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    qrFilterType === tab.id
+                      ? 'bg-amber-500 text-slate-950 shadow-sm'
+                      : isDark
+                      ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Printable Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 overflow-y-auto pr-1">
+              {qrFilterType === 'tables' &&
+                (tables.length > 0 ? tables : [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ tableNumber: `T-${n}` }))).map(
+                  (t: any, idx) => {
+                    const tableNum = t.tableNumber || `T-${idx + 1}`;
+                    const targetUrl = getPortalUrl('customer', `/?hotelId=${hotelId}&table=${tableNum}`);
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-white text-slate-900 rounded-2xl p-4 border-2 border-amber-500/40 shadow-md flex flex-col items-center text-center relative"
+                      >
+                        <span className="text-[9px] font-black tracking-widest text-amber-700 uppercase mb-1">
+                          SPICEHUB LUXURY HOTEL & DINE
+                        </span>
+                        <div className="w-12 h-0.5 bg-amber-500 rounded-full mb-2" />
+                        <h4 className="text-xl font-black text-slate-900 tracking-tight">
+                          Table {tableNum}
+                        </h4>
+                        <p className="text-[10px] text-slate-500 font-medium mb-3">
+                          Dine-In Digital Self-Ordering
+                        </p>
+
+                        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 shadow-inner my-1">
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                              targetUrl
+                            )}`}
+                            alt={`Table ${tableNum} QR`}
+                            className="w-36 h-36 object-contain"
+                          />
+                        </div>
+
+                        <div className="mt-2 text-center">
+                          <span className="text-[11px] font-black text-amber-900 block">
+                            📲 SCAN WITH PHONE CAMERA
+                          </span>
+                          <span className="text-[9px] text-slate-500">
+                            View Menu • Custom Cooking • Instant KOT
+                          </span>
+                        </div>
+
+                        <div className="mt-3 w-full pt-2 border-t border-dashed border-slate-200 flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              window.open(targetUrl, '_blank');
+                            }}
+                            className="flex-1 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-[10px] font-bold"
+                          >
+                            Open Link
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (typeof window !== 'undefined') window.print();
+                            }}
+                            className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold"
+                          >
+                            Print
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                )}
+
+              {qrFilterType === 'rooms' &&
+                ['101', '102', '104', '201', '202', '204', '301', '302'].map((roomNum, idx) => {
+                  const targetUrl = getPortalUrl('guest', `/?hotelId=${hotelId}&roomNumber=${roomNum}`);
+                  return (
+                    <div
+                      key={idx}
+                      className="bg-white text-slate-900 rounded-2xl p-4 border-2 border-indigo-500/40 shadow-md flex flex-col items-center text-center relative"
+                    >
+                      <span className="text-[9px] font-black tracking-widest text-indigo-700 uppercase mb-1">
+                        IN-ROOM DINING & CONCIERGE
+                      </span>
+                      <div className="w-12 h-0.5 bg-indigo-500 rounded-full mb-2" />
+                      <h4 className="text-xl font-black text-slate-900 tracking-tight">
+                        Room {roomNum}
+                      </h4>
+                      <p className="text-[10px] text-slate-500 font-medium mb-3">
+                        24x7 Room Service & Housekeeping
+                      </p>
+
+                      <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 shadow-inner my-1">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                            targetUrl
+                          )}`}
+                          alt={`Room ${roomNum} QR`}
+                          className="w-36 h-36 object-contain"
+                        />
+                      </div>
+
+                      <div className="mt-2 text-center">
+                        <span className="text-[11px] font-black text-indigo-900 block">
+                          🛎️ SCAN FOR ROOM SERVICE
+                        </span>
+                        <span className="text-[9px] text-slate-500">
+                          Food Delivery • Towels • Water • Housekeeping
+                        </span>
+                      </div>
+
+                      <div className="mt-3 w-full pt-2 border-t border-dashed border-slate-200 flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            window.open(targetUrl, '_blank');
+                          }}
+                          className="flex-1 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-900 rounded-lg text-[10px] font-bold"
+                        >
+                          Open Link
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (typeof window !== 'undefined') window.print();
+                          }}
+                          className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold"
+                        >
+                          Print
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {qrFilterType === 'reception' && (
+                <div className="sm:col-span-2 md:col-span-3 bg-white text-slate-900 rounded-3xl p-6 border-4 border-amber-500 shadow-xl flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
+                        getPortalUrl('customer', `/?hotelId=${hotelId}`)
+                      )}`}
+                      alt="Reception Standee QR"
+                      className="w-52 h-52 object-contain"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <span className="text-xs font-black tracking-widest text-amber-700 uppercase">
+                      OFFICIAL FRONT DESK STANDEE
+                    </span>
+                    <h3 className="text-2xl font-black text-slate-900">
+                      Welcome to SpiceHub Luxury Hotel & Dine
+                    </h3>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Place this high-visibility standee at your front desk and restaurant entrance. Guests can scan to
+                      explore today&apos;s active menus, chef specials, beverage lists, or browse room amenities instantly.
+                    </p>
+                    <div className="pt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.open(getPortalUrl('customer', `/?hotelId=${hotelId}`), '_blank');
+                        }}
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-sm"
+                      >
+                        Open Digital Catalog
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof window !== 'undefined') window.print();
+                        }}
+                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm"
+                      >
+                        Print Reception Standee (A4)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

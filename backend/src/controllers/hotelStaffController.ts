@@ -13,6 +13,8 @@ export interface HotelStaffDTO {
   /** Never contains the real PIN after creation. */
   pin: string;
   hasPin?: boolean;
+  pinApprovedByAdmin?: boolean;
+  pinStatus?: 'NONE' | 'ACTIVE' | 'PENDING_APPROVAL';
   shift: string;
   shiftStatus: ShiftStatus | string;
   assignedSection?: string;
@@ -61,7 +63,9 @@ const toDTO = (u: IUser & Record<string, any>, includePin = false, plainPin?: st
   phone: u.phone || '+91 98765 00000',
   role: u.role,
   pin: includePin && plainPin ? plainPin : '••••',
-  hasPin: Boolean(u.pinCodeHash),
+  hasPin: Boolean(u.pinCodeHash || u.pendingPinHash),
+  pinApprovedByAdmin: u.pinApprovedByAdmin !== false,
+  pinStatus: (u.pinStatus || (u.pinCodeHash ? 'ACTIVE' : 'NONE')) as 'NONE' | 'ACTIVE' | 'PENDING_APPROVAL',
   shift: u.shift || 'Morning Shift',
   shiftStatus: u.shiftStatus || ShiftStatus.ON_DUTY,
   assignedSection: u.assignedSection,
@@ -331,3 +335,67 @@ export const deleteHotelStaff = async (req: TenantRequest, res: Response): Promi
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
   }
 };
+
+// 5. PATCH /api/v1/hotel-staff/:id/approve-pin (Hotel Admin approves or rejects staff PIN request)
+export const approveStaffPin = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { action } = req.body; // 'APPROVE' | 'REJECT'
+    const hotelId = resolveHotelId(req);
+
+    if (!hotelId) {
+      res.status(400).json({ success: false, errorCode: 'HOTEL_ID_REQUIRED', message: 'Hotel context is required' });
+      return;
+    }
+
+    if (!Types.ObjectId.isValid(String(id))) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_STAFF_ID', message: 'Invalid staff id' });
+      return;
+    }
+
+    const staff = await User.findOne({ _id: new Types.ObjectId(String(id)), hotelId }).select('+pendingPinHash');
+    if (!staff) {
+      res.status(404).json({ success: false, errorCode: 'STAFF_NOT_FOUND', message: 'Staff member not found' });
+      return;
+    }
+
+    if (action === 'REJECT') {
+      staff.pendingPinHash = undefined;
+      staff.pinStatus = staff.pinCodeHash ? 'ACTIVE' : 'NONE';
+      await staff.save();
+
+      res.status(200).json({
+        success: true,
+        message: 'Staff PIN request rejected',
+        data: toDTO(staff as IUser & Record<string, any>),
+      });
+      return;
+    }
+
+    // Default to APPROVE
+    if (!staff.pendingPinHash) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'NO_PENDING_PIN',
+        message: 'Staff member does not have a pending PIN request',
+      });
+      return;
+    }
+
+    staff.pinCodeHash = staff.pendingPinHash;
+    staff.passwordHash = staff.pendingPinHash;
+    staff.pendingPinHash = undefined;
+    staff.pinApprovedByAdmin = true;
+    staff.pinStatus = 'ACTIVE';
+    await staff.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Staff 4-digit PIN approved and activated successfully',
+      data: toDTO(staff as IUser & Record<string, any>),
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+

@@ -237,6 +237,14 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
       const body = await response.json().catch(() => null);
 
       if (!response.ok || !body?.success) {
+        if (body?.errorCode === 'PORTAL_NOT_SUBSCRIBED') {
+          setPinError(
+            body?.message ||
+              "The Waiter Mobile Handheld portal is not included in this hotel's subscription. Please contact your Super Administrator."
+          );
+          setEnteredPin('');
+          return;
+        }
         const next = failedPinAttempts + 1;
         setFailedPinAttempts(next);
         setEnteredPin('');

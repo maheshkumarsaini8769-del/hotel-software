@@ -25,6 +25,8 @@ import {
   BillItem,
   fetchTableOrdersFromApi,
 } from '../utils/tableBillingService';
+import { MultiTenderModal } from '../components/multi-tender/MultiTenderModal';
+import { TenderLineDTO } from '@spicehub/ui';
 
 export type { BillItem };
 
@@ -85,8 +87,9 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
   const [selectedTable, setSelectedTable] = useState(defaultFirstTable);
   const [serviceChargePercent, setServiceChargePercent] = useState<number>(5);
   const [discountPercent, setDiscountPercent] = useState<number>(0);
-  const [selectedPaymentMode, setSelectedPaymentMode] = useState<'UPI' | 'CASH' | 'CARD' | 'ROOM'>('UPI');
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<'UPI' | 'CASH' | 'CARD' | 'ROOM' | 'SPLIT'>('UPI');
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
   const [mobileBillingTab, setMobileBillingTab] = useState<'invoice' | 'payment'>('invoice');
 
   // Check if currently selected table is assigned to this waiter
@@ -147,8 +150,20 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
   const cashChangeToReturn = Math.max(0, cashTendered - grandTotal);
 
   const handleSettle = () => {
+    if (selectedPaymentMode === 'SPLIT') {
+      setIsSplitModalOpen(true);
+      return;
+    }
     onSettleTable(selectedTable, selectedPaymentMode, grandTotal);
     triggerToast(`Bill for ${selectedTable} settled (₹${grandTotal}) via ${selectedPaymentMode}! Table marked for Cleaning.`);
+  };
+
+  const handleMultiTenderSettle = (tenders: TenderLineDTO[]) => {
+    const cashAmt = tenders.filter((t) => t.method === 'CASH').reduce((sum, t) => sum + t.amount, 0);
+    const upiAmt = tenders.filter((t) => t.method === 'UPI').reduce((sum, t) => sum + t.amount, 0);
+    onSettleTable(selectedTable, `SPLIT (Cash: ₹${cashAmt} + UPI: ₹${upiAmt})`, grandTotal);
+    triggerToast(`Split bill for ${selectedTable} settled! ₹${cashAmt} Cash collected, ₹${upiAmt} Gateway UPI.`);
+    setIsSplitModalOpen(false);
   };
 
   return (
@@ -434,11 +449,12 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
               Select Payment Mode
             </h3>
 
-            {/* 4 Multi-Tender Payment Methods */}
-            <div className="grid grid-cols-2 gap-2.5">
+            {/* 5 Multi-Tender Payment Methods */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {[
                 { id: 'UPI', label: 'Dynamic UPI QR', icon: QrCode, color: 'text-purple-500' },
                 { id: 'CASH', label: 'Cash Tender', icon: Banknote, color: 'text-emerald-600' },
+                { id: 'SPLIT', label: 'Split (Cash + UPI)', icon: Scissors, color: 'text-indigo-600' },
                 { id: 'CARD', label: 'Card POS Swipe', icon: CreditCard, color: 'text-blue-600' },
                 { id: 'ROOM', label: 'Charge Room Folio', icon: Hotel, color: 'text-amber-600' },
               ].map((m) => {
@@ -450,6 +466,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                     onClick={() => {
                       setSelectedPaymentMode(m.id as any);
                       if (m.id === 'UPI') onOpenUpiModal(selectedTable, grandTotal);
+                      if (m.id === 'SPLIT') setIsSplitModalOpen(true);
                     }}
                     className={`p-3 rounded-xl border text-left flex flex-col justify-between gap-2 transition ${
                       isSel
@@ -467,6 +484,28 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
             </div>
 
             {/* Payment Method Details Panel */}
+            {selectedPaymentMode === 'SPLIT' && (
+              <div className={`p-3.5 rounded-xl border space-y-2.5 text-xs ${
+                isDark ? 'bg-indigo-950/40 border-indigo-800/60 text-indigo-300' : 'bg-indigo-50 border-indigo-200 text-indigo-900'
+              }`}>
+                <div className="font-bold flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 font-black">
+                    <span>⚖️</span> Dual-Tender Split Billing (Anti-Fraud Protected)
+                  </span>
+                  <span className="font-mono font-black text-sm">₹{grandTotal.toFixed(2)}</span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Split bill across Cash and Online UPI (e.g. ₹1000 Cash + ₹500 UPI). Waiter handheld generates exact dynamic UPI QR and verifies via soundbox webhook before releasing table.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsSplitModalOpen(true)}
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <span>⚡ Open Split Cash + Dynamic UPI Terminal</span>
+                </button>
+              </div>
+            )}
             {selectedPaymentMode === 'CASH' && (
               <div className={`p-3 rounded-xl border space-y-2 text-xs ${
                 isDark ? 'bg-slate-900/80 border-emerald-900/50' : 'bg-emerald-50/50 border-emerald-200'
@@ -723,6 +762,16 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Dual-Tender Split Billing Modal */}
+      <MultiTenderModal
+        isOpen={isSplitModalOpen}
+        onClose={() => setIsSplitModalOpen(false)}
+        billNumber={`INV-${selectedTable.replace(/[^0-9]/g, '')}0921`}
+        tableNumber={selectedTable}
+        grandTotal={grandTotal}
+        onSettle={handleMultiTenderSettle}
+      />
     </div>
   );
 };

@@ -72,8 +72,9 @@ const DEFAULT_MENU_ITEMS: Array<{
 ];
 
 const PRESET_INSTRUCTIONS = [
-  '🌶️ Less Spicy',
-  '🚫 No Garlic / Onion',
+  '🧂 Kam Namak (Less Salt)',
+  '🌶️ Mirchi Kam (Mild Spicy)',
+  '🚫 No Garlic / Onion (Jain)',
   '🔥 Extra Crispy',
   '⚡ Rush Order (In Hurry)',
   '👶 Kid Friendly (Mild)',

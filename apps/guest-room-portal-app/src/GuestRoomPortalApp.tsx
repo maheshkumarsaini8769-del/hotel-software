@@ -64,6 +64,7 @@ import {
   FolioSummaryModel,
 } from '@spicehub/ui';
 import { API_ORIGIN } from './config/api';
+import { RoomCatalogView } from './components/RoomCatalogView';
 
 const API_BASE = API_ORIGIN;
 
@@ -76,12 +77,15 @@ export interface GuestRoomPortalAppProps {
   onSettleFolio?: (paymentMode: string, transactionRef?: string) => Promise<{ success: boolean; invoiceNumber?: string; message?: string }>;
   onRefreshOrders?: () => Promise<void> | void;
   onRefreshFolio?: () => Promise<void> | void;
+  onRoomBooked?: (roomNumber: string, sessionToken?: string) => void;
   isCheckoutRequested?: boolean;
   isStayCheckedOut?: boolean;
   checkoutInvoice?: any;
+  waiterEnabled?: boolean;
 }
 
 export type PortalTab =
+  | 'ROOMS'
   | 'HOME'
   | 'DINING'
   | 'ROOM_SERVICE'
@@ -124,9 +128,11 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   onSettleFolio,
   onRefreshOrders,
   onRefreshFolio,
+  onRoomBooked,
   isCheckoutRequested = false,
   isStayCheckedOut = false,
   checkoutInvoice = null,
+  waiterEnabled = true,
 }) => {
   // Navigation State
   const [activeTab, setActiveTab] = useState<PortalTab>(() => {
@@ -134,10 +140,14 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
       const raw = new URLSearchParams(window.location.search).get('tab');
       if (raw) {
         const decoded = decodeURIComponent(raw.replace(/\+/g, ' ')).toUpperCase() as PortalTab;
-        if (['HOME', 'DINING', 'ROOM_SERVICE', 'HOUSEKEEPING', 'BILL', 'TRACKING', 'HOTEL_INFO', 'MORE'].includes(decoded)) {
+        if (['ROOMS', 'HOME', 'DINING', 'ROOM_SERVICE', 'HOUSEKEEPING', 'BILL', 'TRACKING', 'HOTEL_INFO', 'MORE'].includes(decoded)) {
           return decoded;
         }
       }
+    }
+    const initialSession = store.getSession();
+    if (!initialSession?.roomNumber) {
+      return 'ROOMS';
     }
     return 'HOME';
   });
@@ -146,7 +156,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
     const handleSetTab = (e: any) => {
       if (e.detail && typeof e.detail === 'string') {
         const val = e.detail.toUpperCase() as PortalTab;
-        if (['HOME', 'DINING', 'ROOM_SERVICE', 'HOUSEKEEPING', 'BILL', 'TRACKING', 'HOTEL_INFO', 'MORE'].includes(val)) {
+        if (['ROOMS', 'HOME', 'DINING', 'ROOM_SERVICE', 'HOUSEKEEPING', 'BILL', 'TRACKING', 'HOTEL_INFO', 'MORE'].includes(val)) {
           setActiveTab(val);
         }
       }
@@ -831,9 +841,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             isDark ? 'border-slate-800/80 text-slate-400' : 'border-slate-200 text-slate-600'
           }`}>
             {[
+              { id: 'ROOMS', label: 'Rooms & Availability', icon: Building2 },
               { id: 'HOME', label: 'Overview & Stay', icon: BedDouble },
               { id: 'DINING', label: 'Food & In-Room Dining', icon: Utensils },
-              { id: 'ROOM_SERVICE', label: 'Room Service (Water, Towel, etc.)', icon: ConciergeBell },
+              { id: 'ROOM_SERVICE', label: 'Room Service & Buzzer', icon: ConciergeBell },
               { id: 'HOUSEKEEPING', label: 'Housekeeping & Laundry', icon: Sparkles },
               { id: 'BILL', label: 'My Bill & Folio', icon: Receipt },
               { id: 'TRACKING', label: 'Live Order Tracking', icon: Clock },
@@ -869,6 +880,28 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
       {/* 2. MAIN RESPONSIVE VIEWPORT CONTAINER                     */}
       {/* ======================================================== */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-24 lg:pb-12">
+        {/* ===================================================== */}
+        {/* VIEW 0: ROOMS CATALOG & LIVE AVAILABILITY MATRIX      */}
+        {/* ===================================================== */}
+        {activeTab === 'ROOMS' && (
+          <RoomCatalogView
+            hotelId={hotelId}
+            currentRoomNumber={roomNumber}
+            onRoomBooked={(newRoom, sessionToken) => {
+              if (onRoomBooked) {
+                onRoomBooked(newRoom, sessionToken);
+              }
+              if (typeof window !== 'undefined') {
+                if (sessionToken) localStorage.setItem('spicehub_guest_session', sessionToken);
+                const dest = new URL(window.location.href);
+                dest.searchParams.set('room', newRoom);
+                dest.searchParams.set('tab', 'HOME');
+                window.location.href = dest.toString();
+              }
+              setActiveTab('HOME');
+            }}
+          />
+        )}
         {/* ===================================================== */}
         {/* VIEW 1: HOME / OVERVIEW & STAY                        */}
         {/* ===================================================== */}
@@ -922,6 +955,26 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
                     <span>Daily Housekeeping Included</span>
                   </div>
+                </div>
+
+                {/* Quick Action Navigation Pills */}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    data-testid="hero-browse-rooms-btn"
+                    onClick={() => setActiveTab('ROOMS')}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition"
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>Browse All Rooms & Rates</span>
+                  </button>
+                  <button
+                    data-testid="hero-extend-stay-btn"
+                    onClick={() => setIsExtendModalOpen(true)}
+                    className="px-3 py-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-amber-400 border border-amber-500/40 font-bold text-xs flex items-center gap-1.5 transition"
+                  >
+                    <CalendarPlus className="w-3.5 h-3.5" />
+                    <span>Extend Check-out (+ Nights)</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1463,18 +1516,20 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             </div>
 
             {/* 3x3 Grid on Tablet / 5 Columns on Desktop */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {[
+                ...(waiterEnabled ? [{ name: 'Call Waiter / Server', icon: Utensils, desc: 'Summon table attendant or dining server to room' }] : []),
+                { name: 'Front Desk Intercom', icon: PhoneCall, desc: 'Direct priority contact with reception' },
+                { name: 'Room Housekeeping', icon: Sparkles, desc: 'Quick refresh, linen change & dusting' },
                 { name: 'Water Bottle', icon: GlassWater, desc: 'Chilled packaged water bottles (2x)' },
-                { name: 'Extra Towel', icon: Layers, desc: 'Fresh sanitized bath & face towels' },
+                { name: 'Fresh Bath Towels', icon: Layers, desc: 'Fresh sanitized bath & face towels' },
                 { name: 'Extra Pillow', icon: BedDouble, desc: 'Hypoallergenic soft feather pillow' },
                 { name: 'Toiletries Kit', icon: Bath, desc: 'Shampoo, conditioner, soap, moisturizer' },
                 { name: 'Tissue Paper', icon: FileText, desc: 'Soft 2-ply tissue box refill' },
-                { name: 'Room Cleaning', icon: Sparkles, desc: 'Quick refresh & dusting service' },
                 { name: 'Ice Bucket', icon: Coffee, desc: 'Bucket with fresh clear ice cubes' },
                 { name: 'Extra Blanket', icon: Layers, desc: 'Warm fleece comforter / quilt' },
                 { name: 'Dental Kit', icon: ShieldCheck, desc: 'Toothbrush & herbal toothpaste' },
-                { name: 'Other Assistance', icon: ConciergeBell, desc: 'Luggage help or custom request' },
+                { name: 'Luggage Bellboy', icon: ConciergeBell, desc: 'Baggage pickup / checkout assistance' },
               ].map((card, idx) => {
                 const Icon = card.icon;
                 return (
@@ -1825,6 +1880,14 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 </div>
               </div>
 
+              {/* Master Folio Immutable Ledger Notice */}
+              <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-amber-500/30 flex items-center gap-3">
+                <span className="text-amber-400 text-lg">🔒</span>
+                <div className="text-[11px] text-slate-300 leading-snug">
+                  <span className="font-bold text-amber-400">Locked Master Folio Ledger:</span> Room charges, in-room dining orders, and services are permanently synchronized with the Front Desk PMS with 12% room / 5% food GST. Charges cannot be altered or removed after placement.
+                </div>
+              </div>
+
               {/* Items Table */}
               <div className="overflow-x-auto border-t border-slate-800 pt-4">
                 <table className="w-full text-xs text-left">
@@ -1832,7 +1895,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     <tr>
                       <th className="py-3 px-2">Department / Category</th>
                       <th className="py-3 px-2">Description</th>
-                      <th className="py-3 px-2">Units / Details</th>
+                      <th className="py-3 px-2">Audit Status</th>
+                      <th className="py-3 px-2">Date / Time</th>
                       <th className="py-3 px-2 text-right">Net Amount</th>
                     </tr>
                   </thead>
@@ -1842,6 +1906,11 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                         <tr key={li.id || idx}>
                           <td className="py-3 px-2 font-bold text-white">{li.department || 'INCIDENTAL'}</td>
                           <td className="py-3 px-2 text-slate-300">{li.description}</td>
+                          <td className="py-3 px-2">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-amber-400 border border-amber-500/20">
+                              🔒 Locked
+                            </span>
+                          </td>
                           <td className="py-3 px-2 text-slate-400">
                             {li.createdAt ? new Date(li.createdAt).toLocaleDateString() : 'Active Stay'}
                           </td>
@@ -1850,7 +1919,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={4} className="py-6 text-center text-slate-400">
+                        <td colSpan={5} className="py-6 text-center text-slate-400">
                           No itemized charges posted to this folio yet.
                         </td>
                       </tr>
@@ -2368,24 +2437,37 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
       {/* ======================================================== */}
       {/* 3. MOBILE STICKY BOTTOM NAVIGATION BAR (lg:hidden)        */}
       {/* ======================================================== */}
-      <div className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t px-4 py-2 flex items-center justify-around text-[10px] font-bold transition-colors ${
+      <div className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t px-2 py-2 flex items-center justify-around text-[10px] font-bold transition-colors ${
         isDark ? 'bg-[#131620]/95 border-slate-800 text-slate-400' : 'bg-white/95 border-slate-200 text-slate-600 shadow-lg'
       }`}>
         <button
+          data-testid="mobile-nav-rooms"
+          onClick={() => setActiveTab('ROOMS')}
+          className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
+            activeTab === 'ROOMS'
+              ? 'text-amber-500 font-black'
+              : isDark ? 'hover:text-white' : 'hover:text-slate-900'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          <span>Rooms</span>
+        </button>
+        <button
+          data-testid="mobile-nav-home"
           onClick={() => setActiveTab('HOME')}
-          className={`flex flex-col items-center gap-1 ${
+          className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
             activeTab === 'HOME'
               ? 'text-amber-500 font-black'
               : isDark ? 'hover:text-white' : 'hover:text-slate-900'
           }`}
         >
           <BedDouble className="w-4 h-4" />
-          <span>Home</span>
+          <span>My Stay</span>
         </button>
         <button
           data-testid="mobile-nav-dining"
           onClick={() => setActiveTab('DINING')}
-          className={`flex flex-col items-center gap-1 ${
+          className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
             activeTab === 'DINING'
               ? 'text-amber-500 font-black'
               : isDark ? 'hover:text-white' : 'hover:text-slate-900'
@@ -2395,49 +2477,40 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
           <span>Dining</span>
         </button>
         <button
+          data-testid="mobile-nav-services"
           onClick={() => setActiveTab('ROOM_SERVICE')}
-          className={`flex flex-col items-center gap-1 ${
+          className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
             activeTab === 'ROOM_SERVICE' || activeTab === 'HOUSEKEEPING'
               ? 'text-amber-500 font-black'
               : isDark ? 'hover:text-white' : 'hover:text-slate-900'
           }`}
         >
           <ConciergeBell className="w-4 h-4" />
-          <span>Services</span>
+          <span>Buzzer</span>
         </button>
         <button
+          data-testid="mobile-nav-bill"
           onClick={() => setActiveTab('BILL')}
-          className={`flex flex-col items-center gap-1 ${
+          className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
             activeTab === 'BILL'
               ? 'text-amber-500 font-black'
               : isDark ? 'hover:text-white' : 'hover:text-slate-900'
           }`}
         >
           <Receipt className="w-4 h-4" />
-          <span>Bill</span>
+          <span>Folio</span>
         </button>
         <button
           data-testid="mobile-nav-tracking"
           onClick={() => setActiveTab('TRACKING')}
-          className={`flex flex-col items-center gap-1 ${
+          className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
             activeTab === 'TRACKING'
               ? 'text-amber-500 font-black'
               : isDark ? 'hover:text-white' : 'hover:text-slate-900'
           }`}
         >
           <Clock className="w-4 h-4" />
-          <span>Order</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('MORE')}
-          className={`flex flex-col items-center gap-1 ${
-            activeTab === 'MORE' || activeTab === 'HOTEL_INFO'
-              ? 'text-amber-500 font-black'
-              : isDark ? 'hover:text-white' : 'hover:text-slate-900'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>More</span>
+          <span>Orders</span>
         </button>
       </div>
 
@@ -2843,29 +2916,67 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 <Plus className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-[11px] text-slate-300">
-              Additional nights are charged at the applicable room rate plus taxes. The front desk will confirm availability and pricing.
+            {/* Dynamic Price Breakdown for Extended Stay */}
+            <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 text-[11px] space-y-1.5 text-slate-300">
+              <div className="flex justify-between">
+                <span>Room Tariff (₹2,500 × {extendNights} night{extendNights > 1 ? 's' : ''}):</span>
+                <span className="font-bold text-white">₹{(2500 * extendNights).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Goods & Services Tax (12%):</span>
+                <span className="font-bold text-white">₹{Math.round(2500 * extendNights * 0.12).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between border-t border-slate-800 pt-1.5 font-black text-amber-400 text-xs">
+                <span>Total Added to Room Folio:</span>
+                <span>₹{(2500 * extendNights + Math.round(2500 * extendNights * 0.12)).toLocaleString('en-IN')}</span>
+              </div>
             </div>
+
             <button
+              data-testid="submit-extend-stay-btn"
               onClick={async () => {
-                if (!onConciergeRequest) {
-                  showToast('Extension requests are unavailable. Please call the front desk.');
-                  return;
+                const totalExtra = 2500 * extendNights + Math.round(2500 * extendNights * 0.12);
+                try {
+                  const token = typeof window !== 'undefined' ? localStorage.getItem('spicehub_guest_session') : null;
+                  const res = await fetch(`${API_BASE}/api/v1/guest-portal/stay/extend-dates`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(hotelId ? { 'x-hotel-id': hotelId } : {}),
+                      ...(token ? { 'x-guest-session-token': token } : {}),
+                    },
+                    body: JSON.stringify({
+                      hotelId,
+                      daysToAdd: extendNights,
+                    }),
+                  });
+                  const json = await res.json().catch(() => null);
+                  if (json?.success) {
+                    showToast(`🎉 Check-out extended by +${extendNights} night(s)! Added ₹${totalExtra} to Master Folio.`);
+                    if (onRefreshFolio) onRefreshFolio();
+                    setIsExtendModalOpen(false);
+                    return;
+                  }
+                } catch (e) {
+                  console.warn('Stay extend API call:', e);
                 }
-                const accepted = await onConciergeRequest(
-                  'Stay Extension',
-                  `Guest requested +${extendNights} night(s) extension`
-                );
-                if (accepted === false) {
-                  showToast('Extension request could not be sent. Please contact the front desk.');
-                  return;
+
+                if (onConciergeRequest) {
+                  const accepted = await onConciergeRequest(
+                    'Stay Extension',
+                    `Guest requested +${extendNights} night(s) extension (₹${totalExtra})`
+                  );
+                  if (accepted === false) {
+                    showToast('Extension request could not be sent. Please contact front desk.');
+                    return;
+                  }
+                  showToast(`Extension request for +${extendNights} night(s) sent to frontdesk!`);
                 }
-                showToast(`Extension request for +${extendNights} night(s) sent to frontdesk!`);
                 setIsExtendModalOpen(false);
               }}
-              className="w-full py-2.5 rounded-xl bg-[#4a2e1b] hover:bg-[#3d2414] text-white font-bold text-xs"
+              className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg transition"
             >
-              Submit Extension Request
+              Confirm Stay Extension (+₹{(2500 * extendNights + Math.round(2500 * extendNights * 0.12)).toLocaleString('en-IN')})
             </button>
           </div>
         </div>

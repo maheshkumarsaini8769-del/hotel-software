@@ -5,11 +5,15 @@ import {
   soundboxWebhook,
   cancelDynamicQr,
   getActiveTableQr,
+  simulateGatewayPaid,
 } from '../controllers/dynamicUpiController';
 import { authenticateJWT, requireRole } from '../middlewares/auth';
 import { UserRole } from '../types';
 
 const router = Router();
+
+// Dev / Demo gateway payment simulation
+router.post('/simulate-paid/:transactionRef', simulateGatewayPaid);
 
 // Waiter handheld generates locked dynamic UPI QR
 router.post(

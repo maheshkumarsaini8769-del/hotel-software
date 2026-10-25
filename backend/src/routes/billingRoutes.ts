@@ -7,6 +7,7 @@ import {
   processBillPayment,
   executeBlindShiftClose,
 } from '../controllers/billingController';
+import { MultiTenderController } from '../controllers/multiTenderController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { TableSession, SessionStatus } from '../models/TableSession';
 import { RestaurantBill } from '../models/RestaurantBill';
@@ -106,6 +107,7 @@ router.post('/bill/generate', verifyBillingAccess, generateTableBill);
 router.post('/bill/split-calc', verifyBillingAccess, calculateSplitBill);
 router.post('/payment/process', verifyBillingAccess, processBillPayment);
 router.post('/settle', verifyBillingAccess, processBillPayment);
+router.post('/multi-tender-settle', verifyBillingAccess, MultiTenderController.settleMultiTender);
 
 // Staff Shift Blind Close Authentication (JWT or Local POS Terminal Fallback)
 export const authenticateCashierShift = async (req: TenantRequest, res: Response, next: NextFunction): Promise<void> => {

@@ -22,6 +22,8 @@ export interface StaffLoginGateProps {
    * uses the same gate with this disabled because superadmins are global.
    */
   requireHotel?: boolean;
+  /** Portal identifier for modular subscription access control (e.g. 'cashier', 'reception', 'kds', 'admin') */
+  portalId?: string;
   /** Protected endpoint used to validate a persisted JWT. */
   validatePath?: string;
   children: ReactNode;
@@ -111,6 +113,7 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
   demoEmail,
   demoPassword,
   requireHotel = true,
+  portalId,
   validatePath = '/auth/me',
   children,
 }) => {
@@ -128,6 +131,9 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [online, setOnline] = useState(true);
+  const [notSubscribed, setNotSubscribed] = useState(false);
+  const [subscribedHotelName, setSubscribedHotelName] = useState('');
+  const [availablePortals, setAvailablePortals] = useState<string[]>([]);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -190,6 +196,20 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
           window.localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
           if (nextUser.hotelId) {
             for (const key of HOTEL_KEYS) window.localStorage.setItem(key, nextUser.hotelId);
+          }
+        }
+
+        const tenant = json?.data?.tenant;
+        if (tenant && mountedRef.current) {
+          setSubscribedHotelName(tenant.name || 'Your Hotel');
+          if (Array.isArray(tenant.enabledPortals)) {
+            setAvailablePortals(tenant.enabledPortals);
+            window.localStorage.setItem('spicehub_enabled_portals', JSON.stringify(tenant.enabledPortals));
+            if (portalId && !tenant.enabledPortals.includes(portalId) && nextUser?.role !== 'SUPERADMIN') {
+              setNotSubscribed(true);
+            } else {
+              setNotSubscribed(false);
+            }
           }
         }
         return true;
@@ -315,6 +335,64 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
   };
 
   if (token && user && verified && !booting) {
+    if (notSubscribed) {
+      return (
+        <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#07090f] px-4 py-10 text-slate-100">
+          <div className="pointer-events-none absolute -left-32 top-0 h-96 w-96 rounded-full bg-rose-500/10 blur-3xl" />
+          <div className="pointer-events-none absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl" />
+          <div className="relative w-full max-w-lg rounded-3xl border border-rose-500/30 bg-[#0e121b] p-8 shadow-2xl text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-rose-500/30 bg-rose-500/10 text-3xl">
+              🔒
+            </div>
+            <span className="inline-block px-3 py-1 mb-2 rounded-full border border-rose-500/30 bg-rose-500/10 text-xs font-bold text-rose-400">
+              Module Not Subscribed
+            </span>
+            <h2 className="text-xl font-black text-white">{appName} Is Not Active</h2>
+            <p className="mt-2 text-xs leading-relaxed text-slate-400">
+              Your property <strong className="text-white">{subscribedHotelName || 'Hotel'}</strong> does not have an active subscription for the <span className="font-semibold text-rose-300">{appName}</span> portal.
+            </p>
+            <div className="my-6 rounded-2xl border border-white/5 bg-black/40 p-4 text-left">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                Active Portals For This Hotel:
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {availablePortals.map((p) => (
+                  <span
+                    key={p}
+                    className="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-medium text-emerald-300"
+                  >
+                    ✓ {p.toUpperCase()}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.location.href = window.location.origin;
+                  }
+                }}
+                className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-xs font-black text-white transition hover:bg-indigo-500"
+              >
+                Return to Hotel Admin ERP
+              </button>
+              <button
+                type="button"
+                onClick={() => expireSession('Signed out')}
+                className="w-full rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-2.5 text-xs font-bold text-slate-400 transition hover:bg-slate-800 hover:text-white"
+              >
+                Sign In With Another Account
+              </button>
+            </div>
+            <p className="mt-4 text-[10px] text-slate-500">
+              To add this workstation to your monthly plan, ask your Super Administrator to allocate the module.
+            </p>
+          </div>
+        </div>
+      );
+    }
     return <>{children}</>;
   }
 

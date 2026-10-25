@@ -4,11 +4,17 @@ import {
   listPlatformUsers,
   toggleTenantStatus,
   updateTenantFeatureFlags,
+  updateTenantPortalsAndPricing,
   createSubscriptionPlan,
   getSubscriptionPlans,
   assignPlanToTenant,
   getPlatformOverviewMetrics,
   provisionTenantCapacity,
+  getPortalPricingCatalog,
+  updatePortalPricing,
+  getSubscriptionInvoices,
+  generateSubscriptionInvoice,
+  settleSubscriptionInvoice,
 } from '../controllers/superAdminController';
 import { authenticateJWT, requireRole } from '../middlewares/auth';
 import { UserRole, TenantRequest } from '../types';
@@ -32,12 +38,22 @@ router.get('/tenants', listAllTenants);
 router.get('/users', listPlatformUsers);
 router.put('/tenants/:tenantId/status', toggleTenantStatus);
 router.put('/tenants/:tenantId/flags', updateTenantFeatureFlags);
+router.put('/tenants/:tenantId/portals', updateTenantPortalsAndPricing);
 router.post('/tenants/:tenantId/assign-plan', assignPlanToTenant);
 router.post('/tenants/:tenantId/provision', provisionTenantCapacity);
 
 // Subscription Plans
 router.post('/plans', createSubscriptionPlan);
 router.get('/plans', getSubscriptionPlans);
+
+// Modular Portal Pricing Catalog
+router.get('/portal-pricing', getPortalPricingCatalog);
+router.put('/portal-pricing', updatePortalPricing);
+
+// Subscription Invoices & Billing
+router.get('/invoices', getSubscriptionInvoices);
+router.post('/invoices/generate', generateSubscriptionInvoice);
+router.patch('/invoices/:invoiceId/settle', settleSubscriptionInvoice);
 
 // Cross-Tenant Consolidated Platform Metrics
 router.get('/metrics', getPlatformOverviewMetrics);

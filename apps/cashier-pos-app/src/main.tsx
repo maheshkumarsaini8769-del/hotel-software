@@ -11,6 +11,7 @@ if (rootElement) {
     <React.StrictMode>
       <ErrorBoundary>
         <StaffLoginGate
+          portalId="cashier"
           apiBaseUrl={API_BASE_URL}
           appName="Express Cashier POS"
           appSubtitle="Billing, open bills, split payments and shift control for your hotel."

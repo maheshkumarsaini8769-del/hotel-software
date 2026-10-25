@@ -47,7 +47,8 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    const hotel = await Tenant.findById(hotelId).select('name');
+    const hotel = await Tenant.findById(hotelId).select('name enabledPortals');
+    const waiterEnabled = hotel?.enabledPortals?.includes('waiter') ?? true;
 
     // Verify QR token if table has a registered qrTokenHash
     if (table.qrTokenHash) {
@@ -119,6 +120,7 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
           }),
           sessionId: session._id,
           status: session.status,
+          waiterEnabled,
         },
       });
       return;
@@ -148,6 +150,7 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
         sessionId: session._id,
         status: session.status,
         guestCount: session.guestCount,
+        waiterEnabled,
       },
     });
   } catch (error: any) {
@@ -217,6 +220,7 @@ export const getDemoContext = async (req: Request, res: Response): Promise<void>
           name: tenant.name,
           slug: tenant.slug,
           currency: tenant.currency || 'INR',
+          waiterEnabled: tenant.enabledPortals?.includes('waiter') ?? true,
         },
         table: table4
           ? {

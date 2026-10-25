@@ -91,6 +91,7 @@ function triggerNativeNotification(title: string, body: string, tag?: string) {
 export const WaiterAppRoot: React.FC = () => {
   // Tenant context comes from the signed-in staff session. No hardcoded hotel.
   const [hotelId, setHotelId] = useState<string>('');
+  const [notSubscribed, setNotSubscribed] = useState<boolean>(false);
   const [waiterSession, setWaiterSession] = useState<WaiterStaffProfile | null>(() => {
     try {
       const saved = localStorage.getItem('spicehub_waiter_session');
@@ -146,6 +147,15 @@ export const WaiterAppRoot: React.FC = () => {
         }
         const body = await response.json().catch(() => null);
         const user = body?.data?.user;
+        const tenant = body?.data?.tenant;
+        if (tenant?.enabledPortals && Array.isArray(tenant.enabledPortals)) {
+          if (!tenant.enabledPortals.includes('waiter')) {
+            if (!cancelled) setNotSubscribed(true);
+            return;
+          } else {
+            if (!cancelled) setNotSubscribed(false);
+          }
+        }
         if (user?.hotelId && !cancelled) {
           localStorage.setItem('spicehub_hotel_id', String(user.hotelId));
           setHotelId(String(user.hotelId));
@@ -807,6 +817,12 @@ export const WaiterAppRoot: React.FC = () => {
       }
     });
 
+    const unbindPortals = socket.on('tenant:portals_updated', (data: any) => {
+      if (data?.enabledPortals && Array.isArray(data.enabledPortals)) {
+        setNotSubscribed(!data.enabledPortals.includes('waiter'));
+      }
+    });
+
     return () => {
       unbindServiceRequest();
       unbindRequestNew();
@@ -821,8 +837,40 @@ export const WaiterAppRoot: React.FC = () => {
       unbindKitchenBuzzerAck();
       unbindItem86();
       unbindTaskDelegated();
+      unbindPortals();
     };
   }, [hotelId, waiterUser.id, fetchTables]);
+
+  if (notSubscribed) {
+    return (
+      <div className="min-h-screen bg-[#080a0f] text-slate-100 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-full max-w-sm rounded-3xl border border-rose-500/30 bg-[#0e121b] p-8 shadow-2xl space-y-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-rose-500/30 bg-rose-500/10 text-3xl">
+            🔒
+          </div>
+          <span className="inline-block px-3 py-1 rounded-full border border-rose-500/30 bg-rose-500/10 text-xs font-bold text-rose-400">
+            Workstation Not Subscribed
+          </span>
+          <h2 className="text-xl font-black text-white">Waiter Handheld Is Inactive</h2>
+          <p className="text-xs leading-relaxed text-slate-400">
+            This property's subscription does not include the Waiter Mobile Handheld terminal.
+            Please contact your Super Administrator to activate this module.
+          </p>
+          <button
+            onClick={() => setIsPortalsModalOpen(true)}
+            className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-xs font-bold text-white hover:bg-indigo-500 transition"
+          >
+            Switch Operational Portal
+          </button>
+        </div>
+        <PortalsSwitcherModal
+          isOpen={isPortalsModalOpen}
+          onClose={() => setIsPortalsModalOpen(false)}
+          currentPortalId="waiter"
+        />
+      </div>
+    );
+  }
 
   if (!waiterSession) {
     return (

@@ -22,11 +22,27 @@ export interface ITenant extends Document {
   subscriptionPlanCode?: string;
   subscriptionPlanName?: string;
   subscriptionMonthlyINR?: number;
+  billingCycle?: 'MONTHLY' | 'ANNUAL';
+  customPricingAdjustmentINR?: number;
+  subscription?: {
+    billingCycle: 'MONTHLY' | 'ANNUAL';
+    monthlyRateINR: number;
+    annualRateINR: number;
+    effectiveRateINR: number;
+    customPricingAdjustmentINR: number;
+    cycleStartDate?: Date;
+    nextBillingDate?: Date;
+    lastPaymentDate?: Date;
+    paymentStatus?: 'PAID' | 'PENDING' | 'OVERDUE';
+  };
+  enabledPortals: string[];
   featureFlags: {
     pmsEnabled: boolean;
     kdsEnabled: boolean;
     qrDineInEnabled: boolean;
     roomServiceEnabled: boolean;
+    waiterEnabled: boolean;
+    posEnabled: boolean;
     banquetEnabled: boolean;
     loyaltyEnabled: boolean;
     aiInsightsEnabled: boolean;
@@ -64,18 +80,89 @@ const TenantSchema = new Schema<ITenant>(
     subscriptionPlanCode: { type: String, uppercase: true, trim: true },
     subscriptionPlanName: { type: String, trim: true },
     subscriptionMonthlyINR: { type: Number, default: 0, min: 0 },
+    billingCycle: { type: String, enum: ['MONTHLY', 'ANNUAL'], default: 'MONTHLY' },
+    customPricingAdjustmentINR: { type: Number, default: 0 },
+    enabledPortals: {
+      type: [String],
+      default: ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'],
+      index: true,
+    },
     featureFlags: {
       pmsEnabled: { type: Boolean, default: true },
       kdsEnabled: { type: Boolean, default: true },
       qrDineInEnabled: { type: Boolean, default: true },
       roomServiceEnabled: { type: Boolean, default: true },
+      waiterEnabled: { type: Boolean, default: true },
+      posEnabled: { type: Boolean, default: true },
       banquetEnabled: { type: Boolean, default: true },
       loyaltyEnabled: { type: Boolean, default: true },
       aiInsightsEnabled: { type: Boolean, default: false },
       tallyExportEnabled: { type: Boolean, default: true },
     },
+    subscription: {
+      billingCycle: { type: String, enum: ['MONTHLY', 'ANNUAL'], default: 'MONTHLY' },
+      monthlyRateINR: { type: Number, default: 0 },
+      annualRateINR: { type: Number, default: 0 },
+      effectiveRateINR: { type: Number, default: 0 },
+      customPricingAdjustmentINR: { type: Number, default: 0 },
+      cycleStartDate: { type: Date, default: Date.now },
+      nextBillingDate: { type: Date },
+      lastPaymentDate: { type: Date },
+      paymentStatus: { type: String, enum: ['PAID', 'PENDING', 'OVERDUE'], default: 'PAID' },
+    },
   },
   { timestamps: true }
 );
+
+/**
+ * Single Source of Truth Enforcement Hook:
+ * enabledPortals -> featureFlags auto-synchronization
+ * Guarantees zero-drift between enabledPortals array and boolean feature flags.
+ */
+TenantSchema.pre('save', function (next) {
+  if (Array.isArray(this.enabledPortals)) {
+    // Hotel Admin ERP is the required base portal
+    if (!this.enabledPortals.includes('admin')) {
+      this.enabledPortals.unshift('admin');
+    }
+    // Deduplicate portals array
+    this.enabledPortals = Array.from(new Set(this.enabledPortals));
+
+    if (!this.featureFlags) {
+      (this as any).featureFlags = {} as any;
+    }
+
+    this.featureFlags.pmsEnabled = this.enabledPortals.includes('reception');
+    this.featureFlags.posEnabled = this.enabledPortals.includes('cashier');
+    this.featureFlags.kdsEnabled = this.enabledPortals.includes('kds');
+    this.featureFlags.waiterEnabled = this.enabledPortals.includes('waiter');
+    this.featureFlags.qrDineInEnabled = this.enabledPortals.includes('customer');
+    this.featureFlags.roomServiceEnabled = this.enabledPortals.includes('guest');
+  }
+
+  // Synchronize structured subscription object
+  const monthly = this.subscriptionMonthlyINR || 0;
+  const cycle = (this.billingCycle === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY') as 'MONTHLY' | 'ANNUAL';
+  const adj = this.customPricingAdjustmentINR || 0;
+  const annual = monthly * 10;
+  const effective = cycle === 'ANNUAL' ? annual : monthly;
+
+  const cycleDays = cycle === 'ANNUAL' ? 365 : 30;
+  const existingSub = this.subscription || ({} as any);
+
+  this.subscription = {
+    billingCycle: cycle,
+    monthlyRateINR: monthly,
+    annualRateINR: annual,
+    effectiveRateINR: effective,
+    customPricingAdjustmentINR: adj,
+    cycleStartDate: existingSub.cycleStartDate || new Date(),
+    nextBillingDate: existingSub.nextBillingDate || new Date(Date.now() + cycleDays * 86400000),
+    paymentStatus: existingSub.paymentStatus || 'PAID',
+    lastPaymentDate: existingSub.lastPaymentDate || new Date(),
+  };
+
+  next();
+});
 
 export const Tenant = mongoose.model<ITenant>('Tenant', TenantSchema);

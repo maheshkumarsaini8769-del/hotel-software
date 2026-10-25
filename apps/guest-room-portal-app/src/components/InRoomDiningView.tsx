@@ -146,7 +146,7 @@ export const InRoomDiningView: React.FC<InRoomDiningViewProps> = ({
       {/* Header Info */}
       <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex items-center justify-between">
         <div>
-          <h2 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-1.5 font-serif">
+          <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
             <span>🍽️</span>
             <span>24/7 In-Room Culinary Service</span>
           </h2>
@@ -157,6 +157,14 @@ export const InRoomDiningView: React.FC<InRoomDiningViewProps> = ({
         <span className="px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-black rounded-lg uppercase tracking-wider">
           Express 25m
         </span>
+      </div>
+
+      {/* Locked & Immutable Folio Notice */}
+      <div className="p-3 rounded-2xl bg-slate-900/90 border border-amber-500/30 flex items-center gap-3 text-xs text-slate-300">
+        <span className="text-amber-400 text-base">🔒</span>
+        <div className="flex-1 text-[11px] leading-tight">
+          <span className="font-bold text-amber-400">Locked Room Folio Ledger:</span> In-room dining orders post directly to Room {roomNumber} Master Folio with 5% GST. Once confirmed, charges are permanently locked in the PMS billing ledger and cannot be altered or deleted.
+        </div>
       </div>
 
       {/* Dishes Grid */}

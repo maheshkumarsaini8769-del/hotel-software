@@ -24,13 +24,15 @@ const crossTableParam =
   (urlParams.get('type') === 'table' ? urlParams.get('id') : null) ||
   urlParams.get('tableId');
 const hasExplicitRoom = Boolean(rawRoomParam);
-let targetRoom = rawRoomParam || '305';
+const isExplicitRoomsTab = Boolean(urlParams.get('tab') && urlParams.get('tab')?.toUpperCase() === 'ROOMS');
+let targetRoom = rawRoomParam || '';
 const roomIdFromUrl = urlParams.get('roomId') || '';
 const qrTokenFromUrl = urlParams.get('token') || urlParams.get('qrToken') || '';
 let resolvedHotelId =
   urlParams.get('hotelId') ||
   (import.meta as any).env?.VITE_HOTEL_ID ||
   '';
+let resolvedWaiterEnabled = true;
 let guestSessionToken = '';
 let guestSessionError = '';
 
@@ -53,6 +55,9 @@ async function resolveHotelId(): Promise<string> {
     const body = await res.json().catch(() => null);
     if (body?.success && body?.data?.hotel?.id) {
       resolvedHotelId = String(body.data.hotel.id);
+      if (typeof body.data.hotel.waiterEnabled === 'boolean') {
+        resolvedWaiterEnabled = body.data.hotel.waiterEnabled;
+      }
     }
   } catch (err) {
     console.warn('[Guest Portal] Hotel context resolution note:', err);
@@ -106,6 +111,9 @@ async function resolveGuestSession(roomToUse?: string): Promise<void> {
     if (res.ok && json?.success && json.data?.sessionToken) {
       guestSessionToken = String(json.data.sessionToken);
       if (json.data.hotelId) resolvedHotelId = String(json.data.hotelId);
+      if (typeof json.data.waiterEnabled === 'boolean') {
+        resolvedWaiterEnabled = json.data.waiterEnabled;
+      }
       if (typeof window !== 'undefined') {
         localStorage.setItem('spicehub_guest_session', guestSessionToken);
       }
@@ -310,12 +318,15 @@ setInterval(() => {
 }, 5000);
 
 const GuestRoomPortalRoot: React.FC = () => {
-  const [showLocationModal, setShowLocationModal] = React.useState<boolean>(!hasExplicitRoom && !crossTableParam);
+  const [showLocationModal, setShowLocationModal] = React.useState<boolean>(
+    !hasExplicitRoom && !crossTableParam && !isExplicitRoomsTab
+  );
   const [currentRoomNumber, setCurrentRoomNumber] = React.useState<string>(targetRoom);
   const [isCheckoutRequested, setIsCheckoutRequested] = React.useState(false);
   const [isStayCheckedOut, setIsStayCheckedOut] = React.useState(false);
   const [checkoutInvoice, setCheckoutInvoice] = React.useState<any>(null);
   const [hotelId, setHotelId] = React.useState<string>(resolvedHotelId);
+  const [waiterEnabled, setWaiterEnabled] = React.useState<boolean>(resolvedWaiterEnabled);
 
   const roomParamFormat = React.useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -357,6 +368,7 @@ const GuestRoomPortalRoot: React.FC = () => {
     void guestSessionReady.then(async () => {
       const id = await resolveHotelId();
       if (id) setHotelId(id);
+      setWaiterEnabled(resolvedWaiterEnabled);
     });
   }, []);
 
@@ -466,12 +478,26 @@ const GuestRoomPortalRoot: React.FC = () => {
         }}
       />
       <GuestRoomPortalApp
-      store={store}
-      hotelId={hotelId}
-      isCheckoutRequested={isCheckoutRequested}
-      isStayCheckedOut={isStayCheckedOut}
-      checkoutInvoice={checkoutInvoice}
-      onConciergeRequest={async (requestType, notes, isBillable, billableAmount) => {
+        store={store}
+        hotelId={hotelId}
+        waiterEnabled={waiterEnabled}
+        isCheckoutRequested={isCheckoutRequested}
+        isStayCheckedOut={isStayCheckedOut}
+        checkoutInvoice={checkoutInvoice}
+        onRoomBooked={(newRoom, sessionToken) => {
+          targetRoom = newRoom;
+          setCurrentRoomNumber(newRoom);
+          if (sessionToken) {
+            guestSessionToken = sessionToken;
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('spicehub_guest_session', sessionToken);
+            }
+          }
+          store.setStayDetails({ roomNumber: newRoom });
+          void hydrateLiveRoomStay();
+          void hydrateInRoomOrders();
+        }}
+        onConciergeRequest={async (requestType, notes, isBillable, billableAmount) => {
         try {
           const res = await fetch(`${API_BASE}/api/v1/guest-portal/requests/concierge`, {
             method: 'POST',

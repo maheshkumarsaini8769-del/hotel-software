@@ -21,6 +21,7 @@ export interface SpiceHubPortalDirectoryModalProps {
   currentPortalId?: string;
   onNavigate?: (url: string) => void;
   portalUrls?: Partial<Record<string, string>>;
+  enabledPortals?: string[];
 }
 
 const CATEGORY_HEADERS: Record<string, { title: string; subtitle: string; icon: string }> = {
@@ -52,8 +53,21 @@ export const SpiceHubPortalDirectoryModal: React.FC<SpiceHubPortalDirectoryModal
   currentPortalId = 'admin',
   onNavigate,
   portalUrls = {},
+  enabledPortals,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [blockedNotice, setBlockedNotice] = useState<string | null>(null);
+
+  const activePortals = useMemo(() => {
+    if (enabledPortals && Array.isArray(enabledPortals)) return enabledPortals;
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('spicehub_enabled_portals');
+        if (stored) return JSON.parse(stored) as string[];
+      } catch {}
+    }
+    return null;
+  }, [enabledPortals]);
 
   const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
   const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
@@ -208,6 +222,13 @@ export const SpiceHubPortalDirectoryModal: React.FC<SpiceHubPortalDirectoryModal
   if (!isOpen) return null;
 
   const handlePortalClick = (e: React.MouseEvent, p: PortalEntry) => {
+    const isSubscribed = !activePortals || activePortals.includes(p.id) || p.id === 'admin';
+    if (!isSubscribed) {
+      e.preventDefault();
+      setBlockedNotice(`Portal "${p.name}" is not included in this hotel's subscription plan. Contact Super Admin to enable it.`);
+      setTimeout(() => setBlockedNotice(null), 5000);
+      return;
+    }
     if (onNavigate) {
       e.preventDefault();
       onNavigate(p.url);
@@ -274,6 +295,22 @@ export const SpiceHubPortalDirectoryModal: React.FC<SpiceHubPortalDirectoryModal
           </div>
         </div>
 
+        {/* Subscription Notice Banner */}
+        {blockedNotice && (
+          <div className="mx-4 sm:mx-6 mt-3 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between text-xs text-rose-300 animate-in fade-in">
+            <span className="flex items-center gap-2">
+              <span>🔒</span>
+              <span>{blockedNotice}</span>
+            </span>
+            <button
+              onClick={() => setBlockedNotice(null)}
+              className="text-rose-400 hover:text-white font-bold ml-2"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Portals Grid by Category */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1">
           {(Object.keys(groupedPortals) as Array<keyof typeof groupedPortals>).map((catKey) => {
@@ -296,15 +333,18 @@ export const SpiceHubPortalDirectoryModal: React.FC<SpiceHubPortalDirectoryModal
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                   {items.map((portal) => {
                     const isCurrent = portal.id === currentPortalId;
+                    const isSubscribed = !activePortals || activePortals.includes(portal.id) || portal.id === 'admin';
 
                     return (
                       <div
                         key={portal.id}
                         data-testid={`portal-card-${portal.id}`}
                         className={`rounded-2xl border p-4 sm:p-5 flex flex-col justify-between transition group relative ${
-                          isCurrent
-                            ? 'bg-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-950/20'
-                            : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                          !isSubscribed
+                            ? 'bg-slate-950/40 border-slate-900 opacity-60'
+                            : isCurrent
+                              ? 'bg-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-950/20'
+                              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
                         }`}
                       >
                         <div className="space-y-2.5">
@@ -319,6 +359,11 @@ export const SpiceHubPortalDirectoryModal: React.FC<SpiceHubPortalDirectoryModal
                                   {isCurrent && (
                                     <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
                                       Current
+                                    </span>
+                                  )}
+                                  {!isSubscribed && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                                      Locked
                                     </span>
                                   )}
                                 </h4>
@@ -338,17 +383,27 @@ export const SpiceHubPortalDirectoryModal: React.FC<SpiceHubPortalDirectoryModal
 
                         <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
                           <span className="text-[11px] font-medium text-slate-500">
-                            {portal.badge}
+                            {!isSubscribed ? (
+                              <span className="text-rose-400 font-bold flex items-center gap-1">
+                                <span>🔒</span> Not Subscribed
+                              </span>
+                            ) : (
+                              portal.badge
+                            )}
                           </span>
 
                           <a
                             data-testid={`portal-link-${portal.id}`}
                             href={portal.url}
                             onClick={(e) => handlePortalClick(e, portal)}
-                            className="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-amber-500 text-slate-950 hover:bg-amber-400 active:scale-95 shrink-0"
+                            className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+                              !isSubscribed
+                                ? 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white cursor-pointer'
+                                : 'bg-amber-500 text-slate-950 hover:bg-amber-400 active:scale-95'
+                            }`}
                           >
-                            <span>{portal.actionText}</span>
-                            <span className="text-xs">↗</span>
+                            <span>{!isSubscribed ? 'Not Subscribed' : portal.actionText}</span>
+                            <span className="text-xs">{!isSubscribed ? '🔒' : '↗'}</span>
                           </a>
                         </div>
                       </div>

@@ -9,7 +9,18 @@ import raviPhoto from './assets/ravi.jpg';
 import rameshPhoto from './assets/ramesh.jpg';
 import amitPhoto from './assets/amit.jpg';
 
-type Role = 'picker' | 'waiter' | 'kds' | 'cashier' | 'reception';
+export interface ActiveHotel {
+  id: string;
+  name: string;
+  slug: string;
+  city: string;
+  state?: string;
+  logoUrl?: string;
+  enabledPortals?: string[];
+  contactPhone?: string;
+}
+
+type Role = 'picker' | 'waiter' | 'kds' | 'cashier' | 'reception' | 'admin';
 
 interface StaffMember {
   id: string;
@@ -24,10 +35,32 @@ interface StaffMember {
 
 export function App() {
   const [role, setRole] = useState<Role>('picker');
-  const [showingWaiterList, setShowingWaiterList] = useState(false);
-  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
+  const [hotels, setHotels] = useState<ActiveHotel[]>([]);
+  const [selectedHotel, setSelectedHotel] = useState<ActiveHotel | null>(null);
+  const [hotelSearch, setHotelSearch] = useState('');
+  const [showHotelPicker, setShowHotelPicker] = useState(false);
+
+  // Authentication State
+  const [authModalRole, setAuthModalRole] = useState<Role | null>(null);
+  const [authMode, setAuthMode] = useState<'pin' | 'email'>('pin');
   const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loggedInUser, setLoggedInUser] = useState<any>(null);
+
+  // PIN Self-Request Modal State
+  const [showRequestPinModal, setShowRequestPinModal] = useState(false);
+  const [reqStaffEmail, setReqStaffEmail] = useState('');
+  const [reqStaffPhone, setReqStaffPhone] = useState('');
+  const [reqStaffPin, setReqStaffPin] = useState('');
+  const [reqStaffRole, setReqStaffRole] = useState('WAITER');
+  const [reqStatusMessage, setReqStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Staff members for quick profile tap
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
 
   const BASE = 'http://localhost';
 
@@ -35,132 +68,210 @@ export function App() {
     waiter: { port: 3002, label: 'Waiter Terminal', color: '#f59e0b', emoji: '🧑‍🍳' },
     kds: { port: 3003, label: 'Kitchen KDS', color: '#ef4444', emoji: '🔥' },
     cashier: { port: 3007, label: 'Cashier POS', color: '#10b981', emoji: '💰' },
-    reception: { port: 3008, label: 'Reception', color: '#3b82f6', emoji: '🛎️' }
+    reception: { port: 3008, label: 'Reception PMS', color: '#3b82f6', emoji: '🛎️' },
+    admin: { port: 3005, label: 'Hotel Admin ERP', color: '#8b5cf6', emoji: '👔' },
   };
 
-  // Default admin waiters from database (fallback if offline)
-  const defaultStaffList: StaffMember[] = [
-    {
-      id: '6adcbf11accdaba6663c89fa',
-      name: 'Waiter John',
-      role: 'Senior Waiter',
-      shift: 'Morning Shift (08:00 AM - 04:30 PM)',
-      tables: 'T-01 to T-06',
-      section: 'Indoor AC Dining Hall',
-      photo: raviPhoto,
-      pin: '1234',
-    },
-    {
-      id: '6adcb811d58c1637ff16b35d',
-      name: 'Suresh Patel (Waiter)',
-      role: 'Senior Waiter',
-      shift: 'Morning Shift (09:00 AM - 05:00 PM)',
-      tables: 'T-07 to T-12',
-      section: 'AC Hall & Lounge',
-      photo: rameshPhoto,
-      pin: '1234',
-    },
-    {
-      id: '6adcb811d58c1637ff16b35b',
-      name: 'Ramesh Kumar (Captain/Waiter)',
-      role: 'Captain',
-      shift: 'Evening Shift (04:00 PM - 12:00 AM)',
-      tables: 'T-13 to T-18',
-      section: 'Lounge & Rooftop Terrace',
-      photo: amitPhoto,
-      pin: '1234',
-    },
-  ];
-
-  const [staffList, setStaffList] = useState<StaffMember[]>(defaultStaffList);
-
-  // Fetch ONLY admin-created staff from database API on load
+  // 1. Fetch Active Hotels on Mount
   useEffect(() => {
     let active = true;
-    const fetchAdminStaff = async () => {
+    const fetchHotels = async () => {
       try {
-        const hotelId = '6adcb811d58c1637ff16b357';
-        const res = await fetch(`http://localhost:5000/api/v1/hotel-staff?hotelId=${hotelId}`);
+        const res = await fetch('http://localhost:5000/api/v1/auth/active-hotels');
         if (res.ok) {
           const body = await res.json();
-          if (body.success && Array.isArray(body.data)) {
-            const adminWaiters: StaffMember[] = body.data
-              .filter((u: any) => u && (String(u.role).toUpperCase().includes('WAITER') || String(u.role).toUpperCase().includes('CAPTAIN')))
-              .map((u: any, idx: number) => {
-                const start = Number(u.assignedTableStart) || (idx * 6 + 1);
-                const end = Number(u.assignedTableEnd) || (start + 5);
-                const photos = [raviPhoto, rameshPhoto, amitPhoto];
-                return {
-                  id: u.id || u._id,
-                  name: u.name,
-                  role: String(u.role).toUpperCase().includes('CAPTAIN') ? 'Captain' : 'Senior Waiter',
-                  shift: u.shift || 'Morning Shift (09:00 AM - 05:00 PM)',
-                  tables: `T-${String(start).padStart(2, '0')} to T-${String(end).padStart(2, '0')}`,
-                  section: u.assignedSection || 'Indoor AC Dining Hall',
-                  photo: photos[idx % photos.length],
-                  pin: '1234',
-                };
-              });
-
-            if (active && adminWaiters.length > 0) {
-              setStaffList(adminWaiters);
+          if (body.success && Array.isArray(body.data) && body.data.length > 0) {
+            if (active) {
+              setHotels(body.data);
+              const saved = localStorage.getItem('spicehub_staff_hotel');
+              const matched = saved ? body.data.find((h: ActiveHotel) => h.id === saved || h.slug === saved) : null;
+              setSelectedHotel(matched || body.data[0]);
             }
           }
         }
-      } catch (e) {
-        console.warn('Live admin staff fetch error, using database defaults:', e);
+      } catch (err) {
+        console.warn('Active hotels fetch fallback:', err);
       }
     };
-    fetchAdminStaff();
+    fetchHotels();
     return () => { active = false; };
   }, []);
 
-  const handleStaffClick = (staff: StaffMember) => {
-    setSelectedStaff(staff);
+  // 2. Fetch Staff Roster for Selected Hotel
+  useEffect(() => {
+    if (!selectedHotel) return;
+    let active = true;
+    const fetchStaff = async () => {
+      try {
+        const res = await fetch(`http://localhost:5000/api/v1/hotel-staff?hotelId=${selectedHotel.id}`);
+        if (res.ok) {
+          const body = await res.json();
+          if (body.success && Array.isArray(body.data)) {
+            const photos = [raviPhoto, rameshPhoto, amitPhoto];
+            const mapped: StaffMember[] = body.data.map((u: any, idx: number) => {
+              const start = Number(u.assignedTableStart) || (idx * 6 + 1);
+              const end = Number(u.assignedTableEnd) || (start + 5);
+              return {
+                id: u.id || u._id,
+                name: u.name,
+                role: u.role || 'Staff',
+                shift: u.shift || 'General Shift',
+                tables: `T-${String(start).padStart(2, '0')} to T-${String(end).padStart(2, '0')}`,
+                section: u.assignedSection || 'Main Dining Hall',
+                photo: photos[idx % photos.length],
+                pin: '••••',
+              };
+            });
+            if (active && mapped.length > 0) {
+              setStaffList(mapped);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Hotel staff fetch error:', err);
+      }
+    };
+    fetchStaff();
+    return () => { active = false; };
+  }, [selectedHotel]);
+
+  // Handle Station Card Click -> Open Dual Login Gate
+  const handleSelectStation = (targetRole: Role) => {
+    setAuthModalRole(targetRole);
     setPin('');
-    setError('');
+    setEmail('');
+    setPassword('');
+    setAuthError('');
+    setAuthSuccess('');
   };
 
-  const handlePinDigit = (d: string) => {
+  // Handle PIN Keypad input
+  const handlePinDigit = (digit: string) => {
     if (pin.length < 4) {
-      setPin((prev) => prev + d);
-      setError('');
+      const next = pin + digit;
+      setPin(next);
+      setAuthError('');
+      if (next.length === 4) {
+        executePinLogin(next);
+      }
     }
   };
 
-  const handlePinClear = () => {
-    setPin('');
-    setError('');
-  };
-
-  const handlePinBackspace = () => {
-    setPin((prev) => prev.slice(0, -1));
-    setError('');
-  };
-
-  const handleLogin = () => {
-    if (!selectedStaff) return;
-    if (pin === selectedStaff.pin || pin === '1234') {
-      setRole('waiter');
-      setSelectedStaff(null);
-      setShowingWaiterList(false);
+  const executePinLogin = async (enteredPin: string) => {
+    if (!selectedHotel) return;
+    setIsSubmitting(true);
+    setAuthError('');
+    try {
+      const res = await fetch('http://localhost:5000/api/v1/auth/waiter-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pin: enteredPin,
+          hotelSlug: selectedHotel.slug,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.data?.token) {
+        localStorage.setItem('spicehub_token', data.data.token);
+        localStorage.setItem('token', data.data.token);
+        localStorage.setItem('spicehub_hotel_id', selectedHotel.id);
+        localStorage.setItem('hotelId', selectedHotel.id);
+        setLoggedInUser(data.data.user);
+        setRole(authModalRole || 'waiter');
+        setAuthModalRole(null);
+      } else {
+        if (data.errorCode === 'PIN_PENDING_ADMIN_APPROVAL') {
+          setAuthError('⏳ PIN Pending Approval: Your 4-digit PIN is awaiting Hotel Admin approval.');
+        } else {
+          setAuthError(data.message || 'Invalid 4-digit staff PIN. Please try again.');
+        }
+        setPin('');
+      }
+    } catch (err: any) {
+      setAuthError('Network error connecting to login service.');
       setPin('');
-      setError('');
-    } else {
-      setError('Invalid PIN. Please try again.');
-      setPin('');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // Active Station Iframe View
+  const executeEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedHotel || !email || !password) return;
+    setIsSubmitting(true);
+    setAuthError('');
+    try {
+      const res = await fetch('http://localhost:5000/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+          hotelSlug: selectedHotel.slug,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.data?.token) {
+        localStorage.setItem('spicehub_token', data.data.token);
+        localStorage.setItem('token', data.data.token);
+        localStorage.setItem('spicehub_hotel_id', selectedHotel.id);
+        localStorage.setItem('hotelId', selectedHotel.id);
+        setLoggedInUser(data.data.user);
+        setRole(authModalRole || 'waiter');
+        setAuthModalRole(null);
+      } else {
+        setAuthError(data.message || 'Invalid email or password.');
+      }
+    } catch (err: any) {
+      setAuthError('Network error during email login.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRequestPinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedHotel || !reqStaffPin || (!reqStaffEmail && !reqStaffPhone)) return;
+    try {
+      const res = await fetch('http://localhost:5000/api/v1/auth/request-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hotelId: selectedHotel.id,
+          hotelSlug: selectedHotel.slug,
+          email: reqStaffEmail.trim().toLowerCase() || undefined,
+          phone: reqStaffPhone.trim() || undefined,
+          pin: reqStaffPin,
+          role: reqStaffRole,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setReqStatusMessage({
+          type: 'success',
+          text: '✅ 4-Digit PIN submitted! Awaiting Hotel Admin approval in Admin ERP.',
+        });
+        setTimeout(() => {
+          setShowRequestPinModal(false);
+          setReqStatusMessage(null);
+          setReqStaffPin('');
+        }, 2200);
+      } else {
+        setReqStatusMessage({ type: 'error', text: data.message || 'Error requesting PIN' });
+      }
+    } catch (err: any) {
+      setReqStatusMessage({ type: 'error', text: 'Failed to submit PIN request.' });
+    }
+  };
+
+  // Screen 1: Active Workstation Iframe View
   if (role !== 'picker' && apps[role as keyof typeof apps]) {
     const currentApp = apps[role as keyof typeof apps];
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div
-          className="safe-top"
           style={{
-            padding: '12px 16px',
+            padding: '10px 16px',
             background: currentApp.color,
             display: 'flex',
             justifyContent: 'space-between',
@@ -168,27 +279,36 @@ export function App() {
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           }}
         >
-          <span style={{ fontWeight: 'bold', color: '#fff', fontSize: 16 }}>
-            {currentApp.emoji} {currentApp.label}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>{currentApp.emoji}</span>
+            <div>
+              <span style={{ fontWeight: '800', color: '#fff', fontSize: 14 }}>
+                {currentApp.label}
+              </span>
+              {selectedHotel && (
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', display: 'block' }}>
+                  🏨 {selectedHotel.name}
+                </span>
+              )}
+            </div>
+          </div>
           <button
             onClick={() => {
               setRole('picker');
-              setSelectedStaff(null);
-              setShowingWaiterList(false);
+              setLoggedInUser(null);
             }}
             style={{
               background: 'rgba(255,255,255,0.25)',
               border: '1px solid rgba(255,255,255,0.7)',
               color: '#fff',
-              padding: '6px 14px',
+              padding: '6px 12px',
               borderRadius: 8,
-              fontSize: 13,
-              fontWeight: '600',
+              fontSize: 12,
+              fontWeight: '700',
               cursor: 'pointer',
             }}
           >
-            Switch
+            Switch Station
           </button>
         </div>
         <iframe
@@ -200,461 +320,185 @@ export function App() {
     );
   }
 
-  // STEP 2: Dedicated Full-screen Zero-Scroll White Theme PIN Page (when a waiter is selected)
-  if (selectedStaff) {
-    return (
-      <div
-        style={{
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          background: '#FAF6EF',
-          padding: '16px 20px',
-          overflowY: 'auto',
-          boxSizing: 'border-box',
-        }}
-      >
-        {/* Back button */}
-        <button
-          onClick={() => {
-            setSelectedStaff(null);
-            setPin('');
-            setError('');
-          }}
-          style={{
-            alignSelf: 'flex-start',
-            background: 'transparent',
-            border: 'none',
-            color: '#B45309',
-            fontSize: 15,
-            fontWeight: '700',
-            padding: '4px 0',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          ← Back to Waiters
-        </button>
+  // Filtered Hotels list for Hotel Selector Modal
+  const filteredHotels = hotels.filter(
+    (h) =>
+      h.name.toLowerCase().includes(hotelSearch.toLowerCase()) ||
+      h.city.toLowerCase().includes(hotelSearch.toLowerCase()) ||
+      h.slug.toLowerCase().includes(hotelSearch.toLowerCase())
+  );
 
-        {/* Waiter Card in White Theme */}
-        <div
-          style={{
-            background: '#FFFFFF',
-            border: '1px solid #E2E8F0',
-            borderRadius: 24,
-            padding: '18px 16px',
-            marginTop: 10,
-            marginBottom: 16,
-            textAlign: 'center',
-            boxShadow: '0 4px 16px rgba(15, 23, 42, 0.05)',
-          }}
-        >
-          <img
-            src={selectedStaff.photo}
-            alt={selectedStaff.name}
-            className="pin-avatar"
-            style={{
-              width: 84,
-              height: 84,
-              borderRadius: '50%',
-              border: '3px solid #F59E0B',
-              objectFit: 'cover',
-              margin: '0 auto 8px',
-              display: 'block',
-            }}
-          />
-          <h1 style={{ fontSize: 21, fontWeight: '800', marginBottom: 2, color: '#0F172A' }}>
-            {selectedStaff.name}
-          </h1>
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: '800', background: '#FEF3C7', color: '#B45309', padding: '2px 8px', borderRadius: 6 }}>
-              {selectedStaff.role}
-            </span>
-            <span style={{ fontSize: 12, color: '#64748B', fontWeight: '600' }}>
-              {selectedStaff.id.slice(-6).toUpperCase()}
-            </span>
-          </div>
-          <p style={{ fontSize: 12, color: '#64748B', marginBottom: 10 }}>{selectedStaff.shift}</p>
-
-          {/* Assigned Tables Pill */}
-          <div
-            style={{
-              background: '#FFFBEB',
-              border: '1px solid #FDE68A',
-              borderRadius: 12,
-              padding: '8px 12px',
-              textAlign: 'center',
-            }}
-          >
-            <p style={{ fontSize: 13, fontWeight: '700', color: '#B45309', marginBottom: 2 }}>
-              📍 Assigned: {selectedStaff.tables}
-            </p>
-            <p style={{ fontSize: 11.5, color: '#92400E' }}>{selectedStaff.section}</p>
-          </div>
-        </div>
-
-        {/* PIN Label */}
-        <p style={{ textAlign: 'center', color: '#475569', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-          Enter Station PIN
-        </p>
-
-        {/* PIN Dots */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 14 }}>
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              style={{
-                width: 16,
-                height: 16,
-                borderRadius: '50%',
-                background: i < pin.length ? '#F59E0B' : '#FFFFFF',
-                border: i < pin.length ? '2px solid #D97706' : '2px solid #CBD5E1',
-                transition: 'all 0.15s ease',
-                boxShadow: i < pin.length ? '0 0 10px rgba(245, 158, 11, 0.4)' : 'none',
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Error message */}
-        {error && (
-          <p
-            style={{
-              textAlign: 'center',
-              color: '#DC2626',
-              fontSize: 12,
-              fontWeight: '700',
-              marginBottom: 10,
-              background: '#FEE2E2',
-              padding: '6px 12px',
-              borderRadius: 8,
-            }}
-          >
-            {error}
-          </p>
-        )}
-
-        {/* Numpad in White Theme */}
-        <div
-          className="pin-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 10,
-            marginBottom: 14,
-          }}
-        >
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'Clr', '0', '⌫'].map((k) => (
-            <button
-              key={k}
-              type="button"
-              className={k.length > 1 ? 'pin-btn-special' : 'pin-btn'}
-              onClick={() => {
-                if (k === 'Clr') handlePinClear();
-                else if (k === '⌫') handlePinBackspace();
-                else handlePinDigit(k);
-              }}
-            >
-              {k}
-            </button>
-          ))}
-        </div>
-
-        {/* Login Button */}
-        <button
-          type="button"
-          className="pin-login-btn"
-          onClick={handleLogin}
-          disabled={pin.length < 4}
-          style={{
-            background: pin.length === 4 ? '#D97706' : '#E2E8F0',
-            color: pin.length === 4 ? '#FFFFFF' : '#94A3B8',
-            cursor: pin.length === 4 ? 'pointer' : 'not-allowed',
-            boxShadow: pin.length === 4 ? '0 4px 14px rgba(217, 119, 6, 0.35)' : 'none',
-          }}
-        >
-          🔓 LOGIN TO TERMINAL
-        </button>
-      </div>
-    );
-  }
-
-  // STEP 1: Waiter Staff Selection Screen (Admin Created Waiters Only)
-  if (showingWaiterList) {
-    return (
-      <div
-        style={{
-          minHeight: '100%',
-          padding: '24px 20px',
-          background: '#FAF6EF',
-          display: 'flex',
-          flexDirection: 'column',
-          boxSizing: 'border-box',
-        }}
-      >
-        {/* Back to Stations */}
-        <button
-          onClick={() => setShowingWaiterList(false)}
-          style={{
-            alignSelf: 'flex-start',
-            background: 'transparent',
-            border: 'none',
-            color: '#D97706',
-            fontSize: 15,
-            fontWeight: '700',
-            padding: '4px 0',
-            marginBottom: 20,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          ← Back to Stations
-        </button>
-
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <img src={waiterImg} alt="Waiter" style={{ width: 72, height: 72, objectFit: 'contain', marginBottom: 12 }} />
-          <h1
-            style={{
-              fontSize: 26,
-              fontWeight: '800',
-              marginBottom: 4,
-              color: '#0F172A',
-            }}
-          >
-            Select Waiter Profile
-          </h1>
-          <p style={{ color: '#64748B', fontSize: 14 }}>
-            Admin-configured waiter profiles. Tap to enter PIN.
-          </p>
-        </div>
-
-        {/* Staff Cards (Only Admin Waiters) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {staffList.map((staff) => (
-            <button
-              key={staff.id}
-              onClick={() => handleStaffClick(staff)}
-              style={{
-                width: '100%',
-                padding: '14px 16px',
-                background: '#FFFFFF',
-                border: '1px solid #E2E8F0',
-                borderRadius: 20,
-                textAlign: 'left',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 16,
-                cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(15, 23, 42, 0.04)',
-                transition: 'transform 0.1s',
-              }}
-            >
-              <img
-                src={staff.photo}
-                alt={staff.name}
-                style={{
-                  width: 58,
-                  height: 58,
-                  borderRadius: '50%',
-                  border: '2.5px solid #F59E0B',
-                  objectFit: 'cover',
-                  flexShrink: 0,
-                }}
-              />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontWeight: '700',
-                    fontSize: 17,
-                    color: '#0F172A',
-                    marginBottom: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
-                  <span>{staff.name}</span>
-                  <span
-                    style={{
-                      color: '#D97706',
-                      fontSize: 11,
-                      fontWeight: '800',
-                      background: '#FEF3C7',
-                      padding: '2px 7px',
-                      borderRadius: 6,
-                    }}
-                  >
-                    {staff.role}
-                  </span>
-                </div>
-                <div style={{ fontSize: 13, color: '#64748B', fontWeight: '500' }}>
-                  {staff.shift.split('(')[0].trim()}
-                </div>
-                <div style={{ fontSize: 12, color: '#B45309', fontWeight: '600', marginTop: 4 }}>
-                  📍 Assigned: {staff.tables} ({staff.section})
-                </div>
-              </div>
-              <div style={{ fontSize: 20, color: '#D97706', paddingLeft: 4, fontWeight: '700' }}>→</div>
-            </button>
-          ))}
-        </div>
-
-        <p style={{ textAlign: 'center', marginTop: 'auto', paddingTop: 24, color: '#94A3B8', fontSize: 12 }}>
-          Powered by SpiceHub Hospitality Suite
-        </p>
-      </div>
-    );
-  }
-
-  // Exact Match to SpiceHub Staff Workspace Dashboard.png
   return (
     <div
       style={{
         minHeight: '100%',
-        padding: '24px 20px',
+        padding: '20px 18px',
         background: '#FAF6EF',
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
+        position: 'relative',
       }}
     >
       {/* Brand Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, marginTop: 4 }}>
-        <img
-          src={logoImg}
-          alt="SpiceHub Logo"
-          style={{
-            width: 54,
-            height: 54,
-            objectFit: 'contain',
-            borderRadius: 12,
-            filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.06))',
-          }}
-        />
-        <div>
-          <div style={{ fontSize: 26, fontWeight: '800', color: '#1E293B', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-            SpiceHub
-          </div>
-          <div style={{ fontSize: 13, fontWeight: '800', color: '#D97706', letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 2 }}>
-            STAFF
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <img
+            src={logoImg}
+            alt="SpiceHub Logo"
+            style={{
+              width: 48,
+              height: 48,
+              objectFit: 'contain',
+              borderRadius: 12,
+              filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.08))',
+            }}
+          />
+          <div>
+            <div style={{ fontSize: 24, fontWeight: '800', color: '#1E293B', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              SpiceHub
+            </div>
+            <div style={{ fontSize: 11, fontWeight: '800', color: '#D97706', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+              STAFF WORKSTATION APP
+            </div>
           </div>
         </div>
+
+        {/* Hotel Badge Pill */}
+        {selectedHotel && (
+          <button
+            onClick={() => setShowHotelPicker(true)}
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #FDE68A',
+              padding: '6px 10px',
+              borderRadius: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-end',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+            }}
+          >
+            <span style={{ fontSize: 9.5, color: '#B45309', fontWeight: '800', textTransform: 'uppercase' }}>
+              🏨 Active Hotel
+            </span>
+            <span style={{ fontSize: 12, color: '#1E293B', fontWeight: '700', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {selectedHotel.name}
+            </span>
+          </button>
+        )}
       </div>
 
-      {/* Subtitle Tagline */}
-      <div style={{ fontSize: 13, color: '#64748B', fontWeight: '500', marginBottom: 22 }}>
-        One Team · Better Service · Happier Guests
+      {/* Subtitle */}
+      <div style={{ fontSize: 12.5, color: '#64748B', fontWeight: '500', marginBottom: 16 }}>
+        Official Hospitality Suite · Role-Based Staff Launchpad
       </div>
 
       {/* Section Title */}
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: '800', color: '#0F172A', letterSpacing: '-0.02em', marginBottom: 4 }}>
-          Select Your Workspace
+      <div style={{ marginBottom: 14 }}>
+        <h1 style={{ fontSize: 20, fontWeight: '800', color: '#0F172A', letterSpacing: '-0.02em', marginBottom: 2 }}>
+          Select Your Workstation Role
         </h1>
-        <p style={{ fontSize: 13.5, color: '#64748B', fontWeight: '500' }}>
-          Choose the station you want to access
+        <p style={{ fontSize: 12.5, color: '#64748B', fontWeight: '500', margin: 0 }}>
+          Launch instant floor, kitchen, cashier or reception terminal
         </p>
       </div>
 
-      {/* 4 Workspace Cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 18 }}>
-        {/* Card 1: Waiter Terminal */}
+      {/* Workspace Cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginBottom: 18 }}>
+        {/* Card 1: Waiter */}
         <button
           type="button"
-          onClick={() => setShowingWaiterList(true)}
+          onClick={() => handleSelectStation('waiter')}
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 14,
-            padding: '12px 14px',
+            gap: 12,
+            padding: '11px 13px',
             background: '#FFFFFF',
-            borderRadius: 18,
+            borderRadius: 16,
             border: '1px solid #E2E8F0',
-            boxShadow: '0 4px 14px rgba(15, 23, 42, 0.04)',
+            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)',
             cursor: 'pointer',
             textAlign: 'left',
             width: '100%',
           }}
         >
-          <div style={{ width: 68, height: 68, borderRadius: 14, background: '#FFFBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-            <img src={waiterImg} alt="Waiter Terminal" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          <div style={{ width: 60, height: 60, borderRadius: 12, background: '#FFFBEB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+            <img src={waiterImg} alt="Waiter" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-              <span style={{ fontSize: 17, fontWeight: '700', color: '#0F172A' }}>Waiter Terminal</span>
-              <span style={{ fontSize: 10.5, fontWeight: '800', color: '#D97706', background: '#FEF3C7', padding: '2px 7px', borderRadius: 6, letterSpacing: '0.04em' }}>Port 3002</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+              <span style={{ fontSize: 16, fontWeight: '700', color: '#0F172A' }}>Waiter Handheld Terminal</span>
+              <span style={{ fontSize: 10, fontWeight: '800', color: '#D97706', background: '#FEF3C7', padding: '2px 6px', borderRadius: 6 }}>Port 3002</span>
             </div>
-            <p style={{ fontSize: 12, color: '#64748B', lineHeight: 1.35, margin: 0 }}>
-              Take orders, manage tables and provide better customer service.
+            <p style={{ fontSize: 11.5, color: '#64748B', lineHeight: 1.3, margin: 0 }}>
+              Punch orders, customize dishes, cross-table service & split payments.
             </p>
           </div>
         </button>
 
-        {/* Card 2: Kitchen KDS */}
+        {/* Card 2: Cashier */}
         <button
           type="button"
-          onClick={() => setRole('kds')}
+          onClick={() => handleSelectStation('cashier')}
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 14,
-            padding: '12px 14px',
+            gap: 12,
+            padding: '11px 13px',
             background: '#FFFFFF',
-            borderRadius: 18,
+            borderRadius: 16,
             border: '1px solid #E2E8F0',
-            boxShadow: '0 4px 14px rgba(15, 23, 42, 0.04)',
+            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)',
             cursor: 'pointer',
             textAlign: 'left',
             width: '100%',
           }}
         >
-          <div style={{ width: 68, height: 68, borderRadius: 14, background: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-            <img src={kdsImg} alt="Kitchen KDS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-              <span style={{ fontSize: 17, fontWeight: '700', color: '#0F172A' }}>Kitchen KDS</span>
-              <span style={{ fontSize: 10.5, fontWeight: '800', color: '#DC2626', background: '#FEE2E2', padding: '2px 7px', borderRadius: 6, letterSpacing: '0.04em' }}>Port 3003</span>
-            </div>
-            <p style={{ fontSize: 12, color: '#64748B', lineHeight: 1.35, margin: 0 }}>
-              View live orders, prepare food and update order status.
-            </p>
-          </div>
-        </button>
-
-        {/* Card 3: Cashier POS */}
-        <button
-          type="button"
-          onClick={() => setRole('cashier')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14,
-            padding: '12px 14px',
-            background: '#FFFFFF',
-            borderRadius: 18,
-            border: '1px solid #E2E8F0',
-            boxShadow: '0 4px 14px rgba(15, 23, 42, 0.04)',
-            cursor: 'pointer',
-            textAlign: 'left',
-            width: '100%',
-          }}
-        >
-          <div style={{ width: 68, height: 68, borderRadius: 14, background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+          <div style={{ width: 60, height: 60, borderRadius: 12, background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
             <img src={cashierImg} alt="Cashier POS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-              <span style={{ fontSize: 17, fontWeight: '700', color: '#0F172A' }}>Cashier POS</span>
-              <span style={{ fontSize: 10.5, fontWeight: '800', color: '#059669', background: '#D1FAE5', padding: '2px 7px', borderRadius: 6, letterSpacing: '0.04em' }}>Port 3007</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+              <span style={{ fontSize: 16, fontWeight: '700', color: '#0F172A' }}>Cashier POS & Float Ledger</span>
+              <span style={{ fontSize: 10, fontWeight: '800', color: '#059669', background: '#D1FAE5', padding: '2px 6px', borderRadius: 6 }}>Port 3007</span>
             </div>
-            <p style={{ fontSize: 12, color: '#64748B', lineHeight: 1.35, margin: 0 }}>
-              Manage billing, payments and generate sales receipts.
+            <p style={{ fontSize: 11.5, color: '#64748B', lineHeight: 1.3, margin: 0 }}>
+              Direct walk-in punching, split tracking & waiter cash drawer reconciliation.
+            </p>
+          </div>
+        </button>
+
+        {/* Card 3: Kitchen KDS */}
+        <button
+          type="button"
+          onClick={() => handleSelectStation('kds')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '11px 13px',
+            background: '#FFFFFF',
+            borderRadius: 16,
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)',
+            cursor: 'pointer',
+            textAlign: 'left',
+            width: '100%',
+          }}
+        >
+          <div style={{ width: 60, height: 60, borderRadius: 12, background: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+            <img src={kdsImg} alt="Kitchen KDS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+              <span style={{ fontSize: 16, fontWeight: '700', color: '#0F172A' }}>Kitchen KDS Display</span>
+              <span style={{ fontSize: 10, fontWeight: '800', color: '#DC2626', background: '#FEE2E2', padding: '2px 6px', borderRadius: 6 }}>Port 3003</span>
+            </div>
+            <p style={{ fontSize: 11.5, color: '#64748B', lineHeight: 1.3, margin: 0 }}>
+              Live KOT order flow, cooking notes (Kam namak, mirchi) & station dispatch.
             </p>
           </div>
         </button>
@@ -662,47 +506,79 @@ export function App() {
         {/* Card 4: Reception */}
         <button
           type="button"
-          onClick={() => setRole('reception')}
+          onClick={() => handleSelectStation('reception')}
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 14,
-            padding: '12px 14px',
+            gap: 12,
+            padding: '11px 13px',
             background: '#FFFFFF',
-            borderRadius: 18,
+            borderRadius: 16,
             border: '1px solid #E2E8F0',
-            boxShadow: '0 4px 14px rgba(15, 23, 42, 0.04)',
+            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)',
             cursor: 'pointer',
             textAlign: 'left',
             width: '100%',
           }}
         >
-          <div style={{ width: 68, height: 68, borderRadius: 14, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+          <div style={{ width: 60, height: 60, borderRadius: 12, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
             <img src={receptionImg} alt="Reception" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-              <span style={{ fontSize: 17, fontWeight: '700', color: '#0F172A' }}>Reception PMS</span>
-              <span style={{ fontSize: 10.5, fontWeight: '800', color: '#2563EB', background: '#DBEAFE', padding: '2px 7px', borderRadius: 6, letterSpacing: '0.04em' }}>Port 3008</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+              <span style={{ fontSize: 16, fontWeight: '700', color: '#0F172A' }}>Reception Front Desk</span>
+              <span style={{ fontSize: 10, fontWeight: '800', color: '#2563EB', background: '#DBEAFE', padding: '2px 6px', borderRadius: 6 }}>Port 3008</span>
             </div>
-            <p style={{ fontSize: 12, color: '#64748B', lineHeight: 1.35, margin: 0 }}>
-              Manage guest check-ins, reservations and room inventory.
+            <p style={{ fontSize: 11.5, color: '#64748B', lineHeight: 1.3, margin: 0 }}>
+              Guest check-ins, room inventory, printable QR codes & folio management.
+            </p>
+          </div>
+        </button>
+
+        {/* Card 5: Hotel Admin ERP */}
+        <button
+          type="button"
+          onClick={() => handleSelectStation('admin')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '11px 13px',
+            background: '#FFFFFF',
+            borderRadius: 16,
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)',
+            cursor: 'pointer',
+            textAlign: 'left',
+            width: '100%',
+          }}
+        >
+          <div style={{ width: 60, height: 60, borderRadius: 12, background: '#F5F3FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+            <span style={{ fontSize: 28 }}>👔</span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+              <span style={{ fontSize: 16, fontWeight: '700', color: '#0F172A' }}>Hotel Admin & ERP</span>
+              <span style={{ fontSize: 10, fontWeight: '800', color: '#7C3AED', background: '#EDE9FE', padding: '2px 6px', borderRadius: 6 }}>Port 3005</span>
+            </div>
+            <p style={{ fontSize: 11.5, color: '#64748B', lineHeight: 1.3, margin: 0 }}>
+              Approve staff PINs, menu configuration, billing audit & printable QR studio.
             </p>
           </div>
         </button>
       </div>
 
-      {/* Culinary Banner Card */}
+      {/* Culinary Banner */}
       <div
         style={{
-          borderRadius: 20,
+          borderRadius: 16,
           overflow: 'hidden',
           position: 'relative',
-          minHeight: 110,
+          minHeight: 96,
           background: 'linear-gradient(135deg, #451a03 0%, #78350f 100%)',
           display: 'flex',
           alignItems: 'center',
-          boxShadow: '0 8px 24px rgba(69, 26, 3, 0.15)',
+          boxShadow: '0 6px 18px rgba(69, 26, 3, 0.12)',
           marginTop: 'auto',
         }}
       >
@@ -714,20 +590,555 @@ export function App() {
             right: 0,
             top: 0,
             height: '100%',
-            width: '50%',
+            width: '45%',
             objectFit: 'cover',
             opacity: 0.85,
           }}
         />
-        <div style={{ position: 'relative', zIndex: 1, padding: '16px 20px', maxWidth: '65%' }}>
-          <div style={{ fontSize: 11, fontWeight: '800', color: '#FDE68A', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 3 }}>
-            HOTEL & RESTAURANT
+        <div style={{ position: 'relative', zIndex: 1, padding: '14px 16px', maxWidth: '65%' }}>
+          <div style={{ fontSize: 10, fontWeight: '800', color: '#FDE68A', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>
+            HOTEL WORKFORCE ECOSYSTEM
           </div>
-          <div style={{ fontSize: 15, fontWeight: '800', color: '#FFFFFF', lineHeight: 1.25 }}>
-            Crafting Unforgettable Dining Moments
+          <div style={{ fontSize: 13.5, fontWeight: '800', color: '#FFFFFF', lineHeight: 1.25 }}>
+            Synchronized Staff Terminal & Instant Floor Auth
           </div>
         </div>
       </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 1: HOTEL SELECTION MODAL                                 */}
+      {/* ------------------------------------------------------------- */}
+      {showHotelPicker && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 420,
+              background: '#FFFFFF',
+              borderRadius: 20,
+              padding: 20,
+              boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h2 style={{ fontSize: 18, fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                🏨 Select Hotel Property
+              </h2>
+              <button
+                onClick={() => setShowHotelPicker(false)}
+                style={{ background: 'none', border: 'none', fontSize: 20, color: '#64748B', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 12px' }}>
+              Only active hotels provisioned by SuperAdmin are displayed.
+            </p>
+
+            <input
+              type="text"
+              placeholder="Search hotel by name or city..."
+              value={hotelSearch}
+              onChange={(e) => setHotelSearch(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '9px 12px',
+                borderRadius: 10,
+                border: '1px solid #CBD5E1',
+                fontSize: 13,
+                marginBottom: 12,
+                boxSizing: 'border-box',
+              }}
+            />
+
+            <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {filteredHotels.map((h) => (
+                <button
+                  key={h.id}
+                  onClick={() => {
+                    setSelectedHotel(h);
+                    localStorage.setItem('spicehub_staff_hotel', h.id);
+                    setShowHotelPicker(false);
+                  }}
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 12,
+                    border: selectedHotel?.id === h.id ? '2px solid #D97706' : '1px solid #E2E8F0',
+                    background: selectedHotel?.id === h.id ? '#FFFBEB' : '#FFFFFF',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: '700', fontSize: 14, color: '#0F172A' }}>{h.name}</div>
+                    <div style={{ fontSize: 11, color: '#64748B' }}>📍 {h.city || 'India'}</div>
+                  </div>
+                  {selectedHotel?.id === h.id && (
+                    <span style={{ fontSize: 11, fontWeight: '800', color: '#D97706', background: '#FEF3C7', padding: '2px 8px', borderRadius: 6 }}>
+                      ACTIVE
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 2: DUAL LOGIN GATE (4-Digit PIN or Email/Password)      */}
+      {/* ------------------------------------------------------------- */}
+      {authModalRole && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.8)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 110,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 380,
+              background: '#FFFFFF',
+              borderRadius: 24,
+              padding: '20px 18px',
+              boxShadow: '0 24px 48px rgba(0,0,0,0.3)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 22 }}>{apps[authModalRole].emoji}</span>
+                <div>
+                  <h2 style={{ fontSize: 17, fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                    {apps[authModalRole].label}
+                  </h2>
+                  <span style={{ fontSize: 11, color: '#B45309', fontWeight: '700' }}>
+                    {selectedHotel?.name}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setAuthModalRole(null)}
+                style={{ background: 'none', border: 'none', fontSize: 20, color: '#64748B', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Dual Login Toggle */}
+            <div
+              style={{
+                display: 'flex',
+                background: '#F1F5F9',
+                borderRadius: 12,
+                padding: 3,
+                marginBottom: 16,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => { setAuthMode('pin'); setAuthError(''); }}
+                style={{
+                  flex: 1,
+                  padding: '7px 0',
+                  borderRadius: 10,
+                  border: 'none',
+                  fontSize: 12,
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  background: authMode === 'pin' ? '#FFFFFF' : 'transparent',
+                  color: authMode === 'pin' ? '#D97706' : '#64748B',
+                  boxShadow: authMode === 'pin' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                }}
+              >
+                🔢 4-Digit Quick PIN
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuthMode('email'); setAuthError(''); }}
+                style={{
+                  flex: 1,
+                  padding: '7px 0',
+                  borderRadius: 10,
+                  border: 'none',
+                  fontSize: 12,
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  background: authMode === 'email' ? '#FFFFFF' : 'transparent',
+                  color: authMode === 'email' ? '#D97706' : '#64748B',
+                  boxShadow: authMode === 'email' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                }}
+              >
+                📧 Email & Password
+              </button>
+            </div>
+
+            {/* Error Message */}
+            {authError && (
+              <div
+                style={{
+                  background: authError.includes('Pending') ? '#FEF3C7' : '#FEE2E2',
+                  border: authError.includes('Pending') ? '1px solid #FCD34D' : '1px solid #FCA5A5',
+                  color: authError.includes('Pending') ? '#92400E' : '#B91C1C',
+                  fontSize: 11.5,
+                  fontWeight: '700',
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  marginBottom: 14,
+                  lineHeight: 1.35,
+                }}
+              >
+                {authError}
+              </div>
+            )}
+
+            {/* MODE 1: 4-DIGIT PIN */}
+            {authMode === 'pin' ? (
+              <div>
+                <p style={{ textAlign: 'center', color: '#64748B', fontSize: 11.5, fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+                  Enter 4-Digit Staff PIN
+                </p>
+
+                {/* PIN Dots */}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 16 }}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        background: i < pin.length ? '#F59E0B' : '#FFFFFF',
+                        border: i < pin.length ? '2px solid #D97706' : '2px solid #CBD5E1',
+                        transition: 'all 0.15s ease',
+                        boxShadow: i < pin.length ? '0 0 10px rgba(245, 158, 11, 0.35)' : 'none',
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* Numpad */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: 8,
+                    marginBottom: 14,
+                  }}
+                >
+                  {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'Clr', '0', '⌫'].map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => {
+                        if (k === 'Clr') setPin('');
+                        else if (k === '⌫') setPin((p) => p.slice(0, -1));
+                        else handlePinDigit(k);
+                      }}
+                      style={{
+                        padding: '12px 0',
+                        fontSize: k.length > 1 ? 13 : 18,
+                        fontWeight: '700',
+                        borderRadius: 12,
+                        border: '1px solid #E2E8F0',
+                        background: k.length > 1 ? '#F1F5F9' : '#FFFFFF',
+                        color: k === 'Clr' ? '#DC2626' : '#0F172A',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                      }}
+                    >
+                      {k}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Set/Generate 4-Digit PIN Button */}
+                <div style={{ textAlign: 'center', marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowRequestPinModal(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#B45309',
+                      fontSize: 12,
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    ✨ Set / Generate New 4-Digit PIN
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* MODE 2: EMAIL & PASSWORD */
+              <form onSubmit={executeEmailLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                    Staff Email Address
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. waiter@royalpalm.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: 10,
+                      border: '1px solid #CBD5E1',
+                      fontSize: 13,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: 10,
+                      border: '1px solid #CBD5E1',
+                      fontSize: 13,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  style={{
+                    background: '#D97706',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '12px 0',
+                    borderRadius: 12,
+                    fontSize: 14,
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    marginTop: 6,
+                    boxShadow: '0 4px 12px rgba(217, 119, 6, 0.3)',
+                  }}
+                >
+                  {isSubmitting ? 'Verifying...' : '🔓 Sign In to Workstation'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 3: SELF-REQUEST 4-DIGIT PIN WITH ADMIN APPROVAL         */}
+      {/* ------------------------------------------------------------- */}
+      {showRequestPinModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 120,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 380,
+              background: '#FFFFFF',
+              borderRadius: 24,
+              padding: 20,
+              boxShadow: '0 24px 48px rgba(0,0,0,0.35)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ fontSize: 16, fontWeight: '800', color: '#0F172A', margin: 0 }}>
+                🔑 Set / Generate 4-Digit PIN
+              </h3>
+              <button
+                onClick={() => setShowRequestPinModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: 18, color: '#64748B', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: 11.5, color: '#64748B', margin: '0 0 14px', lineHeight: 1.4 }}>
+              Submit your desired 4-digit PIN. For security, it activates once your Hotel Admin or Reception approves it.
+            </p>
+
+            {reqStatusMessage && (
+              <div
+                style={{
+                  background: reqStatusMessage.type === 'success' ? '#ECFDF5' : '#FEE2E2',
+                  border: reqStatusMessage.type === 'success' ? '1px solid #A7F3D0' : '1px solid #FCA5A5',
+                  color: reqStatusMessage.type === 'success' ? '#047857' : '#B91C1C',
+                  fontSize: 11.5,
+                  fontWeight: '700',
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  marginBottom: 12,
+                }}
+              >
+                {reqStatusMessage.text}
+              </div>
+            )}
+
+            <form onSubmit={handleRequestPinSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>
+                  Staff Email Address
+                </label>
+                <input
+                  type="email"
+                  placeholder="e.g. suresh@royalpalm.com"
+                  value={reqStaffEmail}
+                  onChange={(e) => setReqStaffEmail(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 9,
+                    border: '1px solid #CBD5E1',
+                    fontSize: 12.5,
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>
+                  Or Phone Number
+                </label>
+                <input
+                  type="tel"
+                  placeholder="e.g. 9820011223"
+                  value={reqStaffPhone}
+                  onChange={(e) => setReqStaffPhone(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 9,
+                    border: '1px solid #CBD5E1',
+                    fontSize: 12.5,
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>
+                  Desired 4-Digit PIN *
+                </label>
+                <input
+                  type="password"
+                  required
+                  maxLength={4}
+                  placeholder="e.g. 5566"
+                  value={reqStaffPin}
+                  onChange={(e) => setReqStaffPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 9,
+                    border: '1px solid #CBD5E1',
+                    fontSize: 14,
+                    fontWeight: '700',
+                    letterSpacing: '0.15em',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 3 }}>
+                  Staff Role
+                </label>
+                <select
+                  value={reqStaffRole}
+                  onChange={(e) => setReqStaffRole(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 9,
+                    border: '1px solid #CBD5E1',
+                    fontSize: 12.5,
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <option value="WAITER">Waiter / Steward</option>
+                  <option value="CASHIER">Cashier POS</option>
+                  <option value="CHEF">Kitchen Chef</option>
+                  <option value="MANAGER">Reception / Manager</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                disabled={reqStaffPin.length < 4}
+                style={{
+                  background: reqStaffPin.length === 4 ? '#D97706' : '#E2E8F0',
+                  color: reqStaffPin.length === 4 ? '#FFFFFF' : '#94A3B8',
+                  border: 'none',
+                  padding: '11px 0',
+                  borderRadius: 12,
+                  fontSize: 13,
+                  fontWeight: '700',
+                  cursor: reqStaffPin.length === 4 ? 'pointer' : 'not-allowed',
+                  marginTop: 6,
+                }}
+              >
+                Submit PIN for Admin Approval
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

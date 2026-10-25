@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { Types } from 'mongoose';
 import { getJwtSecret, isDevAuthBypassEnabled } from '../config/security';
-import { Room } from '../models/Room';
+import { Room, RoomStatus } from '../models/Room';
 import { Stay, StayStatus } from '../models/Stay';
 import { Booking } from '../models/Booking';
 import { GuestSession } from '../models/GuestSession';
@@ -12,6 +12,9 @@ import { RestaurantOrder, OrderType, OverallOrderStatus, ItemProductionStatus } 
 import { MasterFolio } from '../models/MasterFolio';
 import { FolioLineItem, DepartmentType } from '../models/FolioLineItem';
 import { ServiceRequest, ServiceRequestType, ServiceRequestPriority, ServiceRequestStatus } from '../models/ServiceRequest';
+import { Tenant } from '../models/Tenant';
+import { GuestProfile } from '../models/GuestProfile';
+import { RoomType } from '../models/RoomType';
 import { io } from '../index';
 import { TenantRequest } from '../types';
 import { generateReferenceNumber } from '../utils/referenceNumber';
@@ -157,12 +160,16 @@ export const resolvePermanentRoomQR = async (req: Request, res: Response): Promi
       expiresAt,
     });
 
+    const hotelTenant = await Tenant.findById(room.hotelId).select('enabledPortals');
+    const waiterEnabled = hotelTenant?.enabledPortals ? hotelTenant.enabledPortals.includes('waiter') : true;
+
     res.status(200).json({
       success: true,
       message: 'Active stay resolved successfully',
       data: {
         sessionToken: rawSessionToken,
         hotelId: room.hotelId,
+        waiterEnabled,
         roomId: room._id,
         roomNumber: room.roomNumber,
         roomType: (room.roomTypeId as any)?.name || 'Room',
@@ -835,11 +842,14 @@ export const getGuestStayStatus = async (req: Request, res: Response): Promise<v
     const lineItems = folio
       ? await FolioLineItem.find({ folioId: folio._id }).sort({ createdAt: 1 })
       : [];
+    const tenantDoc = await Tenant.findById(session.hotelId).select('enabledPortals');
+    const waiterEnabled = tenantDoc?.enabledPortals?.includes('waiter') ?? true;
 
     res.status(200).json({
       success: true,
       data: {
         hotelId: session.hotelId,
+        waiterEnabled,
         room: {
           id: room._id,
           roomNumber: room.roomNumber,
@@ -1137,4 +1147,476 @@ export const rotateRoomGuestQr = async (req: TenantRequest, res: Response): Prom
     res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: error.message });
   }
 };
+
+// 9. Public Guest Room Catalog with Live Availability Matrix & Real-time Room Statuses
+export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<void> => {
+  try {
+    let hotelId = (req.query.hotelId || req.headers['x-hotel-id']) as string;
+
+    if (!hotelId || !Types.ObjectId.isValid(hotelId)) {
+      const activeTenant = await Tenant.findOne({ status: 'ACTIVE' }).sort({ updatedAt: -1 });
+      if (activeTenant) {
+        hotelId = activeTenant._id.toString();
+      }
+    }
+
+    if (!hotelId || !Types.ObjectId.isValid(hotelId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_HOTEL', message: 'Valid hotelId is required' });
+      return;
+    }
+
+    const tenant = await Tenant.findById(hotelId);
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Hotel not found' });
+      return;
+    }
+
+    const rooms = await Room.find({ hotelId: new Types.ObjectId(hotelId) })
+      .populate('roomTypeId')
+      .sort({ floorNumber: 1, roomNumber: 1 });
+
+    const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
+      mumbai: { lat: 19.0760, lng: 72.8777 },
+      delhi: { lat: 28.6139, lng: 77.2090 },
+      bengaluru: { lat: 12.9716, lng: 77.5946 },
+      jaipur: { lat: 26.9124, lng: 75.7873 },
+      goa: { lat: 15.2993, lng: 74.1240 },
+      kolkata: { lat: 22.5726, lng: 88.3639 },
+    };
+
+    const anyTenant = tenant as any;
+    const cityKey = (anyTenant.city || 'mumbai').toLowerCase().trim();
+    const defaultCoords = CITY_COORDS[cityKey] || { lat: 19.0760, lng: 72.8777 };
+
+    let availableCount = 0;
+    let cleaningCount = 0;
+    let maintenanceCount = 0;
+    let occupiedCount = 0;
+
+    const mappedRooms = rooms.map((r: any) => {
+      const rawStatus = r.status || RoomStatus.AVAILABLE;
+      let displayStatus = 'OCCUPIED';
+      let statusBadge = 'Occupied (In-Use)';
+
+      if (rawStatus === RoomStatus.AVAILABLE) {
+        displayStatus = 'AVAILABLE';
+        statusBadge = 'Ready for Booking';
+        availableCount += 1;
+      } else if (
+        rawStatus === RoomStatus.DIRTY ||
+        rawStatus === RoomStatus.CLEANING ||
+        rawStatus === RoomStatus.INSPECTION
+      ) {
+        displayStatus = 'CLEANING';
+        statusBadge = 'Housekeeping Turnaround';
+        cleaningCount += 1;
+      } else if (rawStatus === RoomStatus.OUT_OF_SERVICE) {
+        displayStatus = 'MAINTENANCE';
+        statusBadge = 'Under Maintenance';
+        maintenanceCount += 1;
+      } else {
+        occupiedCount += 1;
+      }
+
+      const roomType = r.roomTypeId || {};
+      const basePrice = Number(roomType.basePriceOvernight) || 2500;
+      const gstRate = basePrice > 7500 ? 18 : 12;
+
+      return {
+        id: r._id,
+        roomNumber: r.roomNumber,
+        floorNumber: r.floorNumber,
+        wing: r.wing || 'Main Wing',
+        rawStatus,
+        displayStatus,
+        statusBadge,
+        isBookable: rawStatus === RoomStatus.AVAILABLE,
+        roomType: {
+          id: roomType._id,
+          name: roomType.name || 'Deluxe Room',
+          code: roomType.code || 'DLX',
+          basePriceOvernight: basePrice,
+          gstRate,
+          amenities: roomType.amenities && roomType.amenities.length > 0
+            ? roomType.amenities
+            : ['King Size Bed', 'Climate Control AC', 'High-Speed Wi-Fi', 'Smart HD TV', 'Attached Luxury Bath'],
+          maxCapacity: roomType.maxCapacity || roomType.baseCapacityAdults || 2,
+        },
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        hotel: {
+          id: tenant._id,
+          name: tenant.name,
+          slug: tenant.slug,
+          city: anyTenant.city || 'Mumbai',
+          state: anyTenant.state || 'Maharashtra',
+          latitude: defaultCoords.lat,
+          longitude: defaultCoords.lng,
+          phone: tenant.contactPhone || '+91 98200 11223',
+          waiterEnabled: tenant.enabledPortals?.includes('waiter') ?? true,
+        },
+        counts: {
+          total: rooms.length,
+          available: availableCount,
+          cleaning: cleaningCount,
+          maintenance: maintenanceCount,
+          occupied: occupiedCount,
+        },
+        rooms: mappedRooms,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: error.message });
+  }
+};
+
+// 10. Public Guest Instant Booking & Check-In with KYC Verification & Dynamic Stay Tariff
+export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const {
+      hotelId,
+      roomId,
+      checkInDate,
+      checkOutDate,
+      guestName,
+      guestPhone,
+      guestEmail,
+      isCouple = false,
+      idType = 'AADHAAR',
+      idNumber,
+      advancePaid = 0,
+      deviceLocation,
+    } = req.body;
+
+    if (!hotelId || !Types.ObjectId.isValid(hotelId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_HOTEL', message: 'Valid hotelId is required' });
+      return;
+    }
+
+    if (!roomId || !Types.ObjectId.isValid(roomId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ROOM', message: 'Valid roomId is required' });
+      return;
+    }
+
+    const room = await Room.findOne({ _id: new Types.ObjectId(roomId), hotelId: new Types.ObjectId(hotelId) }).populate('roomTypeId');
+    if (!room) {
+      res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: 'Room not found' });
+      return;
+    }
+
+    if (room.status !== RoomStatus.AVAILABLE) {
+      res.status(409).json({
+        success: false,
+        errorCode: 'ROOM_NOT_AVAILABLE',
+        message: `Room ${room.roomNumber} is currently ${room.status}. Only available rooms can be booked.`,
+      });
+      return;
+    }
+
+    const effectiveName = (guestName || 'Valued Guest').trim();
+    const effectivePhone = (guestPhone || '9820011223').trim();
+    const effectiveEmail = (guestEmail || `${effectivePhone}@guest.spicehub.com`).trim();
+
+    // Date & Tariff Calculation
+    const checkIn = checkInDate ? new Date(checkInDate) : new Date();
+    const checkOut = checkOutDate ? new Date(checkOutDate) : new Date(checkIn.getTime() + 86400000);
+    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 3600 * 24)));
+
+    const roomType = (room.roomTypeId as any) || {};
+    const basePrice = Number(roomType.basePriceOvernight) || 2500;
+    const gstRate = basePrice > 7500 ? 18 : 12;
+    const totalTariff = basePrice * nights;
+    const taxAmount = Math.round((totalTariff * (gstRate / 100)) * 100) / 100;
+    const grandTotal = totalTariff + taxAmount;
+    const advance = Number(advancePaid) || 0;
+    const dueAmount = Math.max(0, grandTotal - advance);
+
+    // Mask ID Number for compliance & privacy
+    let maskedId = 'None (Self-Verified)';
+    if (idNumber) {
+      const clean = String(idNumber).replace(/[^0-9a-zA-Z]/g, '');
+      const last4 = clean.slice(-4);
+      maskedId = clean.length > 4 ? `XXXX-XXXX-${last4}` : `XXXX-${clean}`;
+    }
+
+    const ts = Date.now().toString().slice(-4);
+    const bookingNumber = `BK-PORTAL-${new Date().getFullYear()}-${ts}`;
+    const folioNumber = `FOLIO-${room.roomNumber}-${ts}`;
+
+    // 1. Create Booking Record
+    const booking = await Booking.create({
+      hotelId: room.hotelId,
+      bookingNumber,
+      bookingSource: 'DIRECT_PUBLIC_WEB' as any,
+      bookingMode: 'OVERNIGHT' as any,
+      roomTypeId: room.roomTypeId?._id || room.roomTypeId,
+      allocatedRoomId: room._id,
+      guestName: effectiveName,
+      guestPhone: effectivePhone,
+      guestEmail: effectiveEmail,
+      checkInDate: checkIn,
+      checkOutDate: checkOut,
+      totalTariff,
+      taxAmount,
+      grandTotal,
+      advancePaymentAmount: advance,
+      paymentStatus: advance >= grandTotal ? 'PAID' : (advance > 0 ? 'PARTIAL' : 'UNPAID'),
+      bookingStatus: 'CHECKED_IN' as any,
+    });
+
+    // 2. Resolve or Create GuestProfile
+    let guestProfile = await GuestProfile.findOne({ hotelId: room.hotelId, phone: effectivePhone });
+    if (!guestProfile) {
+      guestProfile = await GuestProfile.create({
+        hotelId: room.hotelId,
+        name: effectiveName,
+        phone: effectivePhone,
+        email: effectiveEmail,
+        totalVisits: 1,
+        totalLifetimeSpend: grandTotal,
+      });
+    } else {
+      guestProfile.totalVisits = (guestProfile.totalVisits || 1) + 1;
+      guestProfile.totalLifetimeSpend = (guestProfile.totalLifetimeSpend || 0) + grandTotal;
+      guestProfile.lastVisitDate = new Date();
+      await guestProfile.save();
+    }
+
+    const stayId = new Types.ObjectId();
+    const folioId = new Types.ObjectId();
+
+    // 3. Create MasterFolio
+    const masterFolio = await MasterFolio.create({
+      _id: folioId,
+      hotelId: room.hotelId,
+      stayId,
+      bookingId: booking._id,
+      roomId: room._id,
+      folioNumber,
+      totalRoomTariff: totalTariff,
+      totalFoodAndBeverage: 0,
+      totalLaundry: 0,
+      totalPaidServices: 0,
+      totalTaxes: taxAmount,
+      advancePaid: advance,
+      paidAmount: advance,
+      netAmountPayable: grandTotal,
+      dueAmount,
+      folioStatus: 'OPEN',
+    });
+
+    // 4. Create Initial FolioLineItem (Immutable Accommodation Charge)
+    await FolioLineItem.create({
+      hotelId: room.hotelId,
+      folioId,
+      department: DepartmentType.ROOM_RENT,
+      description: `Room ${room.roomNumber} (${nights} Night(s)) Accommodation Tariff`,
+      rate: totalTariff,
+      quantity: 1,
+      taxRate: gstRate,
+      taxAmount,
+      netAmount: grandTotal,
+      postedAt: new Date(),
+    });
+
+    // 5. Create Stay Record
+    const stay = await Stay.create({
+      _id: stayId,
+      hotelId: room.hotelId,
+      roomId: room._id,
+      bookingId: booking._id,
+      guestId: guestProfile._id,
+      stayStatus: StayStatus.ACTIVE,
+      masterFolioId: folioId,
+      checkInTimestamp: checkIn,
+      expectedCheckOutTimestamp: checkOut,
+      isCouple: Boolean(isCouple),
+      verificationMode: idType || 'AADHAAR',
+      idNumberMasked: maskedId,
+      verifiedByReceptionist: true,
+      keycardExpiresAt: checkOut,
+      receptionistNotes: deviceLocation
+        ? `Booked via Guest Portal. Location: ${deviceLocation.distanceKm || 0} km away (Lat: ${deviceLocation.latitude}, Lng: ${deviceLocation.longitude})`
+        : 'Booked via Guest Portal Express Check-in',
+    });
+
+    // 6. Update Physical Room Status
+    room.status = RoomStatus.OCCUPIED;
+    room.currentStayId = stay._id as any;
+    await room.save();
+
+    // 7. Issue Signed Guest Session Token
+    const rawSessionToken = signGuestSessionToken({
+      hotelId: String(room.hotelId),
+      stayId: String(stay._id),
+      roomId: String(room._id),
+      roomNumber: String(room.roomNumber),
+    });
+    const tokenHash = hashGuestToken(rawSessionToken);
+    const expiresAt = new Date(Date.now() + GUEST_SESSION_TTL_MS);
+
+    await GuestSession.create({
+      hotelId: room.hotelId,
+      stayId: stay._id,
+      roomId: room._id,
+      sessionTokenHash: tokenHash,
+      lastKnownRoute: '/guest-portal/home',
+      expiresAt,
+    });
+
+    // 8. Real-time PMS notification
+    io.to(`${room.hotelId}_global`).emit('pms:guest_checked_in', {
+      roomNumber: room.roomNumber,
+      guestName: effectiveName,
+      stayId: stay._id,
+      isCouple: stay.isCouple,
+      verified: true,
+      advanceCredited: advance,
+      balanceDue: dueAmount,
+      checkInDate: checkIn,
+      checkOutDate: checkOut,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Room ${room.roomNumber} booked and checked in successfully!`,
+      data: {
+        sessionToken: rawSessionToken,
+        hotelId: room.hotelId,
+        roomId: room._id,
+        roomNumber: room.roomNumber,
+        roomTypeName: roomType.name || 'Deluxe Room',
+        guestName: effectiveName,
+        checkInDate: checkIn,
+        checkOutDate: checkOut,
+        nights,
+        stayId: stay._id,
+        masterFolioId: folioId,
+        folioNumber,
+        grandTotal,
+        advancePaid: advance,
+        dueAmount,
+        wifiSsid: 'SpiceHub_HighSpeed',
+        wifiPassword: `Guest@${room.roomNumber}`,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: error.message });
+  }
+};
+
+// 11. In-House Stay Extension (Dynamic Check-Out Date & Surcharge Recalculation)
+export const extendStayDates = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const token = (req.headers['x-guest-session-token'] || req.body.token) as string;
+    const resolved = await resolveGuestSession(token);
+    if (!resolved) {
+      res.status(401).json({ success: false, errorCode: 'INVALID_SESSION', message: 'Active guest session required' });
+      return;
+    }
+
+    const { session, stay } = resolved;
+    const { newCheckOutDate } = req.body;
+
+    if (!newCheckOutDate) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_DATE', message: 'newCheckOutDate is required' });
+      return;
+    }
+
+    const currentCheckOut = stay.expectedCheckOutTimestamp ? new Date(stay.expectedCheckOutTimestamp) : new Date();
+    const updatedCheckOut = new Date(newCheckOutDate);
+
+    if (updatedCheckOut <= currentCheckOut) {
+      stay.expectedCheckOutTimestamp = updatedCheckOut;
+      await stay.save();
+      res.status(200).json({
+        success: true,
+        message: 'Check-out schedule updated',
+        data: { expectedCheckOutDate: updatedCheckOut },
+      });
+      return;
+    }
+
+    // Calculate additional nights
+    const diffMs = updatedCheckOut.getTime() - currentCheckOut.getTime();
+    const additionalNights = Math.max(1, Math.ceil(diffMs / (1000 * 3600 * 24)));
+
+    const room = await Room.findById(session.roomId).populate('roomTypeId');
+    const roomType = (room?.roomTypeId as any) || {};
+    const basePrice = Number(roomType.basePriceOvernight) || 2500;
+    const gstRate = basePrice > 7500 ? 18 : 12;
+    const additionalTariff = basePrice * additionalNights;
+    const additionalTax = Math.round((additionalTariff * (gstRate / 100)) * 100) / 100;
+    const totalSurcharge = additionalTariff + additionalTax;
+
+    // Post to Master Folio
+    let folio = await MasterFolio.findById(stay.masterFolioId);
+    if (folio && folio.folioStatus === 'OPEN') {
+      await FolioLineItem.create({
+        hotelId: session.hotelId,
+        folioId: folio._id,
+        department: DepartmentType.ROOM_RENT,
+        description: `Stay Extension (+${additionalNights} Night(s)) to ${updatedCheckOut.toDateString()}`,
+        rate: additionalTariff,
+        quantity: 1,
+        taxRate: gstRate,
+        taxAmount: additionalTax,
+        netAmount: totalSurcharge,
+        postedAt: new Date(),
+      });
+
+      folio = await MasterFolio.findByIdAndUpdate(
+        folio._id,
+        {
+          $inc: {
+            totalRoomTariff: additionalTariff,
+            totalTaxes: additionalTax,
+            netAmountPayable: totalSurcharge,
+            dueAmount: totalSurcharge,
+          },
+        },
+        { new: true }
+      );
+    }
+
+    stay.expectedCheckOutTimestamp = updatedCheckOut;
+    stay.keycardExpiresAt = updatedCheckOut;
+    await stay.save();
+
+    // Notify PMS Front Desk
+    io.to(`${session.hotelId}_admin`).to(`${session.hotelId}_pms`).emit('pms:stay_extended', {
+      stayId: stay._id,
+      roomNumber: room?.roomNumber,
+      newCheckOutDate: updatedCheckOut,
+      additionalNights,
+      surchargeAdded: totalSurcharge,
+      newDueAmount: folio?.dueAmount || 0,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Stay extended by +${additionalNights} night(s). Additional ₹${totalSurcharge} added to folio.`,
+      data: {
+        expectedCheckOutDate: updatedCheckOut,
+        additionalNights,
+        surchargeAdded: totalSurcharge,
+        folio: folio
+          ? {
+              folioNumber: folio.folioNumber,
+              totalRoomTariff: folio.totalRoomTariff,
+              netAmountPayable: folio.netAmountPayable,
+              dueAmount: folio.dueAmount,
+            }
+          : null,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: error.message });
+  }
+};
+
 

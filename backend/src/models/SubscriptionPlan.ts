@@ -15,6 +15,8 @@ export interface ISubscriptionPlan extends Document {
     kdsEnabled: boolean;
     qrDineInEnabled: boolean;
     roomServiceEnabled: boolean;
+    waiterEnabled: boolean;
+    posEnabled: boolean;
     banquetEnabled: boolean;
     loyaltyEnabled: boolean;
     aiInsightsEnabled: boolean;
@@ -41,6 +43,8 @@ const SubscriptionPlanSchema = new Schema<ISubscriptionPlan>(
       kdsEnabled: { type: Boolean, default: true },
       qrDineInEnabled: { type: Boolean, default: true },
       roomServiceEnabled: { type: Boolean, default: true },
+      waiterEnabled: { type: Boolean, default: true },
+      posEnabled: { type: Boolean, default: true },
       banquetEnabled: { type: Boolean, default: false },
       loyaltyEnabled: { type: Boolean, default: false },
       aiInsightsEnabled: { type: Boolean, default: false },

@@ -1,5 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { env, getPortalUrl } from './config/env';
+import { SuperAdminRealMap } from './components/SuperAdminRealMap';
+import {
+  PortalKey,
+  DEFAULT_PORTAL_CATALOG,
+  calculateModularSubscription,
+  ALL_PORTAL_KEYS,
+} from '@spicehub/shared-types';
 import {
   LayoutDashboard,
   Building,
@@ -62,6 +69,9 @@ export interface TenantHotelItem {
   todayRevenue: number;
   todayOrders: number;
   occupancyPercent: number;
+  enabledPortals: string[];
+  billingCycle?: 'MONTHLY' | 'ANNUAL';
+  customPricingAdjustmentINR?: number;
   features: {
     kdsEnabled: boolean;
     soundboxEnabled: boolean;
@@ -435,6 +445,12 @@ export const SuperAdminDashboardApp: React.FC = () => {
               todayOrders: Number(tenant.periodOrders || 0),
               occupancyPercent:
                 totalRooms > 0 ? Math.round((activeRooms / totalRooms) * 100) : 0,
+              enabledPortals:
+                Array.isArray(tenant.enabledPortals) && tenant.enabledPortals.length > 0
+                  ? tenant.enabledPortals
+                  : ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'],
+              billingCycle: (tenant.billingCycle as 'MONTHLY' | 'ANNUAL') || 'MONTHLY',
+              customPricingAdjustmentINR: Number(tenant.customPricingAdjustmentINR || 0),
               features: {
                 kdsEnabled: Boolean(tenant.featureFlags?.kdsEnabled),
                 soundboxEnabled: false,
@@ -580,6 +596,152 @@ export const SuperAdminDashboardApp: React.FC = () => {
   const [onboardError, setOnboardError] = useState('');
   const [tenantActionId, setTenantActionId] = useState('');
 
+  // Modular Portals & Dynamic Pricing State for Onboarding
+  const [onboardPortals, setOnboardPortals] = useState<PortalKey[]>([
+    'admin',
+    'reception',
+    'cashier',
+    'kds',
+    'waiter',
+    'customer',
+    'guest',
+  ]);
+  const [onboardDiscount, setOnboardDiscount] = useState<number>(0);
+  const [onboardBillingCycle, setOnboardBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
+
+  const onboardPricing = useMemo(
+    () => calculateModularSubscription(onboardPortals, onboardDiscount, onboardBillingCycle),
+    [onboardPortals, onboardDiscount, onboardBillingCycle]
+  );
+
+  const toggleOnboardPortal = (portalId: PortalKey) => {
+    if (portalId === 'admin') return; // Admin ERP is core required base
+    setOnboardPortals((prev) =>
+      prev.includes(portalId) ? prev.filter((p) => p !== portalId) : [...prev, portalId]
+    );
+  };
+
+  const applyOnboardPreset = (preset: 'FULL' | 'RESTAURANT' | 'CAFE_NO_WAITER' | 'ROOMS_ONLY') => {
+    switch (preset) {
+      case 'FULL':
+        setOnboardPortals(ALL_PORTAL_KEYS);
+        break;
+      case 'RESTAURANT':
+        setOnboardPortals(['admin', 'cashier', 'kds', 'waiter', 'customer']);
+        break;
+      case 'CAFE_NO_WAITER':
+        setOnboardPortals(['admin', 'cashier', 'kds', 'customer']);
+        break;
+      case 'ROOMS_ONLY':
+        setOnboardPortals(['admin', 'reception', 'cashier']);
+        break;
+    }
+  };
+
+  // Modular Portals & Dynamic Pricing State for Editing Existing Tenant
+  const [editingTenantPortals, setEditingTenantPortals] = useState<TenantHotelItem | null>(null);
+  const [editPortalsList, setEditPortalsList] = useState<PortalKey[]>([]);
+  const [editDiscount, setEditDiscount] = useState<number>(0);
+  const [editBillingCycle, setEditBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
+  const [isSavingPortals, setIsSavingPortals] = useState(false);
+  const [editPortalsError, setEditPortalsError] = useState('');
+
+  const editPricing = useMemo(
+    () => calculateModularSubscription(editPortalsList, editDiscount, editBillingCycle),
+    [editPortalsList, editDiscount, editBillingCycle]
+  );
+
+  const handleOpenEditPortals = (tenant: TenantHotelItem) => {
+    setEditingTenantPortals(tenant);
+    setEditPortalsList(
+      Array.isArray(tenant.enabledPortals) && tenant.enabledPortals.length > 0
+        ? (tenant.enabledPortals as PortalKey[])
+        : ALL_PORTAL_KEYS
+    );
+    setEditDiscount(Number(tenant.customPricingAdjustmentINR || 0));
+    setEditBillingCycle((tenant.billingCycle as 'MONTHLY' | 'ANNUAL') || 'MONTHLY');
+    setEditPortalsError('');
+  };
+
+  const toggleEditPortal = (portalId: PortalKey) => {
+    if (portalId === 'admin') return; // Admin ERP is core required base
+    setEditPortalsList((prev) =>
+      prev.includes(portalId) ? prev.filter((p) => p !== portalId) : [...prev, portalId]
+    );
+  };
+
+  const applyEditPreset = (preset: 'FULL' | 'RESTAURANT' | 'CAFE_NO_WAITER' | 'ROOMS_ONLY') => {
+    switch (preset) {
+      case 'FULL':
+        setEditPortalsList(ALL_PORTAL_KEYS);
+        break;
+      case 'RESTAURANT':
+        setEditPortalsList(['admin', 'cashier', 'kds', 'waiter', 'customer']);
+        break;
+      case 'CAFE_NO_WAITER':
+        setEditPortalsList(['admin', 'cashier', 'kds', 'customer']);
+        break;
+      case 'ROOMS_ONLY':
+        setEditPortalsList(['admin', 'reception', 'cashier']);
+        break;
+    }
+  };
+
+  const handleSaveTenantPortals = async () => {
+    if (!editingTenantPortals) return;
+    setIsSavingPortals(true);
+    setEditPortalsError('');
+    try {
+      const response = await fetch(
+        `${env.apiBaseUrl}/superadmin/tenants/${editingTenantPortals.id}/portals`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...platformAuthHeaders() },
+          body: JSON.stringify({
+            enabledPortals: editPortalsList,
+            monthlyPriceINR: editPricing.finalMonthlyTotalINR,
+            billingCycle: editBillingCycle,
+            customPricingAdjustmentINR: editDiscount,
+            planName: `Modular Plan (${editPortalsList.length} Portals)`,
+            planCode: 'CUSTOM',
+          }),
+        }
+      );
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success) {
+        setEditPortalsError(json?.message || 'Failed to update portal subscriptions.');
+        return;
+      }
+
+      setTenants((prev) =>
+        prev.map((t) =>
+          t.id === editingTenantPortals.id
+            ? {
+                ...t,
+                enabledPortals: editPortalsList,
+                monthlyBilling: editPricing.finalMonthlyTotalINR,
+                billingCycle: editBillingCycle,
+                customPricingAdjustmentINR: editDiscount,
+                plan: 'CUSTOM',
+              }
+            : t
+        )
+      );
+
+      setPlatformNotice(
+        `Subscription & portal allocations updated for ${editingTenantPortals.name}: ₹${editPricing.finalMonthlyTotalINR.toLocaleString(
+          'en-IN'
+        )}/mo (${editPortalsList.length} portals).`
+      );
+      setEditingTenantPortals(null);
+      window.setTimeout(() => setPlatformNotice(''), 10000);
+    } catch {
+      setEditPortalsError('Cannot reach the SpiceHub server. Check your connection.');
+    } finally {
+      setIsSavingPortals(false);
+    }
+  };
+
   const handleOnboardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
@@ -606,6 +768,10 @@ export const SuperAdminDashboardApp: React.FC = () => {
           contactPhone: newPhone.trim() || '9999999999',
           adminName: newAdminName.trim() || `${newName.trim()} Admin`,
           adminPassword: newAdminPassword,
+          enabledPortals: onboardPortals,
+          monthlyPriceINR: onboardPricing.finalMonthlyTotalINR,
+          billingCycle: onboardBillingCycle,
+          customPricingAdjustmentINR: onboardDiscount,
         }),
       });
       const json = await response.json().catch(() => null);
@@ -638,7 +804,19 @@ export const SuperAdminDashboardApp: React.FC = () => {
           }.`;
         }
 
-        // Attach the selected subscription plan so billing starts clean.
+        // Synchronize selected modular portals and calculated subscription pricing
+        await fetch(`${env.apiBaseUrl}/superadmin/tenants/${tenantId}/portals`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...platformAuthHeaders() },
+          body: JSON.stringify({
+            enabledPortals: onboardPortals,
+            monthlyPriceINR: onboardPricing.finalMonthlyTotalINR,
+            billingCycle: onboardBillingCycle,
+            customPricingAdjustmentINR: onboardDiscount,
+          }),
+        }).catch(() => null);
+
+        // Attach the selected subscription plan code if applicable
         const matchingPlan = platformPlans.find(
           (plan) => plan.code.toUpperCase() === newPlan.toUpperCase()
         );
@@ -658,7 +836,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
       }
 
       setPlatformNotice(
-        `${newName.trim()} onboarded. Admin login: ${newEmail.trim()} / the password you entered.${provisionSummary}`
+        `${newName.trim()} onboarded with ${onboardPortals.length} active portals (₹${onboardPricing.finalMonthlyTotalINR.toLocaleString('en-IN')}/mo). Admin login: ${newEmail.trim()} / the password you entered.${provisionSummary}`
       );
       setNewName('');
       setNewCity('');
@@ -666,6 +844,9 @@ export const SuperAdminDashboardApp: React.FC = () => {
       setNewPhone('');
       setNewAdminName('');
       setNewAdminPassword('');
+      setOnboardPortals([...ALL_PORTAL_KEYS]);
+      setOnboardDiscount(0);
+      setOnboardBillingCycle('MONTHLY');
       setIsOnboardModalOpen(false);
       setRefreshKey((value) => value + 1);
       window.setTimeout(() => setPlatformNotice(''), 12000);
@@ -1476,167 +1657,13 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Interactive India Map Canvas */}
-                    <div className="relative h-72 w-full rounded-xl overflow-hidden border border-slate-800/60 bg-gradient-to-b from-[#0a0e17] via-[#0d121f] to-[#080b12] flex items-center justify-center">
-                      <div
-                        className="absolute inset-0 opacity-20 pointer-events-none"
-                        style={{
-                          backgroundImage:
-                            'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)',
-                          backgroundSize: '24px 24px',
-                        }}
-                      />
-
-                      {/* Zoom Controls */}
-                      <div className="absolute top-3 left-3 flex flex-col gap-1 z-10">
-                        <button
-                          onClick={() => setMapZoom((z) => Math.min(z + 0.2, 1.8))}
-                          className="w-6 h-6 rounded bg-slate-800/80 text-white text-xs font-bold flex items-center justify-center hover:bg-slate-700 transition"
-                          title="Zoom In"
-                        >
-                          +
-                        </button>
-                        <button
-                          onClick={() => setMapZoom((z) => Math.max(z - 0.2, 0.8))}
-                          className="w-6 h-6 rounded bg-slate-800/80 text-white text-xs font-bold flex items-center justify-center hover:bg-slate-700 transition"
-                          title="Zoom Out"
-                        >
-                          -
-                        </button>
-                        <button
-                          onClick={() => setMapZoom(1)}
-                          className="w-6 h-6 rounded bg-slate-800/80 text-white text-[10px] font-bold flex items-center justify-center hover:bg-slate-700 transition"
-                          title="Reset"
-                        >
-                          ⟲
-                        </button>
-                      </div>
-
-                      {/* Scalable Vector Map Frame */}
-                      <div
-                        style={{ transform: `scale(${mapZoom})`, transition: 'transform 0.3s ease-out' }}
-                        className="relative w-full h-full flex items-center justify-center"
-                      >
-                        {/* India Regional Map Silhouette Outline (SVG) */}
-                        <svg viewBox="0 0 600 400" className="w-full h-full opacity-60 pointer-events-none">
-                          <path
-                            d="M 220 80 Q 250 90 280 120 T 320 180 T 280 250 T 260 320 Q 240 370 230 380 Q 210 320 190 260 T 150 200 T 180 140 Z"
-                            fill="none"
-                            stroke="rgba(99, 102, 241, 0.3)"
-                            strokeWidth="2"
-                          />
-                          <path
-                            d="M 260 120 L 380 140 L 460 200 L 420 260 L 320 240 Z"
-                            fill="none"
-                            stroke="rgba(99, 102, 241, 0.15)"
-                            strokeWidth="1.5"
-                          />
-                        </svg>
-
-                        {/* Interactive Pins */}
-                        {filteredPins.map((pin) => {
-                          const isSelected = selectedMapBranch?.id === pin.id;
-                          const isOnline = pin.status === 'ONLINE';
-                          return (
-                            <div
-                              key={pin.id}
-                              onClick={() => setSelectedMapBranch(pin)}
-                              style={{ left: `${pin.xPercent}%`, top: `${pin.yPercent}%` }}
-                              className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer z-10 group"
-                            >
-                              <div className="relative flex items-center justify-center">
-                                {isOnline && (
-                                  <span className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-emerald-400 opacity-60" />
-                                )}
-                                <div
-                                  className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition-transform group-hover:scale-125 ${
-                                    isSelected
-                                      ? 'bg-amber-400 border-white scale-125 shadow-lg shadow-amber-500/50'
-                                      : isOnline
-                                      ? 'bg-emerald-500 border-slate-900 shadow-sm'
-                                      : 'bg-rose-500 border-slate-900'
-                                  }`}
-                                />
-                              </div>
-                              <span className="absolute top-4 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-bold text-slate-300 bg-slate-950/80 px-1 rounded border border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {pin.city}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Interactive Floating Branch Card on Selected Pin */}
-                      {selectedMapBranch && (
-                        <div className="absolute right-4 top-4 bg-[#111624]/95 border border-indigo-500/40 rounded-xl p-3 shadow-2xl z-20 w-64 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div>
-                              <h4 className="text-xs font-bold text-white">{selectedMapBranch.name}</h4>
-                              <p className="text-[10px] text-slate-400">
-                                {selectedMapBranch.city}, {selectedMapBranch.state}
-                              </p>
-                            </div>
-                            <span
-                              className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase ${
-                                selectedMapBranch.status === 'ONLINE'
-                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                  : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                              }`}
-                            >
-                              {selectedMapBranch.status}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-4 gap-1.5 text-center my-2 p-1.5 rounded-lg bg-black/40 border border-white/5">
-                            <div>
-                              <div className="text-[9px] text-slate-400 uppercase">Orders</div>
-                              <div className="text-xs font-bold text-white mt-0.5">{selectedMapBranch.orders}</div>
-                            </div>
-                            <div>
-                              <div className="text-[9px] text-slate-400 uppercase">Revenue</div>
-                              <div className="text-xs font-bold text-emerald-400 mt-0.5">
-                                ₹{(selectedMapBranch.todayRevenue / 1000).toFixed(0)}k
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[9px] text-slate-400 uppercase">Tables</div>
-                              <div className="text-xs font-bold text-cyan-400 mt-0.5">{selectedMapBranch.tables}</div>
-                            </div>
-                            <div>
-                              <div className="text-[9px] text-slate-400 uppercase">Rooms</div>
-                              <div className="text-xs font-bold text-indigo-400 mt-0.5">{selectedMapBranch.rooms}</div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 mt-2">
-                            <a
-                              href={getPortalUrl('admin')}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex-1 py-1 text-[10px] font-bold text-center rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition shadow"
-                            >
-                              🔑 ERP ↗
-                            </a>
-                            <a
-                              href={getPortalUrl('cashier')}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex-1 py-1 text-[10px] font-bold text-center rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition shadow"
-                            >
-                              ⚡ POS ↗
-                            </a>
-                            <a
-                              href={getPortalUrl('reception')}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex-1 py-1 text-[10px] font-bold text-center rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black transition shadow"
-                            >
-                              🛎️ Front ↗
-                            </a>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    {/* Real Interactive Google-Maps-Style Map Canvas */}
+                    <SuperAdminRealMap
+                      branches={filteredPins as any}
+                      selectedBranch={selectedMapBranch as any}
+                      onSelectBranch={(b) => setSelectedMapBranch(b as any)}
+                      theme={theme as any}
+                    />
                   </div>
 
                   {/* Horizontal mini-branch list below map */}
@@ -2249,6 +2276,44 @@ export const SuperAdminDashboardApp: React.FC = () => {
                         {t.monthlyBilling ? ` · ₹${t.monthlyBilling.toLocaleString('en-IN')}/mo` : ''}
                       </span>
                     </div>
+
+                    {/* Modular Portals Allocation Badges */}
+                    <div className="mb-3 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <span>Allocated Portals ({t.enabledPortals?.length ?? 7}/7)</span>
+                        <span className="text-indigo-400 font-mono text-[9px]">{t.billingCycle || 'MONTHLY'}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {DEFAULT_PORTAL_CATALOG.map((portal) => {
+                          const isAllocated = !t.enabledPortals || t.enabledPortals.includes(portal.id);
+                          return (
+                            <span
+                              key={portal.id}
+                              title={`${portal.name} - ${isAllocated ? 'Subscribed' : 'Not Subscribed'}`}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition ${
+                                isAllocated
+                                  ? 'bg-slate-800 text-slate-200 border border-slate-700'
+                                  : 'bg-rose-950/20 text-rose-500/60 border border-rose-900/30 line-through opacity-50'
+                              }`}
+                            >
+                              <span>{portal.emoji}</span>
+                              <span>{portal.name.split(' ')[0]}</span>
+                              {!isAllocated && <span className="no-underline text-[8px]">🔒</span>}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Button to open modular portals and dynamic pricing editor */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditPortals(t)}
+                      className="mb-3 w-full rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-xs font-bold text-indigo-300 hover:bg-indigo-600 hover:text-white transition flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <span>⚙️</span>
+                      <span>Portals & Dynamic Pricing</span>
+                    </button>
 
                     {platformPlans.length > 0 && (
                       <select
@@ -3154,134 +3219,309 @@ export const SuperAdminDashboardApp: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <form
             onSubmit={handleOnboardSubmit}
-            className="bg-[#0f131d] border border-indigo-500/40 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150"
+            className="bg-[#0f131d] border border-indigo-500/40 rounded-3xl w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150"
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="font-bold text-base text-white">Onboard New Property</h3>
+              <div>
+                <h3 className="font-bold text-base text-white flex items-center gap-2">
+                  <span>🏢</span>
+                  <span>Onboard New Property & Allocate Portals</span>
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Select operational workstations à la carte. Dynamic subscription price calculates automatically.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsOnboardModalOpen(false)}
-                className="text-slate-400 hover:text-white font-bold"
+                className="text-slate-400 hover:text-white font-bold text-lg"
               >
                 ✕
               </button>
             </div>
 
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase">Property Name</label>
-              <input
-                type="text"
-                required
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="e.g. SpiceHub Royal Fort"
-                className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
-              />
-            </div>
+            {/* Basic Property Details */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
+                1. Property Profile & Capacity
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Property Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="e.g. SpiceHub Royal Fort"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">City</label>
+                  <input
+                    type="text"
+                    value={newCity}
+                    onChange={(e) => setNewCity(e.target.value)}
+                    placeholder="e.g. Jodhpur"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                </div>
+              </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase">City</label>
-                <input
-                  type="text"
-                  value={newCity}
-                  onChange={(e) => setNewCity(e.target.value)}
-                  placeholder="e.g. Jodhpur"
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase">State</label>
-                <input
-                  type="text"
-                  value={newState}
-                  onChange={(e) => setNewState(e.target.value)}
-                  placeholder="e.g. Rajasthan"
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase">Rooms Capacity</label>
-                <input
-                  type="number"
-                  value={newRooms}
-                  onChange={(e) => setNewRooms(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase">Tables Capacity</label>
-                <input
-                  type="number"
-                  value={newTables}
-                  onChange={(e) => setNewTables(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase">SaaS Plan</label>
-              <select
-                value={newPlan}
-                onChange={(e: any) => setNewPlan(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white mt-1"
-              >
-                <option value="STARTER">Starter (₹3,499/mo)</option>
-                <option value="PROFESSIONAL">Professional (₹7,999/mo)</option>
-                <option value="ENTERPRISE">Enterprise (₹14,999/mo)</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase">Admin Email</label>
-                <input
-                  type="email"
-                  required
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="admin@hotel.com"
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase">Phone</label>
-                <input
-                  type="text"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="+91 98000 00000"
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
-                />
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">State</label>
+                  <input
+                    type="text"
+                    value={newState}
+                    onChange={(e) => setNewState(e.target.value)}
+                    placeholder="e.g. Rajasthan"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Rooms Capacity</label>
+                  <input
+                    type="number"
+                    value={newRooms}
+                    onChange={(e) => setNewRooms(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Tables Capacity</label>
+                  <input
+                    type="number"
+                    value={newTables}
+                    onChange={(e) => setNewTables(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase">Admin Name</label>
-                <input
-                  type="text"
-                  value={newAdminName}
-                  onChange={(e) => setNewAdminName(e.target.value)}
-                  placeholder="Hotel Administrator"
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
-                />
+            {/* Modular Portal Allocation & Dynamic Pricing Engine */}
+            <div className="space-y-3 pt-3 border-t border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>⚙️</span>
+                    <span>2. Operational Terminals Allocation & À La Carte Pricing</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Toggle which portals this branch gets. Disabled portals are gated with lock screens.
+                  </p>
+                </div>
+
+                {/* Preset Buttons */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => applyOnboardPreset('FULL')}
+                    className="px-2 py-1 rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold hover:bg-indigo-600 hover:text-white transition"
+                  >
+                    🏨 Full Suite
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyOnboardPreset('RESTAURANT')}
+                    className="px-2 py-1 rounded-lg bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold hover:bg-emerald-600 hover:text-white transition"
+                  >
+                    🍽️ Restaurant
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyOnboardPreset('CAFE_NO_WAITER')}
+                    className="px-2 py-1 rounded-lg bg-amber-600/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold hover:bg-amber-600 hover:text-white transition"
+                  >
+                    ☕ QR Cafe
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyOnboardPreset('ROOMS_ONLY')}
+                    className="px-2 py-1 rounded-lg bg-purple-600/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold hover:bg-purple-600 hover:text-white transition"
+                  >
+                    🛏️ Rooms Only
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase">Temp. Password</label>
-                <input
-                  type="password"
-                  required
-                  minLength={8}
-                  value={newAdminPassword}
-                  onChange={(e) => setNewAdminPassword(e.target.value)}
-                  placeholder="Minimum 8 characters"
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
-                />
+
+              {/* 7 Portals Checklist Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {DEFAULT_PORTAL_CATALOG.map((portal) => {
+                  const isChecked = onboardPortals.includes(portal.id);
+                  const isBase = portal.requiredBase;
+
+                  return (
+                    <div
+                      key={portal.id}
+                      onClick={() => !isBase && toggleOnboardPortal(portal.id)}
+                      className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
+                        isChecked
+                          ? 'bg-slate-900 border-indigo-500/50 shadow-md shadow-indigo-950/20'
+                          : 'bg-black/30 border-slate-800/80 opacity-60 hover:opacity-85'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        disabled={isBase}
+                        onChange={() => !isBase && toggleOnboardPortal(portal.id)}
+                        className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span>{portal.emoji}</span>
+                            <span>{portal.name}</span>
+                          </span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/40 text-slate-400 border border-slate-800">
+                            :{portal.port}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{portal.description}</p>
+                        <div className="mt-1.5 flex items-center justify-between text-[10px]">
+                          <span className="font-bold text-indigo-400">
+                            +₹{portal.defaultMonthlyPriceINR.toLocaleString('en-IN')}/mo
+                          </span>
+                          {isBase && (
+                            <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[9px] border border-indigo-500/30">
+                              Core Base (Required)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Dynamic Subscription Pricing Calculator Box */}
+              <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <span>💳</span>
+                    <span>Calculated Dynamic Subscription</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-400 font-medium">Billing Cycle:</span>
+                    <div className="inline-flex rounded-xl bg-black/40 p-1 border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setOnboardBillingCycle('MONTHLY')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                          onboardBillingCycle === 'MONTHLY'
+                            ? 'bg-indigo-600 text-white shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Monthly
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOnboardBillingCycle('ANNUAL')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                          onboardBillingCycle === 'ANNUAL'
+                            ? 'bg-indigo-600 text-white shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Annual (2 Mo Free)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                  <div className="p-2.5 rounded-xl bg-black/30 border border-white/5">
+                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Portals Subtotal</div>
+                    <div className="text-sm font-bold text-white mt-0.5">
+                      ₹{onboardPricing.baseMonthlyTotalINR.toLocaleString('en-IN')} / mo
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{onboardPortals.length} active portals</div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-black/30 border border-white/5">
+                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Custom Adjustment (₹)</div>
+                    <input
+                      type="number"
+                      value={onboardDiscount}
+                      onChange={(e) => setOnboardDiscount(Number(e.target.value))}
+                      placeholder="0"
+                      className="w-full px-2 py-1 rounded-lg bg-black/60 border border-slate-700 text-xs text-white font-mono mt-0.5 font-bold"
+                    />
+                    <div className="text-[9px] text-slate-500 mt-0.5">Discount or fee override</div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-indigo-600/20 border border-indigo-500/40">
+                    <div className="text-[10px] text-indigo-300 uppercase font-bold">Total Subscription</div>
+                    <div className="text-base font-black text-emerald-400 mt-0.5">
+                      {onboardBillingCycle === 'ANNUAL'
+                        ? `₹${onboardPricing.annualTotalINR.toLocaleString('en-IN')} / yr`
+                        : `₹${onboardPricing.finalMonthlyTotalINR.toLocaleString('en-IN')} / mo`}
+                    </div>
+                    <div className="text-[9px] text-emerald-300/80 mt-0.5">
+                      {onboardBillingCycle === 'ANNUAL' ? '10× monthly rate (billed yearly)' : 'Billed every 30 days'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Admin Credentials */}
+            <div className="space-y-3 pt-3 border-t border-slate-800">
+              <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
+                3. First Administrator Credentials
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Admin Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="admin@hotel.com"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Phone</label>
+                  <input
+                    type="text"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    placeholder="+91 98000 00000"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Admin Name</label>
+                  <input
+                    type="text"
+                    value={newAdminName}
+                    onChange={(e) => setNewAdminName(e.target.value)}
+                    placeholder="Hotel Administrator"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Temp. Password</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={newAdminPassword}
+                    onChange={(e) => setNewAdminPassword(e.target.value)}
+                    placeholder="Minimum 8 characters"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                </div>
               </div>
             </div>
 
@@ -3302,12 +3542,220 @@ export const SuperAdminDashboardApp: React.FC = () => {
               <button
                 type="submit"
                 disabled={onboarding}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow disabled:cursor-wait disabled:opacity-60"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 disabled:cursor-wait disabled:opacity-60 transition"
               >
-                {onboarding ? 'Creating tenant…' : 'Confirm & Onboard'}
+                {onboarding
+                  ? 'Provisioning Property…'
+                  : `Confirm & Onboard Property (₹${onboardPricing.finalMonthlyTotalINR.toLocaleString('en-IN')}/mo)`}
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 13.5 EDIT TENANT PORTALS & DYNAMIC PRICING MODAL          */}
+      {/* ======================================================== */}
+      {editingTenantPortals && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#0f131d] border border-indigo-500/40 rounded-3xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="font-bold text-base text-white flex items-center gap-2">
+                  <span>⚙️</span>
+                  <span>Portals & Dynamic Pricing: {editingTenantPortals.name}</span>
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Code: <strong className="font-mono text-indigo-400">{editingTenantPortals.code}</strong> • Changes apply in real-time to active terminals via WebSocket.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingTenantPortals(null)}
+                className="text-slate-400 hover:text-white font-bold text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Presets Row */}
+            <div className="flex items-center justify-between flex-wrap gap-2 p-3 rounded-2xl bg-black/30 border border-slate-800/80">
+              <span className="text-[11px] text-slate-400 font-bold uppercase">Quick Configurations:</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => applyEditPreset('FULL')}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold hover:bg-indigo-600 hover:text-white transition"
+                >
+                  🏨 Full Suite (All 7)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyEditPreset('RESTAURANT')}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold hover:bg-emerald-600 hover:text-white transition"
+                >
+                  🍽️ Restaurant (POS + KDS + Waiter + QR)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyEditPreset('CAFE_NO_WAITER')}
+                  className="px-2.5 py-1 rounded-lg bg-amber-600/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold hover:bg-amber-600 hover:text-white transition"
+                >
+                  ☕ QR Cafe (No Waiter)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyEditPreset('ROOMS_ONLY')}
+                  className="px-2.5 py-1 rounded-lg bg-purple-600/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold hover:bg-purple-600 hover:text-white transition"
+                >
+                  🛏️ Rooms Only (PMS + IRD)
+                </button>
+              </div>
+            </div>
+
+            {/* 7 Portals Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {DEFAULT_PORTAL_CATALOG.map((portal) => {
+                const isChecked = editPortalsList.includes(portal.id);
+                const isBase = portal.requiredBase;
+
+                return (
+                  <div
+                    key={portal.id}
+                    onClick={() => !isBase && toggleEditPortal(portal.id)}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
+                      isChecked
+                        ? 'bg-slate-900 border-indigo-500/50 shadow-md shadow-indigo-950/20'
+                        : 'bg-black/30 border-slate-800/80 opacity-60 hover:opacity-85'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      disabled={isBase}
+                      onChange={() => !isBase && toggleEditPortal(portal.id)}
+                      className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <span>{portal.emoji}</span>
+                          <span>{portal.name}</span>
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/40 text-slate-400 border border-slate-800">
+                          :{portal.port}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{portal.description}</p>
+                      <div className="mt-1.5 flex items-center justify-between text-[10px]">
+                        <span className="font-bold text-indigo-400">
+                          +₹{portal.defaultMonthlyPriceINR.toLocaleString('en-IN')}/mo
+                        </span>
+                        {isBase ? (
+                          <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[9px] border border-indigo-500/30">
+                            Core Base
+                          </span>
+                        ) : isChecked ? (
+                          <span className="text-emerald-400 font-semibold text-[10px]">Active Module</span>
+                        ) : (
+                          <span className="text-rose-400 font-semibold text-[10px]">🔒 Disabled</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Pricing Summary Box */}
+            <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <span>💳</span>
+                  <span>Recalculated Subscription Pricing</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-slate-400 font-medium">Billing Cycle:</span>
+                  <div className="inline-flex rounded-xl bg-black/40 p-1 border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setEditBillingCycle('MONTHLY')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                        editBillingCycle === 'MONTHLY'
+                          ? 'bg-indigo-600 text-white shadow'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditBillingCycle('ANNUAL')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                        editBillingCycle === 'ANNUAL'
+                          ? 'bg-indigo-600 text-white shadow'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Annual (2 Mo Free)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                <div className="p-2.5 rounded-xl bg-black/30 border border-white/5">
+                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Portals Subtotal</div>
+                  <div className="text-sm font-bold text-white mt-0.5">
+                    ₹{editPricing.baseMonthlyTotalINR.toLocaleString('en-IN')} / mo
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">{editPortalsList.length} of 7 portals active</div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-black/30 border border-white/5">
+                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Custom Adjustment (₹)</div>
+                  <input
+                    type="number"
+                    value={editDiscount}
+                    onChange={(e) => setEditDiscount(Number(e.target.value))}
+                    placeholder="0"
+                    className="w-full px-2 py-1 rounded-lg bg-black/60 border border-slate-700 text-xs text-white font-mono mt-0.5 font-bold"
+                  />
+                  <div className="text-[9px] text-slate-500 mt-0.5">Custom discount / override</div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-indigo-600/20 border border-indigo-500/40">
+                  <div className="text-[10px] text-indigo-300 uppercase font-bold">Updated Subscription</div>
+                  <div className="text-base font-black text-emerald-400 mt-0.5">
+                    {editBillingCycle === 'ANNUAL'
+                      ? `₹${editPricing.annualTotalINR.toLocaleString('en-IN')} / yr`
+                      : `₹${editPricing.finalMonthlyTotalINR.toLocaleString('en-IN')} / mo`}
+                  </div>
+                  <div className="text-[9px] text-emerald-300/80 mt-0.5">
+                    {editBillingCycle === 'ANNUAL' ? '10× monthly rate (billed yearly)' : 'Billed every 30 days'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingTenantPortals(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveTenantPortals()}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 transition flex items-center gap-1.5"
+              >
+                <span>🚀</span>
+                <span>Save & Broadcast to Terminals</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

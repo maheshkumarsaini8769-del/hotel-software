@@ -18,6 +18,11 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
       gstin,
       adminName,
       adminPassword,
+      enabledPortals,
+      monthlyPriceINR,
+      subscriptionMonthlyINR,
+      billingCycle,
+      customPricingAdjustmentINR,
     } = req.body;
 
     if (!hotelName || !slug || !contactEmail || !adminPassword) {
@@ -39,6 +44,14 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
       return;
     }
 
+    const portals = Array.isArray(enabledPortals) && enabledPortals.length > 0
+      ? Array.from(new Set(['admin', ...enabledPortals]))
+      : ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'];
+
+    const monthlyPrice = monthlyPriceINR !== undefined
+      ? Number(monthlyPriceINR)
+      : (subscriptionMonthlyINR !== undefined ? Number(subscriptionMonthlyINR) : 0);
+
     // 1. Create Tenant
     const tenant = await Tenant.create({
       name: hotelName,
@@ -47,6 +60,22 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
       contactPhone: contactPhone || '9999999999',
       gstin,
       status: 'ACTIVE',
+      enabledPortals: portals,
+      subscriptionMonthlyINR: monthlyPrice,
+      billingCycle: billingCycle === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY',
+      customPricingAdjustmentINR: Number(customPricingAdjustmentINR || 0),
+      featureFlags: {
+        pmsEnabled: portals.includes('reception'),
+        posEnabled: portals.includes('cashier'),
+        kdsEnabled: portals.includes('kds'),
+        waiterEnabled: portals.includes('waiter'),
+        qrDineInEnabled: portals.includes('customer'),
+        roomServiceEnabled: portals.includes('guest'),
+        banquetEnabled: true,
+        loyaltyEnabled: true,
+        aiInsightsEnabled: false,
+        tallyExportEnabled: true,
+      },
     });
 
     // 2. Hash Password using Argon2
@@ -254,9 +283,10 @@ const STAFF_PIN_ROLES = [
 
 export const waiterLogin = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { pin, hotelSlug, demo } = req.body || {};
+    const { pin, pinCode, hotelSlug, hotelId, demo } = req.body || {};
+    const effectivePin = String(pin || pinCode || '');
     const requesterIp = String(req.ip || req.socket?.remoteAddress || 'unknown');
-    const throttleKey = `${requesterIp}:${String(hotelSlug || 'default')}`;
+    const throttleKey = `${requesterIp}:${String(hotelSlug || hotelId || 'default')}`;
 
     const attempt = waiterLoginAttempts.get(throttleKey);
     if (attempt && attempt.lockedUntil > Date.now()) {
@@ -270,13 +300,24 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
     }
 
     let tenant: ITenant | null = null;
-    if (hotelSlug) {
+    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
+      tenant = await Tenant.findById(hotelId);
+    } else if (hotelSlug) {
       tenant = await Tenant.findOne({ slug: String(hotelSlug).toLowerCase() });
     } else {
-      tenant = await Tenant.findOne({ slug: 'taj-gateway' }) || (await Tenant.findOne());
+      tenant = (await Tenant.findOne({ slug: 'taj-gateway' })) || (await Tenant.findOne());
     }
     if (!tenant) {
       res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Hotel not found' });
+      return;
+    }
+
+    if (tenant.enabledPortals && Array.isArray(tenant.enabledPortals) && !tenant.enabledPortals.includes('waiter')) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'PORTAL_NOT_SUBSCRIBED',
+        message: "The Waiter Mobile Handheld portal is not included in this hotel's subscription. Please contact your Super Administrator to activate it.",
+      });
       return;
     }
 
@@ -284,7 +325,7 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
       hotelId: tenant._id,
       role: { $in: STAFF_PIN_ROLES },
       isActive: { $ne: false },
-    });
+    }).select('+pendingPinHash');
 
     // Local demo helper: only available while the dev auth bypass is enabled.
     if (demo === true) {
@@ -331,7 +372,7 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    if (!pin || typeof pin !== 'string' || pin.length < 4) {
+    if (!effectivePin || typeof effectivePin !== 'string' || effectivePin.length < 4) {
       res.status(400).json({
         success: false,
         errorCode: 'PIN_REQUIRED',
@@ -341,16 +382,36 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
     }
 
     let matched: any = null;
+    let pendingApprovalMatched: any = null;
     for (const candidate of staffCandidates) {
-      if (!candidate.pinCodeHash) continue;
-      try {
-        if (await argon2.verify(candidate.pinCodeHash, pin)) {
-          matched = candidate;
-          break;
+      if (candidate.pinCodeHash) {
+        try {
+          if (await argon2.verify(candidate.pinCodeHash, effectivePin)) {
+            matched = candidate;
+            break;
+          }
+        } catch {
+          // Ignore malformed hashes
         }
-      } catch {
-        // Ignore malformed hashes and keep checking the remaining staff.
       }
+      if (candidate.pendingPinHash) {
+        try {
+          if (await argon2.verify(candidate.pendingPinHash, effectivePin)) {
+            pendingApprovalMatched = candidate;
+          }
+        } catch {
+          // Ignore malformed hashes
+        }
+      }
+    }
+
+    if (!matched && pendingApprovalMatched) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'PIN_PENDING_ADMIN_APPROVAL',
+        message: 'Your 4-digit PIN request has been submitted and is pending Hotel Admin approval. Please ask your manager or receptionist to approve it.',
+      });
+      return;
     }
 
     if (!matched) {
@@ -366,6 +427,15 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
             : `Invalid staff PIN. ${WAITER_LOGIN_MAX_ATTEMPTS - next} attempt${
                 WAITER_LOGIN_MAX_ATTEMPTS - next === 1 ? '' : 's'
               } remaining.`,
+      });
+      return;
+    }
+
+    if (matched.pinApprovedByAdmin === false || matched.pinStatus === 'PENDING_APPROVAL') {
+      res.status(403).json({
+        success: false,
+        errorCode: 'PIN_PENDING_ADMIN_APPROVAL',
+        message: 'Your 4-digit PIN is pending Hotel Admin approval. Please ask your admin/receptionist to approve it.',
       });
       return;
     }
@@ -404,3 +474,117 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
     res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: error.message });
   }
 };
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/auth/active-hotels
+// ---------------------------------------------------------------------------
+// Public endpoint for mobile staff and customer apps to discover active hotels
+export const getActiveHotels = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const hotels = await Tenant.find({
+      status: { $in: ['ACTIVE', 'TRIAL'] },
+    })
+      .select('_id name slug city state logoUrl enabledPortals status address contactPhone')
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: hotels.map((h: any) => ({
+        id: h._id.toString(),
+        name: h.name,
+        slug: h.slug,
+        city: (h.address as any)?.city || h.city || 'India',
+        state: (h.address as any)?.state || h.state || '',
+        logoUrl: h.logoUrl || '',
+        enabledPortals: h.enabledPortals || ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'],
+        address: h.address || '',
+        contactPhone: h.contactPhone || '',
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/auth/request-pin
+// ---------------------------------------------------------------------------
+// Staff self-submits a 4-digit PIN for Hotel Admin verification & approval
+export const requestPin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { hotelSlug, hotelId, email, phone, pin, role } = req.body || {};
+
+    if (!pin || !/^\d{4,6}$/.test(String(pin))) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PIN', message: 'PIN must be 4 to 6 numeric digits' });
+      return;
+    }
+
+    if (!email && !phone) {
+      res.status(400).json({ success: false, errorCode: 'IDENTIFIER_REQUIRED', message: 'Staff email or phone is required' });
+      return;
+    }
+
+    let tenant: ITenant | null = null;
+    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
+      tenant = await Tenant.findById(hotelId);
+    } else if (hotelSlug) {
+      tenant = await Tenant.findOne({ slug: String(hotelSlug).toLowerCase() });
+    } else {
+      tenant = (await Tenant.findOne({ slug: 'taj-gateway' })) || (await Tenant.findOne());
+    }
+
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Hotel not found' });
+      return;
+    }
+
+    const query: any = { hotelId: tenant._id, isActive: { $ne: false } };
+    if (email) {
+      query.email = String(email).toLowerCase().trim();
+    } else if (phone) {
+      query.phone = String(phone).trim();
+    }
+
+    let staff = await User.findOne(query);
+    const hashedPin = await argon2.hash(String(pin));
+
+    if (!staff) {
+      const normalizedRole = role && STAFF_PIN_ROLES.includes(role as UserRole) ? (role as UserRole) : UserRole.WAITER;
+      staff = new User({
+        hotelId: tenant._id,
+        name: email ? String(email).split('@')[0] : `Staff-${pin.slice(-2)}`,
+        email: email ? String(email).toLowerCase().trim() : `staff-${Date.now()}@${tenant.slug}.local`,
+        phone: phone ? String(phone).trim() : '+91 98000 00000',
+        passwordHash: hashedPin,
+        pendingPinHash: hashedPin,
+        pinApprovedByAdmin: false,
+        pinStatus: 'PENDING_APPROVAL',
+        role: normalizedRole,
+        permissions: ['WAITER_SERVICE'],
+        isActive: true,
+      });
+      await staff.save();
+    } else {
+      staff.pendingPinHash = hashedPin;
+      staff.pinApprovedByAdmin = false;
+      staff.pinStatus = 'PENDING_APPROVAL';
+      await staff.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: '4-digit PIN request submitted! Waiting for Hotel Admin approval.',
+      data: {
+        staffId: staff._id.toString(),
+        name: staff.name,
+        email: staff.email,
+        role: staff.role,
+        pinStatus: 'PENDING_APPROVAL',
+        pinApprovedByAdmin: false,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+

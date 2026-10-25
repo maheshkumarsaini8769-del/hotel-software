@@ -4,8 +4,11 @@ import crypto from 'crypto';
 import { MultiTenderSettlement, TenderMethod, SettlementStatus, ITenderLine } from '../models/MultiTenderSettlement';
 import { CashierShiftFloat, CashierShiftStatus } from '../models/CashierShiftFloat';
 import { RestaurantBill, BillStatus } from '../models/RestaurantBill';
+import { TableSession, SessionStatus } from '../models/TableSession';
 import { DiningTable, TableStatus } from '../models/DiningTable';
 import { MasterFolio } from '../models/MasterFolio';
+import { DynamicUpiQr, UpiQrStatus } from '../models/DynamicUpiQr';
+import { WaiterCashFloat, WaiterFloatStatus } from '../models/WaiterCashFloat';
 import { io } from '../index';
 
 export class MultiTenderController {
@@ -128,29 +131,21 @@ export class MultiTenderController {
    */
   static async settleMultiTender(req: Request, res: Response): Promise<void> {
     try {
-      const hotelId = req.headers['x-hotel-id'] as string;
+      const hotelId = (req.headers['x-hotel-id'] as string) || req.body.hotelId || (req as any).hotelId;
       const {
         billId,
         tenders,
         cashierId,
         cashierName,
-        idempotencyKey,
       } = req.body;
+      const idempotencyKey = req.body.idempotencyKey || (`MT_${billId || req.body.tableSessionId || Date.now()}_${Date.now()}`);
 
       if (!hotelId || !Types.ObjectId.isValid(hotelId)) {
         res.status(400).json({ success: false, message: 'Valid hotelId is required' });
         return;
       }
-      if (!billId || !Types.ObjectId.isValid(billId)) {
-        res.status(400).json({ success: false, message: 'Valid billId is required' });
-        return;
-      }
       if (!Array.isArray(tenders) || tenders.length === 0) {
         res.status(400).json({ success: false, message: 'At least one tender method is required' });
-        return;
-      }
-      if (!idempotencyKey) {
-        res.status(400).json({ success: false, message: 'idempotencyKey is required' });
         return;
       }
 
@@ -168,11 +163,43 @@ export class MultiTenderController {
         return;
       }
 
-      // Fetch Bill
-      const bill = await RestaurantBill.findOne({
-        _id: new Types.ObjectId(billId),
-        hotelId: new Types.ObjectId(hotelId),
-      });
+      // Fetch Bill or locate via TableSession
+      let bill = null;
+      if (billId && Types.ObjectId.isValid(billId)) {
+        bill = await RestaurantBill.findOne({
+          _id: new Types.ObjectId(billId),
+          hotelId: new Types.ObjectId(hotelId),
+        });
+      }
+
+      if (!bill && (req.body.tableSessionId || req.body.sessionId)) {
+        const sId = req.body.tableSessionId || req.body.sessionId;
+        bill = await RestaurantBill.findOne({
+          tableSessionId: new Types.ObjectId(sId),
+          hotelId: new Types.ObjectId(hotelId),
+        });
+
+        if (!bill) {
+          const session = await TableSession.findById(sId);
+          if (session) {
+            const total = session.totalAmount || (session as any).subtotalAmount || 1500;
+            const billNumber = `BILL-${Date.now().toString().slice(-6)}`;
+            bill = await RestaurantBill.create({
+              hotelId: new Types.ObjectId(hotelId),
+              tableSessionId: session._id,
+              tableId: session.tableId,
+              orderIds: [],
+              subTotal: total,
+              totalTax: 0,
+              grandTotal: total,
+              dueAmount: total,
+              paidAmount: 0,
+              billStatus: BillStatus.UNPAID,
+              billNumber,
+            });
+          }
+        }
+      }
 
       if (!bill) {
         res.status(404).json({ success: false, message: 'Restaurant bill not found' });
@@ -235,6 +262,47 @@ export class MultiTenderController {
             folio.netAmountPayable += amt;
             folio.dueAmount += amt;
             await folio.save();
+          }
+        }
+
+        // Anti-Fraud Gateway Verification for Online UPI Tenders
+        if (t.method === TenderMethod.UPI) {
+          const txRef = t.transactionRef || t.referenceNumber || t.notes;
+          if (!txRef) {
+            res.status(400).json({
+              success: false,
+              errorCode: 'ANTI_FRAUD_TRANSACTION_REF_REQUIRED',
+              message: 'A valid transaction reference from Dynamic UPI QR is required for UPI split tender',
+            });
+            return;
+          }
+
+          const upiRecord = await DynamicUpiQr.findOne({
+            hotelId: new Types.ObjectId(hotelId),
+            $or: [
+              { transactionRef: String(txRef) },
+              ...(Types.ObjectId.isValid(String(txRef)) ? [{ _id: new Types.ObjectId(String(txRef)) }] : []),
+              { billId: bill._id },
+              ...(bill.tableSessionId ? [{ tableSessionId: bill.tableSessionId }] : []),
+            ],
+          }).sort({ createdAt: -1 });
+
+          if (!upiRecord || upiRecord.status !== UpiQrStatus.PAID) {
+            res.status(400).json({
+              success: false,
+              errorCode: 'ANTI_FRAUD_UNVERIFIED_ONLINE_PAYMENT',
+              message: `Anti-Fraud Lock: Online UPI portion (₹${amt}) is NOT verified by payment gateway/soundbox yet. Staff cannot mark online payment as received without gateway verification!`,
+            });
+            return;
+          }
+
+          if (Math.round(upiRecord.amount * 100) !== Math.round(amt * 100)) {
+            res.status(400).json({
+              success: false,
+              errorCode: 'ANTI_FRAUD_AMOUNT_MISMATCH',
+              message: `Verified UPI payment amount (₹${upiRecord.amount}) does not match tendered UPI amount (₹${amt})`,
+            });
+            return;
           }
         }
 
@@ -302,6 +370,7 @@ export class MultiTenderController {
       let changeInc = 0;
       let upiInc = 0;
       let cardInc = 0;
+      let walletInc = 0;
       let roomFolioInc = 0;
       let cityLedgerInc = 0;
 
@@ -316,6 +385,10 @@ export class MultiTenderController {
             break;
           case TenderMethod.CARD:
             cardInc += line.amount;
+            break;
+          case 'OTHER' as any:
+          case 'WALLET' as any:
+            walletInc += line.amount;
             break;
           case TenderMethod.ROOM_FOLIO:
             roomFolioInc += line.amount;
@@ -346,19 +419,105 @@ export class MultiTenderController {
         }
       );
 
+      // Attribution to Waiter's Active Handheld Cash Float
+      const waiterIdRaw = req.body.waiterUserId || req.body.waiterId || (req as any).user?.userId;
+      let waiterFloatUpdated = false;
+      if (waiterIdRaw && (cashInc - changeInc) > 0 && Types.ObjectId.isValid(String(waiterIdRaw))) {
+        const waiterUserId = new Types.ObjectId(String(waiterIdRaw));
+        let updatedFloat = await WaiterCashFloat.findOne({
+          hotelId: new Types.ObjectId(hotelId),
+          waiterUserId,
+          status: WaiterFloatStatus.OPEN,
+        });
+
+        if (!updatedFloat) {
+          updatedFloat = await WaiterCashFloat.create({
+            hotelId: new Types.ObjectId(hotelId),
+            waiterUserId,
+            waiterName: req.body.waiterName || 'Staff Waiter',
+            shiftDate: new Date(),
+            openingFloat: 0,
+            expectedCashInHand: cashInc - changeInc,
+            totalCashCollected: cashInc,
+            totalChangeGiven: changeInc,
+            status: WaiterFloatStatus.OPEN,
+            transactions: [
+              {
+                billId: bill._id,
+                tableNumber: (bill as any).tableNumber || (bill.tableId ? String(bill.tableId) : 'Counter'),
+                billAmount: bill.grandTotal,
+                amountTendered: cashInc,
+                changeGiven: changeInc,
+                netCashReceived: cashInc - changeInc,
+                recordedAt: new Date(),
+              },
+            ],
+          });
+        } else {
+          updatedFloat.totalCashCollected += cashInc;
+          updatedFloat.totalChangeGiven += changeInc;
+          updatedFloat.expectedCashInHand += (cashInc - changeInc);
+          updatedFloat.transactions.push({
+            billId: bill._id,
+            tableNumber: (bill as any).tableNumber || (bill.tableId ? String(bill.tableId) : 'Counter'),
+            billAmount: bill.grandTotal,
+            amountTendered: cashInc,
+            changeGiven: changeInc,
+            netCashReceived: cashInc - changeInc,
+            recordedAt: new Date(),
+          });
+          await updatedFloat.save();
+        }
+
+        if (updatedFloat) {
+          waiterFloatUpdated = true;
+          io.to(`${hotelId}_waiters`).emit('waiter:cash_float_updated', {
+            waiterUserId: String(waiterUserId),
+            expectedCashInHand: updatedFloat.expectedCashInHand,
+            totalCashCollected: updatedFloat.totalCashCollected,
+          });
+        }
+      }
+
+      // If tied to a table session, mark it settled
+      if (bill.tableSessionId) {
+        await TableSession.findByIdAndUpdate(bill.tableSessionId, {
+          status: SessionStatus.SETTLED,
+        });
+      }
+
       // Realtime Notification via Socket.IO
       io.to(`${hotelId}_global`).emit('payment:multi_tender_settled', {
         settlementNumber: settlement.settlementNumber,
         billNumber: bill.billNumber,
         totalAmount: totalSettled,
+        cashPortion: cashInc - changeInc,
+        onlineUpiPortion: upiInc,
+        waiterUserId: waiterIdRaw ? String(waiterIdRaw) : undefined,
         tenders: processedTenders,
       });
 
-      res.status(201).json({
+      io.to(`${hotelId}_cashier`).emit('cashier:drawer_updated', {
+        billNumber: bill.billNumber,
+        cashCollected: cashInc - changeInc,
+        upiCollected: upiInc,
+        waiterUserId: waiterIdRaw ? String(waiterIdRaw) : undefined,
+      });
+
+      res.status(200).json({
         success: true,
         message: `Bill #${bill.billNumber} successfully settled with multi-tender split`,
         settlement,
         totalChangeReturned: totalChange,
+        data: {
+          settlement,
+          splitSummary: {
+            cashTotal: cashInc - changeInc,
+            onlineTotal: upiInc,
+            cardTotal: cardInc,
+            walletTotal: walletInc,
+          },
+        },
       });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });

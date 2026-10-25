@@ -3,6 +3,9 @@ import { Types } from 'mongoose';
 import crypto from 'crypto';
 import { Tenant, ITenant } from '../models/Tenant';
 import { SubscriptionPlan } from '../models/SubscriptionPlan';
+import { PortalPricing, ensureDefaultPortalPricing } from '../models/PortalPricing';
+import { SubscriptionInvoice } from '../models/SubscriptionInvoice';
+import { DEFAULT_PORTAL_CATALOG } from '@spicehub/shared-types';
 import { Room, RoomStatus } from '../models/Room';
 import { RoomType } from '../models/RoomType';
 import { Booking } from '../models/Booking';
@@ -12,7 +15,16 @@ import { GuestProfile } from '../models/GuestProfile';
 import { User } from '../models/User';
 import { Payment, PaymentStatus } from '../models/Payment';
 import { TenantRequest, UserRole } from '../types';
-import { io } from '../index';
+
+function getSocketIO(): any {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const serverModule = require('../index');
+    return serverModule?.io;
+  } catch {
+    return null;
+  }
+}
 
 function parseRange(req: TenantRequest): { start: Date; end: Date } {
   const rawStart = String(req.query.startDate || '');
@@ -101,6 +113,12 @@ export const listAllTenants = async (req: TenantRequest, res: Response): Promise
           state: t.address?.state || '',
           status: t.status,
           currency: t.currency,
+          enabledPortals:
+            t.enabledPortals && t.enabledPortals.length > 0
+              ? t.enabledPortals
+              : ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'],
+          billingCycle: t.billingCycle || 'MONTHLY',
+          customPricingAdjustmentINR: Number(t.customPricingAdjustmentINR || 0),
           featureFlags: t.featureFlags,
           plan,
           planCode: storedPlanCode || plan,
@@ -181,11 +199,14 @@ export const toggleTenantStatus = async (req: TenantRequest, res: Response): Pro
     await tenant.save();
 
     // Broadcast immediate emergency event to any active sockets under this tenant
-    io.to(`${tenant._id.toString()}_global`).emit('tenant:status_changed', {
-      tenantId: tenant._id,
-      newStatus: status,
-      reason,
-    });
+    const socketIO = getSocketIO();
+    if (socketIO) {
+      socketIO.to(`${tenant._id.toString()}_global`).emit('tenant:status_changed', {
+        tenantId: tenant._id,
+        newStatus: status,
+        reason,
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -221,15 +242,121 @@ export const updateTenantFeatureFlags = async (req: TenantRequest, res: Response
     };
     await tenant.save();
 
-    io.to(`${tenant._id.toString()}_global`).emit('tenant:flags_updated', {
-      tenantId: tenant._id,
-      featureFlags: tenant.featureFlags,
-    });
+    const socketIO = getSocketIO();
+    if (socketIO) {
+      socketIO.to(`${tenant._id.toString()}_global`).emit('tenant:flags_updated', {
+        tenantId: tenant._id,
+        featureFlags: tenant.featureFlags,
+      });
+    }
 
     res.status(200).json({
       success: true,
       tenantId: tenant._id,
       featureFlags: tenant.featureFlags,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 3b. Update Tenant Enabled Portals & Modular Pricing
+export const updateTenantPortalsAndPricing = async (
+  req: TenantRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const tenantId = String(req.params.tenantId);
+    const {
+      enabledPortals,
+      monthlyPriceINR,
+      billingCycle,
+      customPricingAdjustmentINR,
+      planName,
+      planCode,
+      featureFlags,
+    } = req.body;
+
+    if (!Array.isArray(enabledPortals)) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_PORTALS',
+        message: 'enabledPortals array required',
+      });
+      return;
+    }
+
+    const tenant = await Tenant.findById(new Types.ObjectId(tenantId));
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Tenant not found' });
+      return;
+    }
+
+    // Always ensure 'admin' is included if omitted as core management base
+    const portals = Array.from(new Set(enabledPortals));
+    if (!portals.includes('admin')) {
+      portals.unshift('admin');
+    }
+
+    tenant.enabledPortals = portals;
+
+    if (monthlyPriceINR !== undefined) {
+      tenant.subscriptionMonthlyINR = Math.max(0, Number(monthlyPriceINR));
+    }
+    if (billingCycle) {
+      tenant.billingCycle = billingCycle === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY';
+    }
+    if (customPricingAdjustmentINR !== undefined) {
+      tenant.customPricingAdjustmentINR = Number(customPricingAdjustmentINR);
+    }
+    if (planName) {
+      tenant.subscriptionPlanName = String(planName);
+    }
+    if (planCode) {
+      tenant.subscriptionPlanCode = String(planCode);
+    }
+
+    // Synchronize feature flags with enabled portals
+    tenant.featureFlags = {
+      ...tenant.featureFlags,
+      pmsEnabled: portals.includes('reception'),
+      posEnabled: portals.includes('cashier'),
+      kdsEnabled: portals.includes('kds'),
+      waiterEnabled: portals.includes('waiter'),
+      qrDineInEnabled: portals.includes('customer'),
+      roomServiceEnabled: portals.includes('guest'),
+      ...(featureFlags || {}),
+    };
+
+    await tenant.save();
+
+    // Broadcast real-time socket events across the tenant
+    const socket = getSocketIO();
+    if (socket) {
+      socket.to(`${tenant._id.toString()}_global`).emit('tenant:flags_updated', {
+        tenantId: tenant._id,
+        featureFlags: tenant.featureFlags,
+      });
+      socket.to(`${tenant._id.toString()}_global`).emit('tenant:portals_updated', {
+        tenantId: tenant._id,
+        enabledPortals: tenant.enabledPortals,
+        monthlyPriceINR: tenant.subscriptionMonthlyINR,
+        featureFlags: tenant.featureFlags,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Updated portal allocations for ${tenant.name}`,
+      tenant: {
+        id: tenant._id,
+        name: tenant.name,
+        enabledPortals: tenant.enabledPortals,
+        subscriptionMonthlyINR: tenant.subscriptionMonthlyINR,
+        billingCycle: tenant.billingCycle,
+        customPricingAdjustmentINR: tenant.customPricingAdjustmentINR,
+        featureFlags: tenant.featureFlags,
+      },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
@@ -257,6 +384,8 @@ export const createSubscriptionPlan = async (req: TenantRequest, res: Response):
         kdsEnabled: true,
         qrDineInEnabled: true,
         roomServiceEnabled: true,
+        waiterEnabled: true,
+        posEnabled: true,
         banquetEnabled: true,
         loyaltyEnabled: true,
         aiInsightsEnabled: false,
@@ -655,3 +784,143 @@ export const provisionTenantCapacity = async (
     res.status(500).json({ success: false, errorCode: 'PROVISION_FAILED', message: error.message });
   }
 };
+
+// 9. Get Portal Pricing Catalog (DB-backed with shared-types fallback)
+export const getPortalPricingCatalog = async (_req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    await ensureDefaultPortalPricing();
+    let catalog = await PortalPricing.find({ isActive: true }).sort({ port: 1 }).lean();
+    if (!catalog || catalog.length === 0) {
+      catalog = DEFAULT_PORTAL_CATALOG as any;
+    }
+    res.status(200).json({ success: true, catalog });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 10. Update Portal Pricing in Database Catalog
+export const updatePortalPricing = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const { portalKey, defaultMonthlyPriceINR, isActive } = req.body;
+    if (!portalKey) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_INPUT', message: 'portalKey is required' });
+      return;
+    }
+    await ensureDefaultPortalPricing();
+    const updated = await PortalPricing.findOneAndUpdate(
+      { portalKey },
+      {
+        ...(defaultMonthlyPriceINR !== undefined
+          ? { defaultMonthlyPriceINR: Math.max(0, Number(defaultMonthlyPriceINR)) }
+          : {}),
+        ...(isActive !== undefined ? { isActive: Boolean(isActive) } : {}),
+      },
+      { new: true, upsert: true }
+    );
+    res.status(200).json({ success: true, message: `Updated pricing for ${portalKey}`, portal: updated });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 11. List Subscription Invoices
+export const getSubscriptionInvoices = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const filter: any = {};
+    if (req.query.tenantId && Types.ObjectId.isValid(String(req.query.tenantId))) {
+      filter.tenantId = new Types.ObjectId(String(req.query.tenantId));
+    }
+    if (req.query.status) {
+      filter.status = String(req.query.status).toUpperCase();
+    }
+    const invoices = await SubscriptionInvoice.find(filter).sort({ createdAt: -1 }).limit(100).lean();
+    res.status(200).json({ success: true, invoices });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 12. Generate New Subscription Invoice for a Tenant
+export const generateSubscriptionInvoice = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const { tenantId, customAdjustmentINR, notes } = req.body;
+    if (!tenantId || !Types.ObjectId.isValid(tenantId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_TENANT', message: 'Valid tenantId is required' });
+      return;
+    }
+    const tenant = await Tenant.findById(new Types.ObjectId(tenantId));
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Tenant not found' });
+      return;
+    }
+    const cycle = tenant.billingCycle || 'MONTHLY';
+    const baseMonthly = tenant.subscriptionMonthlyINR || 0;
+    const baseAmount = cycle === 'ANNUAL' ? baseMonthly * 10 : baseMonthly;
+    const adjustment = Number(customAdjustmentINR || tenant.customPricingAdjustmentINR || 0);
+    const subtotal = Math.max(0, baseAmount + adjustment);
+    const taxAmount = Math.round(subtotal * 0.18); // 18% GST standard in India SaaS
+    const totalAmount = subtotal + taxAmount;
+
+    const dateStr = new Date().toISOString().slice(0, 7).replace('-', '');
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const invoiceNumber = `INV-${dateStr}-${tenant.slug.toUpperCase().slice(0, 4)}-${randomSuffix}`;
+
+    const periodStart = new Date();
+    const periodEnd = new Date(Date.now() + (cycle === 'ANNUAL' ? 365 : 30) * 86400000);
+
+    const invoice = await SubscriptionInvoice.create({
+      invoiceNumber,
+      tenantId: tenant._id,
+      hotelName: tenant.name,
+      billingCycle: cycle,
+      periodStart,
+      periodEnd,
+      allocatedPortals: tenant.enabledPortals || [],
+      baseAmountINR: baseAmount,
+      customAdjustmentINR: adjustment,
+      taxAmountINR: taxAmount,
+      totalAmountINR: totalAmount,
+      status: 'PENDING',
+      notes: notes || `Subscription invoice for ${tenant.name} (${cycle})`,
+    });
+
+    res.status(201).json({ success: true, message: `Generated invoice ${invoiceNumber}`, invoice });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 13. Settle / Record Payment for Subscription Invoice
+export const settleSubscriptionInvoice = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const invoiceId = String(req.params.invoiceId);
+    if (!Types.ObjectId.isValid(invoiceId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ID', message: 'Invalid invoiceId' });
+      return;
+    }
+    const { paymentMethod, paymentReference, notes } = req.body;
+    const invoice = await SubscriptionInvoice.findById(new Types.ObjectId(invoiceId));
+    if (!invoice) {
+      res.status(404).json({ success: false, errorCode: 'NOT_FOUND', message: 'Invoice not found' });
+      return;
+    }
+    invoice.status = 'PAID';
+    invoice.paidAt = new Date();
+    if (paymentMethod) invoice.paymentMethod = paymentMethod;
+    if (paymentReference) invoice.paymentReference = paymentReference;
+    if (notes) invoice.notes = notes;
+    await invoice.save();
+
+    // Update tenant's last payment date & status
+    await Tenant.findByIdAndUpdate(invoice.tenantId, {
+      'subscription.lastPaymentDate': new Date(),
+      'subscription.paymentStatus': 'PAID',
+    });
+
+    res.status(200).json({ success: true, message: `Invoice ${invoice.invoiceNumber} marked as PAID`, invoice });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+

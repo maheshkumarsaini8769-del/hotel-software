@@ -274,6 +274,8 @@ export interface SocketEventMap {
   'table:status_changed': { tableId: string; status: TableStatus; sessionId?: string };
   'room:status_changed': { roomId: string; roomNumber?: string; status: RoomStatus };
   'tenant:status_changed': { tenantId: string; newStatus: string; reason?: string };
+  'tenant:portals_updated': { tenantId: string; enabledPortals: string[]; monthlyPriceINR: number; featureFlags: any };
+  'tenant:flags_updated': { tenantId: string; featureFlags: any };
   'kot:item_voided': KotVoidAuditDTO;
   'pms:room_checked_out': {
     stayId: string;
@@ -476,4 +478,178 @@ export interface ChargeSweepResponseDTO {
     folio: FolioSummaryDTO;
   };
 }
+
+// ==========================================
+// MODULAR PORTAL SUBSCRIPTION & PRICING
+// ==========================================
+
+export type PortalKey =
+  | 'admin'
+  | 'cashier'
+  | 'reception'
+  | 'kds'
+  | 'waiter'
+  | 'customer'
+  | 'guest';
+
+export interface PortalCatalogItem {
+  id: PortalKey;
+  name: string;
+  role: string;
+  port: number;
+  category: 'GUEST' | 'OPERATIONS' | 'BILLING' | 'MANAGEMENT';
+  categoryLabel: string;
+  defaultMonthlyPriceINR: number;
+  emoji: string;
+  badge: string;
+  colorScheme: 'orange' | 'emerald' | 'amber' | 'rose' | 'blue' | 'indigo' | 'purple' | 'cyan';
+  description: string;
+  requiredBase?: boolean;
+  featureFlagKey?: string;
+}
+
+export const DEFAULT_PORTAL_CATALOG: PortalCatalogItem[] = [
+  {
+    id: 'admin',
+    name: 'Hotel Admin ERP Command Center',
+    role: 'General Manager / Operations Head',
+    port: 3005,
+    category: 'MANAGEMENT',
+    categoryLabel: 'Command Center',
+    defaultMonthlyPriceINR: 1999,
+    emoji: '📊',
+    badge: 'Hotel ERP',
+    colorScheme: 'cyan',
+    description: 'Central operational control, rooms & tables setup, inventory, tax settings, staff management & business analytics.',
+    requiredBase: true,
+  },
+  {
+    id: 'reception',
+    name: 'Reception & Front Desk PMS',
+    role: 'Front Office Agents & Concierge',
+    port: 3008,
+    category: 'BILLING',
+    categoryLabel: 'Front Desk PMS',
+    defaultMonthlyPriceINR: 1499,
+    emoji: '🏨',
+    badge: 'PMS & Arrivals',
+    colorScheme: 'indigo',
+    description: 'PMS reservation matrix, guest check-in/out, room keys, corporate folios, night audit & lost & found custody.',
+    featureFlagKey: 'pmsEnabled',
+  },
+  {
+    id: 'cashier',
+    name: 'Express Cashier POS',
+    role: 'Cashiers & Billing Staff',
+    port: 3007,
+    category: 'BILLING',
+    categoryLabel: 'Settlement & POS',
+    defaultMonthlyPriceINR: 1199,
+    emoji: '💳',
+    badge: 'Billing & POS',
+    colorScheme: 'emerald',
+    description: 'High-speed billing terminal, cash drawer float custody, split bills, KOT void approvals & blind shift close.',
+    featureFlagKey: 'posEnabled',
+  },
+  {
+    id: 'kds',
+    name: 'Kitchen Display System (KDS)',
+    role: 'Chefs & Line Cooks',
+    port: 3003,
+    category: 'OPERATIONS',
+    categoryLabel: 'Kitchen Display',
+    defaultMonthlyPriceINR: 899,
+    emoji: '👨‍🍳',
+    badge: 'Kitchen Production',
+    colorScheme: 'rose',
+    description: 'Live order station queues, course firing timers, item 86 out-of-stock toggles & ready status chimes.',
+    featureFlagKey: 'kdsEnabled',
+  },
+  {
+    id: 'waiter',
+    name: 'Waiter Mobile Handheld',
+    role: 'Floor Captains & Servers',
+    port: 3002,
+    category: 'OPERATIONS',
+    categoryLabel: 'Floor Operations',
+    defaultMonthlyPriceINR: 999,
+    emoji: '📱',
+    badge: 'Floor Ordering',
+    colorScheme: 'amber',
+    description: 'Mobile touch terminal for table orders, instant KOT firing, live dish ready alerts & bill requests.',
+    featureFlagKey: 'waiterEnabled',
+  },
+  {
+    id: 'customer',
+    name: 'Customer Table QR Menu',
+    role: 'Dine-In Restaurant Guests',
+    port: 3001,
+    category: 'GUEST',
+    categoryLabel: 'Guest Services',
+    defaultMonthlyPriceINR: 699,
+    emoji: '🍽️',
+    badge: 'Table Self-Order',
+    colorScheme: 'orange',
+    description: 'Interactive digital menu, table cart, waiter assistance buzzers & live kitchen status tracker.',
+    featureFlagKey: 'qrDineInEnabled',
+  },
+  {
+    id: 'guest',
+    name: 'In-Room Guest Portal (IRD)',
+    role: 'Hotel Room Guests',
+    port: 3004,
+    category: 'GUEST',
+    categoryLabel: 'Guest Services',
+    defaultMonthlyPriceINR: 699,
+    emoji: '🛎️',
+    badge: 'Room Services',
+    colorScheme: 'purple',
+    description: 'In-room dining service, housekeeping requests, spa/laundry, room folio balance & express checkout.',
+    featureFlagKey: 'roomServiceEnabled',
+  },
+];
+
+export const ALL_PORTAL_KEYS: PortalKey[] = [
+  'admin',
+  'reception',
+  'cashier',
+  'kds',
+  'waiter',
+  'customer',
+  'guest',
+];
+
+export interface ModularSubscriptionSummary {
+  enabledPortals: PortalKey[];
+  baseMonthlyTotalINR: number;
+  customAdjustmentINR: number;
+  finalMonthlyTotalINR: number;
+  annualTotalINR: number;
+  billingCycle: 'MONTHLY' | 'ANNUAL';
+}
+
+export function calculateModularSubscription(
+  enabledPortals: PortalKey[],
+  customAdjustment = 0,
+  billingCycle: 'MONTHLY' | 'ANNUAL' = 'MONTHLY'
+): ModularSubscriptionSummary {
+  const baseMonthlyTotalINR = enabledPortals.reduce((sum, portalKey) => {
+    const item = DEFAULT_PORTAL_CATALOG.find((p) => p.id === portalKey);
+    return sum + (item ? item.defaultMonthlyPriceINR : 0);
+  }, 0);
+
+  const finalMonthlyTotalINR = Math.max(0, baseMonthlyTotalINR + customAdjustment);
+  // Annual subscription offers 2 months free (10x monthly price)
+  const annualTotalINR = finalMonthlyTotalINR * 10;
+
+  return {
+    enabledPortals,
+    baseMonthlyTotalINR,
+    customAdjustmentINR: customAdjustment,
+    finalMonthlyTotalINR,
+    annualTotalINR,
+    billingCycle,
+  };
+}
+
 

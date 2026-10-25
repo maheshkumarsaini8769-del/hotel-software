@@ -142,8 +142,25 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
                     )}
                   </div>
                   {item.specialInstructions && (
-                    <div className="text-xs text-amber-400 mt-0.5">
-                      Note: {item.specialInstructions}
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {/kam namak|less salt|salt/i.test(item.specialInstructions) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-[10px]">
+                          🧂 Kam Namak
+                        </span>
+                      )}
+                      {/mirchi kam|less spicy|mild|spicy/i.test(item.specialInstructions) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-500/20 border border-orange-500/40 text-orange-300 font-bold text-[10px]">
+                          🌶️ Mirchi Kam
+                        </span>
+                      )}
+                      {/jain|no onion|no garlic/i.test(item.specialInstructions) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-[10px]">
+                          🌿 Jain / No Onion-Garlic
+                        </span>
+                      )}
+                      <span className="inline-block text-[11px] font-medium text-amber-200 bg-amber-950/60 border border-amber-700/50 px-2 py-0.5 rounded">
+                        Note: {item.specialInstructions}
+                      </span>
                     </div>
                   )}
                   {item.kitchenStationName && (

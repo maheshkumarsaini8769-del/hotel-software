@@ -1365,8 +1365,22 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               <div className={`flex items-center justify-between pb-2 border-b ${
                 isDark ? 'border-slate-800' : 'border-slate-100'
               }`}>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <span className={`font-black text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>{orderTable}</span>
+                  <button
+                    data-testid="btn-walkin-direct-settle"
+                    onClick={() => {
+                      setOrderTable('Walk-In Counter (Direct Settle)');
+                      setOrderItems([
+                        { id: 'item-walkin-1', name: 'Butter Chicken Special', qty: 1, price: 380 },
+                        { id: 'item-walkin-2', name: 'Garlic Naan', qty: 2, price: 60 },
+                      ]);
+                      triggerToast('Walk-in verbal order loaded. Select items from menu or settle directly.');
+                    }}
+                    className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30 transition flex items-center gap-1"
+                  >
+                    <span>⚡</span> Walk-In / Verbal Order
+                  </button>
                   <button
                     data-testid="btn-select-table-t12"
                     onClick={() => {
@@ -1698,6 +1712,76 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                 }`}>
                   <span>Current Cash in Hand</span>
                   <span className={`text-sm ${isDark ? 'text-amber-400' : 'text-slate-900'}`}>₹{(drawerBalance.openingFloat + drawerBalance.cashSales).toLocaleString('en-IN')}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4: Waiters Cash Float Live Reconciliation */}
+            <div className={`p-4 rounded-2xl border shadow-2xs space-y-3 transition-colors ${
+              isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-amber-500" />
+                  <h3 className={`font-extrabold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    Waiters Cash-in-Hand Float
+                  </h3>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                  Floor Ledger
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                {[
+                  { name: 'Ravi Kumar (Captain)', tables: 'T-01 to T-06', cash: 1000, upi: 500, status: 'Active' },
+                  { name: 'Ramesh Kumar (Senior Waiter)', tables: 'T-07 to T-12', cash: 0, upi: 0, status: 'Clear' },
+                  { name: 'Amit Singh (Steward)', tables: 'T-13 to T-18', cash: 450, upi: 300, status: 'Active' },
+                ].map((w, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                      isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div>
+                      <div className={`font-bold text-xs ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                        {w.name}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {w.tables} • Online UPI: ₹{w.upi}
+                      </div>
+                    </div>
+                    <div className="text-right flex items-center gap-2">
+                      <div>
+                        <div className="font-black text-xs text-emerald-500 font-mono">
+                          ₹{w.cash}
+                        </div>
+                        <div className="text-[9px] text-slate-400 font-semibold uppercase">
+                          Cash in Pocket
+                        </div>
+                      </div>
+                      {w.cash > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerToast(`Collected ₹${w.cash} cash handover from ${w.name}. Credited to drawer.`);
+                          }}
+                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold shadow-xs transition"
+                          title="Collect cash drop into main cashier drawer"
+                        >
+                          Collect Drop
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <div className={`p-2.5 rounded-xl border flex items-center justify-between font-black ${
+                  isDark ? 'bg-amber-950/20 border-amber-900/40 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-900'
+                }`}>
+                  <span className="text-[11px]">Total Cash Held on Floor:</span>
+                  <span className="text-sm font-mono text-emerald-600">₹1,450.00</span>
                 </div>
               </div>
             </div>

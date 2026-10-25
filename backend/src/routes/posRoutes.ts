@@ -26,6 +26,7 @@ import {
   acknowledgeKitchenBuzzer,
 } from '../controllers/posController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
+import { requirePortal } from '../middlewares/portalGate';
 import { TenantRequest } from '../types';
 import { isDevAuthBypassEnabled } from '../config/security';
 
@@ -88,9 +89,11 @@ router.get('/table/orders', getTableSessionOrders);
 router.get('/menu', getDiningMenu);
 
 // Protected Staff, POS & KDS Routes
+router.use('/kds', requirePortal('kds'));
+router.use('/kitchen', requirePortal('kds'));
 router.get('/kds/stations', authenticatePosTerminal, getKitchenStations);
 router.get('/kds/orders', authenticatePosTerminal, getKdsOrders);
-router.get('/kds-orders', authenticatePosTerminal, getKdsOrders);
+router.get('/kds-orders', requirePortal('kds'), authenticatePosTerminal, getKdsOrders);
 router.get('/orders/recent', authenticatePosTerminal, getRecentOrders);
 router.patch('/kds/order/:orderId/status', authenticatePosTerminal, updateKDSOrderStatus);
 router.patch('/orders/:orderId/status', authenticatePosTerminal, updateKDSOrderStatus);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export interface CustomerLocationSelectorModalProps {
   isOpen: boolean;
@@ -32,6 +32,13 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
   const [demoAvailable, setDemoAvailable] = useState<boolean>(false);
   const [isCheckingDemo, setIsCheckingDemo] = useState<boolean>(true);
 
+  // In-app Camera QR Scanner
+  const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [scanMessage, setScanMessage] = useState<string>('');
+  const [cameraError, setCameraError] = useState<string>('');
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
   // Lock body scroll when modal is active to prevent background horizontal/vertical overflow
   useEffect(() => {
     if (isOpen && typeof document !== 'undefined') {
@@ -42,6 +49,110 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
       };
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  const startCameraScanner = async () => {
+    setIsScanning(true);
+    setCameraError('');
+    setScanMessage('');
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+        });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      } else {
+        setCameraError('Camera API not accessible on this device.');
+      }
+    } catch (err: any) {
+      setCameraError(err.message || 'Camera permission denied or camera not found.');
+    }
+  };
+
+  const stopCameraScanner = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setIsScanning(false);
+    setCameraError('');
+  };
+
+  const handleScannedResult = (val: string) => {
+    setScanMessage(`✨ Detected: ${val}`);
+    let target = val.trim();
+    try {
+      if (target.startsWith('http://') || target.startsWith('https://')) {
+        const parsed = new URL(target);
+        const tbl =
+          parsed.searchParams.get('table') ||
+          parsed.searchParams.get('tableNumber') ||
+          (parsed.searchParams.get('type') === 'table' ? parsed.searchParams.get('id') : null);
+        const rm =
+          parsed.searchParams.get('room') ||
+          parsed.searchParams.get('roomNumber') ||
+          (parsed.searchParams.get('type') === 'room' ? parsed.searchParams.get('id') : null);
+        if (tbl) {
+          stopCameraScanner();
+          if (currentApp === 'customer' && onSelectTable) onSelectTable(tbl);
+          else {
+            const dest = new URL(tablePortalUrl, window.location.href);
+            dest.searchParams.set('table', tbl);
+            window.location.href = dest.toString();
+          }
+          return;
+        }
+        if (rm) {
+          stopCameraScanner();
+          if (currentApp === 'guest' && onSelectRoom) onSelectRoom(rm);
+          else {
+            const dest = new URL(roomPortalUrl, window.location.href);
+            dest.searchParams.set('room', rm);
+            window.location.href = dest.toString();
+          }
+          return;
+        }
+      }
+    } catch {}
+
+    setTimeout(() => {
+      stopCameraScanner();
+      if (selectedMode === 'table') {
+        const numOnly = target.replace(/[^0-9]/g, '');
+        const formatted = target.toUpperCase().startsWith('T-')
+          ? target.toUpperCase()
+          : numOnly
+          ? `T-${numOnly.padStart(2, '0')}`
+          : target;
+        if (currentApp === 'customer' && onSelectTable) onSelectTable(formatted);
+        else {
+          const dest = new URL(tablePortalUrl, window.location.href);
+          dest.searchParams.set('table', formatted);
+          window.location.href = dest.toString();
+        }
+      } else {
+        const numOnly = target.replace(/[^0-9]/g, '');
+        const formatted = numOnly || target;
+        if (currentApp === 'guest' && onSelectRoom) onSelectRoom(formatted);
+        else {
+          const dest = new URL(roomPortalUrl, window.location.href);
+          dest.searchParams.set('room', formatted);
+          window.location.href = dest.toString();
+        }
+      }
+    }, 500);
+  };
 
   // Probe demo context availability on generic entry (Condition 1: fail gracefully if null/error)
   useEffect(() => {
@@ -194,6 +305,74 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
             <span>🛎️</span>
             <span>Staying in a Room</span>
           </button>
+        </div>
+
+        {/* Camera QR Scanner Bar */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3.5 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📷</span>
+              <div>
+                <div className="text-xs font-black text-white">Scan Table / Room QR Code</div>
+                <div className="text-[10px] text-slate-400">Instantly binds and opens your menu</div>
+              </div>
+            </div>
+            {isScanning && (
+              <button
+                type="button"
+                onClick={stopCameraScanner}
+                className="text-[11px] font-bold text-rose-400 px-2 py-0.5 rounded-lg bg-rose-500/10 border border-rose-500/20"
+              >
+                Close Camera
+              </button>
+            )}
+          </div>
+
+          {isScanning ? (
+            <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center border border-amber-500/50">
+              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
+                <div className="w-36 h-36 border-2 border-amber-400/90 rounded-xl relative animate-pulse">
+                  <div className="absolute left-0 right-0 h-0.5 bg-amber-400 top-1/2 -translate-y-1/2" />
+                </div>
+                <span className="text-[10px] font-bold text-amber-200 mt-2 bg-black/60 px-2 py-0.5 rounded-full">
+                  Align QR code inside box
+                </span>
+              </div>
+              {scanMessage && (
+                <div className="absolute inset-x-2 bottom-2 bg-emerald-950/90 border border-emerald-500/80 rounded-lg p-1.5 text-center text-xs font-bold text-emerald-200">
+                  {scanMessage}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                data-testid="camera-qr-scanner-btn"
+                onClick={startCameraScanner}
+                className="flex-1 min-h-[40px] px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition"
+              >
+                <span>📷</span>
+                <span>Open Camera Scanner</span>
+              </button>
+              <button
+                type="button"
+                data-testid="simulate-qr-scan-btn"
+                onClick={() => handleScannedResult(selectedMode === 'table' ? 'T-04' : '305')}
+                className="min-h-[40px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1 transition"
+              >
+                <span>⚡</span>
+                <span>Quick Scan ({selectedMode === 'table' ? 'T-04' : '305'})</span>
+              </button>
+            </div>
+          )}
+
+          {cameraError && (
+            <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[11px]">
+              {cameraError}
+            </div>
+          )}
         </div>
 
         {/* Dynamic Form Content */}

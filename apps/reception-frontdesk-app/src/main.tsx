@@ -11,6 +11,7 @@ if (rootElement) {
     <React.StrictMode>
       <ErrorBoundary>
         <StaffLoginGate
+          portalId="reception"
           apiBaseUrl={API_BASE_URL}
           appName="Front Desk & Reception PMS"
           appSubtitle="Room inventory, check-in/out, folio charges and guest services."

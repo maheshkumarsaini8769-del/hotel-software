@@ -707,7 +707,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
               onClick={() => {
                 window.location.href = getPortalUrl('cashier');
               }}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold hover:bg-amber-600 hover:text-white transition shadow-sm"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold hover:bg-amber-600 hover:text-white transition shadow-sm"
             >
               <Zap className="w-3.5 h-3.5 text-amber-600" />
               <span>Cashier POS</span>
@@ -717,7 +717,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
               onClick={() => {
                 window.location.href = getPortalUrl('admin');
               }}
-              className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition shadow-sm ${
+              className={`hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition shadow-sm ${
                 isDark
                   ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
                   : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-800 hover:text-white'

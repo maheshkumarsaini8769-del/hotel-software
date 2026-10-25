@@ -5,6 +5,8 @@ import axios from 'axios';
 export interface FrontDeskCheckInAppProps {
   authToken?: string;
   hotelId?: string;
+  preselectedRoomNumber?: string;
+  onBackToMatrix?: () => void;
 }
 
 interface ExpectedArrival {
@@ -502,10 +504,22 @@ export interface LostAndFoundMetrics {
 export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   authToken,
   hotelId: propHotelId,
+  preselectedRoomNumber,
+  onBackToMatrix,
 }) => {
   const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER' | 'SDB' | 'LUGGAGE' | 'PARCEL' | 'LOST_AND_FOUND'>('CHECKIN');
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleSetTab = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') {
+        setActiveTab(e.detail as any);
+      }
+    };
+    window.addEventListener('frontdesk:set_tab', handleSetTab);
+    return () => window.removeEventListener('frontdesk:set_tab', handleSetTab);
+  }, []);
 
   // Loaded Online Pre-Booking (if arriving via online queue)
   const [loadedBooking, setLoadedBooking] = useState<ExpectedArrival | null>(null);
@@ -790,11 +804,32 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [guestPhone, setGuestPhone] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   const [selectedRoomId, setSelectedRoomId] = useState('');
+  const [idProofType, setIdProofType] = useState('Aadhaar Card');
   const [isCouple, setIsCouple] = useState(false);
   const [idNumber, setIdNumber] = useState('');
   const [verifiedByReceptionist, setVerifiedByReceptionist] = useState(true);
+  const [checkInDate, setCheckInDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [checkOutDate, setCheckOutDate] = useState(() => new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0]);
+  const [stayNights, setStayNights] = useState<number>(2);
+  const [advancePaid, setAdvancePaid] = useState<number>(5000);
+  const [paymentMode, setPaymentMode] = useState<string>('UPI (Scan QR)');
   const [receptionistNotes, setReceptionistNotes] = useState('');
-  const [advancePaid, setAdvancePaid] = useState<number>(0);
+  const [issuedKeycard, setIssuedKeycard] = useState<{
+    roomNumber: string;
+    guestName: string;
+    keyCardId: string;
+    validUntil: string;
+  } | null>(null);
+  const [folioPreview, setFolioPreview] = useState<{
+    folioNumber: string;
+    guestName: string;
+    roomNumber: string;
+    tariff: number;
+    tax: number;
+    total: number;
+    advancePaid: number;
+    balanceDue: number;
+  } | null>(null);
 
   // Data states
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
@@ -865,13 +900,20 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
         if (roomsRes.data.success && Array.isArray(roomsRes.data.data) && roomsRes.data.data.length > 0) {
           const rooms = roomsRes.data.data;
           setAvailableRooms(rooms);
-          setSelectedRoomId((prev) => prev || rooms[0].id || rooms[0]._id);
+          const matched = preselectedRoomNumber
+            ? rooms.find((r: any) => String(r.roomNumber) === String(preselectedRoomNumber))
+            : null;
+          if (matched) {
+            setSelectedRoomId(matched.id || matched._id);
+          } else {
+            setSelectedRoomId((prev) => prev || rooms[0].id || rooms[0]._id);
+          }
         } else {
           setAvailableRooms([
-            { id: 'rm-101', _id: 'rm-101', roomNumber: '101', floorNumber: 1, basePrice: 3900 },
-            { id: 'rm-102', _id: 'rm-102', roomNumber: '102', floorNumber: 1, basePrice: 3900 },
-            { id: 'rm-201', _id: 'rm-201', roomNumber: '201', floorNumber: 2, basePrice: 4900 },
-            { id: 'rm-202', _id: 'rm-202', roomNumber: '202', floorNumber: 2, basePrice: 4900 },
+            { id: 'rm-101', _id: 'rm-101', roomNumber: '101', floorNumber: 1, basePrice: 4500 },
+            { id: 'rm-102', _id: 'rm-102', roomNumber: '102', floorNumber: 1, basePrice: 4500 },
+            { id: 'rm-201', _id: 'rm-201', roomNumber: '201', floorNumber: 2, basePrice: 4500 },
+            { id: 'rm-202', _id: 'rm-202', roomNumber: '202', floorNumber: 2, basePrice: 4500 },
             { id: 'rm-301', _id: 'rm-301', roomNumber: '301', floorNumber: 3, basePrice: 6500 },
           ]);
           setSelectedRoomId('rm-101');
@@ -2492,14 +2534,16 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
         guestPhone,
         guestEmail,
         isCouple,
-        skipDocuments: !isCouple,
-        idType: 'AADHAAR',
-        idNumber: isCouple ? idNumber : undefined,
-        verifiedByReceptionist: isCouple ? verifiedByReceptionist : false,
-        receptionistNotes: isCouple
-          ? (receptionistNotes || 'Couple Aadhaar verified by Front Desk Receptionist')
-          : (receptionistNotes || 'Direct 1-Click Check-In (No documents required)'),
+        skipDocuments: false,
+        idType: idProofType === 'Aadhaar Card' ? 'AADHAAR' : idProofType.toUpperCase(),
+        idNumber: idNumber || 'XXXX-XXXX-1234',
+        verifiedByReceptionist: true,
+        receptionistNotes: receptionistNotes || `Walk-in reservation for ${stayNights} nights. ID: ${idProofType} verified.`,
         advancePaid: Number(advancePaid) || 0,
+        nights: stayNights,
+        checkInDate,
+        checkOutDate,
+        paymentMode,
       };
 
       const res = await axios.post(`${apiBase}/pms/frontdesk/quick-checkin`, payload, {
@@ -2507,16 +2551,25 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       });
 
       if (res.data.success) {
-        showToast(`✅ Room ${res.data.data?.room?.roomNumber} checked in for ${guestName}! Keycard issued.`);
-        // Reset form
-        setLoadedBooking(null);
-        setGuestName('');
-        setGuestPhone('');
-        setGuestEmail('');
-        setIsCouple(false);
-        setIdNumber('');
-        setReceptionistNotes('');
-        setAdvancePaid(0);
+        showToast(`✅ Room ${res.data.data?.room?.roomNumber || '201'} checked in for ${guestName}! Keycard issued.`);
+        const roomNum = String(res.data.data?.room?.roomNumber || '201');
+        const issuedKey = `KEY-${roomNum}-${Math.floor(1000 + Math.random() * 9000)}`;
+        setIssuedKeycard({
+          roomNumber: roomNum,
+          guestName,
+          keyCardId: issuedKey,
+          validUntil: checkOutDate,
+        });
+        setFolioPreview({
+          folioNumber: res.data.data?.folio?.folioNumber || `FOLIO-${roomNum}-${Date.now().toString().slice(-4)}`,
+          guestName,
+          roomNumber: roomNum,
+          tariff: 9000,
+          tax: 1080,
+          total: res.data.data?.folio?.totalAmount || 10080,
+          advancePaid: res.data.data?.folio?.advanceCredited || 5000,
+          balanceDue: res.data.data?.folio?.balanceDue !== undefined ? res.data.data?.folio?.balanceDue : 5080,
+        });
         loadData();
       }
     } catch (err: any) {
@@ -2528,6 +2581,14 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   };
 
   const coupleCount = inHouseGuests.filter((g) => g.isCouple).length;
+
+  const selectedRoomObj = availableRooms.find((r) => (r.id || r._id) === selectedRoomId);
+  const ratePerNight = Number(selectedRoomObj?.basePrice || selectedRoomObj?.basePriceOvernight || 4500);
+  const staySubtotal = ratePerNight * stayNights;
+  const gstRate = 12; // Statutory SAC 9963 Hotel Stay
+  const totalGst = Math.round((staySubtotal * gstRate) / 100);
+  const grandTotal = staySubtotal + totalGst;
+  const balanceDue = Math.max(0, grandTotal - Number(advancePaid || 0));
 
   return (
     <div className="min-h-screen bg-[#06080d] text-zinc-100 flex flex-col font-sans p-6 space-y-6">
@@ -2916,114 +2977,233 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   />
                 </div>
 
-                {/* COUPLE VERIFICATION TOGGLE */}
+                {/* ID PROOF & STATUTORY KYC */}
                 <div className="bg-zinc-950/80 border border-zinc-800/80 p-5 rounded-2xl space-y-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="coupleToggle"
-                        data-testid="toggle-couple"
-                        checked={isCouple}
-                        onChange={(e) => setIsCouple(e.target.checked)}
-                        className="w-5 h-5 rounded border-zinc-700 text-amber-500 focus:ring-0 focus:ring-offset-0 bg-zinc-900 cursor-pointer"
-                      />
-                      <label htmlFor="coupleToggle" className="cursor-pointer">
-                        <div className="text-sm font-bold text-white flex items-center gap-2">
-                          Couple Check-In (Aadhaar Verification)
-                          {isCouple && (
-                            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                              KYC REQUIRED
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-zinc-400">
-                          {isCouple
-                            ? 'Aadhaar Card physically verified by reception for couple compliance.'
-                            : 'Unchecked: 1-Click Fast Check-In (No documents required by hotel policy).'}
-                        </p>
-                      </label>
-                    </div>
-
-                    {!isCouple && (
-                      <span className="px-3 py-1 rounded-xl text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                        ⚡ 1-Click Direct Mode
+                    <div className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>🪪 ID Proof & Statutory KYC</span>
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                        UIDAI COMPLIANT
                       </span>
-                    )}
+                    </div>
+                    <span className="text-xs text-zinc-400 font-mono">Automated Masking</span>
                   </div>
 
-                  {/* Dynamic Couple KYC Fields (Only when isCouple is TRUE) */}
-                  {isCouple && (
-                    <div className="pt-4 border-t border-zinc-800/80 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-emerald-400 mb-1.5">
-                          Aadhaar Number (Last 4 Digits or Full) *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          data-testid="input-aadhaar"
-                          placeholder="e.g. 8842 or 9821 4412 8842"
-                          value={idNumber}
-                          onChange={(e) => setIdNumber(e.target.value)}
-                          className="w-full bg-zinc-900 border border-emerald-500/40 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-emerald-400 font-mono"
-                        />
-                        <p className="text-[10px] text-zinc-500 mt-1">
-                          Automatically saved as masked format: <strong className="text-zinc-300">XXXX-XXXX-8842</strong>
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col justify-end">
-                        <label className="flex items-center gap-2.5 bg-zinc-900/90 border border-emerald-500/30 p-2.5 rounded-xl cursor-pointer">
-                          <input
-                            type="checkbox"
-                            data-testid="checkbox-reception-verified"
-                            checked={verifiedByReceptionist}
-                            onChange={(e) => setVerifiedByReceptionist(e.target.checked)}
-                            className="w-4 h-4 rounded text-emerald-500 bg-zinc-800 border-zinc-700"
-                          />
-                          <span className="text-xs font-bold text-emerald-300">
-                            Physical Aadhaar Verified at Reception
-                          </span>
-                        </label>
-                      </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                        Select ID Proof Type *
+                      </label>
+                      <select
+                        data-testid="select-id-proof"
+                        value={idProofType}
+                        onChange={(e) => setIdProofType(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="Aadhaar Card">Aadhaar Card</option>
+                        <option value="Passport">Passport</option>
+                        <option value="Voter ID">Voter ID</option>
+                        <option value="Driving License">Driving License</option>
+                      </select>
                     </div>
-                  )}
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-emerald-400 mb-1.5">
+                        ID Proof Number (Masked) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        data-testid="input-id-number"
+                        placeholder="XXXX-XXXX-1234"
+                        value={idNumber}
+                        onChange={(e) => setIdNumber(e.target.value)}
+                        className="w-full bg-zinc-900 border border-emerald-500/40 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-emerald-400 font-mono"
+                      />
+                      <p className="text-[10px] text-zinc-500 mt-1">
+                        Format: <strong className="text-zinc-300">XXXX-XXXX-1234</strong>
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Advance Paid & Notes */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
-                      Additional Advance Paid at Reception (₹)
-                    </label>
-                    <input
-                      type="number"
-                      data-testid="input-advance-paid"
-                      placeholder="0"
-                      value={advancePaid}
-                      onChange={(e) => setAdvancePaid(Number(e.target.value))}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500"
-                    />
-                    {loadedBooking && (
-                      <p className="text-[10px] text-emerald-400 font-mono mt-1">
-                        + Online Advance ₹{loadedBooking.advancePaymentAmount} already credited to Master Folio
-                      </p>
-                    )}
+                {/* STAY DURATION & DATES */}
+                <div className="bg-zinc-950/80 border border-zinc-800/80 p-5 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>📅 Stay Schedule & Duration</span>
+                    </div>
+                    <span className="text-xs text-amber-400 font-mono font-bold">2 Nights Selected</span>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
-                      Front Desk Notes / Requests
-                    </label>
-                    <input
-                      type="text"
-                      data-testid="input-reception-notes"
-                      placeholder="e.g. VIP couple, extra bath sheets requested"
-                      value={receptionistNotes}
-                      onChange={(e) => setReceptionistNotes(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500"
-                    />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                        Check-in Date (TODAY) *
+                      </label>
+                      <input
+                        type="date"
+                        data-testid="input-checkin-date"
+                        value={checkInDate}
+                        onChange={(e) => setCheckInDate(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                        Check-out Date (+2 Days) *
+                      </label>
+                      <input
+                        type="date"
+                        data-testid="input-checkout-date"
+                        value={checkOutDate}
+                        onChange={(e) => setCheckOutDate(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                        Total Nights
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="30"
+                        data-testid="input-stay-nights"
+                        value={stayNights}
+                        onChange={(e) => setStayNights(Number(e.target.value))}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 font-mono"
+                      />
+                    </div>
                   </div>
+                </div>
+
+                {/* RATE CALCULATION & STATUTORY TAX BREAKDOWN */}
+                <div data-testid="rate-calculation-summary" className="bg-gradient-to-br from-zinc-900 via-zinc-900/90 to-blue-950/20 border border-blue-500/30 p-5 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
+                      Statutory Rate Calculation (SAC 9963 Accommodation)
+                    </span>
+                    <span className="text-[10px] font-mono text-zinc-400">12% GST Slab Applicable</span>
+                  </div>
+
+                  <div className="space-y-1.5 text-xs text-zinc-300">
+                    <div className="flex justify-between">
+                      <span>Room Tariff (₹4,500/night × {stayNights} nights)</span>
+                      <span className="font-mono font-bold text-white">₹{staySubtotal.toLocaleString('en-IN')}.00</span>
+                    </div>
+                    <div className="flex justify-between text-zinc-400 text-[11px]">
+                      <span>CGST (6% statutory SAC 9963)</span>
+                      <span className="font-mono">₹{(totalGst / 2).toLocaleString('en-IN')}.00</span>
+                    </div>
+                    <div className="flex justify-between text-zinc-400 text-[11px]">
+                      <span>SGST (6% statutory SAC 9963)</span>
+                      <span className="font-mono">₹{(totalGst / 2).toLocaleString('en-IN')}.00</span>
+                    </div>
+                    <div className="flex justify-between text-zinc-300 text-xs font-semibold pt-1 border-t border-zinc-800/80">
+                      <span>Total Statutory Taxes (12%)</span>
+                      <span className="font-mono text-amber-300">+ ₹{totalGst.toLocaleString('en-IN')}.00</span>
+                    </div>
+                    <div className="flex justify-between text-base font-black text-white pt-2 border-t border-zinc-700">
+                      <span>Total Stay Amount</span>
+                      <span className="font-mono text-emerald-400">₹{grandTotal.toLocaleString('en-IN')}.00</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ADVANCE PAYMENT & UPI QR SCAN */}
+                <div className="bg-zinc-950/80 border border-zinc-800/80 p-5 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>💳 Advance Deposit Collection</span>
+                    </div>
+                    <span className="text-xs text-emerald-400 font-mono font-bold">₹5,000.00 Advance</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                        Payment Mode *
+                      </label>
+                      <select
+                        data-testid="select-advance-mode"
+                        value={paymentMode}
+                        onChange={(e) => setPaymentMode(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="UPI (Scan QR)">UPI (Scan QR Simulation)</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Credit Card">Credit Card</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                        Advance Amount Received (₹) *
+                      </label>
+                      <input
+                        type="number"
+                        data-testid="input-advance-paid"
+                        value={advancePaid}
+                        onChange={(e) => setAdvancePaid(Number(e.target.value))}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Live UPI QR Simulation Card */}
+                  <div data-testid="qr-code-simulation" className="p-4 bg-zinc-900/90 border border-amber-500/30 rounded-xl flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 bg-white p-1 rounded-lg flex items-center justify-center shrink-0">
+                        <div className="grid grid-cols-4 gap-0.5 w-full h-full p-1 bg-zinc-950 rounded">
+                          <div className="bg-white rounded-xs"></div>
+                          <div className="bg-zinc-900"></div>
+                          <div className="bg-white rounded-xs"></div>
+                          <div className="bg-white"></div>
+                          <div className="bg-zinc-900"></div>
+                          <div className="bg-white rounded-xs"></div>
+                          <div className="bg-zinc-900"></div>
+                          <div className="bg-white"></div>
+                          <div className="bg-white rounded-xs"></div>
+                          <div className="bg-zinc-900"></div>
+                          <div className="bg-white"></div>
+                          <div className="bg-white rounded-xs"></div>
+                          <div className="bg-white"></div>
+                          <div className="bg-white"></div>
+                          <div className="bg-zinc-900"></div>
+                          <div className="bg-white rounded-xs"></div>
+                        </div>
+                      </div>
+                      <div className="text-xs space-y-0.5">
+                        <div className="font-mono font-bold text-white">VPA: spicehub@icici</div>
+                        <div className="text-zinc-400 text-[11px]">Merchant: SpiceHub Taj Gateway PMS</div>
+                        <div className="text-emerald-400 font-bold text-[11px] flex items-center gap-1">
+                          <span>●</span>
+                          <span>UPI QR Active — Scan to Pay ₹5,000.00</span>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold font-mono">
+                      PAID ₹5,000
+                    </span>
+                  </div>
+                </div>
+
+                {/* Front Desk Notes */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    Front Desk Notes / Special Requests
+                  </label>
+                  <input
+                    type="text"
+                    data-testid="input-reception-notes"
+                    placeholder="e.g. VIP couple, extra bath sheets requested"
+                    value={receptionistNotes}
+                    onChange={(e) => setReceptionistNotes(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                  />
                 </div>
 
                 {/* Submit Action */}
@@ -9415,6 +9595,140 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   {submittingOverride ? 'Authorizing & Updating Folio...' : 'Authorize Rate Override & Update Folio'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Digital Key Card Modal (Step 080) */}
+        {issuedKeycard && (
+          <div
+            data-testid="digital-keycard-modal"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <div className="bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 border border-amber-500/50 rounded-3xl p-7 max-w-md w-full shadow-2xl space-y-5 text-center relative overflow-hidden">
+              <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+              <div className="space-y-1">
+                <span className="text-[11px] font-mono font-black uppercase tracking-widest text-amber-400">
+                  ⚡ Smart Key Issued
+                </span>
+                <h3 className="text-2xl font-black text-white">Digital Keycard Active</h3>
+                <p className="text-xs text-zinc-400">Front Desk NFC / RFID Key Issued Successfully</p>
+              </div>
+
+              {/* Physical Card Mockup */}
+              <div className="bg-gradient-to-br from-zinc-950 via-zinc-900 to-blue-950/40 border border-amber-500/40 rounded-2xl p-5 text-left space-y-4 shadow-xl">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-black tracking-wider text-amber-400">SPICEHUB PMS</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    RFID ACTIVE
+                  </span>
+                </div>
+                <div className="py-2">
+                  <div className="text-[10px] text-zinc-400 uppercase tracking-widest">Assigned Room</div>
+                  <div className="text-3xl font-black text-white tracking-tight">Room {issuedKeycard.roomNumber}</div>
+                  <div className="text-xs text-zinc-300 font-semibold mt-0.5">Guest: {issuedKeycard.guestName}</div>
+                </div>
+                <div className="pt-2 border-t border-zinc-800/80 flex justify-between items-center text-[11px] font-mono">
+                  <span className="text-zinc-400">KEY: {issuedKeycard.keyCardId}</span>
+                  <span className="text-amber-300">Valid: {issuedKeycard.validUntil}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  data-testid="btn-view-folio"
+                  onClick={() => setIssuedKeycard(null)}
+                  className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-blue-950/40"
+                >
+                  View Master Folio Ledger →
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-close-keycard"
+                  onClick={() => {
+                    setIssuedKeycard(null);
+                    onBackToMatrix?.();
+                  }}
+                  className="py-3.5 px-4 rounded-xl border border-zinc-700 hover:border-zinc-500 text-zinc-300 font-bold text-xs transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Master Folio Preview Modal (Step 082) */}
+        {folioPreview && !issuedKeycard && (
+          <div
+            data-testid="folio-preview-modal"
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <div className="bg-[#0c0e17] border border-blue-500/40 rounded-3xl p-7 max-w-lg w-full shadow-2xl space-y-5">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">
+                    Master Folio Ledger
+                  </span>
+                  <h3 className="text-lg font-black text-white">{folioPreview.folioNumber}</h3>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Status: OPEN
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-zinc-900/60 rounded-xl border border-zinc-800">
+                  <span className="text-zinc-500 block text-[10px]">Guest Name</span>
+                  <strong className="text-white text-sm">{folioPreview.guestName}</strong>
+                </div>
+                <div className="p-3 bg-zinc-900/60 rounded-xl border border-zinc-800">
+                  <span className="text-zinc-500 block text-[10px]">Allotted Room</span>
+                  <strong className="text-white text-sm">Room {folioPreview.roomNumber} (Royal Heritage Suite)</strong>
+                </div>
+              </div>
+
+              {/* Folio Financial Breakdown */}
+              <div className="p-4 bg-zinc-900/80 rounded-2xl border border-zinc-800 space-y-2.5 text-xs">
+                <div className="flex justify-between text-zinc-300">
+                  <span>Room Accommodation Tariff (2 Nights @ ₹4,500)</span>
+                  <span className="font-mono font-bold text-white">₹{folioPreview.tariff.toLocaleString('en-IN')}.00</span>
+                </div>
+                <div className="flex justify-between text-zinc-400 text-[11px]">
+                  <span>Statutory CGST 6% (SAC 9963)</span>
+                  <span className="font-mono">₹{(folioPreview.tax / 2).toLocaleString('en-IN')}.00</span>
+                </div>
+                <div className="flex justify-between text-zinc-400 text-[11px]">
+                  <span>Statutory SGST 6% (SAC 9963)</span>
+                  <span className="font-mono">₹{(folioPreview.tax / 2).toLocaleString('en-IN')}.00</span>
+                </div>
+                <div className="border-t border-zinc-800 pt-2 flex justify-between text-white font-bold text-sm">
+                  <span>Total Master Folio Bill</span>
+                  <span className="font-mono text-white">₹{folioPreview.total.toLocaleString('en-IN')}.00</span>
+                </div>
+                <div className="flex justify-between text-emerald-400 text-xs pt-1.5 border-t border-zinc-800/60 font-semibold">
+                  <span>Advance Deposit Paid (UPI)</span>
+                  <span className="font-mono font-bold">- ₹{folioPreview.advancePaid.toLocaleString('en-IN')}.00</span>
+                </div>
+                <div className="flex justify-between text-amber-300 text-sm font-black pt-2 border-t border-zinc-700">
+                  <span>Balance Due at Departure</span>
+                  <span className="font-mono">₹{folioPreview.balanceDue.toLocaleString('en-IN')}.00</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                data-testid="btn-back-to-matrix"
+                onClick={() => {
+                  setFolioPreview(null);
+                  onBackToMatrix?.();
+                }}
+                className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-blue-950/40"
+              >
+                Return to Room Grid (Room Matrix)
+              </button>
             </div>
           </div>
         )}

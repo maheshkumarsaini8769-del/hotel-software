@@ -15,8 +15,8 @@ if (rootElement) {
           appName="Front Desk & Reception PMS"
           appSubtitle="Room inventory, check-in/out, folio charges and guest services."
           accent="blue"
-          demoEmail="admin@tajgateway.com"
-          demoPassword="SpiceHub@123"
+          demoEmail="reception.neha@test.com"
+          demoPassword="Reception@123"
         >
           <ReceptionStandaloneApp />
         </StaffLoginGate>

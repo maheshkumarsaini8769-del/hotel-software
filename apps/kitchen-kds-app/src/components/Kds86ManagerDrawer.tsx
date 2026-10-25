@@ -78,7 +78,7 @@ export const Kds86ManagerDrawer: React.FC<Kds86ManagerDrawerProps> = ({
               placeholder="Search dishes by name (e.g. Paneer, Biryani)..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs placeholder:text-slate-500 focus:outline-none focus:border-amber-500 text-white"
+              className="flex-1 min-w-0 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs placeholder:text-slate-500 focus:outline-none focus:border-amber-500 text-white"
             />
             {onBatchToggle86 && filtered.length > 0 && (
               <button
@@ -88,7 +88,7 @@ export const Kds86ManagerDrawer: React.FC<Kds86ManagerDrawerProps> = ({
                     onBatchToggle86(availableIds, false, selectedReason);
                   }
                 }}
-                className="px-3 py-2 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 text-xs font-bold rounded-xl transition"
+                className="px-3 py-2 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 text-xs font-bold rounded-xl transition shrink-0 whitespace-nowrap"
                 title="Mark all currently visible items as 86"
               >
                 86 Visible All
@@ -96,12 +96,12 @@ export const Kds86ManagerDrawer: React.FC<Kds86ManagerDrawerProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400 font-semibold whitespace-nowrap">Default 86 Reason:</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-xs">
+            <span className="text-slate-400 font-semibold whitespace-nowrap shrink-0">Default 86 Reason:</span>
             <select
               value={selectedReason}
               onChange={(e) => setSelectedReason(e.target.value as Item86Reason)}
-              className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-amber-400 font-semibold focus:outline-none"
+              className="w-full sm:w-auto max-w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-amber-400 font-semibold focus:outline-none truncate"
             >
               <option value={Item86Reason.INGREDIENT_EXHAUSTED}>🥦 Ingredient Exhausted</option>
               <option value={Item86Reason.CHEF_SPECIAL_SOLD_OUT}>👨‍🍳 Chef Special Sold Out</option>
@@ -113,7 +113,7 @@ export const Kds86ManagerDrawer: React.FC<Kds86ManagerDrawerProps> = ({
           </div>
 
           {/* Station Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
             <button
               onClick={() => setFilterStation('ALL')}
               className={`px-2.5 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap ${

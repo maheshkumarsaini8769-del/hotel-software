@@ -70,11 +70,13 @@ export interface TableDTO {
 export interface TableManagementStudioAppProps {
   isDark?: boolean;
   hotelId?: string;
+  mode?: 'TABLES' | 'OUTLETS';
 }
 
 export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> = ({
   isDark = true,
   hotelId = getStoredHotelId(),
+  mode = 'TABLES',
 }) => {
   const [floors, setFloors] = useState<FloorDTO[]>([]);
   const [tables, setTables] = useState<TableDTO[]>([]);
@@ -410,17 +412,19 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
         <div>
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-lg shadow-orange-950/30">
-              <Armchair className="w-5 h-5" />
+              {mode === 'OUTLETS' ? <Building className="w-5 h-5" /> : <Armchair className="w-5 h-5" />}
             </div>
             <div>
               <h1 className="text-xl md:text-2xl font-black tracking-tight flex items-center gap-2">
-                <span>Table & Multi-Floor Management Studio</span>
+                <span>{mode === 'OUTLETS' ? 'Restaurant Outlets & Floor Layout' : 'Table & Multi-Floor Management Studio'}</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   LIVE SYNC
                 </span>
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                Manage Floor 1, Floor 2 Banquet Halls, seating capacity, table shapes & instant QR customer menus.
+                {mode === 'OUTLETS'
+                  ? 'Configure multi-hall dining outlets, rooftop terraces, bar stations, and outlet seating capacity.'
+                  : 'Manage Floor 1, Floor 2 Banquet Halls, seating capacity, table shapes & instant QR customer menus.'}
               </p>
             </div>
           </div>

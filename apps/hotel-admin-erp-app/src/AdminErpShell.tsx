@@ -1628,10 +1628,16 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
         );
 
       case 'TABLE_MANAGEMENT':
+        return (
+          <div className="h-full">
+            <TableManagementStudioApp isDark={theme === 'dark'} hotelId={hotelId} mode="TABLES" />
+          </div>
+        );
+
       case 'RESTAURANTS_OUTLETS':
         return (
           <div className="h-full">
-            <TableManagementStudioApp isDark={theme === 'dark'} hotelId={hotelId} />
+            <TableManagementStudioApp isDark={theme === 'dark'} hotelId={hotelId} mode="OUTLETS" />
           </div>
         );
 

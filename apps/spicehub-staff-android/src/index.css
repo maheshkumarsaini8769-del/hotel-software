@@ -1,0 +1,143 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  height: 100%;
+  background: #FAF6EF;
+}
+
+body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #FAF6EF;
+  color: #0F172A;
+  overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+iframe {
+  border: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  flex: 1;
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.pin-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 4px solid #F59E0B;
+  margin-bottom: 10px;
+  object-fit: cover;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.25);
+}
+
+.pin-btn {
+  height: 56px;
+  font-size: 22px;
+  background: #FFFFFF;
+  color: #0F172A;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.pin-btn:active {
+  background: #FEF3C7;
+  transform: scale(0.96);
+}
+
+.pin-btn-special {
+  height: 56px;
+  font-size: 15px;
+  background: #F1F5F9;
+  color: #475569;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.pin-btn-special:active {
+  background: #E2E8F0;
+  transform: scale(0.96);
+}
+
+.pin-login-btn {
+  width: 100%;
+  height: 54px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  border: none;
+  border-radius: 14px;
+  margin-top: auto;
+  transition: all 0.2s ease;
+}
+
+@media (max-height: 750px) {
+  .pin-avatar {
+    width: 76px !important;
+    height: 76px !important;
+    margin-bottom: 4px !important;
+    border-width: 3px !important;
+  }
+  .pin-header {
+    margin-top: 2px !important;
+    margin-bottom: 6px !important;
+  }
+  .pin-title {
+    font-size: 20px !important;
+    margin-bottom: 2px !important;
+  }
+  .pin-role {
+    font-size: 14px !important;
+    margin-bottom: 2px !important;
+  }
+  .pin-shift {
+    font-size: 11px !important;
+  }
+  .pin-tables {
+    padding: 6px 10px !important;
+    margin-bottom: 8px !important;
+  }
+  .pin-label {
+    font-size: 12px !important;
+    margin-bottom: 6px !important;
+  }
+  .pin-dots {
+    margin-bottom: 10px !important;
+    gap: 10px !important;
+  }
+  .pin-dot {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .pin-grid {
+    gap: 8px !important;
+    margin-bottom: 8px !important;
+  }
+  .pin-btn, .pin-btn-special {
+    height: 48px !important;
+  }
+  .pin-btn {
+    font-size: 19px !important;
+  }
+}

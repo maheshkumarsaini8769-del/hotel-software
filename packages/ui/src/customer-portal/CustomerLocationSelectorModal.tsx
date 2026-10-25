@@ -458,7 +458,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
                       type="text"
                       value={roomNumberInput}
                       onChange={(e) => setRoomNumberInput(e.target.value)}
-                      placeholder="e.g. 201, 305"
+                      placeholder="e.g. 101, 204"
                       className="w-full min-h-[42px] rounded-xl bg-slate-900 border border-slate-700 px-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                     />
                   </div>

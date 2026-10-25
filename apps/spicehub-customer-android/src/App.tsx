@@ -723,7 +723,7 @@ export const App: React.FC = () => {
                           data-testid="resident-room-input"
                           value={roomNumberInput}
                           onChange={(e) => setRoomNumberInput(e.target.value)}
-                          placeholder="e.g. 201, 305"
+                          placeholder="e.g. 101, 204"
                           className="w-full min-h-[42px] rounded-xl bg-slate-950 border border-slate-700 px-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-400"
                         />
                       </div>

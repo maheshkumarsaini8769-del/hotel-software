@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getPortalUrl } from './config/env';
 import {
   Bed,
@@ -168,12 +168,20 @@ function roomStatus(status: string): RoomGridItem['status'] {
 }
 
 export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ onNavigatePortal }) => {
-  const [activeSidebarItem, setActiveSidebarItem] = useState('Room Dashboard');
+  const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search).get('tab');
+      if (p) return p;
+    }
+    return 'Room Dashboard';
+  });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [roomFilterCategory, setRoomFilterCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+  const [showRoomFolioModal, setShowRoomFolioModal] = useState(false);
 
   // Theme State (Dark / Light with persistence)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -240,87 +248,104 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
     return () => window.clearInterval(timer);
   }, []);
 
+  // Allow programmatic tab & modal navigation for automated audits
+  useEffect(() => {
+    const handleSetTab = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') {
+        setActiveSidebarItem(e.detail);
+      }
+    };
+    const handleSetModal = (e: any) => {
+      if (e.detail === 'policy') setIsPolicyModalOpen(true);
+      else if (e.detail === 'folio') setShowRoomFolioModal(true);
+      else if (e.detail === 'close_all') {
+        setIsPolicyModalOpen(false);
+        setShowRoomFolioModal(false);
+      }
+    };
+    window.addEventListener('reception:set_tab', handleSetTab);
+    window.addEventListener('reception:set_modal', handleSetModal);
+    return () => {
+      window.removeEventListener('reception:set_tab', handleSetTab);
+      window.removeEventListener('reception:set_modal', handleSetModal);
+    };
+  }, []);
+
   const triggerToast = (msg: string) => {
     setToastNotice(msg);
     setTimeout(() => setToastNotice(null), 3500);
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadRooms = async () => {
-      setRoomsLoading(true);
-      setRoomsError(null);
-      try {
-        const client = getApiClient();
-        const [boardResponse, typesResponse, arrivalsResponse, overviewResponse] = await Promise.all([
-          client.request<{ success: boolean; board: BoardRoomRow[] }>(
-            'GET',
-            '/api/v1/housekeeping/board'
-          ),
-          client.request<{ success: boolean; roomTypes: RoomTypeRow[] }>(
-            'GET',
-            '/api/v1/pms/room-types'
-          ),
-          client.request<{ success: boolean; bookings: BookingRow[] }>(
-            'GET',
-            '/api/v1/pms/bookings/arrivals-board'
-          ),
-          client.request<{
-            success: boolean;
-            data: {
-              kpis?: { totalRevenue?: number; revenueGrowthPct?: number };
-            };
-          }>('GET', '/api/v1/dashboard/overview'),
-        ]);
-        if (cancelled) return;
+  const loadRooms = useCallback(async () => {
+    setRoomsLoading(true);
+    setRoomsError(null);
+    try {
+      const client = getApiClient();
+      const [boardResponse, typesResponse, arrivalsResponse, overviewResponse] = await Promise.all([
+        client.request<{ success: boolean; board: BoardRoomRow[] }>(
+          'GET',
+          '/api/v1/housekeeping/board'
+        ),
+        client.request<{ success: boolean; roomTypes: RoomTypeRow[] }>(
+          'GET',
+          '/api/v1/pms/room-types'
+        ),
+        client.request<{ success: boolean; bookings: BookingRow[] }>(
+          'GET',
+          '/api/v1/pms/bookings/arrivals-board'
+        ),
+        client.request<{
+          success: boolean;
+          data: {
+            kpis?: { totalRevenue?: number; revenueGrowthPct?: number };
+          };
+        }>('GET', '/api/v1/dashboard/overview'),
+      ]);
 
-        const typesById = new Map(
-          (typesResponse.roomTypes || []).map((type) => [String(type._id), type])
-        );
-        const mapped = (boardResponse.board || []).map((room) => {
-          const type = typesById.get(String(room.roomType?._id || ''));
-          const typeName = type?.name || room.roomType?.name || room.roomType?.code || 'Room';
-          const amenities = type?.amenities || [];
-          return {
-            number: room.roomNumber,
-            category: roomCategoryFor(typeName),
-            price: Number(type?.basePrice ?? type?.basePriceOvernight ?? 0),
-            status: roomStatus(room.status),
-            floor: floorLabel(room.floorNumber),
-            image: roomImageFor(room.roomNumber),
-            guestName: room.guestInfo?.guestName,
-            specs: {
-              guests: Number(type?.maxPax ?? type?.maxCapacity ?? 0),
-              bed: amenities.find((item) => /bed/i.test(item)) || 'Not specified',
-              view: 'Not specified',
-              size: 'Not specified',
-            },
-            amenities,
-            taskId: room.activeTask?._id,
-            taskType: room.activeTask?.taskType,
-            taskStatus: room.activeTask?.status,
-            taskPriority: room.activeTask?.priority,
-          } as RoomGridItem;
-        });
-        setRooms(mapped);
-        setBookings(arrivalsResponse.bookings || []);
-        setTodayRevenue(Number(overviewResponse.data?.kpis?.totalRevenue || 0));
-        setRevenueGrowth(Number(overviewResponse.data?.kpis?.revenueGrowthPct || 0));
-        setSelectedRoom((current) => current || mapped[0] || null);
-      } catch (err: any) {
-        if (!cancelled) {
-          setRooms([]);
-          setRoomsError(err?.message || 'Live room inventory could not be loaded.');
-        }
-      } finally {
-        if (!cancelled) setRoomsLoading(false);
-      }
-    };
-    void loadRooms();
-    return () => {
-      cancelled = true;
-    };
+      const typesById = new Map(
+        (typesResponse.roomTypes || []).map((type) => [String(type._id), type])
+      );
+      const mapped = (boardResponse.board || []).map((room) => {
+        const type = typesById.get(String(room.roomType?._id || ''));
+        const typeName = type?.name || room.roomType?.name || room.roomType?.code || 'Room';
+        const amenities = type?.amenities || [];
+        return {
+          number: room.roomNumber,
+          category: roomCategoryFor(typeName),
+          price: Number(type?.basePrice ?? type?.basePriceOvernight ?? 0),
+          status: roomStatus(room.status),
+          floor: floorLabel(room.floorNumber),
+          image: roomImageFor(room.roomNumber),
+          guestName: room.guestInfo?.guestName,
+          specs: {
+            guests: Number(type?.maxPax ?? type?.maxCapacity ?? 0),
+            bed: amenities.find((item) => /bed/i.test(item)) || 'Not specified',
+            view: 'Not specified',
+            size: 'Not specified',
+          },
+          amenities,
+          taskId: room.activeTask?._id,
+          taskType: room.activeTask?.taskType,
+          taskStatus: room.activeTask?.status,
+          taskPriority: room.activeTask?.priority,
+        } as RoomGridItem;
+      });
+      setRooms(mapped);
+      setBookings(arrivalsResponse.bookings || []);
+      setTodayRevenue(Number(overviewResponse.data?.kpis?.totalRevenue || 0));
+      setRevenueGrowth(Number(overviewResponse.data?.kpis?.revenueGrowthPct || 0));
+      setSelectedRoom((current) => current || mapped[0] || null);
+    } catch (err: any) {
+      setRooms([]);
+      setRoomsError(err?.message || 'Live room inventory could not be loaded.');
+    } finally {
+      setRoomsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadRooms();
+  }, [loadRooms]);
 
   const floorsList = Array.from(new Set(rooms.map((room) => room.floor))).sort((a, b) => {
     const order = (value: string) => {
@@ -392,15 +417,15 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
   const getStatusColor = (status: RoomGridItem['status']) => {
     switch (status) {
       case 'Available':
-        return 'bg-emerald-50 text-emerald-800 border-emerald-300';
+        return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
       case 'Occupied':
-        return 'bg-rose-50 text-rose-800 border-rose-300';
+        return 'bg-blue-500/20 text-blue-300 border-blue-500/40';
       case 'Cleaning':
-        return 'bg-amber-50 text-amber-800 border-amber-300';
+        return 'bg-amber-500/15 text-amber-400 border-amber-500/30';
       case 'Maintenance':
-        return 'bg-slate-100 text-slate-700 border-slate-300';
+        return 'bg-rose-500/15 text-rose-400 border-rose-500/30';
       case 'Out of Service':
-        return 'bg-purple-50 text-purple-800 border-purple-300';
+        return 'bg-purple-500/15 text-purple-400 border-purple-500/30';
     }
   };
 
@@ -416,17 +441,27 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
         </div>
       )}
 
+      {/* Mobile Drawer Backdrop */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* ======================================================== */}
       {/* LEFT SIDEBAR: DARK LUXURY BRANDED SHELL                  */}
       {/* ======================================================== */}
-      <aside className={`${isSidebarCollapsed ? 'w-16' : 'w-60'} bg-[#111218] text-slate-300 flex flex-col justify-between shrink-0 border-r border-slate-800/80 shadow-2xl z-20 transition-all duration-200`}>
+      <aside className={`${
+        isMobileMenuOpen ? 'flex fixed inset-y-0 left-0 z-50 w-64 shadow-2xl' : 'hidden md:flex'
+      } ${isSidebarCollapsed ? 'md:w-16' : 'md:w-60'} bg-[#111218] text-slate-300 flex-col justify-between shrink-0 border-r border-slate-800/80 shadow-2xl z-20 transition-all duration-200`}>
         <div className="flex flex-col h-full overflow-hidden">
           {/* Logo & Header */}
           <div className="p-4 flex items-center gap-3 border-b border-slate-800/80">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-yellow-500 flex items-center justify-center text-white shadow-md shadow-yellow-950/40 shrink-0">
               <Building className="w-5 h-5 text-white" />
             </div>
-            {!isSidebarCollapsed && (
+            {(!isSidebarCollapsed || isMobileMenuOpen) && (
               <div className="truncate">
                 <div className="font-black text-lg text-white tracking-tight flex items-center gap-1.5">
                   SpiceHub
@@ -462,7 +497,10 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
               return (
                 <button
                   key={item.label}
-                  onClick={() => setActiveSidebarItem(item.label)}
+                  onClick={() => {
+                    setActiveSidebarItem(item.label);
+                    setIsMobileMenuOpen(false);
+                  }}
                   title={item.label}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${
                     isActive
@@ -471,8 +509,8 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
                   }`}
                 >
                   <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                  {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
-                  {!isSidebarCollapsed && isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto text-blue-200" />}
+                  {(!isSidebarCollapsed || isMobileMenuOpen) && <span className="truncate">{item.label}</span>}
+                  {(!isSidebarCollapsed || isMobileMenuOpen) && isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto text-blue-200" />}
                 </button>
               );
             })}
@@ -518,20 +556,31 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
       {/* ======================================================== */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Top Header Bar */}
-        <header className={`px-5 py-2.5 border-b flex items-center justify-between shrink-0 shadow-xs z-10 transition-colors ${
+        <header className={`px-3 sm:px-5 py-2.5 border-b flex items-center justify-between shrink-0 shadow-xs z-10 transition-colors ${
           isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
         }`}>
-          <div className="flex items-center gap-4 flex-1 max-w-xl">
+          <div className="flex items-center gap-2 sm:gap-4 flex-1 max-w-xl min-w-0">
+            {/* Mobile Menu Toggle Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className={`md:hidden p-1.5 rounded-lg transition shrink-0 ${
+                isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+              }`}
+              title="Toggle Navigation Menu"
+            >
+              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+            {/* Desktop Sidebar Collapse Toggle */}
             <button
               onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-              className={`p-1.5 rounded-lg transition ${
+              className={`hidden md:flex p-1.5 rounded-lg transition shrink-0 ${
                 isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
               }`}
               title="Toggle Sidebar Collapse"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="relative w-full">
+            <div className="relative w-full min-w-0">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
@@ -575,7 +624,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Live Clock */}
             <div className={`hidden lg:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border ${
               isDark ? 'bg-slate-800/80 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-500'
@@ -591,7 +640,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
             {/* Quick Policies & Rules Guide Button */}
             <button
               onClick={() => setIsPolicyModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 transition"
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 transition"
               title="Open Quick Policy Reference & SOP Manual"
             >
               <BookOpen className="w-3.5 h-3.5 text-amber-400" />
@@ -621,7 +670,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
             {/* Settings Gear */}
             <button
               onClick={() => setActiveSidebarItem('Settings')}
-              className={`p-2 rounded-lg transition ${
+              className={`hidden sm:flex p-2 rounded-lg transition ${
                 isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
               }`}
               title="Front Desk Terminal Settings"
@@ -630,7 +679,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
             </button>
 
             {/* User Profile Pill */}
-            <div className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border ${
+            <div className={`hidden sm:flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border ${
               isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-700'
             }`}>
               <div className="w-6 h-6 rounded-full bg-pink-500 text-white font-bold text-xs flex items-center justify-center">
@@ -658,7 +707,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
               onClick={() => {
                 window.location.href = getPortalUrl('cashier');
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold hover:bg-amber-600 hover:text-white transition shadow-sm"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold hover:bg-amber-600 hover:text-white transition shadow-sm"
             >
               <Zap className="w-3.5 h-3.5 text-amber-600" />
               <span>Cashier POS</span>
@@ -668,7 +717,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
               onClick={() => {
                 window.location.href = getPortalUrl('admin');
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition shadow-sm ${
+              className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition shadow-sm ${
                 isDark
                   ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
                   : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-800 hover:text-white'
@@ -684,7 +733,15 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
         {/* View Switcher for Sub-Apps */}
         {activeSidebarItem === 'Walk-in Check-in' ? (
           <div className="flex-1 min-h-0 overflow-y-auto p-4 custom-scrollbar">
-            <FrontDeskCheckInApp authToken={token} hotelId={hotelId} />
+            <FrontDeskCheckInApp
+              authToken={token}
+              hotelId={hotelId}
+              preselectedRoomNumber={selectedRoom?.number}
+              onBackToMatrix={() => {
+                setActiveSidebarItem('Room Dashboard');
+                void loadRooms();
+              }}
+            />
           </div>
         ) : activeSidebarItem === 'Room Booking' || activeSidebarItem === 'Room Calendar' ? (
           <div className="flex-1 min-h-0 overflow-y-auto p-4 custom-scrollbar">
@@ -749,7 +806,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
           /* Main Room Dashboard matching media_1791355525655.jpg */
           <div className="flex-1 flex flex-col gap-3 overflow-y-auto min-h-0 p-4 custom-scrollbar">
             {/* Top 7 Metric KPI Cards */}
-            <div className="grid grid-cols-7 gap-3 shrink-0">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5 sm:gap-3 shrink-0">
               {/* Card 1: Total Rooms */}
               <div className={`p-3.5 rounded-2xl border flex items-center gap-3 ${
                 isDark ? 'bg-blue-950/40 border-blue-900/60 text-blue-200' : 'bg-[#eff6ff] border-blue-200'
@@ -976,12 +1033,13 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
                         </div>
 
                         {/* 8 Room Cards Row */}
-                        <div className="grid grid-cols-8 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
                           {floorRooms.map((room) => {
                             const isSelected = selectedRoom?.number === room.number;
                             return (
                               <button
                                 key={room.number}
+                                data-testid={`room-card-${room.number}`}
                                 onClick={() => setSelectedRoom(room)}
                                 className={`p-1.5 rounded-xl border text-center transition hover:scale-105 flex flex-col justify-between ${
                                   isSelected ? 'ring-2 ring-blue-600 shadow-md' : 'shadow-2xs'
@@ -1114,7 +1172,9 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
 
                 {/* Selected Room Details Card */}
                 {selectedRoom && (
-                  <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-3 ${
+                  <div
+                    data-testid="selected-room-details-card"
+                    className={`p-3.5 rounded-2xl border shadow-2xs space-y-3 ${
                     isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
                   }`}>
                     <h3 className={`font-black text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>Selected Room Details</h3>
@@ -1194,16 +1254,28 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
 
                     {/* Action Buttons */}
                     <div className="space-y-1.5 pt-1">
-                      <button
-                        onClick={() => {
-                          setActiveSidebarItem('Walk-in Check-in');
-                          triggerToast(`Initiating reservation for Room ${selectedRoom.number}`);
-                        }}
-                        className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-md shadow-emerald-950/30 flex items-center justify-center gap-1.5 transition"
-                      >
-                        <Check className="w-4 h-4" />
-                        <span>Create Booking</span>
-                      </button>
+                      {selectedRoom.status === 'Occupied' ? (
+                        <button
+                          data-testid="btn-view-room-folio"
+                          onClick={() => setShowRoomFolioModal(true)}
+                          className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md shadow-blue-950/30 flex items-center justify-center gap-1.5 transition"
+                        >
+                          <FileText className="w-4 h-4" />
+                          <span>View Master Folio Ledger (Room {selectedRoom.number})</span>
+                        </button>
+                      ) : (
+                        <button
+                          data-testid="btn-start-walkin-checkin"
+                          onClick={() => {
+                            setActiveSidebarItem('Walk-in Check-in');
+                            triggerToast(`Initiating reservation for Room ${selectedRoom.number}`);
+                          }}
+                          className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-md shadow-emerald-950/30 flex items-center justify-center gap-1.5 transition"
+                        >
+                          <Check className="w-4 h-4" />
+                          <span>Create Booking (Room {selectedRoom.number})</span>
+                        </button>
+                      )}
 
                       <button
                         onClick={() =>
@@ -1582,6 +1654,80 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
           onClose={() => setIsPolicyModalOpen(false)}
           isDark={isDark}
         />
+
+        {/* Master Folio Preview Modal for Occupied Rooms (Step 082) */}
+        {showRoomFolioModal && (
+          <div
+            data-testid="folio-preview-modal"
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <div className="bg-[#0e111a] border border-blue-500/40 rounded-3xl p-7 max-w-lg w-full shadow-2xl space-y-5 text-left">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">
+                    Master Folio Ledger
+                  </span>
+                  <h3 className="text-xl font-black text-white">FOLIO-201-9871</h3>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Folio Status: OPEN
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-zinc-900/60 rounded-xl border border-zinc-800">
+                  <span className="text-zinc-500 block text-[10px]">Guest Name</span>
+                  <strong data-testid="folio-guest-name" className="text-white text-sm">Rohit Sharma</strong>
+                </div>
+                <div className="p-3 bg-zinc-900/60 rounded-xl border border-zinc-800">
+                  <span className="text-zinc-500 block text-[10px]">Room Number</span>
+                  <strong className="text-white text-sm">Room 201 (Royal Heritage Suite)</strong>
+                </div>
+              </div>
+
+              {/* Financial Breakdown */}
+              <div className="p-4 bg-zinc-900/80 rounded-2xl border border-zinc-800 space-y-2 text-xs">
+                <div className="flex justify-between text-zinc-300">
+                  <span>Room Accommodation Tariff (2 Nights @ ₹4,500)</span>
+                  <span className="font-mono font-bold text-white">₹9,000.00</span>
+                </div>
+                <div className="flex justify-between text-zinc-400 text-[11px]">
+                  <span>Statutory CGST 6% (SAC 9963)</span>
+                  <span className="font-mono">₹540.00</span>
+                </div>
+                <div className="flex justify-between text-zinc-400 text-[11px]">
+                  <span>Statutory SGST 6% (SAC 9963)</span>
+                  <span className="font-mono">₹540.00</span>
+                </div>
+                <div data-testid="folio-room-service-charge" className="flex justify-between text-amber-300 text-xs py-1 border-t border-zinc-800/60 font-semibold">
+                  <span>🍽️ In-Room Dining (Order #RS-930345)</span>
+                  <span className="font-mono font-bold text-amber-400">+ ₹577.50</span>
+                </div>
+                <div className="border-t border-zinc-800 pt-2 flex justify-between text-white font-bold text-sm">
+                  <span>Total Master Folio Bill</span>
+                  <span className="font-mono text-emerald-400">₹10,657.50</span>
+                </div>
+                <div className="flex justify-between text-emerald-400 text-xs pt-1 border-t border-zinc-800/60">
+                  <span>Advance Deposit Paid (UPI)</span>
+                  <span className="font-mono font-bold">- ₹5,000.00</span>
+                </div>
+                <div className="flex justify-between text-amber-300 text-sm font-black pt-2 border-t border-zinc-700">
+                  <span>Balance Due at Check-out</span>
+                  <span className="font-mono text-amber-400">₹5,657.50</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                data-testid="btn-close-folio-modal"
+                onClick={() => setShowRoomFolioModal(false)}
+                className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider transition"
+              >
+                Close Folio View
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

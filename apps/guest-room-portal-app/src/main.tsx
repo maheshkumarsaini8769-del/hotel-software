@@ -318,9 +318,7 @@ setInterval(() => {
 }, 5000);
 
 const GuestRoomPortalRoot: React.FC = () => {
-  const [showLocationModal, setShowLocationModal] = React.useState<boolean>(
-    !hasExplicitRoom && !crossTableParam && !isExplicitRoomsTab
-  );
+  const [showLocationModal, setShowLocationModal] = React.useState<boolean>(false);
   const [currentRoomNumber, setCurrentRoomNumber] = React.useState<string>(targetRoom);
   const [isCheckoutRequested, setIsCheckoutRequested] = React.useState(false);
   const [isStayCheckedOut, setIsStayCheckedOut] = React.useState(false);
@@ -454,11 +452,18 @@ const GuestRoomPortalRoot: React.FC = () => {
         isOpen={showLocationModal}
         currentApp="guest"
         apiBaseUrl={API_BASE}
+        hotelId={hotelId}
         tablePortalUrl={getPortalUrl('customer')}
         roomPortalUrl={getPortalUrl('guest')}
-        onSelectRoom={(r) => {
+        onSelectRoom={(r, token) => {
           targetRoom = r;
           setCurrentRoomNumber(r);
+          if (token) {
+            guestSessionToken = token;
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('spicehub_guest_session', token);
+            }
+          }
           store.setStayDetails({ roomNumber: r });
           setShowLocationModal(false);
           void resolveGuestSession(r).then(() => {
@@ -466,16 +471,7 @@ const GuestRoomPortalRoot: React.FC = () => {
             void hydrateInRoomOrders();
           });
         }}
-        onSelectDemoRoom={() => {
-          targetRoom = '305';
-          setCurrentRoomNumber('305');
-          store.setStayDetails({ roomNumber: '305' });
-          setShowLocationModal(false);
-          void resolveGuestSession('305').then(() => {
-            void hydrateLiveRoomStay();
-            void hydrateInRoomOrders();
-          });
-        }}
+        onClose={() => setShowLocationModal(false)}
       />
       <GuestRoomPortalApp
         store={store}

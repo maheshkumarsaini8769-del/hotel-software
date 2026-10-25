@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   resolvePermanentRoomQR,
+  verifyResidentStay,
   restoreLastPageSession,
   placeRoomServiceOrder,
   getLiveRoomOrders,
@@ -24,6 +25,7 @@ router.get('/rooms/catalog', getGuestRoomCatalog);
 router.post('/rooms/book-and-checkin', bookAndCheckInGuest);
 router.post('/stay/extend-dates', extendStayDates);
 router.get('/qr/resolve', resolvePermanentRoomQR);
+router.post('/stay/verify-resident', verifyResidentStay);
 router.post('/session/restore', restoreLastPageSession);
 router.get('/stay/status', getGuestStayStatus);
 router.post('/orders/place', placeRoomServiceOrder);

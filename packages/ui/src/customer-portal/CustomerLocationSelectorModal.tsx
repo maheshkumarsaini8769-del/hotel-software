@@ -6,8 +6,9 @@ export interface CustomerLocationSelectorModalProps {
   apiBaseUrl?: string;
   tablePortalUrl?: string;
   roomPortalUrl?: string;
+  hotelId?: string;
   onSelectTable?: (tableNumber: string) => void;
-  onSelectRoom?: (roomNumber: string) => void;
+  onSelectRoom?: (roomNumber: string, sessionToken?: string) => void;
   onSelectDemoTable?: () => void;
   onSelectDemoRoom?: () => void;
   onClose?: () => void;
@@ -19,18 +20,20 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
   apiBaseUrl = 'http://localhost:5000',
   tablePortalUrl = 'http://localhost:3001',
   roomPortalUrl = 'http://localhost:3004',
+  hotelId,
   onSelectTable,
   onSelectRoom,
-  onSelectDemoTable,
-  onSelectDemoRoom,
 }) => {
   const [selectedMode, setSelectedMode] = useState<'table' | 'room'>(
     currentApp === 'guest' ? 'room' : 'table'
   );
   const [tableInput, setTableInput] = useState('');
-  const [roomInput, setRoomInput] = useState('');
-  const [demoAvailable, setDemoAvailable] = useState<boolean>(false);
-  const [isCheckingDemo, setIsCheckingDemo] = useState<boolean>(true);
+  const [roomFlow, setRoomFlow] = useState<'resident' | 'booking'>('resident');
+  const [roomNumberInput, setRoomNumberInput] = useState('');
+  const [phoneInput, setPhoneInput] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [isVerifyingResident, setIsVerifyingResident] = useState(false);
+  const [residentError, setResidentError] = useState<string | null>(null);
 
   // In-app Camera QR Scanner
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -39,7 +42,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Lock body scroll when modal is active to prevent background horizontal/vertical overflow
+  // Lock body scroll when modal is active
   useEffect(() => {
     if (isOpen && typeof document !== 'undefined') {
       const original = document.body.style.overflow;
@@ -91,105 +94,80 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
 
   const handleScannedResult = (val: string) => {
     setScanMessage(`✨ Detected: ${val}`);
-    let target = val.trim();
+    const target = val.trim();
+    let tbl = '';
+    let rm = '';
+    let token = '';
+
     try {
       if (target.startsWith('http://') || target.startsWith('https://')) {
         const parsed = new URL(target);
-        const tbl =
+        tbl =
           parsed.searchParams.get('table') ||
           parsed.searchParams.get('tableNumber') ||
-          (parsed.searchParams.get('type') === 'table' ? parsed.searchParams.get('id') : null);
-        const rm =
+          (parsed.searchParams.get('type') === 'table' ? parsed.searchParams.get('id') || '' : '');
+        rm =
           parsed.searchParams.get('room') ||
           parsed.searchParams.get('roomNumber') ||
-          (parsed.searchParams.get('type') === 'room' ? parsed.searchParams.get('id') : null);
-        if (tbl) {
-          stopCameraScanner();
-          if (currentApp === 'customer' && onSelectTable) onSelectTable(tbl);
-          else {
-            const dest = new URL(tablePortalUrl, window.location.href);
-            dest.searchParams.set('table', tbl);
-            window.location.href = dest.toString();
-          }
-          return;
-        }
-        if (rm) {
-          stopCameraScanner();
-          if (currentApp === 'guest' && onSelectRoom) onSelectRoom(rm);
-          else {
-            const dest = new URL(roomPortalUrl, window.location.href);
-            dest.searchParams.set('room', rm);
-            window.location.href = dest.toString();
-          }
-          return;
-        }
+          (parsed.searchParams.get('type') === 'room' ? parsed.searchParams.get('id') || '' : '');
+        token = parsed.searchParams.get('token') || parsed.searchParams.get('qrToken') || '';
       }
     } catch {}
 
+    if (!tbl && !rm) {
+      if (selectedMode === 'table') tbl = target;
+      else rm = target;
+    }
+
     setTimeout(() => {
       stopCameraScanner();
-      if (selectedMode === 'table') {
-        const numOnly = target.replace(/[^0-9]/g, '');
-        const formatted = target.toUpperCase().startsWith('T-')
-          ? target.toUpperCase()
+      if (tbl) {
+        const numOnly = tbl.replace(/[^0-9]/g, '');
+        const formatted = tbl.toUpperCase().startsWith('T-')
+          ? tbl.toUpperCase()
           : numOnly
           ? `T-${numOnly.padStart(2, '0')}`
-          : target;
+          : tbl;
+
         if (currentApp === 'customer' && onSelectTable) onSelectTable(formatted);
         else {
           const dest = new URL(tablePortalUrl, window.location.href);
           dest.searchParams.set('table', formatted);
           window.location.href = dest.toString();
         }
-      } else {
-        const numOnly = target.replace(/[^0-9]/g, '');
-        const formatted = numOnly || target;
-        if (currentApp === 'guest' && onSelectRoom) onSelectRoom(formatted);
+      } else if (rm) {
+        if (token && typeof window !== 'undefined') {
+          localStorage.setItem('spicehub_guest_session', token);
+        }
+        if (currentApp === 'guest' && onSelectRoom) onSelectRoom(rm, token || undefined);
         else {
           const dest = new URL(roomPortalUrl, window.location.href);
-          dest.searchParams.set('room', formatted);
+          dest.searchParams.set('room', rm);
+          dest.searchParams.set('tab', 'HOME');
+          if (token) dest.searchParams.set('token', token);
           window.location.href = dest.toString();
         }
       }
-    }, 500);
+    }, 600);
   };
-
-  // Probe demo context availability on generic entry (Condition 1: fail gracefully if null/error)
-  useEffect(() => {
-    let active = true;
-    async function checkDemoContext() {
-      try {
-        const base = apiBaseUrl.replace(/\/api\/v1\/?$/, '');
-        const res = await fetch(`${base}/api/v1/pos/demo-context`);
-        if (!active) return;
-        if (res.ok) {
-          const json = await res.json().catch(() => null);
-          if (json?.success && json?.data?.table?.tableNumber) {
-            setDemoAvailable(true);
-            return;
-          }
-        }
-        setDemoAvailable(false);
-      } catch {
-        if (active) setDemoAvailable(false);
-      } finally {
-        if (active) setIsCheckingDemo(false);
-      }
-    }
-
-    checkDemoContext();
-    return () => {
-      active = false;
-    };
-  }, [apiBaseUrl]);
 
   if (!isOpen) return null;
 
   const handleTableSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const raw = tableInput.trim() || 'T-04';
+    const raw = tableInput.trim();
+    if (!raw) {
+      setValidationError('Please enter a valid table number.');
+      return;
+    }
+    setValidationError(null);
+
     const numOnly = raw.replace(/[^0-9]/g, '');
-    const formatted = numOnly ? `T-${numOnly.padStart(2, '0')}` : raw;
+    const formatted = raw.toUpperCase().startsWith('T-')
+      ? raw.toUpperCase()
+      : numOnly
+      ? `T-${numOnly.padStart(2, '0')}`
+      : raw;
 
     if (currentApp === 'customer' && onSelectTable) {
       onSelectTable(formatted);
@@ -200,43 +178,69 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
     }
   };
 
-  const handleRoomSubmit = (e?: React.FormEvent) => {
+  const handleVerifyResidentStay = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const raw = roomInput.trim() || '305';
-    const numOnly = raw.replace(/[^0-9]/g, '');
-    const formatted = numOnly || raw;
+    const rNum = roomNumberInput.trim();
+    const phone = phoneInput.trim();
 
-    if (currentApp === 'guest' && onSelectRoom) {
-      onSelectRoom(formatted);
-    } else {
-      const target = new URL(roomPortalUrl, window.location.href);
-      target.searchParams.set('room', formatted);
-      window.location.href = target.toString();
+    if (!rNum) {
+      setResidentError('Please enter your room number.');
+      return;
+    }
+    if (!phone) {
+      setResidentError('Please enter your registered mobile number.');
+      return;
+    }
+
+    try {
+      setIsVerifyingResident(true);
+      setResidentError(null);
+
+      const base = apiBaseUrl.replace(/\/api\/v1\/?$/, '');
+      const res = await fetch(`${base}/api/v1/guest-portal/stay/verify-resident`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hotelId: hotelId || 'demo-hotel-id',
+          roomNumber: rNum,
+          guestPhone: phone,
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        const { sessionToken, roomNumber } = json.data;
+        if (sessionToken && typeof window !== 'undefined') {
+          localStorage.setItem('spicehub_guest_session', sessionToken);
+        }
+        if (currentApp === 'guest' && onSelectRoom) {
+          onSelectRoom(roomNumber || rNum, sessionToken);
+        } else {
+          const dest = new URL(roomPortalUrl, window.location.href);
+          dest.searchParams.set('room', roomNumber || rNum);
+          dest.searchParams.set('tab', 'HOME');
+          if (sessionToken) dest.searchParams.set('token', sessionToken);
+          window.location.href = dest.toString();
+        }
+      } else {
+        setResidentError(
+          json.message ||
+            `No active check-in found for Room ${rNum} with mobile ${phone}. If you wish to stay, please book a room from our catalog.`
+        );
+      }
+    } catch (err: any) {
+      setResidentError(err.message || 'Verification network error.');
+    } finally {
+      setIsVerifyingResident(false);
     }
   };
 
-  const handleDemoTableClick = () => {
-    if (currentApp === 'customer' && onSelectDemoTable) {
-      onSelectDemoTable();
-    } else {
-      const target = new URL(tablePortalUrl, window.location.href);
-      target.searchParams.set('table', 'T-04');
-      window.location.href = target.toString();
-    }
+  const handleOpenRoomCatalog = () => {
+    const dest = new URL(roomPortalUrl, window.location.href);
+    dest.searchParams.set('tab', 'ROOMS');
+    if (hotelId) dest.searchParams.set('hotelId', hotelId);
+    window.location.href = dest.toString();
   };
-
-  const handleDemoRoomClick = () => {
-    if (currentApp === 'guest' && onSelectDemoRoom) {
-      onSelectDemoRoom();
-    } else {
-      const target = new URL(roomPortalUrl, window.location.href);
-      target.searchParams.set('room', '305');
-      window.location.href = target.toString();
-    }
-  };
-
-  const quickTables = ['T-01', 'T-02', 'T-04', 'T-07', 'T-10'];
-  const quickRooms = ['101', '204', '305', '402', '501'];
 
   return (
     <div
@@ -269,20 +273,29 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
               SpiceHub Hospitality Suite
             </span>
             <h2 id="selector-heading" className="text-xl sm:text-2xl font-black text-white tracking-tight mt-0.5">
-              Where are you ordering from?
+              Select Your Guest Session
             </h2>
             <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              Please specify whether you are seated in our restaurant or relaxing in your guest room.
+              Please choose whether you are dining at a restaurant table or staying in a guest room.
             </p>
           </div>
         </div>
 
-        {/* Mode Selector Tabs (min 44px tap target) */}
+        {validationError && (
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold">
+            ⚠️ {validationError}
+          </div>
+        )}
+
+        {/* Mode Selector Tabs */}
         <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-900/90 border border-slate-800">
           <button
             type="button"
             data-testid="mode-tab-table"
-            onClick={() => setSelectedMode('table')}
+            onClick={() => {
+              setSelectedMode('table');
+              setValidationError(null);
+            }}
             className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl text-xs sm:text-sm font-bold transition-all px-3 ${
               selectedMode === 'table'
                 ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
@@ -295,7 +308,10 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
           <button
             type="button"
             data-testid="mode-tab-room"
-            onClick={() => setSelectedMode('room')}
+            onClick={() => {
+              setSelectedMode('room');
+              setValidationError(null);
+            }}
             className={`min-h-[44px] flex items-center justify-center gap-2 rounded-xl text-xs sm:text-sm font-bold transition-all px-3 ${
               selectedMode === 'room'
                 ? 'bg-blue-600 text-white shadow-md font-extrabold'
@@ -313,8 +329,12 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
             <div className="flex items-center gap-2">
               <span className="text-base">📷</span>
               <div>
-                <div className="text-xs font-black text-white">Scan Table / Room QR Code</div>
-                <div className="text-[10px] text-slate-400">Instantly binds and opens your menu</div>
+                <div className="text-xs font-black text-white">
+                  Scan {selectedMode === 'table' ? 'Table' : 'In-Room'} QR Code
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  Instantly authenticates and opens your {selectedMode === 'table' ? 'menu' : 'room portal'}
+                </div>
               </div>
             </div>
             {isScanning && (
@@ -346,26 +366,15 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
               )}
             </div>
           ) : (
-            <div className="flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                data-testid="camera-qr-scanner-btn"
-                onClick={startCameraScanner}
-                className="flex-1 min-h-[40px] px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition"
-              >
-                <span>📷</span>
-                <span>Open Camera Scanner</span>
-              </button>
-              <button
-                type="button"
-                data-testid="simulate-qr-scan-btn"
-                onClick={() => handleScannedResult(selectedMode === 'table' ? 'T-04' : '305')}
-                className="min-h-[40px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1 transition"
-              >
-                <span>⚡</span>
-                <span>Quick Scan ({selectedMode === 'table' ? 'T-04' : '305'})</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              data-testid="camera-qr-scanner-btn"
+              onClick={startCameraScanner}
+              className="min-h-[44px] px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition"
+            >
+              <span>📷</span>
+              <span>Open Camera Scanner</span>
+            </button>
           )}
 
           {cameraError && (
@@ -377,7 +386,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
 
         {/* Dynamic Form Content */}
         {selectedMode === 'table' ? (
-          <form onSubmit={handleTableSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleTableSubmit} className="flex flex-col gap-3">
             <div>
               <label htmlFor="table-number-input" className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Enter your Table Number:
@@ -399,116 +408,96 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
                 </button>
               </div>
             </div>
-
-            {/* Quick Chips (min 44px tap target) */}
-            <div>
-              <div className="text-[11px] font-semibold text-slate-400 mb-1.5">
-                Popular Dining Tables:
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {quickTables.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => {
-                      setTableInput(t);
-                      if (currentApp === 'customer' && onSelectTable) {
-                        onSelectTable(t);
-                      } else {
-                        const target = new URL(tablePortalUrl, window.location.href);
-                        target.searchParams.set('table', t);
-                        window.location.href = target.toString();
-                      }
-                    }}
-                    className="min-h-[44px] px-3.5 rounded-xl border border-slate-800 bg-slate-900/60 hover:bg-amber-500/20 hover:border-amber-500/40 text-xs font-bold text-slate-300 hover:text-amber-400 transition flex items-center justify-center"
-                  >
-                    Table {t}
-                  </button>
-                ))}
-              </div>
-            </div>
           </form>
         ) : (
-          <form onSubmit={handleRoomSubmit} className="flex flex-col gap-4">
-            <div>
-              <label htmlFor="room-number-input" className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Enter your Room Number:
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="room-number-input"
-                  type="text"
-                  value={roomInput}
-                  onChange={(e) => setRoomInput(e.target.value)}
-                  placeholder="e.g. 305, 402, 108"
-                  className="flex-1 min-h-[44px] rounded-xl bg-slate-900 border border-slate-700 px-3.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                />
+          <div className="flex flex-col gap-3.5">
+            {/* Room Sub-Selector Tabs */}
+            <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-900 border border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setRoomFlow('resident');
+                  setResidentError(null);
+                }}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 ${
+                  roomFlow === 'resident' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>🔑</span>
+                <span>Resident Guest</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRoomFlow('booking');
+                  setResidentError(null);
+                }}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 ${
+                  roomFlow === 'booking' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>🛏️</span>
+                <span>Book a Room</span>
+              </button>
+            </div>
+
+            {roomFlow === 'resident' ? (
+              <form onSubmit={handleVerifyResidentStay} className="flex flex-col gap-2.5">
+                {residentError && (
+                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+                    ⚠️ {residentError}
+                  </div>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Room Number:
+                    </label>
+                    <input
+                      id="room-number-input"
+                      type="text"
+                      value={roomNumberInput}
+                      onChange={(e) => setRoomNumberInput(e.target.value)}
+                      placeholder="e.g. 201, 305"
+                      className="w-full min-h-[42px] rounded-xl bg-slate-900 border border-slate-700 px-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Registered Mobile:
+                    </label>
+                    <input
+                      type="tel"
+                      value={phoneInput}
+                      onChange={(e) => setPhoneInput(e.target.value)}
+                      placeholder="e.g. 9820011223"
+                      className="w-full min-h-[42px] rounded-xl bg-slate-900 border border-slate-700 px-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
                 <button
                   type="submit"
-                  className="min-h-[44px] px-5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shrink-0 flex items-center justify-center"
+                  disabled={isVerifyingResident}
+                  className="min-h-[44px] px-5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shrink-0 flex items-center justify-center gap-2 mt-1"
                 >
-                  Open Room
+                  {isVerifyingResident ? 'Verifying Stay...' : 'Verify Stay & Enter Room'}
+                </button>
+              </form>
+            ) : (
+              <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col gap-3">
+                <div className="text-xs text-slate-300">
+                  Explore real-time room availability, live multi-night tariffs, GPS check, and instant Aadhaar KYC booking.
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenRoomCatalog}
+                  className="min-h-[44px] rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center gap-1.5"
+                >
+                  <span>🏨</span>
+                  <span>Explore Available Rooms & Book Now</span>
                 </button>
               </div>
-            </div>
-
-            {/* Quick Room Chips (min 44px tap target) */}
-            <div>
-              <div className="text-[11px] font-semibold text-slate-400 mb-1.5">
-                Quick Room Select:
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {quickRooms.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => {
-                      setRoomInput(r);
-                      if (currentApp === 'guest' && onSelectRoom) {
-                        onSelectRoom(r);
-                      } else {
-                        const target = new URL(roomPortalUrl, window.location.href);
-                        target.searchParams.set('room', r);
-                        window.location.href = target.toString();
-                      }
-                    }}
-                    className="min-h-[44px] px-3.5 rounded-xl border border-slate-800 bg-slate-900/60 hover:bg-blue-500/20 hover:border-blue-500/40 text-xs font-bold text-slate-300 hover:text-blue-400 transition flex items-center justify-center"
-                  >
-                    Room {r}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </form>
-        )}
-
-        {/* CONDITION 1: Demo Mode Buttons (only visible if demo-context succeeds) */}
-        {!isCheckingDemo && demoAvailable && (
-          <div className="pt-3 border-t border-slate-800/80 flex flex-col gap-2">
-            <div className="text-[11px] font-semibold text-slate-400 text-center flex items-center justify-center gap-1.5">
-              <span>⚡</span>
-              <span>Testing or exploring the platform?</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                type="button"
-                data-testid="demo-table-btn"
-                onClick={handleDemoTableClick}
-                className="min-h-[44px] px-3 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 transition"
-              >
-                <span>🎬</span>
-                <span>Try Demo Table (T-04)</span>
-              </button>
-              <button
-                type="button"
-                data-testid="demo-room-btn"
-                onClick={handleDemoRoomClick}
-                className="min-h-[44px] px-3 py-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 font-bold text-xs flex items-center justify-center gap-2 transition"
-              >
-                <span>🎬</span>
-                <span>Try Demo Room (305)</span>
-              </button>
-            </div>
+            )}
           </div>
         )}
       </div>

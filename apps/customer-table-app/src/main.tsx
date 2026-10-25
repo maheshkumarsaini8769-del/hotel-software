@@ -585,16 +585,14 @@ export const CustomerAppRoot: React.FC = () => {
         isOpen={showLocationModal}
         currentApp="customer"
         apiBaseUrl={API_BASE}
+        hotelId={hotelId}
         tablePortalUrl={getPortalUrl('customer')}
         roomPortalUrl={getPortalUrl('guest')}
         onSelectTable={(selectedTable) => {
           setShowLocationModal(false);
           void bootstrap(selectedTable);
         }}
-        onSelectDemoTable={() => {
-          setShowLocationModal(false);
-          void bootstrap('T-04');
-        }}
+        onClose={() => setShowLocationModal(false)}
       />
       <CustomerPortalSwitcherBar
         currentApp="customer"

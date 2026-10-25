@@ -194,6 +194,137 @@ export const resolvePermanentRoomQR = async (req: Request, res: Response): Promi
   }
 };
 
+// 1b. Verify Resident Guest Stay by Room Number + Registered Mobile Number
+export const verifyResidentStay = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { hotelId, roomNumber, guestPhone } = req.body;
+
+    if (!hotelId || !Types.ObjectId.isValid(hotelId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_HOTEL', message: 'Valid hotelId is required' });
+      return;
+    }
+
+    if (!roomNumber || !guestPhone) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'MISSING_FIELDS',
+        message: 'Room number and registered phone number are required',
+      });
+      return;
+    }
+
+    const room = await Room.findOne({
+      hotelId: new Types.ObjectId(hotelId),
+      roomNumber: String(roomNumber).trim(),
+    }).populate('roomTypeId');
+
+    if (!room) {
+      res.status(404).json({
+        success: false,
+        errorCode: 'ROOM_NOT_FOUND',
+        message: `Room ${roomNumber} does not exist at this hotel.`,
+      });
+      return;
+    }
+
+    // Check for active stay in this room
+    let stay = room.currentStayId
+      ? await Stay.findOne({
+          _id: room.currentStayId,
+          hotelId: room.hotelId,
+          roomId: room._id,
+          stayStatus: StayStatus.ACTIVE,
+        }).populate('guestId')
+      : null;
+
+    if (!stay) {
+      stay = await Stay.findOne({
+        hotelId: room.hotelId,
+        roomId: room._id,
+        stayStatus: StayStatus.ACTIVE,
+      })
+        .sort({ checkInTimestamp: -1, createdAt: -1 })
+        .populate('guestId');
+    }
+
+    if (!stay) {
+      res.status(404).json({
+        success: false,
+        errorCode: 'NO_ACTIVE_STAY',
+        message: `No active check-in found for Room ${roomNumber}. If you wish to stay, please book a room from our catalog.`,
+        redirectAction: 'PUBLIC_BOOKING_OR_RECEPTION',
+      });
+      return;
+    }
+
+    // Match guest phone
+    const booking = await Booking.findById(stay.bookingId);
+    const cleanInputPhone = String(guestPhone).replace(/[^0-9]/g, '').slice(-10);
+    const guestObj = stay.guestId as any;
+    const stayPhone = String(guestObj?.phone || '').replace(/[^0-9]/g, '').slice(-10);
+    const bookingPhone = String(booking?.guestPhone || '').replace(/[^0-9]/g, '').slice(-10);
+
+    const isMatch =
+      (stayPhone && cleanInputPhone.endsWith(stayPhone)) ||
+      (bookingPhone && cleanInputPhone.endsWith(bookingPhone)) ||
+      (cleanInputPhone && (stayPhone.endsWith(cleanInputPhone) || bookingPhone.endsWith(cleanInputPhone)));
+
+    if (!isMatch) {
+      res.status(401).json({
+        success: false,
+        errorCode: 'PHONE_MISMATCH',
+        message: `The mobile number entered does not match the active guest registration for Room ${roomNumber}. Please contact the front desk.`,
+      });
+      return;
+    }
+
+    const rawSessionToken = signGuestSessionToken({
+      hotelId: String(room.hotelId),
+      stayId: String(stay._id),
+      roomId: String(room._id),
+      roomNumber: String(room.roomNumber),
+    });
+    const tokenHash = hashGuestToken(rawSessionToken);
+    const expiresAt = new Date(Date.now() + GUEST_SESSION_TTL_MS);
+
+    await GuestSession.create({
+      hotelId: room.hotelId,
+      stayId: stay._id,
+      roomId: room._id,
+      sessionTokenHash: tokenHash,
+      lastKnownRoute: '/guest-portal/home',
+      expiresAt,
+    });
+
+    const hotelTenant = await Tenant.findById(room.hotelId).select('enabledPortals');
+    const waiterEnabled = hotelTenant?.enabledPortals ? hotelTenant.enabledPortals.includes('waiter') : true;
+
+    res.status(200).json({
+      success: true,
+      message: `Welcome back, ${guestObj?.name || booking?.guestName || 'Valued Guest'}! Verified for Room ${room.roomNumber}.`,
+      data: {
+        sessionToken: rawSessionToken,
+        hotelId: room.hotelId,
+        waiterEnabled,
+        roomId: room._id,
+        roomNumber: room.roomNumber,
+        roomType: (room.roomTypeId as any)?.name || 'Room',
+        guestName: guestObj?.name || booking?.guestName || 'Valued Guest',
+        checkInDate: stay.checkInTimestamp || booking?.checkInDate,
+        expectedCheckOutDate: stay.expectedCheckOutTimestamp || booking?.checkOutDate,
+        checkOutDate: stay.expectedCheckOutTimestamp || booking?.checkOutDate,
+        stayId: stay._id,
+        masterFolioId: stay.masterFolioId,
+        stayStatus: stay.stayStatus,
+        wifiSsid: 'TajGateway_HighSpeed',
+        wifiPassword: `TajGuest@${room.roomNumber}`,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: error.message });
+  }
+};
+
 // 2. Browser Session Continuity & Last-Page Reopen (Section 4.16)
 export const restoreLastPageSession = async (req: Request, res: Response): Promise<void> => {
   try {

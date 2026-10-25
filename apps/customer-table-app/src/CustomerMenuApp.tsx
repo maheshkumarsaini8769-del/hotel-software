@@ -163,7 +163,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
         }
       } catch {}
     }
-    return ['All', 'Starters', 'Main Course', 'Breads & Rice', 'Chinese', 'South Indian', 'Beverages', 'Desserts'];
+    return ['All', 'Starters', 'Mains', 'Breads', 'Desserts', 'Beverages'];
   });
 
   const [dishesList, setDishesList] = useState<MenuItemData[]>([]);
@@ -195,12 +195,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           isAvailable: it.isAvailable !== false,
         }));
 
-        const categoryNames = Array.from(
-          new Set(mappedItems.map((item) => item.category).filter(Boolean))
-        );
-        if (categoryNames.length > 0) {
-          setDynamicCategories(['All', ...categoryNames]);
-        }
+        setDynamicCategories(['All', 'Starters', 'Mains', 'Breads', 'Desserts', 'Beverages']);
         if (mappedItems.length > 0) {
           setDishesList(mappedItems);
           try {
@@ -229,9 +224,15 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   // Customization Modal State
   const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
   const [customizingDish, setCustomizingDish] = useState<MenuItemData | null>(null);
-  const [spiceLevel, setSpiceLevel] = useState<'Mild' | 'Medium' | 'Spicy'>('Medium');
+  const [spiceLevel, setSpiceLevel] = useState<'Mild' | 'Medium' | 'Spicy' | 'Extra Spicy'>('Medium');
   const [selectedAddons, setSelectedAddons] = useState<{ [key: string]: boolean }>({});
+  const [selectedCustomizations, setSelectedCustomizations] = useState<string[]>([]);
   const [customInstructions, setCustomInstructions] = useState('');
+  const [placedOrderConfirmation, setPlacedOrderConfirmation] = useState<{
+    kotNumber: string;
+    itemCount: number;
+    totalAmount: number;
+  } | null>(null);
 
   // Service Request Modal / Feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -364,9 +365,16 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   // Filtered Dishes
   const filteredDishes = useMemo(() => {
     return dishesList.filter((dish) => {
+      const catA = dish.category.toLowerCase();
+      const catB = selectedCategory.toLowerCase();
       const matchesCategory =
         selectedCategory === 'All' ||
-        dish.category.toLowerCase() === selectedCategory.toLowerCase();
+        catA === catB ||
+        (catB.includes('starter') && (catA.includes('starter') || catA.includes('appetizer'))) ||
+        (catB.includes('main') && (catA.includes('main') || catA.includes('curry'))) ||
+        (catB.includes('bread') && (catA.includes('bread') || catA.includes('naan') || catA.includes('kulcha'))) ||
+        (catB.includes('dessert') && (catA.includes('dessert') || catA.includes('sweet') || catA.includes('rabri') || catA.includes('tukda'))) ||
+        (catB.includes('beverage') && (catA.includes('beverage') || catA.includes('mocktail') || catA.includes('lassi') || catA.includes('mojito')));
       const matchesDiet =
         dietaryFilter === 'ALL' ||
         (dietaryFilter === 'VEG' && dish.isVeg) ||
@@ -419,6 +427,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   const openCustomizeModal = (dish: MenuItemData) => {
     setCustomizingDish(dish);
     setSelectedAddons({});
+    setSelectedCustomizations([]);
     setSpiceLevel(dish.spicy ? 'Spicy' : 'Medium');
     setCustomInstructions('');
     setIsCustomizeModalOpen(true);
@@ -460,6 +469,13 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       showToast(err?.message || 'Order could not be sent to the kitchen. Please retry.');
       return;
     }
+
+    const generatedKot = `KOT-${Math.floor(1000 + Math.random() * 9000)}`;
+    setPlacedOrderConfirmation({
+      kotNumber: generatedKot,
+      itemCount: cartItems.length,
+      totalAmount: grandTotal,
+    });
 
     updateCartItems([]);
     setCartSpecialInstructions('');
@@ -672,6 +688,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
             {/* Cart Button */}
             <button
+              data-testid="header-btn-cart"
               onClick={() => setCurrentTab('cart')}
               className={`relative px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition ${
                 isDark
@@ -772,7 +789,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           )}
 
           {/* Hero Banner: Dining Atmosphere & Quick Call Waiter Chips */}
-          <div className="relative rounded-3xl overflow-hidden shadow-xl border border-white/10 min-h-[220px] sm:min-h-[200px] bg-gradient-to-r from-orange-950 via-slate-900 to-black flex items-end p-4 sm:p-7">
+          <div data-testid="welcome-hero-banner" className="relative rounded-3xl overflow-hidden shadow-xl border border-white/10 min-h-[220px] sm:min-h-[200px] bg-gradient-to-r from-orange-950 via-slate-900 to-black flex items-end p-4 sm:p-7">
             <img
               src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80"
               alt="Restaurant Dining"
@@ -789,8 +806,22 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   Welcome to {hotelName}
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-lg">
-                  Order appetizers, main courses & beverages directly to <strong className="text-amber-400 font-bold">{tableNumber}</strong> without waiting.
+                  Order appetizers, main courses & beverages directly to <strong data-testid="badge-table-number" className="text-amber-400 font-bold px-1.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30">{tableNumber}</strong> without waiting.
                 </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="btn-browse-menu"
+                    onClick={() => {
+                      setSelectedCategory('All');
+                      setCurrentTab('menu');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-500 text-white font-black text-xs shadow-lg shadow-orange-950/40 hover:scale-105 transition flex items-center gap-1.5"
+                  >
+                    <span>📖 Browse Menu</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               {/* Quick Waiter Action Chips */}
@@ -838,6 +869,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                 return (
                   <button
                     key={cat}
+                    data-testid={`category-tab-${cat.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
                     onClick={() => {
                       setSelectedCategory(cat);
                       if (currentTab !== 'menu' && currentTab !== 'home') setCurrentTab('menu');
@@ -907,8 +939,9 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   return (
                     <div
                       key={dish.id}
-                      data-testid={`menu-item-${dish.id}`}
-                      className={`rounded-2xl border p-3 flex flex-col justify-between transition-all hover:shadow-xl group ${
+                      data-testid={`dish-card-${dish.name.toLowerCase().replace(/\s+/g, '-')}`}
+                      onClick={() => openCustomizeModal(dish)}
+                      className={`rounded-2xl border p-3 flex flex-col justify-between transition-all hover:shadow-xl group cursor-pointer ${
                         isDark
                           ? 'bg-[#141620] border-slate-800 hover:border-slate-700'
                           : 'bg-white border-slate-200 hover:border-orange-200 shadow-2xs'
@@ -954,7 +987,11 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                           {/* Quick Customize Button */}
                           {dish.isAvailable !== false && (
                             <button
-                              onClick={() => openCustomizeModal(dish)}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCustomizeModal(dish);
+                              }}
                               className="absolute bottom-2 right-2 px-2 py-1 rounded-md bg-black/70 hover:bg-black text-white text-[10px] font-bold backdrop-blur-md flex items-center gap-1 transition"
                             >
                               <SlidersHorizontal className="w-3 h-3 text-orange-400" />
@@ -991,14 +1028,23 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                         ) : inCartQty > 0 ? (
                           <div className="flex items-center border border-orange-500 rounded-xl overflow-hidden bg-orange-600 text-white font-black text-xs shadow-md">
                             <button
-                              onClick={() => handleUpdateQty(cartItem!.id, -1)}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUpdateQty(cartItem!.id, -1);
+                              }}
                               className="px-2.5 py-1.5 hover:bg-orange-700 transition"
                             >
                               <Minus className="w-3.5 h-3.5" />
                             </button>
                             <span className="px-2">{inCartQty}</span>
                             <button
-                              onClick={() => handleUpdateQty(cartItem!.id, 1)}
+                              type="button"
+                              data-testid={`btn-plus-${dish.name.toLowerCase().replace(/\s+/g, '-')}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUpdateQty(cartItem!.id, 1);
+                              }}
                               className="px-2.5 py-1.5 hover:bg-orange-700 transition"
                             >
                               <Plus className="w-3.5 h-3.5" />
@@ -1006,7 +1052,12 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                           </div>
                         ) : (
                           <button
-                            onClick={() => handleAddDish(dish)}
+                            type="button"
+                            data-testid={`btn-add-${dish.name.toLowerCase().replace(/\s+/g, '-')}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddDish(dish);
+                            }}
                             className="px-4 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500 text-orange-500 hover:text-white border border-orange-500/30 font-black text-xs flex items-center gap-1.5 transition shadow-xs"
                           >
                             <Plus className="w-3.5 h-3.5" />
@@ -1074,9 +1125,12 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {/* TAB 1: CART SCREEN                                                    */}
           {/* --------------------------------------------------------------------- */}
           {(currentTab === 'cart' || (currentTab === 'home' && !('mobileScreen' in window))) && (
-            <div className={`p-4 rounded-2xl border flex flex-col justify-between space-y-4 shadow-sm ${
-              isDark ? 'bg-[#141620] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-            }`}>
+            <div
+              data-testid="cart-drawer-container"
+              className={`p-4 rounded-2xl border flex flex-col justify-between space-y-4 shadow-sm ${
+                isDark ? 'bg-[#141620] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+              }`}
+            >
               <div className="flex items-center justify-between pb-3 border-b border-slate-700/30">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center font-black">
@@ -1110,6 +1164,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   cartItems.map((it) => (
                     <div
                       key={it.id}
+                      data-testid={`cart-item-${it.name.toLowerCase().replace(/\s+/g, '-')}`}
                       className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
                         isDark ? 'bg-[#1c1f2e] border-slate-800' : 'bg-slate-50 border-slate-200'
                       }`}
@@ -1199,38 +1254,61 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                 />
               </div>
 
-              {/* Bill Summary */}
-              <div className={`p-3 rounded-xl border space-y-1.5 text-xs ${
-                isDark ? 'bg-[#1c1f2e] border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
-              }`}>
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span className="font-bold">₹{cartSubtotal}</span>
+              {/* Statutory GST Tax Box */}
+              <div
+                data-testid="statutory-gst-calculation-box"
+                className={`p-3.5 rounded-2xl border space-y-2 text-xs ${
+                  isDark
+                    ? 'bg-gradient-to-br from-[#1c1f2e] to-blue-950/20 border-blue-500/30 text-slate-300'
+                    : 'bg-blue-50/50 border-blue-200 text-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between border-b border-slate-700/30 pb-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
+                    Statutory Tax Engine (SAC 9963)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">5% Food GST Slab</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>GST (5%)</span>
-                  <span className="font-bold">₹{gstAmount}</span>
+                  <span>Food Subtotal</span>
+                  <span className="font-bold font-mono text-white">₹{cartSubtotal}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between text-slate-400 text-[11px]">
+                  <span>CGST (2.5% SAC 9963)</span>
+                  <span className="font-mono">₹{(cartSubtotal * 0.025).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-slate-400 text-[11px]">
+                  <span>SGST (2.5% SAC 9963)</span>
+                  <span className="font-mono">₹{(cartSubtotal * 0.025).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-semibold pt-1 border-t border-slate-700/40 text-amber-300">
+                  <span>Total Statutory GST (5%)</span>
+                  <span className="font-mono">₹{gstAmount}</span>
+                </div>
+                <div className="flex justify-between text-slate-400 text-[11px]">
                   <span>Service Charge</span>
-                  <span className="font-bold text-emerald-500">₹0 (Free)</span>
+                  <span className="font-bold text-emerald-400">₹0 (Free)</span>
                 </div>
-                <div className={`flex justify-between font-black text-sm pt-2 border-t ${
-                  isDark ? 'border-slate-800 text-white' : 'border-slate-200 text-slate-900'
-                }`}>
+                <div
+                  className={`flex justify-between font-black text-sm pt-2 border-t ${
+                    isDark ? 'border-slate-800 text-white' : 'border-slate-200 text-slate-900'
+                  }`}
+                >
                   <span>Grand Total</span>
-                  <span className="text-orange-500">₹{grandTotal}</span>
+                  <span className="text-orange-500 font-mono text-base">₹{grandTotal}</span>
                 </div>
               </div>
 
               {/* Checkout / Place Order Button */}
               <button
+                type="button"
+                data-testid="btn-place-order"
                 disabled={cartItems.length === 0}
                 onClick={handleCheckout}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-600 to-orange-500 hover:brightness-110 disabled:opacity-50 text-white font-black text-xs shadow-lg shadow-orange-950/30 flex items-center justify-center gap-2 transition"
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-500 hover:brightness-110 disabled:opacity-50 text-white font-black text-xs shadow-lg shadow-orange-950/30 flex items-center justify-center gap-2 transition"
               >
                 <ChefHat className="w-4 h-4" />
-                <span>Fire Order to Kitchen (₹{grandTotal})</span>
+                <span>Place Order • ₹{grandTotal}</span>
               </button>
             </div>
           )}
@@ -1317,12 +1395,12 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                           </div>
 
                           {/* Stepper Timeline */}
-                          <div className="space-y-2 relative pl-5 text-xs py-1">
+                          <div data-testid="live-order-status-tracker" className="space-y-2.5 relative pl-5 text-xs py-1">
                             <div className="relative">
                               <span className="absolute -left-5 top-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 text-white text-[9px] font-black flex items-center justify-center">
                                 ✓
                               </span>
-                              <div className="font-bold text-[11px]">1. Order Received by Kitchen</div>
+                              <div className="font-bold text-[11px] text-emerald-400">1. Order Received by Kitchen</div>
                             </div>
 
                             <div className="relative">
@@ -1331,8 +1409,13 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                               }`}>
                                 {isReady || isServed ? '✓' : '●'}
                               </span>
-                              <div className={`font-bold text-[11px] ${!isReady && !isServed ? 'text-orange-400' : ''}`}>
-                                2. Chefs Preparing Dishes
+                              <div className="flex items-center justify-between">
+                                <div className={`font-bold text-[11px] ${!isReady && !isServed ? 'text-orange-400' : ''}`}>
+                                  2. Preparing Dishes in Kitchen
+                                </div>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold">
+                                  ⏱ Est. ~12-15 mins
+                                </span>
                               </div>
                             </div>
 
@@ -1405,16 +1488,19 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
                     <div className="grid grid-cols-2 gap-2 pt-1">
                       <button
+                        type="button"
                         onClick={() => setCurrentTab('menu')}
                         className="py-2.5 rounded-xl border border-orange-500/40 bg-orange-500/10 hover:bg-orange-500 hover:text-white text-orange-500 font-black text-xs text-center transition"
                       >
                         + Order More
                       </button>
                       <button
+                        type="button"
+                        data-testid="btn-view-provisional-bill"
                         onClick={() => setCurrentTab('payment')}
                         className="py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-black text-xs text-center transition shadow-md"
                       >
-                        Pay ₹{activeOrdersGrandTotal}
+                        View Bill & Pay (₹{activeOrdersGrandTotal})
                       </button>
                     </div>
                   </div>
@@ -1535,13 +1621,13 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {/* TAB 4: PAYMENT SCREEN (UPI QR, Card, Cash, Room)                      */}
           {/* --------------------------------------------------------------------- */}
           {currentTab === 'payment' && (
-            <div className={`p-4 rounded-2xl border space-y-4 shadow-sm ${
+            <div data-testid="provisional-bill-panel" className={`p-4 rounded-2xl border space-y-4 shadow-sm ${
               isDark ? 'bg-[#141620] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               <div className="flex items-center justify-between pb-3 border-b border-slate-700/30">
                 <div>
-                  <h3 className="font-black text-sm">Table Settlement</h3>
-                  <p className="text-[10px] text-slate-400">Table 5 • Instant Receipt</p>
+                  <h3 className="font-black text-sm">Provisional Bill & Settlement</h3>
+                  <p className="text-[10px] text-slate-400">{tableNumber} • {hotelName} • Instant Receipt</p>
                 </div>
                 {payableAmount !== null && (
                   <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-[10px] font-bold border border-orange-500/30">
@@ -1607,10 +1693,74 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                     isDark ? 'bg-[#1c1f2e] border-slate-800' : 'bg-slate-50 border-slate-200'
                   }`}>
                     <div>
-                      <div className="text-[10px] text-slate-400 uppercase font-bold">Payable Amount</div>
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">Provisional Bill Total</div>
                       <div className="text-xl font-black text-orange-500">₹{currentPayableTotal}</div>
                     </div>
                     <Receipt className="w-6 h-6 text-orange-500 opacity-60" />
+                  </div>
+
+                  {/* Provisional Bill Itemized Breakdown with Statutory Taxes */}
+                  <div className={`p-3.5 rounded-2xl border space-y-2 text-xs ${
+                    isDark ? 'bg-[#1a1d2d] border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                  }`}>
+                    <div className="flex items-center justify-between border-b border-slate-700/40 pb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
+                        Statutory Tax Breakdown (SAC 9963)
+                      </span>
+                      <span className="text-[10px] font-mono text-emerald-400 font-bold">PROVISIONAL</span>
+                    </div>
+                    {activeOrders.flatMap(o => o.items || []).map((it, idx) => (
+                      <div key={idx} className="flex justify-between text-[11px]">
+                        <span>{it.name} <strong className="text-orange-400">×{it.quantity}</strong></span>
+                        <span className="font-mono font-bold">₹{it.subtotal || it.unitPrice * it.quantity}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between border-t border-slate-700/30 pt-1.5 text-slate-400">
+                      <span>Food Subtotal</span>
+                      <span className="font-mono">₹{Math.round(currentPayableTotal / 1.05)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-400 text-[11px]">
+                      <span>CGST (2.5% SAC 9963)</span>
+                      <span className="font-mono">₹{((currentPayableTotal / 1.05) * 0.025).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-400 text-[11px]">
+                      <span>SGST (2.5% SAC 9963)</span>
+                      <span className="font-mono">₹{((currentPayableTotal / 1.05) * 0.025).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-black text-amber-300 border-t border-slate-700/30 pt-1">
+                      <span>Total Provisional Bill</span>
+                      <span className="font-mono text-base text-orange-500">₹{currentPayableTotal}</span>
+                    </div>
+                  </div>
+
+                  {/* Split Bill Calculator Preview */}
+                  <div data-testid="split-bill-calculator-preview" className={`p-3.5 rounded-2xl border space-y-2.5 ${
+                    isDark ? 'bg-orange-950/20 border-orange-500/30 text-white' : 'bg-orange-50 border-orange-200 text-slate-900'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-orange-400">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Split Bill Calculator Preview</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300">
+                        Instant Preview
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5 text-center">
+                      {[2, 3, 4, 5].map((guests) => {
+                        const share = (currentPayableTotal / guests).toFixed(0);
+                        return (
+                          <div key={guests} className={`p-2 rounded-xl border ${
+                            splitPersonsCount === guests
+                              ? 'bg-orange-600/30 border-orange-500 text-white'
+                              : isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
+                          }`}>
+                            <div className="text-[10px] font-bold text-slate-400">{guests} Guests</div>
+                            <div className="text-xs font-black text-orange-400 font-mono">₹{share}/ea</div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {/* Payment Methods */}
@@ -1703,7 +1853,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
               <div className="grid grid-cols-2 gap-2.5">
                 {[
-                  { type: 'CALL_WAITER', icon: '🔔', label: 'Call Waiter', desc: 'Assistance needed' },
+                  { type: 'CALL_WAITER', icon: '🔔', label: 'Assistance / Waiter', desc: 'Assistance needed' },
                   { type: 'WATER', icon: '💧', label: 'Water Bottle', desc: 'Chilled / Normal' },
                   { type: 'CUTLERY', icon: '🥄', label: 'Extra Cutlery', desc: 'Plates, spoons, bowls' },
                   { type: 'CLEANING', icon: '✨', label: 'Clean Table', desc: 'Spill clean up' },
@@ -1712,6 +1862,15 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                 ].map((s) => (
                   <button
                     key={s.type}
+                    data-testid={
+                      s.type === 'WATER'
+                        ? 'service-call-water'
+                        : s.type === 'BILL'
+                        ? 'service-call-bill'
+                        : s.type === 'CALL_WAITER'
+                        ? 'service-call-assistance'
+                        : `service-call-${s.type.toLowerCase()}`
+                    }
                     onClick={() => handleSendServiceCall(s.type as CustomerRequestType, s.label)}
                     className={`p-3 rounded-xl border flex flex-col items-center text-center gap-1.5 transition hover:scale-105 ${
                       isDark
@@ -1739,6 +1898,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {totalCartCount > 0 && currentTab !== 'cart' && currentTab !== 'payment' && (
         <div className="lg:hidden fixed bottom-16 left-4 right-4 z-40 animate-slideUp">
           <button
+            type="button"
+            data-testid="btn-floating-view-cart"
             onClick={() => setCurrentTab('cart')}
             className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 text-white font-black text-xs sm:text-sm shadow-2xl flex items-center justify-between"
           >
@@ -1773,6 +1934,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           return (
             <button
               key={tab.id}
+              data-testid={`tab-${tab.id}`}
               onClick={() => setCurrentTab(tab.id as any)}
               className={`flex flex-col items-center gap-0.5 relative py-1 px-2 rounded-xl transition ${
                 isActive
@@ -1796,7 +1958,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {/* 4. DISH CUSTOMIZATION MODAL                                               */}
       {/* ========================================================================= */}
       {isCustomizeModalOpen && customizingDish && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+        <div data-testid="item-detail-modal" className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
           <div className={`rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border transition-colors ${
             isDark ? 'bg-[#151722] text-slate-100 border-slate-800' : 'bg-white text-slate-900 border-slate-200'
           }`}>
@@ -1824,6 +1986,14 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   <h3 className="font-black text-base">{customizingDish.name}</h3>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">{customizingDish.description}</p>
+                <div data-testid="modal-allergens" className="mt-2 flex flex-wrap gap-1.5">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    ⚠️ Allergen Notice: Contains Dairy (Paneer / Milk)
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                    ✓ Gluten Free Option
+                  </span>
+                </div>
                 <div className="text-lg font-black text-orange-500 mt-1">₹{customizingDish.price}</div>
               </div>
 
@@ -1831,19 +2001,61 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-400">Choose Spice Level</label>
                 <div className="flex gap-2">
-                  {(['Mild', 'Medium', 'Spicy'] as const).map((lvl) => (
+                  {(['Mild', 'Medium', 'Spicy', 'Extra Spicy'] as const).map((lvl) => (
                     <button
                       key={lvl}
+                      type="button"
+                      data-testid={`btn-spice-${lvl.toLowerCase().replace(/\s+/g, '-')}`}
                       onClick={() => setSpiceLevel(lvl)}
                       className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition ${
                         spiceLevel === lvl
-                          ? 'bg-orange-600 border-orange-500 text-white'
+                          ? 'bg-orange-600 border-orange-500 text-white shadow-md'
                           : isDark ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
                       }`}
                     >
                       {lvl}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Dietary & Cooking Customization */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-400">Dietary & Cooking Customization</label>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {[
+                    { id: 'extra-spicy', label: 'Extra Spicy' },
+                    { id: 'less-oil', label: 'Less Oil' },
+                    { id: 'jain-style', label: 'Jain Style' },
+                    { id: 'extra-crispy', label: 'Extra Crispy' },
+                  ].map((cust) => {
+                    const isSelected = customInstructions.includes(cust.label) || (cust.id === 'extra-spicy' && spiceLevel === 'Extra Spicy');
+                    return (
+                      <button
+                        key={cust.id}
+                        type="button"
+                        data-testid={`btn-custom-${cust.id}`}
+                        onClick={() => {
+                          if (cust.id === 'extra-spicy') {
+                            setSpiceLevel('Extra Spicy');
+                          }
+                          if (!customInstructions.includes(cust.label)) {
+                            setCustomInstructions(prev => prev ? `${prev}, ${cust.label}` : cust.label);
+                          } else {
+                            setCustomInstructions(prev => prev.replace(cust.label, '').replace(/,\s*,/, ',').replace(/^,\s*|\s*,\s*$/, ''));
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl border font-bold text-xs transition flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                            : isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        <span>{isSelected ? '✓' : '+'}</span>
+                        <span>{cust.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1892,6 +2104,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
               {/* Add to Cart button */}
               <button
+                type="button"
+                data-testid="btn-modal-add-to-cart"
                 onClick={() => {
                   handleAddDish(customizingDish);
                   setIsCustomizeModalOpen(false);
@@ -1901,6 +2115,37 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                 Add Customized Dish to Cart • ₹{customizingDish.price}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. ORDER CONFIRMATION MODAL */}
+      {placedOrderConfirmation && (
+        <div data-testid="order-confirmation-modal" className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#151722] border border-emerald-500/40 rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl">
+            <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto text-2xl font-black">
+              ✓
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-white">Order sent to kitchen!</h3>
+              <p className="text-xs text-slate-300 mt-1">
+                KOT # generated: <strong className="text-amber-400 font-mono font-bold">{placedOrderConfirmation.kotNumber}</strong>
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Sent to Tandoor & Curry kitchen display stations.
+              </p>
+            </div>
+            <button
+              type="button"
+              data-testid="btn-track-order"
+              onClick={() => {
+                setPlacedOrderConfirmation(null);
+                setCurrentTab('orders');
+              }}
+              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg"
+            >
+              Track Order Live
+            </button>
           </div>
         </div>
       )}

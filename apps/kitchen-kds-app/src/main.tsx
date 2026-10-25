@@ -482,7 +482,7 @@ export const KitchenKdsAppRoot: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between">
       {toast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-bounce max-w-lg w-11/12">
+        <div data-testid="kds-alert-toast" className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-bounce max-w-lg w-11/12">
           <div className="p-3.5 bg-gradient-to-r from-amber-600 to-orange-600 rounded-2xl shadow-2xl border border-amber-400 text-white font-extrabold text-sm flex items-center justify-between">
             <span>{toast}</span>
             <button onClick={() => setToast(null)} className="text-white/80 hover:text-white font-bold ml-2">✕</button>

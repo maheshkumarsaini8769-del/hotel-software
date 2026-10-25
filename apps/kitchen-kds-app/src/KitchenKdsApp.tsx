@@ -118,7 +118,13 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
   kitchenBuzzers = [],
   onAcknowledgeBuzzer,
 }) => {
-  const [activeSidebarItem, setActiveSidebarItem] = useState('Live Orders');
+  const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const raw = new URLSearchParams(window.location.search).get('tab');
+      if (raw) return decodeURIComponent(raw.replace(/\+/g, ' '));
+    }
+    return 'Live Orders';
+  });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [sortByTime, setSortByTime] = useState<'OLDEST_FIRST' | 'NEWEST_FIRST'>('OLDEST_FIRST');
   const [groupByTable, setGroupByTable] = useState(false);

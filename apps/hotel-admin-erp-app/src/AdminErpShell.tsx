@@ -39,6 +39,8 @@ import {
   Loader2,
   Clock,
   Radio,
+  Menu,
+  X,
 } from 'lucide-react';
 import { MatrixStore } from '@spicehub/ui';
 import { PmsReservationMatrixApp } from './PmsReservationMatrixApp';
@@ -58,6 +60,12 @@ import { RestaurantOperationsHubApp, OperationsTab } from './components/operatio
 import { ErpMasterDirectoryModal, ErpMasterSystemItem } from './components/operations-hub/ErpMasterDirectoryModal';
 import { NotificationCenterView } from './components/notifications/NotificationCenterView';
 import { HotelPoliciesAndUseCasesHubApp } from './components/policies/HotelPoliciesAndUseCasesHubApp';
+import { BanquetManagementApp } from './components/banquet/BanquetManagementApp';
+import { CorporateMasterFolioApp } from './components/corporate/CorporateMasterFolioApp';
+import { DiningReservationApp } from './components/dining-reservations/DiningReservationApp';
+import { RecipeCostingApp } from './components/recipe-costing/RecipeCostingApp';
+import { StoreRequisitionApp } from './components/store-requisition/StoreRequisitionApp';
+import { FloorDutyMatrixView } from './components/floors/FloorDutyMatrixView';
 import { getApiClient } from './lib/apiClient';
 import { apiFetch, getStoredHotelId, getStoredToken } from './config/api';
 import { getPortalUrl } from './config/portalUrls';
@@ -287,7 +295,22 @@ export interface AdminErpShellProps {
 }
 
 export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }) => {
-  const [activeModule, setActiveModule] = useState<ErpModuleKey>('DASHBOARD');
+  const [activeModule, setActiveModule] = useState<ErpModuleKey>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mod = params.get('module') as ErpModuleKey;
+    return mod || 'DASHBOARD';
+  });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleSetModule = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') {
+        setActiveModule(e.detail as ErpModuleKey);
+      }
+    };
+    window.addEventListener('erp:set_module', handleSetModule);
+    return () => window.removeEventListener('erp:set_module', handleSetModule);
+  }, []);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [occupancyTab, setOccupancyTab] = useState<'ROOMS' | 'TABLES'>('ROOMS');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1720,6 +1743,72 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
           />
         );
 
+      case 'BANQUET':
+        return (
+          <div className="h-full overflow-y-auto">
+            <BanquetManagementApp hotelId={hotelId} token={token} />
+          </div>
+        );
+
+      case 'CORPORATE':
+        return (
+          <div className="h-full overflow-y-auto">
+            <CorporateMasterFolioApp hotelId={hotelId} token={token} />
+          </div>
+        );
+
+      case 'DINING_RESERVATIONS':
+        return (
+          <div className="h-full overflow-y-auto">
+            <DiningReservationApp hotelId={hotelId} authToken={token} />
+          </div>
+        );
+
+      case 'KOT_VOID':
+        return (
+          <div className="h-full overflow-y-auto">
+            <KotVoidAuditApp hotelId={hotelId} />
+          </div>
+        );
+
+      case 'RECIPE_COSTING':
+        return (
+          <div className="h-full overflow-y-auto">
+            <RecipeCostingApp token={token} />
+          </div>
+        );
+
+      case 'STORE_REQUISITIONS':
+        return (
+          <div className="h-full overflow-y-auto">
+            <StoreRequisitionApp token={token} />
+          </div>
+        );
+
+      case 'FLOOR_DUTY':
+        return (
+          <div className="h-full overflow-y-auto p-4">
+            <FloorDutyMatrixView
+              floors={[
+                {
+                  floorName: 'Ground Floor Dining',
+                  floorCode: 'FL-01',
+                  supervisorName: 'Vikram Mehta',
+                  shift: 'Morning Shift',
+                  totalTables: 20,
+                  totalCapacity: 80,
+                  totalAssignedTables: 16,
+                  totalAssignedPax: 64,
+                  unassignedTablesCount: 4,
+                  unassignedTables: ['T-17', 'T-18', 'T-19', 'T-20'],
+                  activeWaitersCount: 4,
+                  overloadedWaitersCount: 0,
+                  overloadedWaiters: [],
+                },
+              ]}
+            />
+          </div>
+        );
       default:
         return (
           <div className="p-8 text-center text-xs text-slate-400">
@@ -1740,10 +1829,18 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
       {/* ======================================================== */}
       {/* 1. LEFT SIDEBAR                                          */}
       {/* ======================================================== */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
       <aside
         className={`${
-          sidebarCollapsed ? 'w-20' : 'w-64'
-        } shrink-0 h-full flex flex-col z-30 transition-all duration-200 border-r ${
+          mobileMenuOpen ? 'flex fixed inset-y-0 left-0 z-50 w-64 shadow-2xl' : 'hidden md:flex'
+        } ${
+          sidebarCollapsed ? 'md:w-20' : 'md:w-64'
+        } shrink-0 h-full flex flex-col transition-all duration-200 border-r ${
           isDark
             ? 'bg-[#0c0e15] border-slate-800/80 text-slate-300'
             : 'bg-white border-slate-200 text-slate-700 shadow-sm'
@@ -1781,7 +1878,10 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
             return (
               <button
                 key={item.key}
-                onClick={() => setActiveModule(item.key)}
+                onClick={() => {
+                  setActiveModule(item.key);
+                  setMobileMenuOpen(false);
+                }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs transition-all text-left ${
                   isActive
                     ? 'bg-amber-500/10 text-amber-400 border border-amber-500/25 font-semibold shadow-sm'
@@ -1830,26 +1930,35 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
       <div className="flex-1 flex flex-col h-full min-w-0 min-h-0 overflow-hidden">
         {/* Top Navbar */}
         <header
-          className={`h-16 shrink-0 px-6 border-b flex items-center justify-between gap-4 sticky top-0 z-20 backdrop-blur-md transition-colors ${
+          className={`h-16 shrink-0 px-3 sm:px-6 border-b flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-20 backdrop-blur-md transition-colors ${
             isDark ? 'bg-[#0c0e15]/95 border-slate-800/80' : 'bg-white/95 border-slate-200 shadow-sm'
           }`}
         >
+          {/* Mobile Menu Toggle Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 rounded-lg border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800/60 shrink-0"
+            title="Toggle Menu"
+          >
+            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </button>
+
           {/* Search Bar */}
-          <div className="flex-1 max-w-xl">
+          <div className="flex-1 max-w-xs sm:max-w-xl min-w-0">
             <div
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border text-xs transition-all ${
+              className={`flex items-center gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg border text-xs transition-all ${
                 isDark
                   ? 'bg-slate-900/70 border-slate-800 text-slate-200 focus-within:border-amber-500/60'
                   : 'bg-slate-50 border-slate-200 text-slate-800 focus-within:border-amber-500/60'
               }`}
             >
-              <Search className="w-4 h-4 text-slate-400" />
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search orders, guests, rooms, staff, invoices..."
-                className="bg-transparent border-none outline-none w-full text-xs placeholder:text-slate-500 font-normal"
+                placeholder="Search orders, guests, rooms..."
+                className="bg-transparent border-none outline-none w-full text-xs placeholder:text-slate-500 font-normal truncate min-w-0"
               />
               <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-400 bg-slate-800 border border-slate-700/60 shrink-0">
                 ⌘K
@@ -1858,15 +1967,16 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
           </div>
 
           {/* Top Right Controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Dedicated 19 Systems Master Navigator Hub Button */}
             <button
               onClick={() => setIsMasterDirectoryOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/40 hover:from-amber-500/30 hover:to-orange-500/30 transition shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs font-black bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/40 hover:from-amber-500/30 hover:to-orange-500/30 transition shadow-sm shrink-0"
               title="Explore all 19 ERP Master Modules"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>⚡ 19 Systems Hub</span>
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="hidden sm:inline">⚡ 19 Systems Hub</span>
+              <span className="sm:hidden text-[10px]">⚡ 19</span>
             </button>
 
             {/* Dedicated Cashier & Reception Launch Buttons */}
@@ -1902,7 +2012,7 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
                 if (onNavigatePortal) onNavigatePortal('launcher');
                 else window.location.href = '/launcher';
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 hover:bg-indigo-500/20 transition"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 hover:bg-indigo-500/20 transition"
               title="Open Unified Portal Directory (:3005/launcher)"
             >
               <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />

@@ -115,8 +115,8 @@ const SCREENS = [
 
   // --- APP 7: Customer Table App (Port 3001) - 8 screens ---
   { app: 'customer', screen: 'table-menu', url: 'http://localhost:3001/?table=T-01&tab=home' },
-  { app: 'customer', screen: 'category-carousel', url: 'http://localhost:3001/?table=T-01&tab=menu' },
-  { app: 'customer', screen: 'food-type-filter', url: 'http://localhost:3001/?table=T-01&tab=menu', action: 'cust_veg' },
+  { app: 'customer', screen: 'category-carousel', url: 'http://localhost:3001/?table=T-01&tab=menu&category=Starters' },
+  { app: 'customer', screen: 'food-type-filter', url: 'http://localhost:3001/?table=T-01&tab=menu&dietary=VEG' },
   { app: 'customer', screen: 'item-customization-modal', url: 'http://localhost:3001/?table=T-01&tab=menu', action: 'cust_item' },
   { app: 'customer', screen: 'cart-drawer', url: 'http://localhost:3001/?table=T-01&tab=cart' },
   { app: 'customer', screen: 'orders-history', url: 'http://localhost:3001/?table=T-01&tab=orders' },
@@ -270,6 +270,18 @@ async function auditScreen(browser, item) {
         await page.evaluate((tabName) => {
           window.dispatchEvent(new CustomEvent('customer:set_tab', { detail: tabName }));
         }, tab);
+        if (item.url.includes('category=')) {
+          const cat = item.url.split('category=')[1].split('&')[0];
+          await page.evaluate((category) => {
+            window.dispatchEvent(new CustomEvent('customer:set_category', { detail: category }));
+          }, decodeURIComponent(cat.replace(/\+/g, ' ')));
+        }
+        if (item.url.includes('dietary=')) {
+          const diet = item.url.split('dietary=')[1].split('&')[0];
+          await page.evaluate((dietary) => {
+            window.dispatchEvent(new CustomEvent('customer:set_dietary', { detail: dietary }));
+          }, diet);
+        }
       } else if (item.app === 'kds' && item.url.includes('tab=')) {
         const rawTab = item.url.split('tab=')[1].split('&')[0];
         const tab = decodeURIComponent(rawTab.replace(/\+/g, ' '));

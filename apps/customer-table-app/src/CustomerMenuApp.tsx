@@ -161,10 +161,39 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
     }
   };
 
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [dietaryFilter, setDietaryFilter] = useState<'ALL' | 'VEG' | 'NON_VEG'>('ALL');
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search).get('category');
+      if (p) return decodeURIComponent(p.replace(/\+/g, ' '));
+    }
+    return 'All';
+  });
+  const [dietaryFilter, setDietaryFilter] = useState<'ALL' | 'VEG' | 'NON_VEG'>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search).get('dietary');
+      if (p && ['ALL', 'VEG', 'NON_VEG'].includes(p.toUpperCase())) {
+        return p.toUpperCase() as any;
+      }
+    }
+    return 'ALL';
+  });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedLanguage, setSelectedLanguage] = useState<'EN' | 'HI'>('EN');
+
+  useEffect(() => {
+    const handleSetCategory = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') setSelectedCategory(e.detail);
+    };
+    const handleSetDietary = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') setDietaryFilter(e.detail.toUpperCase() as any);
+    };
+    window.addEventListener('customer:set_category', handleSetCategory);
+    window.addEventListener('customer:set_dietary', handleSetDietary);
+    return () => {
+      window.removeEventListener('customer:set_category', handleSetCategory);
+      window.removeEventListener('customer:set_dietary', handleSetDietary);
+    };
+  }, []);
 
   // Dynamic Categories & Food Items (Admin Managed & KDS Synced)
   const [dynamicCategories, setDynamicCategories] = useState<string[]>(() => {

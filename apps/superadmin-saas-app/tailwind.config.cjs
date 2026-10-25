@@ -4,7 +4,10 @@ module.exports = {
   content: [
     './index.html',
     './src/**/*.{ts,tsx}',
+    './apps/superadmin-saas-app/index.html',
+    './apps/superadmin-saas-app/src/**/*.{ts,tsx}',
     '../../packages/ui/src/**/*.{ts,tsx}',
+    './packages/ui/src/**/*.{ts,tsx}',
   ],
   theme: {
     extend: {

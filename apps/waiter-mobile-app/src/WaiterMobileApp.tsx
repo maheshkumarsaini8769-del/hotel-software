@@ -240,7 +240,23 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
     permissions: ['KOT Punching', 'Food Pickup & Serving', 'Table Transfer', 'Bill Settle Request', 'Guest Calls'],
   };
 
-  const [activeSidebarItem, setActiveSidebarItem] = useState('Dashboard');
+  const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const raw = new URLSearchParams(window.location.search).get('tab');
+      if (raw) return decodeURIComponent(raw.replace(/\+/g, ' '));
+    }
+    return 'Dashboard';
+  });
+
+  useEffect(() => {
+    const handleSetTab = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') {
+        setActiveSidebarItem(e.detail);
+      }
+    };
+    window.addEventListener('waiter:set_tab', handleSetTab);
+    return () => window.removeEventListener('waiter:set_tab', handleSetTab);
+  }, []);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [selectedLayoutArea, setSelectedLayoutArea] = useState('All Tables');

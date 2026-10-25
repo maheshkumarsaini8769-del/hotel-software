@@ -124,6 +124,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   const [currentTab, setCurrentTabState] = useState<'home' | 'menu' | 'cart' | 'orders' | 'waiter' | 'split' | 'payment'>(() => {
     if (typeof window !== 'undefined') {
       try {
+        const urlTab = new URLSearchParams(window.location.search).get('tab');
+        if (urlTab && ['home', 'menu', 'cart', 'orders', 'waiter', 'split', 'payment'].includes(urlTab.toLowerCase())) {
+          return urlTab.toLowerCase() as any;
+        }
         const savedTab = sessionStorage.getItem('spicehub_customer_tab');
         // Payment/split screens are only valid inside an active bill flow.
         if (savedTab === 'payment' || savedTab === 'split') return 'home';
@@ -134,6 +138,19 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
     }
     return 'home';
   });
+
+  useEffect(() => {
+    const handleSetTab = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') {
+        const t = e.detail.toLowerCase();
+        if (['home', 'menu', 'cart', 'orders', 'waiter', 'split', 'payment'].includes(t)) {
+          setCurrentTab(t as any);
+        }
+      }
+    };
+    window.addEventListener('customer:set_tab', handleSetTab);
+    return () => window.removeEventListener('customer:set_tab', handleSetTab);
+  }, []);
 
   const setCurrentTab = (tab: 'home' | 'menu' | 'cart' | 'orders' | 'waiter' | 'split' | 'payment') => {
     setCurrentTabState(tab);

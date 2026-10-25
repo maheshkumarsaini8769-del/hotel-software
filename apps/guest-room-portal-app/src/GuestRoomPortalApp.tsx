@@ -129,7 +129,31 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   checkoutInvoice = null,
 }) => {
   // Navigation State
-  const [activeTab, setActiveTab] = useState<PortalTab>('HOME');
+  const [activeTab, setActiveTab] = useState<PortalTab>(() => {
+    if (typeof window !== 'undefined') {
+      const raw = new URLSearchParams(window.location.search).get('tab');
+      if (raw) {
+        const decoded = decodeURIComponent(raw.replace(/\+/g, ' ')).toUpperCase() as PortalTab;
+        if (['HOME', 'DINING', 'ROOM_SERVICE', 'HOUSEKEEPING', 'BILL', 'TRACKING', 'HOTEL_INFO', 'MORE'].includes(decoded)) {
+          return decoded;
+        }
+      }
+    }
+    return 'HOME';
+  });
+
+  useEffect(() => {
+    const handleSetTab = (e: any) => {
+      if (e.detail && typeof e.detail === 'string') {
+        const val = e.detail.toUpperCase() as PortalTab;
+        if (['HOME', 'DINING', 'ROOM_SERVICE', 'HOUSEKEEPING', 'BILL', 'TRACKING', 'HOTEL_INFO', 'MORE'].includes(val)) {
+          setActiveTab(val);
+        }
+      }
+    };
+    window.addEventListener('guest:set_tab', handleSetTab);
+    return () => window.removeEventListener('guest:set_tab', handleSetTab);
+  }, []);
   const [selectedLanguage, setSelectedLanguage] = useState<'EN' | 'HI'>('EN');
 
   // Theme State (Dark / Light with persistence)

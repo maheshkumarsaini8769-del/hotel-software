@@ -3,11 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const OUT = path.join(__dirname, '../artifacts/ui-100-audit/screenshots');
+const OUT = path.join(__dirname, '../artifacts/ui-100-audit-v2/screenshots');
 const BROKEN_OUT = path.join(OUT, 'broken');
 fs.mkdirSync(OUT, { recursive: true });
 fs.mkdirSync(BROKEN_OUT, { recursive: true });
-fs.mkdirSync(path.join(__dirname, '../artifacts/ui-100-audit/db'), { recursive: true });
+fs.mkdirSync(path.join(__dirname, '../artifacts/ui-100-audit-v2/db'), { recursive: true });
 
 const VIEWPORTS = [
   { name: 'mobile', width: 375, height: 667 },
@@ -114,23 +114,23 @@ const SCREENS = [
   { app: 'reception', screen: 'reception-settings', url: 'http://localhost:3008/?tab=Settings' },
 
   // --- APP 7: Customer Table App (Port 3001) - 8 screens ---
-  { app: 'customer', screen: 'table-menu', url: 'http://localhost:3001/?table=T-01' },
-  { app: 'customer', screen: 'category-carousel', url: 'http://localhost:3001/?table=T-01', action: 'cust_category' },
-  { app: 'customer', screen: 'food-type-filter', url: 'http://localhost:3001/?table=T-01', action: 'cust_veg' },
-  { app: 'customer', screen: 'item-customization-modal', url: 'http://localhost:3001/?table=T-01', action: 'cust_item' },
-  { app: 'customer', screen: 'cart-drawer', url: 'http://localhost:3001/?table=T-01', action: 'cust_cart' },
-  { app: 'customer', screen: 'universal-shell', url: 'http://localhost:3001/?table=T-01&mode=universal' },
-  { app: 'customer', screen: 'mode-selector', url: 'http://localhost:3001/?table=T-01', action: 'cust_mode' },
+  { app: 'customer', screen: 'table-menu', url: 'http://localhost:3001/?table=T-01&tab=home' },
+  { app: 'customer', screen: 'category-carousel', url: 'http://localhost:3001/?table=T-01&tab=menu' },
+  { app: 'customer', screen: 'food-type-filter', url: 'http://localhost:3001/?table=T-01&tab=menu', action: 'cust_veg' },
+  { app: 'customer', screen: 'item-customization-modal', url: 'http://localhost:3001/?table=T-01&tab=menu', action: 'cust_item' },
+  { app: 'customer', screen: 'cart-drawer', url: 'http://localhost:3001/?table=T-01&tab=cart' },
+  { app: 'customer', screen: 'orders-history', url: 'http://localhost:3001/?table=T-01&tab=orders' },
+  { app: 'customer', screen: 'waiter-call', url: 'http://localhost:3001/?table=T-01&tab=waiter' },
   { app: 'customer', screen: 'cooking-service-tracker', url: 'http://localhost:3001/?table=T-01&view=tracker' },
 
   // --- APP 8: Guest Room Portal IRD (Port 3004) - 7 screens ---
-  { app: 'guest-ird', screen: 'room-dashboard', url: 'http://localhost:3004/?room=305' },
-  { app: 'guest-ird', screen: 'in-room-dining-menu', url: 'http://localhost:3004/?room=305', action: 'ird_menu' },
-  { app: 'guest-ird', screen: 'concierge-services', url: 'http://localhost:3004/?room=305', action: 'ird_concierge' },
-  { app: 'guest-ird', screen: 'folio-review-modal', url: 'http://localhost:3004/?room=305', action: 'ird_folio' },
-  { app: 'guest-ird', screen: 'delivery-tracker-modal', url: 'http://localhost:3004/?room=305', action: 'ird_tracker' },
-  { app: 'guest-ird', screen: 'header-quick-actions', url: 'http://localhost:3004/?room=305' },
-  { app: 'guest-ird', screen: 'room-checkout-view', url: 'http://localhost:3004/?room=305&view=checkout' },
+  { app: 'guest-ird', screen: 'room-dashboard', url: 'http://localhost:3004/?room=305&tab=HOME' },
+  { app: 'guest-ird', screen: 'in-room-dining-menu', url: 'http://localhost:3004/?room=305&tab=DINING' },
+  { app: 'guest-ird', screen: 'concierge-services', url: 'http://localhost:3004/?room=305&tab=ROOM_SERVICE' },
+  { app: 'guest-ird', screen: 'folio-review-modal', url: 'http://localhost:3004/?room=305&tab=BILL' },
+  { app: 'guest-ird', screen: 'delivery-tracker-modal', url: 'http://localhost:3004/?room=305&tab=TRACKING' },
+  { app: 'guest-ird', screen: 'hotel-amenities-info', url: 'http://localhost:3004/?room=305&tab=HOTEL_INFO' },
+  { app: 'guest-ird', screen: 'room-checkout-view', url: 'http://localhost:3004/?room=305&tab=MORE' },
 ];
 
 let superToken = '';
@@ -241,19 +241,34 @@ async function auditScreen(browser, item) {
           window.dispatchEvent(new CustomEvent('erp:set_module', { detail: modKey }));
         }, mod);
       } else if (item.app === 'cashier' && item.url.includes('tab=')) {
-        const tab = decodeURIComponent(item.url.split('tab=')[1].split('&')[0]);
+        const rawTab = item.url.split('tab=')[1].split('&')[0];
+        const tab = decodeURIComponent(rawTab.replace(/\+/g, ' '));
         await page.evaluate((tabName) => {
           window.dispatchEvent(new CustomEvent('cashier:set_tab', { detail: tabName }));
         }, tab);
       } else if (item.app === 'reception' && item.url.includes('tab=')) {
-        const tab = decodeURIComponent(item.url.split('tab=')[1].split('&')[0]);
+        const rawTab = item.url.split('tab=')[1].split('&')[0];
+        const tab = decodeURIComponent(rawTab.replace(/\+/g, ' '));
         await page.evaluate((tabName) => {
           window.dispatchEvent(new CustomEvent('reception:set_tab', { detail: tabName }));
         }, tab);
       } else if (item.app === 'waiter' && item.url.includes('tab=')) {
-        const tab = decodeURIComponent(item.url.split('tab=')[1].split('&')[0]);
+        const rawTab = item.url.split('tab=')[1].split('&')[0];
+        const tab = decodeURIComponent(rawTab.replace(/\+/g, ' '));
         await page.evaluate((tabName) => {
           window.dispatchEvent(new CustomEvent('waiter:set_tab', { detail: tabName }));
+        }, tab);
+      } else if (item.app === 'guest-ird' && item.url.includes('tab=')) {
+        const rawTab = item.url.split('tab=')[1].split('&')[0];
+        const tab = decodeURIComponent(rawTab.replace(/\+/g, ' '));
+        await page.evaluate((tabName) => {
+          window.dispatchEvent(new CustomEvent('guest:set_tab', { detail: tabName }));
+        }, tab);
+      } else if (item.app === 'customer' && item.url.includes('tab=')) {
+        const rawTab = item.url.split('tab=')[1].split('&')[0];
+        const tab = decodeURIComponent(rawTab.replace(/\+/g, ' '));
+        await page.evaluate((tabName) => {
+          window.dispatchEvent(new CustomEvent('customer:set_tab', { detail: tabName }));
         }, tab);
       }
 
@@ -417,7 +432,7 @@ async function auditScreen(browser, item) {
   const elapsed = Math.round((Date.now() - startTime) / 1000);
 
   fs.writeFileSync(
-    path.join(__dirname, '../artifacts/ui-100-audit/screenshots-log.json'),
+    path.join(__dirname, '../artifacts/ui-100-audit-v2/screenshots-log.json'),
     JSON.stringify(log, null, 2)
   );
 

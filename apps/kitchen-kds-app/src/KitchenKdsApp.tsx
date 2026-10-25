@@ -674,6 +674,9 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
             >
               <Menu className="w-5 h-5" />
             </button>
+            <span className="text-[11px] font-black px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/30">
+              {activeSidebarItem}
+            </span>
             <div className={`hidden sm:flex text-xs font-bold items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               <Clock className="w-3.5 h-3.5 text-slate-400" />
               <span>

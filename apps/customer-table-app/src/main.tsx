@@ -151,7 +151,8 @@ export const CustomerAppRoot: React.FC = () => {
 
       const d = body.data;
       setHotelId(d.hotel.id);
-      setHotelName(d.hotel.name);
+      const urlHotel = searchParams.get('hotel') || searchParams.get('hotelName');
+      setHotelName(urlHotel || d.hotel.name);
 
       const targetTableStr = (rawTable || 'T-04').trim();
       const numOnly = targetTableStr.replace(/[^0-9]/g, '');

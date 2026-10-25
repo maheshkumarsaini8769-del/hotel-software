@@ -155,7 +155,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-5 gap-3 sm:gap-4">
       {/* Header */}
       <div
-        className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 transition-colors ${
+        className={`p-4 rounded-2xl border flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4 transition-colors ${
           isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
         }`}
       >
@@ -174,7 +174,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
         </div>
 
         {/* Table Selector */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Billing Table:</span>
           <select
             value={selectedTable}

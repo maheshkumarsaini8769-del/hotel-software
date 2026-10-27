@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { App as CapApp } from '@capacitor/app';
+import { registerPlugin } from '@capacitor/core';
 import jsQR from 'jsqr';
 
 export interface ActiveHotel {
@@ -331,6 +332,30 @@ const Icons = {
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
   ),
+  Zap: ({ className = 'w-4 h-4' }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" className={className}>
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>
+  ),
+  AlertCircle: ({ className = 'w-4 h-4' }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  ),
+  X: ({ className = 'w-4 h-4' }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  ),
+  Settings: ({ className = 'w-4 h-4' }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  ),
 };
 
 const DEV_LAN_HOST = '10.208.156.216';
@@ -402,9 +427,19 @@ export const App: React.FC = () => {
   const [catalogRooms, setCatalogRooms] = useState<CatalogRoom[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
 
-  // Dining Table Selection & Standee QR
-  const [tableInput, setTableInput] = useState('');
-  const [validationError, setValidationError] = useState<string | null>(null);
+  // Scanner & Camera state for Table Standee QR
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [isPermanentDenied, setIsPermanentDenied] = useState(false);
+  const [isTorchSupported, setIsTorchSupported] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
+  const [invalidQrToast, setInvalidQrToast] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<any>(null);
+  const lastInvalidQrScanRef = useRef<number>(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const animFrameRef = useRef<number | null>(null);
 
   // Room Booking & Radius Check
   const [selectedRoomForBooking, setSelectedRoomForBooking] = useState<CatalogRoom | null>(null);
@@ -443,14 +478,6 @@ export const App: React.FC = () => {
   const [guestPhoneInput, setGuestPhoneInput] = useState('');
   const [isVerifyingStay, setIsVerifyingStay] = useState(false);
   const [stayVerifyError, setStayVerifyError] = useState<string | null>(null);
-
-  // Scanner state
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [cameraError, setCameraError] = useState('');
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const animFrameRef = useRef<number | null>(null);
 
   // Active embedded portal iframe
   const [activePortalUrl, setActivePortalUrl] = useState<string | null>(null);
@@ -685,51 +712,100 @@ export const App: React.FC = () => {
   }, [selectedHotel, pendingApprovalBooking]);
 
   // Real-Time Frame-by-Frame jsQR Decoding Loop
-  const handleQrDetected = (rawData: string) => {
+  const handleQrDetected = (rawData: string): boolean => {
     try {
       let targetTable = '';
       let targetHotel = selectedHotel;
+      let qrSecurityToken: string | undefined = undefined;
+      let isValidSpiceHubQr = false;
 
-      // 1. If it's a URL like http://...:3001/?table=T-02&hotelId=...
-      if (rawData.includes('?') || rawData.startsWith('http')) {
+      const trimmed = (rawData || '').trim();
+
+      // 1. If it's a URL like http://...:3001/?table=T-02&hotelId=... or /pos/table
+      if (
+        trimmed.startsWith('http://') ||
+        trimmed.startsWith('https://') ||
+        trimmed.includes('?') ||
+        trimmed.includes('/pos/table')
+      ) {
         try {
-          const parsedUrl = new URL(rawData);
-          const tableParam = parsedUrl.searchParams.get('table') || parsedUrl.searchParams.get('tableNumber');
+          const parsedUrl = new URL(trimmed);
+          const tableParam =
+            parsedUrl.searchParams.get('table') ||
+            parsedUrl.searchParams.get('tableNumber') ||
+            parsedUrl.searchParams.get('tableId');
           const hotelIdParam = parsedUrl.searchParams.get('hotelId');
-          if (tableParam) targetTable = tableParam;
+          const tokenParam = parsedUrl.searchParams.get('token') || parsedUrl.searchParams.get('qrToken');
+
+          if (tableParam) {
+            targetTable = tableParam;
+            isValidSpiceHubQr = true;
+          }
+          if (tokenParam) qrSecurityToken = tokenParam;
           if (hotelIdParam) {
             const matchedHotel = hotels.find((h) => h.id === hotelIdParam || h.slug === hotelIdParam);
             if (matchedHotel) targetHotel = matchedHotel;
           }
         } catch {
-          const matchTable = rawData.match(/table=([^&]+)/i);
-          if (matchTable) targetTable = decodeURIComponent(matchTable[1]);
+          const matchTable = trimmed.match(/[?&](?:table|tableNumber|tableId)=([^&]+)/i);
+          if (matchTable) {
+            targetTable = decodeURIComponent(matchTable[1]);
+            isValidSpiceHubQr = true;
+            const matchToken = trimmed.match(/[?&](?:token|qrToken)=([^&]+)/i);
+            if (matchToken) qrSecurityToken = decodeURIComponent(matchToken[1]);
+            const matchHotel = trimmed.match(/[?&]hotelId=([^&]+)/i);
+            if (matchHotel) {
+              const hId = decodeURIComponent(matchHotel[1]);
+              const matched = hotels.find((h) => h.id === hId || h.slug === hId);
+              if (matched) targetHotel = matched;
+            }
+          }
         }
-      } else if (rawData.startsWith('{') && rawData.endsWith('}')) {
+      } else if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        // 2. JSON Standee payload
         try {
-          const parsed = JSON.parse(rawData);
-          if (parsed.table || parsed.tableNumber) targetTable = parsed.table || parsed.tableNumber;
-          if (parsed.hotelId) {
-            const matchedHotel = hotels.find((h) => h.id === parsed.hotelId);
-            if (matchedHotel) targetHotel = matchedHotel;
+          const parsed = JSON.parse(trimmed);
+          if (parsed.table || parsed.tableNumber || parsed.tableId) {
+            targetTable = parsed.table || parsed.tableNumber || parsed.tableId;
+            isValidSpiceHubQr = true;
+            if (parsed.token || parsed.qrToken) qrSecurityToken = parsed.token || parsed.qrToken;
+            if (parsed.hotelId) {
+              const matchedHotel = hotels.find((h) => h.id === parsed.hotelId);
+              if (matchedHotel) targetHotel = matchedHotel;
+            }
           }
         } catch {}
+      } else if (/^T-\d+$/i.test(trimmed)) {
+        // 3. Standee with direct standard table code
+        targetTable = trimmed;
+        isValidSpiceHubQr = true;
       }
 
-      if (!targetTable) {
-        targetTable = rawData.trim();
-      }
-
-      if (targetTable) {
-        stopCamera();
-        setTableNumberInput(targetTable);
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          navigator.vibrate([100, 50, 100]);
+      // If invalid non-SpiceHub QR code -> Show red toast & keep camera running
+      if (!isValidSpiceHubQr || !targetTable) {
+        const now = Date.now();
+        if (now - lastInvalidQrScanRef.current > 2000) {
+          lastInvalidQrScanRef.current = now;
+          setInvalidQrToast('Invalid QR: Please scan a valid SpiceHub Table Standee');
+          if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+          toastTimeoutRef.current = setTimeout(() => {
+            setInvalidQrToast(null);
+          }, 3500);
         }
-        launchTable(targetTable, targetHotel);
+        return false;
       }
+
+      // Valid SpiceHub table standee QR!
+      setInvalidQrToast(null);
+      stopCamera();
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([100, 50, 100]);
+      }
+      launchTable(targetTable, targetHotel, qrSecurityToken);
+      return true;
     } catch (e) {
       console.warn('QR parse note:', e);
+      return false;
     }
   };
 
@@ -749,9 +825,10 @@ export const App: React.FC = () => {
           });
 
           if (code && code.data) {
-            console.log('✅ [jsQR] Live continuous video frame decoded:', code.data);
-            handleQrDetected(code.data);
-            return;
+            const success = handleQrDetected(code.data);
+            if (success) {
+              return;
+            }
           }
         }
       }
@@ -777,24 +854,89 @@ export const App: React.FC = () => {
     };
   }, [isCameraActive]);
 
+  // Open Android System Settings when permission is permanently denied
+  const openAppSettings = async () => {
+    try {
+      const AppSettings = registerPlugin<any>('AppSettings');
+      if (AppSettings && AppSettings.open) {
+        await AppSettings.open();
+        return;
+      }
+    } catch (e) {
+      console.warn('Native AppSettings bridge error:', e);
+    }
+    alert('Please grant Camera permission in your device Settings > Apps > SpiceHub Customer > Permissions.');
+  };
+
+  // Toggle Rear Flashlight / Torch with defensive error handling
+  const toggleTorch = async () => {
+    if (!streamRef.current) return;
+    const track = streamRef.current.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      const nextTorch = !isTorchOn;
+      await (track as any).applyConstraints({
+        advanced: [{ torch: nextTorch }],
+      });
+      setIsTorchOn(nextTorch);
+    } catch (err) {
+      console.warn('Torch constraint error, disabling torch button:', err);
+      setIsTorchSupported(false);
+      setIsTorchOn(false);
+    }
+  };
+
   const startCamera = async () => {
     setIsCameraActive(true);
     setCameraError('');
+    setIsPermanentDenied(false);
+    setIsTorchOn(false);
+    setIsTorchSupported(false);
+
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
         });
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.play().catch(() => {});
         }
+
+        // Safely probe torch support on rear camera track
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          try {
+            const capabilities = (videoTrack.getCapabilities && (videoTrack.getCapabilities() as any)) || {};
+            if (capabilities.torch) {
+              setIsTorchSupported(true);
+            } else {
+              setIsTorchSupported(false);
+            }
+          } catch {
+            setIsTorchSupported(false);
+          }
+        }
       } else {
         setCameraError('Camera API not accessible in this environment.');
       }
     } catch (err: any) {
-      setCameraError(err.message || 'Camera permission denied or camera not found.');
+      console.warn('Camera stream error:', err);
+      const errMsg = err?.message || 'Camera permission denied or camera not found.';
+      setCameraError(errMsg);
+      if (
+        err?.name === 'NotAllowedError' ||
+        err?.name === 'PermissionDeniedError' ||
+        errMsg.toLowerCase().includes('denied') ||
+        errMsg.toLowerCase().includes('permission')
+      ) {
+        setIsPermanentDenied(true);
+      }
     }
   };
 
@@ -804,22 +946,36 @@ export const App: React.FC = () => {
       animFrameRef.current = null;
     }
     if (streamRef.current) {
+      try {
+        const track = streamRef.current.getVideoTracks()[0];
+        if (track && isTorchOn) {
+          (track as any).applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
+        }
+      } catch {}
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
     setIsCameraActive(false);
+    setIsTorchOn(false);
+    setIsTorchSupported(false);
     setCameraError('');
   };
 
+  // Auto start camera when customer navigates to table_scan view, stop when leaving
+  useEffect(() => {
+    if (customerView === 'table_scan') {
+      startCamera();
+    } else {
+      stopCamera();
+      setInvalidQrToast(null);
+    }
+  }, [customerView]);
+
   // Launch Table Menu Flow
-  const launchTable = (tbl: string, hotel = selectedHotel) => {
+  const launchTable = (tbl: string, hotel = selectedHotel, token?: string) => {
     if (!hotel) return;
     const finalTable = tbl.trim();
-    if (!finalTable) {
-      setValidationError('Please enter a valid Table Number (e.g. T-02).');
-      return;
-    }
-    setValidationError(null);
+    if (!finalTable) return;
 
     const numOnly = finalTable.replace(/[^0-9]/g, '');
     const formatted = finalTable.toUpperCase().startsWith('T-')
@@ -832,10 +988,15 @@ export const App: React.FC = () => {
     url.searchParams.set('hotelId', hotel.id);
     url.searchParams.set('table', formatted);
     url.searchParams.set('theme', theme);
+    if (token) {
+      url.searchParams.set('token', token);
+      url.searchParams.set('qrToken', token);
+    }
 
     try {
       localStorage.setItem('spicehub_customer_table', formatted);
       localStorage.setItem('spicehub_customer_hotel', hotel.name);
+      if (token) localStorage.setItem('spicehub_customer_qr_token', token);
     } catch {}
 
     setActiveSessionLabel(`${hotel.name} • Table ${formatted}`);
@@ -852,10 +1013,10 @@ export const App: React.FC = () => {
     if (!hotel) return;
     const formatted = rm.trim();
     if (!formatted) {
-      setValidationError('Please enter your Room Number.');
+      setStayVerifyError('Please enter your Room Number.');
       return;
     }
-    setValidationError(null);
+    setStayVerifyError(null);
 
     const url = new URL(ROOM_PORTAL_BASE);
     url.searchParams.set('hotelId', hotel.id);
@@ -1782,7 +1943,7 @@ export const App: React.FC = () => {
         )}
 
         {/* ======================================================== */}
-        {/* VIEW 3: DINE-IN TABLE STAND-EE SCANNER ("Table Scan")    */}
+        {/* VIEW 3: DINE-IN TABLE REAL QR SCANNER ("Table Scan")    */}
         {/* ======================================================== */}
         {customerView === 'table_scan' && (
           <div className="flex flex-col gap-3.5">
@@ -1808,10 +1969,33 @@ export const App: React.FC = () => {
               </span>
             </div>
 
-            {/* Camera QR Scanner */}
+            {/* Invalid QR Toast Alert */}
+            {invalidQrToast && (
+              <div
+                role="alert"
+                className="rounded-2xl bg-rose-600/95 border-2 border-rose-400 text-white p-3.5 shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-top duration-200"
+              >
+                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  <Icons.AlertCircle className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-black tracking-wide">{invalidQrToast}</p>
+                  <p className="text-[10px] text-white/80">Please point camera at an official SpiceHub dining standee</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInvalidQrToast(null)}
+                  className="text-white/80 hover:text-white p-1"
+                >
+                  <Icons.X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Real Camera QR Scanner Box */}
             <div
-              className={`rounded-2xl border p-4 sm:p-5 flex flex-col gap-3.5 shadow-sm ${
-                isDark ? 'border-slate-800 bg-slate-900/80' : 'border-slate-200 bg-white'
+              className={`rounded-3xl border p-4 sm:p-5 flex flex-col gap-3.5 shadow-md ${
+                isDark ? 'border-slate-800 bg-slate-900/90' : 'border-slate-200 bg-white'
               }`}
             >
               <div className="flex items-center justify-between">
@@ -1824,7 +2008,7 @@ export const App: React.FC = () => {
                       Scan Table Standee QR Code
                     </h3>
                     <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      Point camera at the QR code standee on your dining table
+                      Physical QR scan required to order food to your table
                     </p>
                   </div>
                 </div>
@@ -1832,131 +2016,140 @@ export const App: React.FC = () => {
                   <button
                     type="button"
                     onClick={stopCamera}
-                    className="text-xs font-bold text-rose-500 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 hover:bg-rose-100"
+                    className="text-xs font-bold text-rose-500 px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 hover:bg-rose-100"
                   >
-                    Close Camera
+                    Pause Camera
                   </button>
                 )}
               </div>
 
               {isCameraActive ? (
-                <div className="relative rounded-2xl overflow-hidden bg-black aspect-video flex items-center justify-center border-2 border-emerald-500/60 shadow-lg">
-                  <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
+                <div className="relative rounded-2xl overflow-hidden bg-black aspect-[3/4] sm:aspect-video flex items-center justify-center border-2 border-amber-500/40 shadow-2xl">
+                  <video
+                    ref={videoRef}
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    playsInline
+                    muted
+                  />
                   <canvas ref={canvasRef} className="hidden" />
-                  <div className="absolute inset-x-6 top-1/2 -translate-y-1/2 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_rgba(52,211,153,0.9)] animate-pulse pointer-events-none" />
-                  <div className="absolute inset-0 border-2 border-dashed border-emerald-400/80 m-6 rounded-2xl pointer-events-none" />
-                  <p className="absolute bottom-2.5 text-[10px] text-white/90 bg-black/75 backdrop-blur-xs px-3 py-1 rounded-full flex items-center gap-1.5 shadow">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    Live video stream active • Point at Table QR standee
-                  </p>
+
+                  {/* Viewfinder Target Framing with 4 corner brackets & Laser Crosshair */}
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    <div className="relative w-64 h-64 sm:w-72 sm:h-72">
+                      {/* 4 Corner Markers */}
+                      <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-amber-400 rounded-tl-xl shadow-sm" />
+                      <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-amber-400 rounded-tr-xl shadow-sm" />
+                      <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-amber-400 rounded-bl-xl shadow-sm" />
+                      <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-amber-400 rounded-br-xl shadow-sm" />
+
+                      {/* Animated Laser Scanning Line */}
+                      <div
+                        className="absolute inset-x-2 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_16px_rgba(251,191,36,1)]"
+                        style={{
+                          animation: 'laserScanSweep 2.4s ease-in-out infinite alternate',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Top Status & Controls Bar */}
+                  <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none">
+                    <div className="bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      <span className="text-[10px] font-black text-white uppercase tracking-wider">
+                        Live Scanner Active
+                      </span>
+                    </div>
+
+                    {/* Torch Toggle Button (pointer-events-auto) */}
+                    {isTorchSupported && (
+                      <button
+                        type="button"
+                        onClick={toggleTorch}
+                        className={`pointer-events-auto p-2.5 rounded-full border shadow-lg transition active:scale-95 ${
+                          isTorchOn
+                            ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-400/40'
+                            : 'bg-black/75 backdrop-blur-md text-white border-white/20 hover:bg-black/90'
+                        }`}
+                        title={isTorchOn ? 'Turn Flashlight Off' : 'Turn Flashlight On'}
+                      >
+                        <Icons.Zap className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Bottom Instructions Badge */}
+                  <div className="absolute bottom-3 inset-x-3 flex justify-center pointer-events-none">
+                    <p className="text-[10px] font-bold text-white/95 bg-black/80 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 shadow text-center">
+                      Align the table QR standee within the frame to order
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <button
                   type="button"
                   data-testid="open-camera-scanner-btn"
                   onClick={startCamera}
-                  className="rounded-2xl border-2 border-dashed border-amber-500/40 hover:border-amber-500 p-6 flex flex-col items-center justify-center gap-2 bg-amber-500/5 transition group"
+                  className="rounded-2xl border-2 border-dashed border-amber-500/40 hover:border-amber-500 p-8 flex flex-col items-center justify-center gap-2.5 bg-amber-500/5 transition group"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shadow group-hover:scale-105 transition">
-                    <Icons.Camera className="w-6 h-6 text-slate-950" />
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shadow-md group-hover:scale-105 transition">
+                    <Icons.Camera className="w-7 h-7 text-slate-950" />
                   </div>
                   <span className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
                     Open Live Video QR Scanner
                   </span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 text-center">
-                    Continuously scans physical dining table standee QR codes via live camera feed
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 text-center max-w-xs">
+                    Continuously scans physical dining table standee QR codes via live rear camera feed
                   </span>
                 </button>
               )}
 
-              {/* Direct QR Simulation Trigger for Rapid Testing */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                <span className="text-[10px] font-bold text-slate-400">Test Standee QRs:</span>
-                {['T-01', 'T-02', 'T-03', 'T-05'].map((testTbl) => (
-                  <button
-                    key={testTbl}
-                    type="button"
-                    onClick={() => handleQrDetected(`http://localhost:3001/?hotelId=${selectedHotel?.id || ''}&table=${testTbl}`)}
-                    className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30 transition"
-                  >
-                    Scan {testTbl}
-                  </button>
-                ))}
-              </div>
-
+              {/* Camera Error & Permission Denied Card */}
               {cameraError && (
-                <p className="text-[10px] text-rose-500 text-center font-semibold">
-                  ⚠️ {cameraError}
-                </p>
-              )}
-            </div>
+                <div className="rounded-2xl bg-rose-500/10 border border-rose-500/30 p-4 text-center space-y-3">
+                  <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-500 flex items-center justify-center mx-auto">
+                    <Icons.AlertCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-rose-500 uppercase tracking-wider">
+                      Camera Access Required
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      {cameraError}
+                    </p>
+                  </div>
 
-            {/* Quick Preset Table Chips & Manual Input */}
-            <div
-              className={`rounded-2xl border p-4 flex flex-col gap-3 shadow-sm ${
-                isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200 bg-white'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                  Quick Select or Enter Table:
-                </span>
-                <span className="text-[10px] text-slate-400">Indoor & Rooftop</span>
-              </div>
+                  <div className="flex items-center justify-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider transition active:scale-95"
+                    >
+                      Retry Camera
+                    </button>
 
-              {/* Table Quick Preset Pills */}
-              <div className="grid grid-cols-4 gap-2">
-                {['T-01', 'T-02', 'T-03', 'T-04', 'T-05', 'T-06', 'T-08', 'Rooftop 1'].map((tbl) => (
-                  <button
-                    key={tbl}
-                    type="button"
-                    onClick={() => launchTable(tbl)}
-                    className={`py-2 px-1 rounded-xl text-xs font-black border transition active:scale-95 text-center ${
-                      isDark
-                        ? 'bg-slate-800/80 hover:bg-amber-500 hover:text-slate-950 border-slate-700 text-slate-200'
-                        : 'bg-slate-50 hover:bg-amber-500 hover:text-slate-950 border-slate-200 text-slate-800 shadow-sm'
-                    }`}
-                  >
-                    {tbl}
-                  </button>
-                ))}
-              </div>
-
-              {validationError && (
-                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold">
-                  ⚠️ {validationError}
+                    {isPermanentDenied && (
+                      <button
+                        type="button"
+                        onClick={openAppSettings}
+                        className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 font-bold text-xs uppercase tracking-wider transition active:scale-95 flex items-center gap-1.5"
+                      >
+                        <Icons.Settings className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Go to App Settings</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* Manual Table Input Form */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  launchTable(tableInput);
-                }}
-                className="flex items-center gap-2 pt-1"
-              >
-                <input
-                  type="text"
-                  data-testid="customer-manual-input"
-                  value={tableInput}
-                  onChange={(e) => setTableInput(e.target.value)}
-                  placeholder="e.g. T-02, 4, Rooftop 1"
-                  className={`flex-1 min-h-[42px] rounded-xl border px-3.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                    isDark
-                      ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
-                  }`}
-                />
-                <button
-                  type="submit"
-                  data-testid="customer-manual-submit-btn"
-                  className="min-h-[42px] px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider transition shadow-sm shrink-0 flex items-center justify-center gap-1.5"
-                >
-                  <Icons.ArrowRight className="w-3.5 h-3.5 text-slate-950" />
-                  <span>Open Menu</span>
-                </button>
-              </form>
+              <style>{`
+                @keyframes laserScanSweep {
+                  0% { top: 4px; opacity: 0.7; }
+                  50% { top: calc(100% - 8px); opacity: 1; }
+                  100% { top: 4px; opacity: 0.7; }
+                }
+              `}</style>
             </div>
           </div>
         )}

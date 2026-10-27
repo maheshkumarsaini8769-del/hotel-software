@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'SpiceHub Staff',
   webDir: 'dist',
   server: {
-    androidScheme: 'http',
+    androidScheme: 'https',
     cleartext: true,
     allowNavigation: [
       'http://localhost:*',

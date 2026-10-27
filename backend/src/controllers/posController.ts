@@ -52,18 +52,23 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
 
     // Verify QR token if table has a registered qrTokenHash
     if (table.qrTokenHash) {
-      const isDevBypass = process.env.NODE_ENV !== 'production' && isDevAuthBypassEnabled();
       if (!token) {
-        if (!isDevBypass) {
-          res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Missing required QR security token' });
-          return;
-        }
-      } else {
-        const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
-        if (tokenHash !== table.qrTokenHash && String(token) !== table.qrTokenHash && !isDevBypass) {
-          res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Invalid or forged QR token' });
-          return;
-        }
+        res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Missing required QR security token' });
+        return;
+      }
+      const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
+      const canonicalSeed = `table:${table.hotelId}:${table.tableNumber}`;
+      const canonicalHash = crypto.createHash('sha256').update(canonicalSeed).digest('hex');
+
+      const matches =
+        tokenHash === table.qrTokenHash ||
+        String(token) === table.qrTokenHash ||
+        String(token) === canonicalSeed ||
+        tokenHash === canonicalHash;
+
+      if (!matches) {
+        res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Invalid or forged QR token' });
+        return;
       }
     }
 
@@ -1260,6 +1265,7 @@ export const getDiningTables = async (req: TenantRequest, res: Response): Promis
           activeOrderTotal,
           activeItemsCount,
           sessionStartTime,
+          qrTokenHash: t.qrTokenHash,
         };
       })
     );

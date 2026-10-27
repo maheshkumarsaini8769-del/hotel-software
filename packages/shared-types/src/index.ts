@@ -9,6 +9,7 @@ export enum UserRole {
   CASHIER = 'CASHIER',
   WAITER = 'WAITER',
   CHEF = 'CHEF',
+  RECEPTIONIST = 'RECEPTIONIST',
   HOUSEKEEPING = 'HOUSEKEEPING',
   MAINTENANCE = 'MAINTENANCE',
   GUEST = 'GUEST'
@@ -626,6 +627,29 @@ export interface ModularSubscriptionSummary {
   finalMonthlyTotalINR: number;
   annualTotalINR: number;
   billingCycle: 'MONTHLY' | 'ANNUAL';
+}
+
+export interface ActiveHotelDiscovery {
+  id: string;
+  name: string;
+  slug: string;
+  city?: string;
+  state?: string;
+  logoUrl?: string;
+  coverImageUrl?: string;
+  stayImageUrl?: string;
+  diningImageUrl?: string;
+  coordinates?: {
+    latitude?: number;
+    longitude?: number;
+  };
+  photos?: string[];
+  tagline?: string;
+  enabledPortals?: string[];
+  address?: any;
+  contactPhone?: string;
+  wifiSsid?: string;
+  wifiPassword?: string;
 }
 
 export function calculateModularSubscription(

@@ -50,6 +50,7 @@ import {
   Layers,
   ChevronDown,
   ShieldCheck,
+  Lock,
   Send,
   Calendar,
   User,
@@ -166,13 +167,15 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   }, []);
   const [selectedLanguage, setSelectedLanguage] = useState<'EN' | 'HI'>('EN');
 
-  // Theme State (Dark / Light with persistence)
+  // Theme State (Dark / Light with persistence, clean light theme by default)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof window !== 'undefined') {
+      const urlTheme = new URLSearchParams(window.location.search).get('theme');
+      if (urlTheme === 'dark' || urlTheme === 'light') return urlTheme;
       const saved = localStorage.getItem('spicehub_guest_theme');
       if (saved === 'dark' || saved === 'light') return saved;
     }
-    return 'dark';
+    return 'light';
   });
 
   const toggleTheme = () => {
@@ -230,6 +233,27 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   const isFolioSettled = Boolean(
     folioSummary && (folioSummary.folioStatus === 'SETTLED' || folioDue === 0)
   );
+
+  const isEffectiveStayCheckedOut = Boolean(
+    isStayCheckedOut ||
+    (staySession as any)?.status === 'CHECKED_OUT' ||
+    (staySession as any)?.stayStatus === 'CHECKED_OUT' ||
+    (staySession as any)?.status === 'CANCELLED' ||
+    (staySession as any)?.stayStatus === 'CANCELLED' ||
+    Boolean(checkoutInvoice)
+  );
+
+  // Dynamic Pro-Rata Checkout Duration Difference (in hours: negative = early departure savings, positive = overstay)
+  const [checkoutHoursDifference, setCheckoutHoursDifference] = useState<number>(0);
+  const hourlyRate = Math.max(50, Math.round((folioSummary?.totalRoomTariff || 2500) / 24));
+  const durationAdjustment =
+    checkoutHoursDifference < 0
+      ? -Math.round(Math.abs(checkoutHoursDifference) * hourlyRate)
+      : checkoutHoursDifference > 0
+      ? Math.round(checkoutHoursDifference * hourlyRate * 1.2)
+      : 0;
+  const dynamicallyAdjustedNet = Math.max(0, folioNet + durationAdjustment);
+  const dynamicallyAdjustedDue = Math.max(0, folioDue + durationAdjustment);
 
   // Hotel-specific menu catalog (real Mongo menuItemIds for ordering)
   const [menuCatalog, setMenuCatalog] = useState<MenuItem[]>([]);
@@ -339,6 +363,13 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   const [feedbackComment, setFeedbackComment] = useState('');
   const [isOffersModalOpen, setIsOffersModalOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+  const [placedOrderConfirmation, setPlacedOrderConfirmation] = useState<{
+    orderNumber: string;
+    items: CartItem[];
+    totalAmount: number;
+    roomNumber: string;
+    instructions?: string;
+  } | null>(null);
 
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -456,11 +487,24 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         return;
       }
 
+      const acceptedObj = (accepted && typeof accepted === 'object') ? (accepted as any) : null;
+      const orderNumber = String(
+        acceptedObj?.orderNumber || acceptedObj?.order?.orderNumber || `RS-${Date.now().toString().slice(-6)}`
+      );
+
+      const confirmationSummary = {
+        orderNumber,
+        items: [...cartItems],
+        totalAmount,
+        roomNumber: roomNumber || '201',
+        instructions: cartSpecialInstructions,
+      };
+
       setCartItems([]);
       setCartSpecialInstructions('');
       setIsMobileCartOpen(false);
-      showToast('✅ Order placed successfully! Your room-service order is with the kitchen.');
-      setActiveTab('TRACKING');
+      setPlacedOrderConfirmation(confirmationSummary);
+      showToast(`✅ Order #${orderNumber} placed & sent to kitchen!`);
     } catch (err: any) {
       showToast(err?.message || 'Order could not be placed. Please retry.');
     } finally {
@@ -732,28 +776,32 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
               </div>
             </div>
 
-            {/* Room 305 Status & Guest Info Pill (Desktop / Tablet) */}
+            {/* Room Status & Guest Info Pill (Desktop / Tablet) */}
             <div className={`hidden lg:flex items-center gap-4 px-4 py-1.5 rounded-2xl border text-xs ${
               isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-100 border-slate-200'
             }`}>
               <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className={`font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>Room {roomNumber}</span>
-                <span className={`${isDark ? 'text-slate-400' : 'text-slate-500'} font-medium`}>({roomType})</span>
+                <div className={`w-2.5 h-2.5 rounded-full ${isEffectiveStayCheckedOut ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'}`} />
+                <span className={`font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>Room {roomNumber || 'Resident'}</span>
+                <span className={`${isDark ? 'text-slate-400' : 'text-slate-500'} font-medium`}>({isEffectiveStayCheckedOut ? 'Stay Concluded' : roomType})</span>
               </div>
               <div className={`w-px h-4 ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`} />
               <div className={`${isDark ? 'text-slate-300' : 'text-slate-600'} font-medium`}>
                 Guest: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{guestName}</span>
               </div>
-              <div className={`w-px h-4 ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`} />
-              <button
-                onClick={handleCopyWifi}
-                className="flex items-center gap-1.5 text-amber-500 hover:text-amber-600 font-semibold"
-                title="Click to copy WiFi password"
-              >
-                <Wifi className="w-3.5 h-3.5" />
-                <span>WiFi: {wifiPass}</span>
-              </button>
+              {wifiPass && !isEffectiveStayCheckedOut && (
+                <>
+                  <div className={`w-px h-4 ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`} />
+                  <button
+                    onClick={handleCopyWifi}
+                    className="flex items-center gap-1.5 text-amber-500 hover:text-amber-600 font-semibold"
+                    title="Click to copy WiFi password"
+                  >
+                    <Wifi className="w-3.5 h-3.5" />
+                    <span>WiFi: {wifiPass}</span>
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Right Action Buttons */}
@@ -887,6 +935,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
           <RoomCatalogView
             hotelId={hotelId}
             currentRoomNumber={roomNumber}
+            theme={theme}
+            onToggleTheme={toggleTheme}
             onRoomBooked={(newRoom, sessionToken) => {
               if (onRoomBooked) {
                 onRoomBooked(newRoom, sessionToken);
@@ -902,10 +952,79 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             }}
           />
         )}
+
+        {/* ===================================================== */}
+        {/* POST-CHECKOUT LOCKED DEPARTURE SCREEN                 */}
+        {/* ===================================================== */}
+        {isEffectiveStayCheckedOut && activeTab !== 'ROOMS' && activeTab !== 'BILL' && (
+          <div data-testid="post-checkout-locked-view" className={`max-w-xl mx-auto my-8 p-8 rounded-3xl border text-center space-y-6 shadow-2xl ${
+            isDark ? 'bg-[#0f1420] border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-inner">
+              <Lock className="w-10 h-10" />
+            </div>
+
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black tracking-widest uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Stay Concluded • Room #{roomNumber || '—'}
+              </div>
+              <h2 className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                Thank You for Staying With Us
+              </h2>
+              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'} leading-relaxed`}>
+                Your checkout has been completed and Room #{roomNumber || '—'} has been vacated. In-room dining ordering and digital keycard access have been securely locked.
+              </p>
+            </div>
+
+            {/* Departure summary box */}
+            <div className={`p-4 rounded-2xl border text-left space-y-2.5 text-xs ${
+              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex justify-between items-center py-1 border-b border-slate-700/30">
+                <span className="text-slate-400">Guest Name</span>
+                <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{guestName}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-700/30">
+                <span className="text-slate-400">Room Vacated</span>
+                <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Room {roomNumber} ({roomType})</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-700/30">
+                <span className="text-slate-400">Folio Status</span>
+                <span className="font-bold text-emerald-400">SETTLED & CLOSED</span>
+              </div>
+              {checkoutInvoice?.invoiceNumber && (
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400">Tax Invoice Number</span>
+                  <span className={`font-mono font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>{checkoutInvoice.invoiceNumber}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                onClick={() => setActiveTab('BILL')}
+                className="flex-1 py-3 px-4 rounded-xl font-bold text-xs bg-amber-600 hover:bg-amber-500 text-white shadow-md transition flex items-center justify-center gap-2"
+              >
+                <Receipt className="w-4 h-4" />
+                <span>View Itemized Tax Invoice</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('ROOMS')}
+                className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs border transition flex items-center justify-center gap-2 ${
+                  isDark ? 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200' : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800'
+                }`}
+              >
+                <Building2 className="w-4 h-4" />
+                <span>Book Another Room</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ===================================================== */}
         {/* VIEW 1: HOME / OVERVIEW & STAY                        */}
         {/* ===================================================== */}
-        {activeTab === 'HOME' && (
+        {!isEffectiveStayCheckedOut && activeTab === 'HOME' && (
           <div className="space-y-6">
             {/* Full-Width Luxury Hero Banner */}
             <div className="relative rounded-3xl overflow-hidden shadow-2xl bg-stone-900 border border-slate-800 h-64 sm:h-80 lg:h-96">
@@ -1237,7 +1356,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         {/* ===================================================== */}
         {/* VIEW 2: FOOD & BEVERAGES (RESPONSIVE SPLIT ON DESKTOP) */}
         {/* ===================================================== */}
-        {activeTab === 'DINING' && (
+        {!isEffectiveStayCheckedOut && activeTab === 'DINING' && (
           <div className="space-y-6">
             {/* Dining Header & Search */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#141620] p-5 rounded-3xl border border-slate-800">
@@ -1506,7 +1625,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         {/* ===================================================== */}
         {/* VIEW 3: ROOM SERVICE REQUEST (WATER, TOWEL, ETC.)     */}
         {/* ===================================================== */}
-        {activeTab === 'ROOM_SERVICE' && (
+        {!isEffectiveStayCheckedOut && activeTab === 'ROOM_SERVICE' && (
           <div className="space-y-6">
             <div className="bg-[#141620] p-5 rounded-3xl border border-slate-800">
               <h1 className="text-xl sm:text-2xl font-black text-white">In-Room Service Requests</h1>
@@ -1607,7 +1726,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         {/* ===================================================== */}
         {/* VIEW 4: HOUSEKEEPING & LAUNDRY                        */}
         {/* ===================================================== */}
-        {activeTab === 'HOUSEKEEPING' && (
+        {!isEffectiveStayCheckedOut && activeTab === 'HOUSEKEEPING' && (
           <div className="space-y-6">
             <div className="bg-[#141620] p-5 rounded-3xl border border-slate-800">
               <h1 className="text-xl sm:text-2xl font-black text-white">Housekeeping, Laundry & Maintenance</h1>
@@ -1946,17 +2065,149 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 </div>
                 <div className="w-64 pt-2 border-t border-slate-800 flex justify-between text-base font-black">
                   <span className="text-white">Grand Total Payable:</span>
-                  <span className="text-amber-400">₹{folioNet.toLocaleString('en-IN')}</span>
+                  <span className="text-amber-400">₹{dynamicallyAdjustedNet.toLocaleString('en-IN')}</span>
                 </div>
+                {durationAdjustment !== 0 && (
+                  <div className={`w-64 flex justify-between text-xs font-bold ${durationAdjustment < 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <span>Duration Adjustment:</span>
+                    <span>{durationAdjustment < 0 ? `-₹${Math.abs(durationAdjustment)} (Early Departure)` : `+₹${durationAdjustment} (Overstay Surcharge)`}</span>
+                  </div>
+                )}
                 <div className="w-64 flex justify-between text-xs text-emerald-400">
                   <span>Total Amount Paid:</span>
                   <span data-testid="live-paid-amount" className="font-bold">₹{folioSummary?.paidAmount || 0}</span>
                 </div>
                 <div className="w-64 flex justify-between text-xs font-bold text-white">
                   <span>Balance Due:</span>
-                  <span data-testid="live-balance-due" className={folioSummary?.dueAmount === 0 ? 'text-emerald-400' : 'text-amber-400'}>
-                    ₹{folioDue.toLocaleString('en-IN')}
+                  <span data-testid="live-balance-due" className={dynamicallyAdjustedDue === 0 ? 'text-emerald-400' : 'text-amber-400'}>
+                    ₹{dynamicallyAdjustedDue.toLocaleString('en-IN')}
                   </span>
+                </div>
+              </div>
+
+              {/* Dynamic Pro-Rata Stay Duration & Early Checkout / Overstay Billing Engine */}
+              <div data-testid="dynamic-pro-rata-billing-card" className="p-5 rounded-2xl bg-slate-900 border border-amber-500/30 space-y-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-black tracking-widest text-amber-400 uppercase block">
+                      Dynamic Pro-Rata Stay Billing Engine
+                    </span>
+                    <h3 className="text-sm font-black text-white">
+                      Stay Duration & Checkout Adjustment
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Scheduled Check-out: {formatStayDate(staySession?.expectedCheckOutDate || staySession?.checkOutDate)} (11:00 AM)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-slate-300">Base Hourly Tariff:</span>
+                    <span className="text-xs font-black text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/30 font-mono">
+                      ₹{hourlyRate}/hr
+                    </span>
+                  </div>
+                </div>
+
+                {/* Duration Variance Selector */}
+                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-300 font-bold">Simulate Actual Departure Time:</span>
+                    <span className="font-mono font-bold text-amber-300">
+                      {checkoutHoursDifference < 0
+                        ? `${Math.abs(checkoutHoursDifference)} Hours Early Departure`
+                        : checkoutHoursDifference > 0
+                        ? `${checkoutHoursDifference} Hours Late Overstay`
+                        : 'Exact On-Schedule Departure'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button
+                      type="button"
+                      data-testid="simulate-early-6h-btn"
+                      onClick={() => setCheckoutHoursDifference(-6)}
+                      className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition ${
+                        checkoutHoursDifference === -6
+                          ? 'bg-emerald-600 text-white border-emerald-400 shadow-sm'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      🟢 6h Early (-₹{6 * hourlyRate})
+                    </button>
+
+                    <button
+                      type="button"
+                      data-testid="simulate-early-3h-btn"
+                      onClick={() => setCheckoutHoursDifference(-3)}
+                      className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition ${
+                        checkoutHoursDifference === -3
+                          ? 'bg-emerald-600 text-white border-emerald-400 shadow-sm'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      🟢 3h Early (-₹{3 * hourlyRate})
+                    </button>
+
+                    <button
+                      type="button"
+                      data-testid="simulate-on-time-btn"
+                      onClick={() => setCheckoutHoursDifference(0)}
+                      className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition ${
+                        checkoutHoursDifference === 0
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm font-black'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      ⚪ On Schedule
+                    </button>
+
+                    <button
+                      type="button"
+                      data-testid="simulate-overstay-4h-btn"
+                      onClick={() => setCheckoutHoursDifference(4)}
+                      className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition ${
+                        checkoutHoursDifference === 4
+                          ? 'bg-rose-600 text-white border-rose-400 shadow-sm'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      🔴 4h Late (+₹{Math.round(4 * hourlyRate * 1.2)})
+                    </button>
+                  </div>
+
+                  {/* Pro-rata Impact Statement */}
+                  {checkoutHoursDifference < 0 && (
+                    <div data-testid="early-checkout-savings-banner" className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-300">
+                      <div className="flex items-center gap-2">
+                        <span>🎉</span>
+                        <span>
+                          <strong>Early Checkout Savings Credit:</strong> Checking out {Math.abs(checkoutHoursDifference)} hours early. Unused duration refunded!
+                        </span>
+                      </div>
+                      <span className="font-mono font-black text-sm text-emerald-400 shrink-0">
+                        -₹{Math.abs(durationAdjustment)}
+                      </span>
+                    </div>
+                  )}
+
+                  {checkoutHoursDifference > 0 && (
+                    <div data-testid="overstay-surcharge-banner" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between text-xs text-rose-300">
+                      <div className="flex items-center gap-2">
+                        <span>⏱️</span>
+                        <span>
+                          <strong>Late Checkout Overstay:</strong> Staying {checkoutHoursDifference} hours past departure. Hourly tariff applied proportionally.
+                        </span>
+                      </div>
+                      <span className="font-mono font-black text-sm text-rose-400 shrink-0">
+                        +₹{durationAdjustment}
+                      </span>
+                    </div>
+                  )}
+
+                  {checkoutHoursDifference === 0 && (
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-[11px] text-slate-400">
+                      Standard scheduled checkout selected. Regular overnight tariff applies with zero adjustments.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1966,7 +2217,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         {/* ===================================================== */}
         {/* VIEW 6: LIVE ORDER TRACKING (DYNAMIC LINKED)          */}
         {/* ===================================================== */}
-        {activeTab === 'TRACKING' && (() => {
+        {!isEffectiveStayCheckedOut && activeTab === 'TRACKING' && (() => {
           const currentActiveOrder = store?.getSelectedLiveOrder() || liveOrders[0];
           const orderNum = currentActiveOrder?.orderNumber || '—';
           const orderStatus = currentActiveOrder?.orderStatus || 'PLACED';
@@ -1977,6 +2228,26 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
           return (
             <div data-testid="live-order-tracker" className="space-y-6">
+              {/* Back to Food Menu Navigation */}
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  data-testid="tracker-back-to-menu-btn"
+                  onClick={() => setActiveTab('DINING')}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition shadow-xs ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
+                      : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>←</span>
+                  <span>Back to In-Room Food Menu</span>
+                </button>
+                <span className="text-[11px] text-amber-500 font-bold hidden sm:inline">
+                  ⚡ Live Kitchen Dispatch Tracking
+                </span>
+              </div>
+
               <div data-testid="kod-delivery-room-banner" className="bg-[#141620] p-5 rounded-3xl border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl">
                 <div>
                   <span className="text-[10px] font-black tracking-widest text-amber-400 uppercase block">
@@ -2009,6 +2280,72 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                      stepNumber === 2 ? 'Preparing in Kitchen' :
                      'Order Placed'}
                   </div>
+                </div>
+              </div>
+
+              {/* Waiter Live ETA & Status Message from Staff */}
+              <div data-testid="waiter-live-eta-banner" className="bg-[#141620] p-5 rounded-3xl border border-amber-500/30 shadow-xl space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-2xl shadow-md shrink-0 overflow-hidden border-2 border-amber-400">
+                      <img
+                        src={currentActiveOrder?.waiterAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'}
+                        alt={currentActiveOrder?.waiterName || 'Butler'}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display = 'none';
+                        }}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                          Assigned Room Service Butler
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          🟢 On Duty
+                        </span>
+                      </div>
+                      <h3 className="text-base font-black text-white">
+                        {currentActiveOrder?.waiterName || 'Steward Rajesh Kumar'}
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Dedicated Room Service Waiter for Room #{roomNumber || '201'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Estimated Arrival</span>
+                    <span data-testid="waiter-eta-badge" className="text-sm font-black text-amber-300 bg-amber-500/20 px-3 py-1 rounded-full border border-amber-500/40 inline-block animate-pulse">
+                      ⏱️ ~{currentActiveOrder?.waiterEtaMinutes || 12} mins
+                    </span>
+                  </div>
+                </div>
+
+                {/* Live message from waiter */}
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-amber-500/20 text-xs">
+                  <div className="flex items-center gap-2 text-amber-400 font-bold mb-1">
+                    <span>💬</span>
+                    <span>Message from Steward:</span>
+                  </div>
+                  <p data-testid="waiter-live-message" className="text-slate-200 italic">
+                    "{currentActiveOrder?.waiterMessage || 'Your dishes are freshly packed with warm covers and being dispatched to Room ' + (roomNumber || '201') + '. Arriving shortly!'}"
+                  </p>
+                </div>
+
+                {/* Quick Action Button to Call Waiter */}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[11px] text-slate-400">Need cutlery or dining table setup?</span>
+                  <button
+                    type="button"
+                    data-testid="call-room-waiter-btn"
+                    onClick={() => onConciergeRequest && onConciergeRequest('CALL_WAITER', 'Guest called room waiter for dining assistance')}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center gap-1.5 transition"
+                  >
+                    <span>🔔</span>
+                    <span>Call Room Butler</span>
+                  </button>
                 </div>
               </div>
 
@@ -2304,7 +2641,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         {/* ===================================================== */}
         {/* VIEW 8: CONCIERGE, OFFERS & MORE                      */}
         {/* ===================================================== */}
-        {activeTab === 'MORE' && (
+        {!isEffectiveStayCheckedOut && activeTab === 'MORE' && (
           <div className="space-y-6">
             <div className="bg-[#141620] p-5 rounded-3xl border border-slate-800">
               <h1 className="text-xl sm:text-2xl font-black text-white">Concierge & Guest Options</h1>
@@ -2437,7 +2774,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
       {/* ======================================================== */}
       {/* 3. MOBILE STICKY BOTTOM NAVIGATION BAR (lg:hidden)        */}
       {/* ======================================================== */}
-      <div className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t px-2 py-2 flex items-center justify-around text-[10px] font-bold transition-colors ${
+      <div className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t px-2 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] flex items-center justify-around text-[10px] font-bold transition-colors ${
         isDark ? 'bg-[#131620]/95 border-slate-800 text-slate-400' : 'bg-white/95 border-slate-200 text-slate-600 shadow-lg'
       }`}>
         <button
@@ -2452,6 +2789,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
           <Building2 className="w-4 h-4" />
           <span>Rooms</span>
         </button>
+
         <button
           data-testid="mobile-nav-home"
           onClick={() => setActiveTab('HOME')}
@@ -2461,33 +2799,39 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
               : isDark ? 'hover:text-white' : 'hover:text-slate-900'
           }`}
         >
-          <BedDouble className="w-4 h-4" />
-          <span>My Stay</span>
+          {isEffectiveStayCheckedOut ? <Lock className="w-4 h-4" /> : <BedDouble className="w-4 h-4" />}
+          <span>{isEffectiveStayCheckedOut ? 'Departure' : 'My Stay'}</span>
         </button>
-        <button
-          data-testid="mobile-nav-dining"
-          onClick={() => setActiveTab('DINING')}
-          className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
-            activeTab === 'DINING'
-              ? 'text-amber-500 font-black'
-              : isDark ? 'hover:text-white' : 'hover:text-slate-900'
-          }`}
-        >
-          <Utensils className="w-4 h-4" />
-          <span>Dining</span>
-        </button>
-        <button
-          data-testid="mobile-nav-services"
-          onClick={() => setActiveTab('ROOM_SERVICE')}
-          className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
-            activeTab === 'ROOM_SERVICE' || activeTab === 'HOUSEKEEPING'
-              ? 'text-amber-500 font-black'
-              : isDark ? 'hover:text-white' : 'hover:text-slate-900'
-          }`}
-        >
-          <ConciergeBell className="w-4 h-4" />
-          <span>Buzzer</span>
-        </button>
+
+        {!isEffectiveStayCheckedOut && (
+          <>
+            <button
+              data-testid="mobile-nav-dining"
+              onClick={() => setActiveTab('DINING')}
+              className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
+                activeTab === 'DINING'
+                  ? 'text-amber-500 font-black'
+                  : isDark ? 'hover:text-white' : 'hover:text-slate-900'
+              }`}
+            >
+              <Utensils className="w-4 h-4" />
+              <span>Dining</span>
+            </button>
+            <button
+              data-testid="mobile-nav-services"
+              onClick={() => setActiveTab('ROOM_SERVICE')}
+              className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
+                activeTab === 'ROOM_SERVICE' || activeTab === 'HOUSEKEEPING'
+                  ? 'text-amber-500 font-black'
+                  : isDark ? 'hover:text-white' : 'hover:text-slate-900'
+              }`}
+            >
+              <ConciergeBell className="w-4 h-4" />
+              <span>Buzzer</span>
+            </button>
+          </>
+        )}
+
         <button
           data-testid="mobile-nav-bill"
           onClick={() => setActiveTab('BILL')}
@@ -2498,20 +2842,36 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
           }`}
         >
           <Receipt className="w-4 h-4" />
-          <span>Folio</span>
+          <span>{isEffectiveStayCheckedOut ? 'Receipt' : 'Folio'}</span>
         </button>
-        <button
-          data-testid="mobile-nav-tracking"
-          onClick={() => setActiveTab('TRACKING')}
-          className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
-            activeTab === 'TRACKING'
-              ? 'text-amber-500 font-black'
-              : isDark ? 'hover:text-white' : 'hover:text-slate-900'
-          }`}
-        >
-          <Clock className="w-4 h-4" />
-          <span>Orders</span>
-        </button>
+
+        {!isEffectiveStayCheckedOut ? (
+          <button
+            data-testid="mobile-nav-tracking"
+            onClick={() => setActiveTab('TRACKING')}
+            className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
+              activeTab === 'TRACKING'
+                ? 'text-amber-500 font-black'
+                : isDark ? 'hover:text-white' : 'hover:text-slate-900'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            <span>Orders</span>
+          </button>
+        ) : (
+          <button
+            data-testid="mobile-nav-hotel-info"
+            onClick={() => setActiveTab('HOTEL_INFO')}
+            className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
+              activeTab === 'HOTEL_INFO'
+                ? 'text-amber-500 font-black'
+                : isDark ? 'hover:text-white' : 'hover:text-slate-900'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Hotel Info</span>
+          </button>
+        )}
       </div>
 
       {/* ======================================================== */}
@@ -2758,6 +3118,121 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             >
               <span>Confirm & Charge ₹{totalAmount} to Room {roomNumber || '201'}</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* ORDER PLACED CONFIRMATION MODAL                          */}
+      {/* ======================================================== */}
+      {placedOrderConfirmation && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-testid="order-placed-confirmation-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+        >
+          <div
+            className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl flex flex-col gap-4 text-center ${
+              isDark
+                ? 'bg-[#0f1422] border-slate-800 text-white'
+                : 'bg-white border-slate-200 text-slate-900'
+            }`}
+          >
+            {/* Animated Success Badge */}
+            <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/15 border-2 border-emerald-500 flex items-center justify-center text-3xl shadow-lg shadow-emerald-500/20">
+              <span className="text-emerald-500 font-black">✓</span>
+            </div>
+
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500 block">
+                Dispatched to Kitchen KDS
+              </span>
+              <h2 className="text-xl font-black mt-1">In-Room Dining Order Confirmed!</h2>
+              <p className={`text-xs mt-1 leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Our executive culinary team has received your order and started preparation for Room {placedOrderConfirmation.roomNumber}.
+              </p>
+            </div>
+
+            {/* Ticket & Room Folio Summary Box */}
+            <div
+              className={`rounded-2xl p-4 border text-left space-y-2 text-xs ${
+                isDark ? 'bg-slate-900/80 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center justify-between font-mono">
+                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Ticket Reference:</span>
+                <span data-testid="confirm-modal-order-number" className="font-black text-amber-500 text-sm">
+                  #{placedOrderConfirmation.orderNumber}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Target Delivery:</span>
+                <span className="font-bold">Room {placedOrderConfirmation.roomNumber}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Payment Status:</span>
+                <span className="font-bold text-emerald-500">Charged to Room Folio (₹{placedOrderConfirmation.totalAmount})</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Est. Delivery Time:</span>
+                <span className="font-bold">⏱️ 20 - 25 Minutes</span>
+              </div>
+
+              {/* Items List */}
+              <div className={`pt-2 border-t space-y-1.5 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                <span className={`text-[10px] font-bold uppercase tracking-wider block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Ordered Dishes ({placedOrderConfirmation.items.length})
+                </span>
+                {placedOrderConfirmation.items.map((it, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-xs">
+                    <span className="font-medium">
+                      {it.qty}x {it.name}
+                    </span>
+                    <span className="font-bold">₹{it.price * it.qty}</span>
+                  </div>
+                ))}
+              </div>
+
+              {placedOrderConfirmation.instructions && (
+                <div className="pt-2 border-t border-slate-800/30 text-[11px] text-amber-500/90 italic">
+                  Note to Chef: "{placedOrderConfirmation.instructions}"
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-2 mt-1">
+              <button
+                type="button"
+                data-testid="confirm-modal-track-btn"
+                onClick={() => {
+                  setPlacedOrderConfirmation(null);
+                  setActiveTab('TRACKING');
+                }}
+                className="w-full min-h-[46px] rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition active:scale-98"
+              >
+                <span>⏱️</span>
+                <span>Track Live Order Status</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="confirm-modal-keep-browsing-btn"
+                onClick={() => {
+                  setPlacedOrderConfirmation(null);
+                  setActiveTab('DINING');
+                }}
+                className={`w-full min-h-[42px] rounded-xl border font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition ${
+                  isDark
+                    ? 'border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700'
+                    : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <span>🍽️</span>
+                <span>Keep Browsing Food Menu</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

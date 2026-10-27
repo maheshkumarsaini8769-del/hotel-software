@@ -9,6 +9,21 @@ export interface MenuItemCardProps {
   onUpdateQuantity: (menuItemId: string, delta: number) => void;
 }
 
+const FALLBACK_DISH_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200">
+  <defs>
+    <linearGradient id="dishGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="300" height="200" fill="url(#dishGrad)"/>
+  <circle cx="150" cy="100" r="50" fill="#334155" stroke="#475569" stroke-width="3"/>
+  <circle cx="150" cy="100" r="38" fill="#d97706" opacity="0.25"/>
+  <text x="150" y="108" fill="#fef3c7" font-family="system-ui, sans-serif" font-size="28" text-anchor="middle">🍲</text>
+</svg>
+`);
+
 const defaultImages: Record<string, string> = {
   'Paneer Tikka Angara': 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=300&auto=format&fit=crop&q=80',
   'Murgh Malai Tikka': 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=300&auto=format&fit=crop&q=80',
@@ -27,7 +42,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
   const isOutOfStock = !item.isAvailable;
   const isVeg = item.foodType === 'VEG';
   const isBeverage = item.foodType === 'BEVERAGE';
-  const imgUrl = (item as any).images?.[0] || defaultImages[item.name] || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&auto=format&fit=crop&q=80';
+  const imgUrl = (item as any).images?.[0] || defaultImages[item.name] || FALLBACK_DISH_SVG;
 
   return (
     <div
@@ -108,8 +123,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
             className="w-full h-full object-cover transition transform duration-300 hover:scale-105"
             loading="lazy"
             onError={(e) => {
-              (e.target as HTMLImageElement).src =
-                'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&auto=format&fit=crop&q=80';
+              (e.currentTarget as HTMLImageElement).src = FALLBACK_DISH_SVG;
             }}
           />
           {isOutOfStock && (

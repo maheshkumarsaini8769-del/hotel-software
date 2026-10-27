@@ -279,7 +279,7 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
       </div>
 
       {/* Tickets Grid */}
-      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-24 lg:pb-6">
+      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-32 lg:pb-8">
         {filteredTickets.length === 0 ? (
           <div className="text-center py-16 text-slate-400 text-xs font-medium">
             No orders found under this filter.

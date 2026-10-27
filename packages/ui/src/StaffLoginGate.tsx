@@ -56,6 +56,28 @@ const ACCENTS = {
 
 function readFirst(keys: readonly string[]): string {
   if (typeof window === 'undefined') return '';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const isHotelKey = keys.some((k) => k.toLowerCase().includes('hotel'));
+    if (isHotelKey) {
+      const urlHotelId = params.get('hotelId');
+      if (urlHotelId) {
+        for (const k of keys) window.localStorage.setItem(k, urlHotelId);
+        return urlHotelId;
+      }
+    } else {
+      const urlToken = params.get('token');
+      if (urlToken) {
+        for (const k of keys) window.localStorage.setItem(k, urlToken);
+        const urlHotelId = params.get('hotelId');
+        if (urlHotelId) {
+          window.localStorage.setItem('spicehub_hotel_id', urlHotelId);
+          window.localStorage.setItem('hotelId', urlHotelId);
+        }
+        return urlToken;
+      }
+    }
+  } catch {}
   for (const key of keys) {
     const value = window.localStorage.getItem(key);
     if (value) return value;
@@ -304,6 +326,16 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
           return;
         }
         persistSession(nextToken, nextUser);
+
+        const tenant = json.data.tenant;
+        if (tenant && mountedRef.current) {
+          setSubscribedHotelName(tenant.name || 'Your Hotel');
+          if (Array.isArray(tenant.enabledPortals)) {
+            setAvailablePortals(tenant.enabledPortals);
+            window.localStorage.setItem('spicehub_enabled_portals', JSON.stringify(tenant.enabledPortals));
+          }
+        }
+
         if (!mountedRef.current) return;
         setToken(nextToken);
         setUser(nextUser);

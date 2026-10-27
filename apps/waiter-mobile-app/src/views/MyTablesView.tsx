@@ -230,7 +230,7 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
 
 
       {/* Visual Tables Grid */}
-      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-24 lg:pb-6">
+      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-32 lg:pb-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {filteredTables.map((t) => {
             const isAvailable = t.status === 'Available';

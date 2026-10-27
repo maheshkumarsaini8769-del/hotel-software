@@ -1,8 +1,10 @@
 import { Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { TenantRequest, UserRole } from '../types';
 import { Tenant } from '../models/Tenant';
+import { GuestSession } from '../models/GuestSession';
 import { getJwtSecret } from '../config/security';
 import { PortalKey } from '@spicehub/shared-types';
 
@@ -33,6 +35,27 @@ function extractHotelId(req: any): string | null {
 
   const headerHotelId = req.headers?.['x-hotel-id'];
   if (headerHotelId && typeof headerHotelId === 'string') return headerHotelId.trim();
+
+  // 4b. Extract hotelId from guest resident session token JWT
+  const guestSessionToken =
+    req.headers?.['x-guest-session-token'] ||
+    req.query?.guestToken ||
+    req.query?.sessionToken ||
+    req.query?.token ||
+    req.body?.guestToken ||
+    req.body?.sessionToken ||
+    req.body?.token;
+  if (guestSessionToken && typeof guestSessionToken === 'string') {
+    try {
+      const decoded: any = jwt.verify(guestSessionToken.trim(), getJwtSecret());
+      if (decoded?.hotelId) return String(decoded.hotelId);
+    } catch {
+      try {
+        const decoded: any = jwt.decode(guestSessionToken.trim());
+        if (decoded?.hotelId) return String(decoded.hotelId);
+      } catch {}
+    }
+  }
 
   const queryHotelId = req.query?.hotelId;
   if (queryHotelId && typeof queryHotelId === 'string') return queryHotelId.trim();
@@ -67,7 +90,28 @@ export const requirePortal = (portalKey: PortalKey) => {
       let tenant = (req as any).tenant;
 
       if (!tenant) {
-        const hotelIdStr = extractHotelId(req);
+        let hotelIdStr = extractHotelId(req);
+
+        // Fallback for opaque guest session tokens stored in GuestSession
+        if (!hotelIdStr) {
+          const rawToken =
+            req.headers?.['x-guest-session-token'] ||
+            req.query?.guestToken ||
+            req.query?.sessionToken ||
+            req.query?.token ||
+            req.body?.guestToken ||
+            req.body?.sessionToken ||
+            req.body?.token;
+          if (rawToken && typeof rawToken === 'string') {
+            try {
+              const tokenHash = crypto.createHash('sha256').update(rawToken.trim()).digest('hex');
+              const session = await GuestSession.findOne({ sessionTokenHash: tokenHash });
+              if (session?.hotelId) {
+                hotelIdStr = String(session.hotelId);
+              }
+            } catch {}
+          }
+        }
 
         if (!hotelIdStr || !Types.ObjectId.isValid(hotelIdStr)) {
           res.status(403).json({
@@ -141,6 +185,74 @@ export const requirePortal = (portalKey: PortalKey) => {
           errorCode: 'PORTAL_NOT_SUBSCRIBED',
           portal: portalKey,
           message: `The '${portalKey}' portal workstation is not included in this property's subscription. Please contact your Super Administrator to activate this module.`,
+        });
+        return;
+      }
+
+      next();
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        errorCode: 'INTERNAL_ERROR',
+        message: error.message || 'Error verifying portal subscription permissions',
+      });
+    }
+  };
+};
+
+/**
+ * Gate middleware that requires at least one of the specified portals to be enabled.
+ */
+export const requireAnyPortal = (portalKeys: PortalKey[]) => {
+  return async (req: TenantRequest, res: Response, next: NextFunction): Promise<void> => {
+    if (req.method === 'OPTIONS' || req.user?.role === UserRole.SUPERADMIN) {
+      return next();
+    }
+
+    try {
+      let tenant = (req as any).tenant;
+      if (!tenant) {
+        const hotelIdStr = extractHotelId(req);
+        if (!hotelIdStr || !Types.ObjectId.isValid(hotelIdStr)) {
+          res.status(403).json({
+            success: false,
+            errorCode: 'TENANT_REQUIRED',
+            message: `Tenant identification is required to access this resource.`,
+          });
+          return;
+        }
+
+        tenant = await Tenant.findById(new Types.ObjectId(hotelIdStr));
+        if (!tenant) {
+          res.status(404).json({
+            success: false,
+            errorCode: 'TENANT_NOT_FOUND',
+            message: 'Target hotel property tenant could not be found.',
+          });
+          return;
+        }
+
+        (req as any).tenant = tenant;
+        req.hotelId = tenant._id;
+      }
+
+      if (tenant.status === 'SUSPENDED') {
+        res.status(403).json({
+          success: false,
+          errorCode: 'TENANT_SUSPENDED',
+          message: 'This hotel tenant has been suspended by the platform administrator. Access blocked.',
+        });
+        return;
+      }
+
+      const portals: string[] = Array.isArray(tenant.enabledPortals) ? tenant.enabledPortals : [];
+      const isAllowed = portalKeys.some((k) => portals.includes(k));
+
+      if (!isAllowed) {
+        res.status(403).json({
+          success: false,
+          errorCode: 'PORTAL_NOT_SUBSCRIBED',
+          message: `Access requires one of the following subscribed portals: [${portalKeys.join(', ')}].`,
         });
         return;
       }

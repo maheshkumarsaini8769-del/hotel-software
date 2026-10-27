@@ -26,7 +26,7 @@ import {
   acknowledgeKitchenBuzzer,
 } from '../controllers/posController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
-import { requirePortal } from '../middlewares/portalGate';
+import { requirePortal, requireAnyPortal } from '../middlewares/portalGate';
 import { TenantRequest } from '../types';
 import { isDevAuthBypassEnabled } from '../config/security';
 
@@ -94,33 +94,33 @@ router.use('/kitchen', requirePortal('kds'));
 router.get('/kds/stations', authenticatePosTerminal, getKitchenStations);
 router.get('/kds/orders', authenticatePosTerminal, getKdsOrders);
 router.get('/kds-orders', requirePortal('kds'), authenticatePosTerminal, getKdsOrders);
-router.get('/orders/recent', authenticatePosTerminal, getRecentOrders);
-router.patch('/kds/order/:orderId/status', authenticatePosTerminal, updateKDSOrderStatus);
-router.patch('/orders/:orderId/status', authenticatePosTerminal, updateKDSOrderStatus);
-router.patch('/orders/:orderId/serve', authenticatePosTerminal, (req, res) => {
+router.get('/orders/recent', requirePortal('kds'), authenticatePosTerminal, getRecentOrders);
+router.patch('/kds/order/:orderId/status', requirePortal('kds'), authenticatePosTerminal, updateKDSOrderStatus);
+router.patch('/orders/:orderId/status', requirePortal('kds'), authenticatePosTerminal, updateKDSOrderStatus);
+router.patch('/orders/:orderId/serve', requireAnyPortal(['kds', 'waiter']), authenticatePosTerminal, (req, res) => {
   req.body = { ...req.body, status: 'SERVED' };
   return updateKDSOrderStatus(req, res);
 });
-router.patch('/kds/orders/:orderId/items/:itemIndex/acknowledge-allergen', authenticatePosTerminal, acknowledgeKdsItemAllergen);
-router.patch('/kds/orders/:orderId/acknowledge-all-allergens', authenticatePosTerminal, acknowledgeAllKdsOrderAllergens);
-router.get('/table-session/active', authenticatePosTerminal, getActiveTableSession);
-router.get('/tables', authenticatePosTerminal, getDiningTables);
-router.patch('/tables/:tableId/status', authenticatePosTerminal, updateTableStatus);
-router.post('/tables/:tableId/seat', authenticatePosTerminal, seatTableWalkIn);
-router.post('/tables/merge', authenticatePosTerminal, mergeDiningTables);
-router.post('/tables/unmerge', authenticatePosTerminal, splitDiningTables);
-router.post('/tables/split', authenticatePosTerminal, splitDiningTables);
-router.get('/menu/86-items', authenticatePosTerminal, get86MenuItems);
-router.post('/menu/batch-86', authenticatePosTerminal, batchToggleItem86);
-router.patch('/menu/:itemId/toggle-86', authenticatePosTerminal, toggleItem86);
+router.patch('/kds/orders/:orderId/items/:itemIndex/acknowledge-allergen', requirePortal('kds'), authenticatePosTerminal, acknowledgeKdsItemAllergen);
+router.patch('/kds/orders/:orderId/acknowledge-all-allergens', requirePortal('kds'), authenticatePosTerminal, acknowledgeAllKdsOrderAllergens);
+router.get('/table-session/active', requireAnyPortal(['waiter', 'cashier']), authenticatePosTerminal, getActiveTableSession);
+router.get('/tables', requireAnyPortal(['waiter', 'cashier']), authenticatePosTerminal, getDiningTables);
+router.patch('/tables/:tableId/status', requireAnyPortal(['waiter', 'cashier']), authenticatePosTerminal, updateTableStatus);
+router.post('/tables/:tableId/seat', requireAnyPortal(['waiter', 'cashier']), authenticatePosTerminal, seatTableWalkIn);
+router.post('/tables/merge', requireAnyPortal(['waiter', 'cashier']), authenticatePosTerminal, mergeDiningTables);
+router.post('/tables/unmerge', requireAnyPortal(['waiter', 'cashier']), authenticatePosTerminal, splitDiningTables);
+router.post('/tables/split', requireAnyPortal(['waiter', 'cashier']), authenticatePosTerminal, splitDiningTables);
+router.get('/menu/86-items', requirePortal('kds'), authenticatePosTerminal, get86MenuItems);
+router.post('/menu/batch-86', requirePortal('kds'), authenticatePosTerminal, batchToggleItem86);
+router.patch('/menu/:itemId/toggle-86', requirePortal('kds'), authenticatePosTerminal, toggleItem86);
 
 // Kitchen Intercom & Waiter Call Buzzer routes
-router.post('/kds/buzzer', postKitchenBuzzer);
-router.post('/kitchen/buzzer', postKitchenBuzzer);
-router.get('/kds/buzzers', getKitchenBuzzers);
-router.get('/kitchen/buzzers', getKitchenBuzzers);
-router.patch('/kds/buzzer/:id/acknowledge', acknowledgeKitchenBuzzer);
-router.patch('/kitchen/buzzer/:id/acknowledge', acknowledgeKitchenBuzzer);
+router.post('/kds/buzzer', requirePortal('kds'), postKitchenBuzzer);
+router.post('/kitchen/buzzer', requirePortal('kds'), postKitchenBuzzer);
+router.get('/kds/buzzers', requirePortal('kds'), getKitchenBuzzers);
+router.get('/kitchen/buzzers', requirePortal('kds'), getKitchenBuzzers);
+router.patch('/kds/buzzer/:id/acknowledge', requirePortal('kds'), acknowledgeKitchenBuzzer);
+router.patch('/kitchen/buzzer/:id/acknowledge', requirePortal('kds'), acknowledgeKitchenBuzzer);
 
 export default router;
 

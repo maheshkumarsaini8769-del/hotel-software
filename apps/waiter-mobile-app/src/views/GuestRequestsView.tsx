@@ -102,7 +102,7 @@ export const GuestRequestsView: React.FC<GuestRequestsViewProps> = ({
       </div>
 
       {/* Requests List */}
-      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-24 lg:pb-6">
+      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-32 lg:pb-8">
         {requests.length === 0 ? (
           <div className={`h-64 flex flex-col items-center justify-center rounded-2xl border text-center p-6 ${
             isDark ? 'bg-[#121520] border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600 shadow-2xs'

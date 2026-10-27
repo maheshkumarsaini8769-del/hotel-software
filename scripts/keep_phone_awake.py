@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
 Phone Screen Keep-Alive Service
-- Gently wiggles the mobile screen every 9 minutes (540s) so it doesn't sleep/lock.
-- Monitors hardware input events (getevent): if any physical touch or button press
-  occurs, it stops immediately.
+- Wiggles the mobile screen after 9 minutes (540s) of no user activity so the screen never turns off.
+- If user activity/halchal (touch, button) is detected, the 9-minute idle timer resets automatically.
+- Once wiggled, waits another 9 minutes.
+- If user manually locks/turns off the phone (power button), the service gracefully exits.
 """
 
 import argparse
@@ -76,7 +77,7 @@ def wiggle_screen(device: str, width: int = 1080, height: int = 2392):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Keep mobile screen alive every N minutes")
+    parser = argparse.ArgumentParser(description="Keep mobile screen alive after 9 minutes of inactivity")
     parser.add_argument("--interval", type=int, default=540, help="Interval in seconds (default: 540 = 9 minutes)")
     parser.add_argument("--device", type=str, default="", help="ADB device ID")
     parser.add_argument("--log-file", type=str, default=LOG_FILE_DEFAULT, help="Log file path")
@@ -84,7 +85,6 @@ def main():
     args = parser.parse_args()
 
     log_path = args.log_file
-    # Clear / truncate or init log
     with open(log_path, "w", encoding="utf-8") as f:
         f.write(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Phone Keep-Alive service initializing...\n")
 
@@ -114,17 +114,17 @@ def main():
 
     # Check screen awake
     if not is_screen_awake(device):
-        log("Screen is currently off/asleep. Turning screen ON...", log_path)
+        log("Screen band thi. Screen ko WAKEUP (ON) kiya ja raha hai...", log_path)
         subprocess.run(["adb", "-s", device, "shell", "input", "keyevent", "KEYCODE_WAKEUP"])
         time.sleep(1)
 
-    # Start physical event listener after initial wiggle
-    # Initial wiggle
+    # Initial wiggle to start fresh
     if not args.no_initial_wiggle:
         wiggle_screen(device, width, height)
         time.sleep(0.5)
-        log("Initial screen wiggle performed. Screen timeout timer reset.", log_path)
+        log("Initial screen wiggle done. Screen timeout timer reset.", log_path)
 
+    # Listen to hardware input events
     getevent_cmd = ["adb", "-s", device, "shell", "getevent", "-q"]
     getevent_proc = subprocess.Popen(
         getevent_cmd,
@@ -152,15 +152,17 @@ def main():
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
-    last_wiggle = time.time()
+    last_activity = time.time()
+    last_health_check = time.time()
+    last_touch_log = 0.0
+    is_wiggling = False
+
+    interval_min = args.interval // 60 if args.interval >= 60 else args.interval
     log(
-        f"Keep-alive active. Har {args.interval // 60} minute ({args.interval}s) baad screen ko hela diya jayega. "
-        f"Phone me physical touch/button press hote hi script turant bnd ho jayegi.",
+        f"Keep-alive ON ho gaya hai. Agar {interval_min} minute tak mobile me koi halchal nahi hoti toh screen ko hela diya jayega, "
+        f"fir agle {interval_min} minute wait karega. Phone screen off nahi hone dega.",
         log_path,
     )
-
-    last_health_check = time.time()
-    is_wiggling = False
 
     while True:
         try:
@@ -169,43 +171,75 @@ def main():
             if rlist and not is_wiggling:
                 line = getevent_proc.stdout.readline()
                 if not line:
-                    log("Device connection closed or getevent stopped. Exiting.", log_path)
-                    break
-                log("⚡ USER WORK DETECTED ON PHONE! (Touch screen ya button press hua).", log_path)
-                log("Hukumat/Instruction ke anusar script turant bnd ki ja rahi hai. (Stopping service).", log_path)
-                break
+                    log("Device connection dropped or getevent stopped. Waiting for device reconnection...", log_path)
+                    try:
+                        getevent_proc.kill()
+                    except Exception:
+                        pass
+                    time.sleep(2)
+                    try:
+                        subprocess.run(["adb", "wait-for-device"], timeout=60)
+                        getevent_proc = subprocess.Popen(
+                            getevent_cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                        )
+                        last_activity = time.time()
+                        log("Device reconnected successfully! Resuming keep-alive.", log_path)
+                        continue
+                    except Exception as err:
+                        log(f"Reconnection failed: {err}. Exiting.", log_path)
+                        break
+
+                # Drain burst events so we don't process every sub-packet of a single touch
+                time.sleep(0.05)
+                while True:
+                    burst, _, _ = select.select([getevent_proc.stdout], [], [], 0.05)
+                    if burst:
+                        getevent_proc.stdout.readline()
+                    else:
+                        break
+
+                now = time.time()
+                # Rate-limit touch logging to once every 10 seconds so log doesn't get flooded
+                if now - last_touch_log > 10:
+                    log(f"📱 User halchal detect hui (phone use hua). {interval_min}-minute countdown reset ho gaya.", log_path)
+                    last_touch_log = now
+
+                last_activity = now
 
             now = time.time()
-            if now - last_wiggle >= args.interval:
-                log(f"⏰ {args.interval // 60} minute ho gaye hain. Screen ko halka sa hela rahe hain...", log_path)
+
+            # Health check every 15 seconds: ensure screen stays awake
+            if now - last_health_check >= 15:
+                last_health_check = now
+                if not is_screen_awake(device):
+                    log("Screen off detect hui! Screen ko wapas ON (Wake Up) kiya ja raha hai...", log_path)
+                    subprocess.run(["adb", "-s", device, "shell", "input", "keyevent", "KEYCODE_WAKEUP"])
+                    time.sleep(0.5)
+                    wiggle_screen(device, width, height)
+                    last_activity = time.time()
+                    log("Screen wake up aur wiggle successful. 9-min timer reset.", log_path)
+
+            # Check if interval elapsed without any halchal
+            idle_time = now - last_activity
+            if idle_time >= args.interval:
+                log(f"⏰ {interval_min} minute se koi halchal nahi hui. Screen ko halka sa hela rahe hain taaki screen off na ho...", log_path)
                 is_wiggling = True
                 wiggle_screen(device, width, height)
-                time.sleep(0.6)
-                # Flush any generated events from our own wiggle
+                time.sleep(0.5)
+
+                # Flush any events generated during wiggle
                 while True:
                     flushed, _, _ = select.select([getevent_proc.stdout], [], [], 0.1)
                     if flushed:
                         getevent_proc.stdout.readline()
                     else:
                         break
+
                 is_wiggling = False
-                last_wiggle = time.time()
-                log("Screen timeout reset successfully.", log_path)
-
-            # Health check every 20 seconds
-            if now - last_health_check >= 20:
-                last_health_check = now
-                if not is_screen_awake(device):
-                    log("Screen turned off (power button pressed). Stopping service.", log_path)
-                    break
-
-            # Time to wiggle screen
-            elapsed = now - last_wiggle
-            if elapsed >= args.interval:
-                log(f"⏰ {args.interval // 60} minutes ho gaye. Screen ko hela rahe hain taaki screen off na ho...", log_path)
-                wiggle_screen(device, width, height)
-                last_wiggle = time.time()
-                log(f"Screen wiggled successfully! Agli baar {args.interval // 60} min baad check hoga.", log_path)
+                last_activity = time.time()
+                log(f"Screen hela di gayi hai! Ab agle {interval_min} minute wait karenge.", log_path)
 
         except KeyboardInterrupt:
             break

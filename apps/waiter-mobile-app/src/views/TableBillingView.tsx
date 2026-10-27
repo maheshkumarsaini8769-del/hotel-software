@@ -271,7 +271,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
       </div>
 
       {/* Main 2-column workstation */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-5 overflow-y-auto pr-1 custom-scrollbar pb-24 lg:pb-6">
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-5 overflow-y-auto pr-1 custom-scrollbar pb-32 lg:pb-8">
         {/* Left Column: Invoice Sheet (7 cols) */}
         <div
           className={`md:col-span-6 lg:col-span-7 p-4 sm:p-6 rounded-2xl border space-y-4 ${

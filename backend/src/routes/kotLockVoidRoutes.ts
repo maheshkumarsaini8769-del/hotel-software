@@ -5,6 +5,7 @@ import {
   getDailyVoidSummary,
 } from '../controllers/kotLockVoidController';
 import { authenticateJWT, requireRole } from '../middlewares/auth';
+import { requireAnyPortal } from '../middlewares/portalGate';
 import { UserRole } from '../types';
 
 const router = Router();
@@ -13,6 +14,7 @@ const router = Router();
 router.post(
   '/item',
   authenticateJWT,
+  requireAnyPortal(['waiter', 'cashier', 'admin']),
   requireRole([
     UserRole.WAITER,
     UserRole.CASHIER,

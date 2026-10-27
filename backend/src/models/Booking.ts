@@ -15,6 +15,7 @@ export enum BookingMode {
 
 export enum BookingStatus {
   CONFIRMED = 'CONFIRMED',
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
   CHECKED_IN = 'CHECKED_IN',
   CHECKED_OUT = 'CHECKED_OUT',
   CANCELLED = 'CANCELLED',
@@ -31,6 +32,9 @@ export interface IBooking extends Document {
   idProofType?: string;
   idProofNumber?: string;
   idProofDocumentUrl?: string;
+  bookingLocation?: 'HOTEL_RADIUS' | 'REMOTE_HOME';
+  receptionApprovedAt?: Date;
+  receptionApprovedBy?: string;
   checkInDate: Date;
   checkOutDate: Date;
   bookingMode: BookingMode;
@@ -64,6 +68,9 @@ const BookingSchema = new Schema<IBooking>(
     idProofType: { type: String },
     idProofNumber: { type: String },
     idProofDocumentUrl: { type: String },
+    bookingLocation: { type: String, enum: ['HOTEL_RADIUS', 'REMOTE_HOME'], default: 'HOTEL_RADIUS' },
+    receptionApprovedAt: { type: Date },
+    receptionApprovedBy: { type: String },
     checkInDate: { type: Date, required: true, index: true },
     checkOutDate: { type: Date, required: true, index: true },
     bookingMode: {

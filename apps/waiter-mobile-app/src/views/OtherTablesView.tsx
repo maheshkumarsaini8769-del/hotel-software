@@ -210,7 +210,7 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
       </div>
 
       {/* Other Tables Grid */}
-      <div className="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pr-1 custom-scrollbar pb-24 lg:pb-6">
+      <div className="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pr-1 custom-scrollbar pb-32 lg:pb-8">
         {filteredOtherTables.map((t) => {
           const isOccupied = t.status === 'Occupied' || t.status === 'My Table';
           const isAvailable = t.status === 'Available';

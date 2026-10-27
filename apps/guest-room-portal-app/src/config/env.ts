@@ -57,14 +57,15 @@ function normalizeApiOrigin(value?: string): string {
 }
 
 const configuredApiOrigin = normalizeApiOrigin(readString('VITE_API_BASE_URL'));
-const apiOrigin =
-  configuredApiOrigin ||
-  (isLoopbackHost(browserHost) ? 'http://localhost:5000' : '');
+// On LAN IP (e.g. 10.208.156.216 or 192.168.x.x), fallback to port 5000 on that same host so API calls don't collapse to ''
+const fallbackApiOrigin = isLoopbackHost(browserHost)
+  ? 'http://localhost:5000'
+  : (browserHost ? `http://${browserHost}:5000` : 'http://localhost:5000');
+
+const apiOrigin = configuredApiOrigin || fallbackApiOrigin;
 
 const configuredSocketUrl = trimTrailingSlash(readString('VITE_SOCKET_URL'));
-const socketUrl =
-  configuredSocketUrl ||
-  (isLoopbackHost(browserHost) ? 'http://localhost:5000' : browserOrigin);
+const socketUrl = configuredSocketUrl || fallbackApiOrigin;
 
 function resolvePortalUrl(portal: PortalKey): string {
   const upper = portal.toUpperCase();
@@ -72,12 +73,8 @@ function resolvePortalUrl(portal: PortalKey): string {
     readString(`VITE_PORTAL_${upper}_URL`) || readString(`VITE_PORTAL_${upper}`);
   if (configured) return trimTrailingSlash(configured);
 
-  // Local emulator / dev servers keep the familiar 3001-3008 ports. A deployed
-  // build must never silently point at the operator's laptop.
-  if (isLoopbackHost(browserHost)) {
-    return `http://localhost:${LOCAL_PORTS[portal]}`;
-  }
-  return browserOrigin;
+  const targetHost = browserHost || 'localhost';
+  return `http://${targetHost}:${LOCAL_PORTS[portal]}`;
 }
 
 export function getPortalUrl(portal: PortalKey, path = ''): string {

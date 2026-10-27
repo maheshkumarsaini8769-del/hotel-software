@@ -94,6 +94,32 @@ export const WaiterAppRoot: React.FC = () => {
   const [notSubscribed, setNotSubscribed] = useState<boolean>(false);
   const [waiterSession, setWaiterSession] = useState<WaiterStaffProfile | null>(() => {
     try {
+      if (typeof window !== 'undefined') {
+        const q = new URLSearchParams(window.location.search);
+        const qToken = q.get('token');
+        const qStaffId = q.get('staffId');
+        const qStaffName = q.get('staffName');
+        const qHotelId = q.get('hotelId');
+        if (qToken && qStaffId) {
+          localStorage.setItem('spicehub_token', qToken);
+          if (qHotelId) localStorage.setItem('spicehub_hotel_id', qHotelId);
+          const staff: WaiterStaffProfile = {
+            staffId: qStaffId,
+            name: qStaffName ? decodeURIComponent(qStaffName) : 'Staff Member',
+            role: (q.get('staffRole') as any) || 'Captain',
+            avatar: q.get('avatar') ? decodeURIComponent(q.get('avatar')!) : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+            assignedSection: q.get('section') ? decodeURIComponent(q.get('section')!) : 'Indoor AC Dining Hall',
+            assignedTableStart: Number(q.get('tableStart')) || 1,
+            assignedTableEnd: Number(q.get('tableEnd')) || 6,
+            assignedTableCount: (Number(q.get('tableEnd')) || 6) - (Number(q.get('tableStart')) || 1) + 1,
+            shift: q.get('shift') ? decodeURIComponent(q.get('shift')!) : 'Morning Shift',
+            permissions: ['KOT Punching', 'Food Pickup & Serving', 'Table Transfer', 'Bill Settle Request', 'Guest Calls'],
+          };
+          persistWaiterSession(staff);
+          return staff;
+        }
+      }
+
       const saved = localStorage.getItem('spicehub_waiter_session');
       if (saved) {
         let staff: WaiterStaffProfile = { ...JSON.parse(saved), pin: '' };

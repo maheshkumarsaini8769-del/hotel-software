@@ -163,7 +163,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       </div>
 
       {/* Notifications List */}
-      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-2.5 pb-24 lg:pb-6">
+      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-2.5 pb-32 lg:pb-8">
         {filtered.length === 0 ? (
           <div className="py-16 text-center text-slate-400 text-sm">
             No notifications in this filter category.

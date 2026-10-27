@@ -52,14 +52,18 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
 
     // Verify QR token if table has a registered qrTokenHash
     if (table.qrTokenHash) {
+      const isDevBypass = process.env.NODE_ENV !== 'production' && isDevAuthBypassEnabled();
       if (!token) {
-        res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Missing required QR security token' });
-        return;
-      }
-      const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
-      if (tokenHash !== table.qrTokenHash && String(token) !== table.qrTokenHash) {
-        res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Invalid or forged QR token' });
-        return;
+        if (!isDevBypass) {
+          res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Missing required QR security token' });
+          return;
+        }
+      } else {
+        const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
+        if (tokenHash !== table.qrTokenHash && String(token) !== table.qrTokenHash && !isDevBypass) {
+          res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Invalid or forged QR token' });
+          return;
+        }
       }
     }
 
@@ -319,19 +323,25 @@ export const getTableSessionOrders = async (req: Request, res: Response): Promis
     let querySessionId: string = tableSessionId;
 
     let tableDoc: any = null;
+    const rawHotelId = (req.headers['x-hotel-id'] as string) || (typeof req.query.hotelId === 'string' ? req.query.hotelId : '') || (req as any).hotelId;
+    const hotelScope = (rawHotelId && Types.ObjectId.isValid(String(rawHotelId)))
+      ? { hotelId: new Types.ObjectId(String(rawHotelId)) }
+      : {};
+
     if (!querySessionId || !Types.ObjectId.isValid(querySessionId)) {
       const rawTable = (typeof req.query.tableNumber === 'string' ? req.query.tableNumber : '') || (typeof req.query.table === 'string' ? req.query.table : '') || 'T-04';
       const numOnly = rawTable.replace(/[^0-9]/g, '');
       const normalizedT = numOnly ? `T-${numOnly.padStart(2, '0')}` : rawTable;
 
       tableDoc = await DiningTable.findOne({
+        ...hotelScope,
         $or: [
           { tableNumber: rawTable },
           { tableNumber: normalizedT },
           { tableNumber: numOnly ? `T-${numOnly}` : rawTable },
           { tableNumber: `Table ${numOnly}` },
         ],
-      });
+      }).sort({ updatedAt: -1 });
 
       if (tableDoc && tableDoc.activeSessionId) {
         querySessionId = tableDoc.activeSessionId.toString();
@@ -563,6 +573,17 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
         res.status(400).json({ success: false, errorCode: 'INVALID_QUANTITY', message: 'Item quantity must be at least 1' });
         return;
       }
+    }
+
+    // Location Proximity Guard: Verify order is placed on-premises within hotel grounds
+    const customerLocation = req.body.customerLocation;
+    if (customerLocation && customerLocation.isRemote === true && !customerLocation.allowRemoteOverride) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'OUT_OF_BOUNDS_LOCATION',
+        message: 'Location verification failed: Food orders are restricted to guests physically on-site within hotel premises.',
+      });
+      return;
     }
 
     // Check if duplicate submission

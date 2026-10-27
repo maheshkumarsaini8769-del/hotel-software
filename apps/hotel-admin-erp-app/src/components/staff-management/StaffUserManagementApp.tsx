@@ -62,6 +62,8 @@ export interface HotelStaffMember {
   isActive: boolean;
   avatar?: string;
   createdAt?: string;
+  pinApprovedByAdmin?: boolean;
+  pinStatus?: 'NONE' | 'ACTIVE' | 'PENDING_APPROVAL';
 }
 
 interface StaffUserManagementAppProps {
@@ -120,6 +122,48 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
   const [search, setSearch] = useState('');
   const [activeRoleFilter, setActiveRoleFilter] = useState<'ALL' | StaffRoleType>('ALL');
   const [toast, setToast] = useState<string | null>(null);
+
+  // Subscribed portals for this hotel property (enforced from Super Admin subscription)
+  const [enabledPortals, setEnabledPortals] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('spicehub_enabled_portals');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'];
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const stored = localStorage.getItem('spicehub_enabled_portals');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setEnabledPortals(parsed);
+        }
+      }
+    } catch {}
+
+    async function loadHotelPortals() {
+      try {
+        const res = await apiFetch('/api/v1/auth/active-hotels');
+        const json = await res.json().catch(() => null);
+        if (json?.success && Array.isArray(json.data) && isMounted) {
+          const current = json.data.find((h: any) => h.id === hotelId || h.slug === hotelId);
+          if (current?.enabledPortals && Array.isArray(current.enabledPortals)) {
+            setEnabledPortals(current.enabledPortals);
+            localStorage.setItem('spicehub_enabled_portals', JSON.stringify(current.enabledPortals));
+          }
+        }
+      } catch (err) {
+        console.warn('Could not refresh hotel enabledPortals:', err);
+      }
+    }
+    void loadHotelPortals();
+    return () => {
+      isMounted = false;
+    };
+  }, [hotelId]);
 
   // PIN visibility state map
   const [revealedPins, setRevealedPins] = useState<Record<string, boolean>>({});
@@ -335,6 +379,27 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
     }
   };
 
+  const handleApprovePin = async (id: string, staffName: string) => {
+    try {
+      const res = await apiFetch(`/hotel-staff/${id}/approve-pin`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'APPROVE' }),
+      });
+      const body = await res.json();
+      if (res.ok && body.success) {
+        showToast(`✓ PIN approved for ${staffName}! Status is now ACTIVE.`);
+        setStaffList((prev) =>
+          prev.map((s) => (s.id === id ? { ...s, pinStatus: 'ACTIVE', pinApprovedByAdmin: true } : s))
+        );
+      } else {
+        showToast(body.message || 'Failed to approve PIN');
+      }
+    } catch (err: any) {
+      showToast(`Error approving PIN: ${err.message}`);
+    }
+  };
+
   const togglePinReveal = (id: string) => {
     setRevealedPins((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -375,7 +440,19 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
         </div>
 
         <button
-          onClick={() => setIsCreateModalOpen(true)}
+          data-testid="open-create-staff-modal-btn"
+          onClick={() => {
+            const allowed = [
+              { role: 'WAITER' as const, portal: 'waiter' },
+              { role: 'CHEF' as const, portal: 'kds' },
+              { role: 'CASHIER' as const, portal: 'cashier' },
+              { role: 'RECEPTIONIST' as const, portal: 'reception' },
+            ].filter((r) => enabledPortals.includes(r.portal));
+            if (allowed.length > 0 && !allowed.some((r) => r.role === selectedRole)) {
+              setSelectedRole(allowed[0].role);
+            }
+            setIsCreateModalOpen(true);
+          }}
           className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition active:scale-98"
         >
           <UserPlus className="w-4 h-4" />
@@ -386,82 +463,99 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
       {/* 2. Role KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Waiters */}
-        <div
-          onClick={() => setActiveRoleFilter('WAITER')}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-orange-500/50 ${
-            activeRoleFilter === 'WAITER' ? 'ring-2 ring-orange-500' : ''
-          } ${isDark ? 'bg-[#121622] border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}
-        >
-          <div className="flex items-center justify-between text-orange-500 font-bold text-xs uppercase tracking-wider">
-            <span>Waiters / Captains</span>
-            <UtensilsCrossed className="w-4 h-4" />
+        {enabledPortals.includes('waiter') && (
+          <div
+            onClick={() => setActiveRoleFilter('WAITER')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-orange-500/50 ${
+              activeRoleFilter === 'WAITER' ? 'ring-2 ring-orange-500' : ''
+            } ${isDark ? 'bg-[#121622] border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}
+          >
+            <div className="flex items-center justify-between text-orange-500 font-bold text-xs uppercase tracking-wider">
+              <span>Waiters / Captains</span>
+              <UtensilsCrossed className="w-4 h-4" />
+            </div>
+            <div className="text-2xl font-black mt-2 text-orange-500">{countWaiters}</div>
+            <div className="text-[11px] text-slate-400 mt-0.5 flex items-center justify-between">
+              <span>Floor & KOT Mobile</span>
+              <span className="font-bold text-emerald-400">Handheld App</span>
+            </div>
           </div>
-          <div className="text-2xl font-black mt-2 text-orange-500">{countWaiters}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5 flex items-center justify-between">
-            <span>Floor & KOT Mobile App</span>
-            <span className="font-bold text-emerald-400">Port 3002</span>
-          </div>
-        </div>
+        )}
 
         {/* Kitchen Chefs */}
-        <div
-          onClick={() => setActiveRoleFilter('CHEF')}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-rose-500/50 ${
-            activeRoleFilter === 'CHEF' ? 'ring-2 ring-rose-500' : ''
-          } ${isDark ? 'bg-[#121622] border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}
-        >
-          <div className="flex items-center justify-between text-rose-500 font-bold text-xs uppercase tracking-wider">
-            <span>Kitchen Chefs</span>
-            <ChefHat className="w-4 h-4" />
+        {enabledPortals.includes('kds') && (
+          <div
+            onClick={() => setActiveRoleFilter('CHEF')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-rose-500/50 ${
+              activeRoleFilter === 'CHEF' ? 'ring-2 ring-rose-500' : ''
+            } ${isDark ? 'bg-[#121622] border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}
+          >
+            <div className="flex items-center justify-between text-rose-500 font-bold text-xs uppercase tracking-wider">
+              <span>Kitchen Chefs</span>
+              <ChefHat className="w-4 h-4" />
+            </div>
+            <div className="text-2xl font-black mt-2 text-rose-500">{countChefs}</div>
+            <div className="text-[11px] text-slate-400 mt-0.5 flex items-center justify-between">
+              <span>Pass Stations</span>
+              <span className="font-bold text-emerald-400">KDS Screen</span>
+            </div>
           </div>
-          <div className="text-2xl font-black mt-2 text-rose-500">{countChefs}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5 flex items-center justify-between">
-            <span>KDS Pass Terminals</span>
-            <span className="font-bold text-emerald-400">Port 3003</span>
-          </div>
-        </div>
+        )}
 
         {/* Cashiers */}
-        <div
-          onClick={() => setActiveRoleFilter('CASHIER')}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-blue-500/50 ${
-            activeRoleFilter === 'CASHIER' ? 'ring-2 ring-blue-500' : ''
-          } ${isDark ? 'bg-[#121622] border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}
-        >
-          <div className="flex items-center justify-between text-blue-500 font-bold text-xs uppercase tracking-wider">
-            <span>Cashiers (Billing)</span>
-            <CreditCard className="w-4 h-4" />
+        {enabledPortals.includes('cashier') && (
+          <div
+            onClick={() => setActiveRoleFilter('CASHIER')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-blue-500/50 ${
+              activeRoleFilter === 'CASHIER' ? 'ring-2 ring-blue-500' : ''
+            } ${isDark ? 'bg-[#121622] border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}
+          >
+            <div className="flex items-center justify-between text-blue-500 font-bold text-xs uppercase tracking-wider">
+              <span>Cashiers (Billing)</span>
+              <CreditCard className="w-4 h-4" />
+            </div>
+            <div className="text-2xl font-black mt-2 text-blue-500">{countCashiers}</div>
+            <div className="text-[11px] text-slate-400 mt-0.5 flex items-center justify-between">
+              <span>Billing Counter</span>
+              <span className="font-bold text-emerald-400">Cashier POS</span>
+            </div>
           </div>
-          <div className="text-2xl font-black mt-2 text-blue-500">{countCashiers}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5 flex items-center justify-between">
-            <span>POS Settlement Terminal</span>
-            <span className="font-bold text-emerald-400">Port 3007</span>
-          </div>
-        </div>
+        )}
 
         {/* Receptionists */}
-        <div
-          onClick={() => setActiveRoleFilter('RECEPTIONIST')}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-purple-500/50 ${
-            activeRoleFilter === 'RECEPTIONIST' ? 'ring-2 ring-purple-500' : ''
-          } ${isDark ? 'bg-[#121622] border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}
-        >
-          <div className="flex items-center justify-between text-purple-500 font-bold text-xs uppercase tracking-wider">
-            <span>Reception Frontdesk</span>
-            <Building2 className="w-4 h-4" />
+        {enabledPortals.includes('reception') && (
+          <div
+            onClick={() => setActiveRoleFilter('RECEPTIONIST')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-purple-500/50 ${
+              activeRoleFilter === 'RECEPTIONIST' ? 'ring-2 ring-purple-500' : ''
+            } ${isDark ? 'bg-[#121622] border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}
+          >
+            <div className="flex items-center justify-between text-purple-500 font-bold text-xs uppercase tracking-wider">
+              <span>Reception Frontdesk</span>
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div className="text-2xl font-black mt-2 text-purple-500">{countReception}</div>
+            <div className="text-[11px] text-slate-400 mt-0.5 flex items-center justify-between">
+              <span>PMS Check-in</span>
+              <span className="font-bold text-emerald-400">Front Desk PMS</span>
+            </div>
           </div>
-          <div className="text-2xl font-black mt-2 text-purple-500">{countReception}</div>
-          <div className="text-[11px] text-slate-400 mt-0.5 flex items-center justify-between">
-            <span>PMS Room Check-in</span>
-            <span className="font-bold text-emerald-400">Port 3008</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* 3. Search and Role Filter Tabs */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 custom-scrollbar">
-          {(['ALL', 'WAITER', 'CHEF', 'CASHIER', 'RECEPTIONIST'] as const).map((r) => (
+          {(['ALL', 'WAITER', 'CHEF', 'CASHIER', 'RECEPTIONIST'] as const)
+            .filter((r) => {
+              if (r === 'ALL') return true;
+              if (r === 'WAITER') return enabledPortals.includes('waiter');
+              if (r === 'CHEF') return enabledPortals.includes('kds');
+              if (r === 'CASHIER') return enabledPortals.includes('cashier');
+              if (r === 'RECEPTIONIST') return enabledPortals.includes('reception');
+              return true;
+            })
+            .map((r) => (
             <button
               key={r}
               onClick={() => setActiveRoleFilter(r)}
@@ -648,23 +742,52 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                   </div>
 
                   {/* 4-Digit Access PIN Box */}
-                  <div className={`mt-2.5 p-2.5 rounded-xl border flex items-center justify-between ${
+                  <div className={`mt-2.5 p-2.5 rounded-xl border flex flex-col gap-2 ${
                     isDark ? 'bg-indigo-950/20 border-indigo-500/30' : 'bg-indigo-50/70 border-indigo-200'
                   }`}>
-                    <div className="flex items-center gap-2">
-                      <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
-                      <span className="text-[11px] font-bold text-indigo-400">Quick Access PIN:</span>
-                      <span className="font-black font-mono tracking-widest text-xs px-2 py-0.5 rounded bg-black/20">
-                        {isRevealed ? staff.pin : '••••'}
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
+                        <span className="text-[11px] font-bold text-indigo-400">Quick Access PIN:</span>
+                        <span className="font-black font-mono tracking-widest text-xs px-2 py-0.5 rounded bg-black/20">
+                          {isRevealed ? staff.pin : '••••'}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => togglePinReveal(staff.id)}
+                        className="text-indigo-400 hover:text-indigo-300 p-1 text-xs font-bold flex items-center gap-1"
+                      >
+                        {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        <span className="text-[10px]">{isRevealed ? 'Hide' : 'Reveal'}</span>
+                      </button>
                     </div>
-                    <button
-                      onClick={() => togglePinReveal(staff.id)}
-                      className="text-indigo-400 hover:text-indigo-300 p-1 text-xs font-bold flex items-center gap-1"
-                    >
-                      {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      <span className="text-[10px]">{isRevealed ? 'Hide' : 'Reveal'}</span>
-                    </button>
+
+                    {/* PIN Approval Status & Action */}
+                    <div className="flex items-center justify-between pt-1.5 border-t border-indigo-500/20">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-slate-400 font-semibold">PIN Status:</span>
+                        {staff.pinStatus === 'PENDING_APPROVAL' ? (
+                          <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse">
+                            ⏳ Pending Approval
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            ✓ Active
+                          </span>
+                        )}
+                      </div>
+                      {staff.pinStatus === 'PENDING_APPROVAL' && (
+                        <button
+                          type="button"
+                          data-testid={`approve-pin-btn-${staff.id}`}
+                          onClick={() => handleApprovePin(staff.id, staff.name)}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1 transition active:scale-95"
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Approve PIN</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -724,17 +847,20 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
-                    { role: 'WAITER', label: 'Waiter / Captain', icon: UtensilsCrossed, color: 'text-orange-400', border: 'border-orange-500' },
-                    { role: 'CHEF', label: 'Kitchen Chef', icon: ChefHat, color: 'text-rose-400', border: 'border-rose-500' },
-                    { role: 'CASHIER', label: 'Cashier (Billing)', icon: CreditCard, color: 'text-blue-400', border: 'border-blue-500' },
-                    { role: 'RECEPTIONIST', label: 'Reception Frontdesk', icon: Building2, color: 'text-purple-400', border: 'border-purple-500' },
-                  ].map((r) => {
+                    { role: 'WAITER' as const, label: 'Waiter / Captain', icon: UtensilsCrossed, color: 'text-orange-400', border: 'border-orange-500', portal: 'waiter' },
+                    { role: 'CHEF' as const, label: 'Kitchen Chef', icon: ChefHat, color: 'text-rose-400', border: 'border-rose-500', portal: 'kds' },
+                    { role: 'CASHIER' as const, label: 'Cashier (Billing)', icon: CreditCard, color: 'text-blue-400', border: 'border-blue-500', portal: 'cashier' },
+                    { role: 'RECEPTIONIST' as const, label: 'Reception Frontdesk', icon: Building2, color: 'text-purple-400', border: 'border-purple-500', portal: 'reception' },
+                  ]
+                    .filter((r) => enabledPortals.includes(r.portal))
+                    .map((r) => {
                     const Icon = r.icon;
                     const isSel = selectedRole === r.role;
                     return (
                       <button
                         key={r.role}
                         type="button"
+                        data-testid={`create-staff-role-${r.role.toLowerCase()}`}
                         onClick={() => setSelectedRole(r.role as StaffRoleType)}
                         className={`p-3 rounded-xl border text-left flex flex-col justify-between transition ${
                           isSel
@@ -757,6 +883,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                 <div>
                   <label className="text-xs font-bold text-slate-400 block mb-1">Full Staff Name *</label>
                   <input
+                    data-testid="create-staff-name-input"
                     type="text"
                     required
                     placeholder="e.g. Ramesh Kumar"
@@ -770,6 +897,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                 <div>
                   <label className="text-xs font-bold text-slate-400 block mb-1">Phone Number</label>
                   <input
+                    data-testid="create-staff-phone-input"
                     type="text"
                     placeholder="+91 98765 43210"
                     value={phone}
@@ -786,6 +914,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                 <div>
                   <label className="text-xs font-bold text-slate-400 block mb-1">4-Digit Access PIN *</label>
                   <input
+                    data-testid="create-staff-pin-input"
                     type="text"
                     maxLength={4}
                     required
@@ -1067,6 +1196,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                   Cancel
                 </button>
                 <button
+                  data-testid="create-staff-submit-btn"
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md transition active:scale-98"
                 >

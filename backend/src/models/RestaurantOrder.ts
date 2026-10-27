@@ -89,6 +89,9 @@ export interface IRestaurantOrder extends Document {
   isSweptToFolio?: boolean;
   sweptAt?: Date;
   sweptToFolioId?: Types.ObjectId;
+  waiterEtaMinutes?: number;
+  waiterMessage?: string;
+  waiterName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -173,6 +176,9 @@ const RestaurantOrderSchema = new Schema<IRestaurantOrder>(
     isSweptToFolio: { type: Boolean, default: false, index: true },
     sweptAt: { type: Date },
     sweptToFolioId: { type: Schema.Types.ObjectId, ref: 'MasterFolio', index: true },
+    waiterEtaMinutes: { type: Number },
+    waiterMessage: { type: String },
+    waiterName: { type: String },
   },
   { timestamps: true }
 );

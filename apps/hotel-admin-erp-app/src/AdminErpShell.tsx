@@ -295,11 +295,21 @@ export interface AdminErpShellProps {
 }
 
 export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }) => {
-  const [activeModule, setActiveModule] = useState<ErpModuleKey>(() => {
+  const [activeModule, setActiveModuleState] = useState<ErpModuleKey>(() => {
     const params = new URLSearchParams(window.location.search);
     const mod = params.get('module') as ErpModuleKey;
     return mod || 'DASHBOARD';
   });
+
+  const setActiveModule = useCallback((key: ErpModuleKey) => {
+    setActiveModuleState(key);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('module', key);
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+  }, []);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -310,7 +320,7 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
     };
     window.addEventListener('erp:set_module', handleSetModule);
     return () => window.removeEventListener('erp:set_module', handleSetModule);
-  }, []);
+  }, [setActiveModule]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [occupancyTab, setOccupancyTab] = useState<'ROOMS' | 'TABLES'>('ROOMS');
   const [searchQuery, setSearchQuery] = useState('');
@@ -339,7 +349,7 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
       const saved = localStorage.getItem('spicehub_erp_theme');
       if (saved === 'light' || saved === 'dark') return saved;
     }
-    return 'dark';
+    return 'light';
   });
 
   const toggleTheme = () => {
@@ -364,6 +374,40 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
   const matrixStore = MatrixStore.getInstance();
   const token = getStoredToken();
   const hotelId = getStoredHotelId();
+
+  const [propertyProfile, setPropertyProfile] = useState<{
+    name: string;
+    logoUrl?: string;
+    coverImageUrl?: string;
+    tagline?: string;
+  }>({
+    name: 'The Grand SpiceHub Palace & Resort',
+    logoUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=300&auto=format&fit=crop&q=80',
+    coverImageUrl: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1600&auto=format&fit=crop&q=80',
+    tagline: 'Luxury Heritage Hotel & Fine Dining Restaurant',
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadProfile = async () => {
+      try {
+        const res = await apiFetch('/restaurant-operations/info');
+        const json = await res.json().catch(() => null);
+        if (!cancelled && json?.success && json?.data) {
+          setPropertyProfile({
+            name: json.data.name || 'SpiceHub Hotel',
+            logoUrl: json.data.logoUrl || '',
+            coverImageUrl: json.data.coverImageUrl || '',
+            tagline: json.data.tagline || '',
+          });
+        }
+      } catch {}
+    };
+    loadProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const loadMatrix = async (startDate: string, days: number, roomTypeId?: string) => {
     matrixStore.setIsLoading(true);
@@ -1855,15 +1899,23 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
         {/* Brand Header */}
         <div className="h-16 px-4 flex items-center justify-between border-b border-slate-800/60">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 shrink-0 shadow-sm">
-              <Building2 className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl overflow-hidden border border-amber-500/30 bg-black flex items-center justify-center text-amber-400 shrink-0 shadow-sm">
+              {propertyProfile.logoUrl ? (
+                <img src={propertyProfile.logoUrl} alt={propertyProfile.name} className="w-full h-full object-cover" />
+              ) : (
+                <Building2 className="w-5 h-5 text-amber-400" />
+              )}
             </div>
             {!sidebarCollapsed && (
               <div className="truncate">
                 <div className="flex items-center gap-1.5">
-                  <span className={`font-bold text-base tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>SpiceHub</span>
+                  <span className={`font-bold text-sm tracking-tight truncate ${isDark ? 'text-white' : 'text-slate-900'}`} title={propertyProfile.name}>
+                    {propertyProfile.name}
+                  </span>
                 </div>
-                <div className="text-[10px] text-amber-400 font-semibold tracking-wide uppercase">Hotel Admin</div>
+                <div className="text-[10px] text-amber-400 font-semibold tracking-wide uppercase truncate">
+                  {propertyProfile.tagline || 'Hotel Admin'}
+                </div>
               </div>
             )}
           </div>
@@ -1974,6 +2026,20 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
 
           {/* Top Right Controls */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Live Property Identity Badge */}
+            <div className="hidden lg:flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs shadow-sm">
+              <div className="w-5 h-5 rounded-md overflow-hidden border border-amber-500/40 shrink-0 bg-black">
+                {propertyProfile.logoUrl ? (
+                  <img src={propertyProfile.logoUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <Building2 className="w-4 h-4 text-amber-400" />
+                )}
+              </div>
+              <span className="font-bold text-amber-300 max-w-[150px] truncate" title={propertyProfile.name}>
+                {propertyProfile.name}
+              </span>
+            </div>
+
             {/* Dedicated 19 Systems Master Navigator Hub Button */}
             <button
               onClick={() => setIsMasterDirectoryOpen(true)}

@@ -67,7 +67,23 @@ export const CustomerAppRoot: React.FC = () => {
   const [section, setSection] = useState<string>('Dining');
   const [tableSessionId, setTableSessionId] = useState<string>('');
   const [sessionToken, setSessionToken] = useState<string>('');
-  const [guestCount, setGuestCount] = useState<number>(2);
+  const [guestCount, setGuestCount] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('spicehub_customer_guest_count');
+      if (saved && Number(saved) > 0) return Number(saved);
+    } catch {}
+    return 2;
+  });
+  const [showPaxModal, setShowPaxModal] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const sp = new URLSearchParams(window.location.search);
+    const tbl = sp.get('table') || sp.get('tableNumber') || sp.get('tableId');
+    if (tbl) {
+      const alreadyConfirmed = localStorage.getItem(`spicehub_table_pax_set_${tbl}`);
+      return !alreadyConfirmed;
+    }
+    return false;
+  });
   const [waiterEnabled, setWaiterEnabled] = useState<boolean>(true);
   const [bootstrapError, setBootstrapError] = useState<string>('');
   const [isReady, setIsReady] = useState<boolean>(false);
@@ -128,10 +144,14 @@ export const CustomerAppRoot: React.FC = () => {
         }
 
         const d = qrBody.data;
-        setHotelId(String(d.hotelId || qHotelId));
-        setHotelName(d.hotelName || 'SpiceHub Hotel');
+        const qrHotelIdStr = String(d.hotelId || qHotelId);
+        const qrHotelNameStr = d.hotelName || 'SpiceHub Hotel';
+        const qrTableNumberStr = d.tableNumber || '';
+
+        setHotelId(qrHotelIdStr);
+        setHotelName(qrHotelNameStr);
         setTableId(String(d.tableId));
-        setTableNumber(d.tableNumber);
+        setTableNumber(qrTableNumberStr);
         setSection(d.section || 'Dining');
         setTableSessionId(String(d.sessionId));
         setSessionToken(String(d.sessionToken));
@@ -139,6 +159,15 @@ export const CustomerAppRoot: React.FC = () => {
         if (typeof d.waiterEnabled === 'boolean') {
           setWaiterEnabled(d.waiterEnabled);
         }
+
+        try {
+          localStorage.setItem('spicehub_customer_table', qrTableNumberStr);
+          localStorage.setItem('spicehub_customer_hotel', qrHotelNameStr);
+          localStorage.setItem('spicehub_customer_hotel_id', qrHotelIdStr);
+          if (qrTableNumberStr && !localStorage.getItem(`spicehub_table_pax_set_${qrTableNumberStr}`)) {
+            setShowPaxModal(true);
+          }
+        } catch {}
 
         if (d.sessionId) {
           await fetchSessionOrders(String(d.sessionId));
@@ -184,6 +213,19 @@ export const CustomerAppRoot: React.FC = () => {
       setTableId(matchedTable.id);
       setTableNumber(matchedTable.tableNumber);
       setSection(matchedTable.section || 'Indoor AC Dining');
+
+      try {
+        const storedHotelName = urlHotel || d.hotel?.name || 'SpiceHub Hotel';
+        const storedTableNumber = matchedTable.tableNumber || '';
+        localStorage.setItem('spicehub_customer_table', storedTableNumber);
+        localStorage.setItem('spicehub_customer_hotel', storedHotelName);
+        if (d.hotel?.id) {
+          localStorage.setItem('spicehub_customer_hotel_id', String(d.hotel.id));
+        }
+        if (storedTableNumber && !localStorage.getItem(`spicehub_table_pax_set_${storedTableNumber}`)) {
+          setShowPaxModal(true);
+        }
+      } catch {}
 
       if (d.session) {
         setTableSessionId(d.session.id);
@@ -388,6 +430,12 @@ export const CustomerAppRoot: React.FC = () => {
       })),
       cookingInstructions: instructions || '',
       idempotencyKey,
+      customerLocation: {
+        onPremises: true,
+        latitude: 26.9124,
+        longitude: 75.7873,
+        verifiedAt: new Date().toISOString(),
+      },
     };
 
     let serverOrderData: any = null;
@@ -599,6 +647,62 @@ export const CustomerAppRoot: React.FC = () => {
         currentLocationName={tableNumber ? `Table ${tableNumber}${paramFormat ? ` (${paramFormat})` : ''}` : undefined}
         destinationUrl={getPortalUrl('guest')}
       />
+
+      {/* Direct Camera / Chrome Scanner Pax Modal */}
+      {showPaxModal && (
+        <div data-testid="table-pax-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#141620] border border-amber-500/40 rounded-3xl max-w-sm w-full p-6 text-white shadow-2xl space-y-5">
+            <div className="text-center space-y-1">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl font-black mb-2 border border-amber-500/30">
+                👥
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                {hotelName} • Table {tableNumber || 'Dining'}
+              </span>
+              <h2 className="text-xl font-black text-white">Table pe kitne log hain?</h2>
+              <p className="text-xs text-slate-400">Select how many guests are seated with you</p>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2.5">
+              {[1, 2, 3, 4, 5, 6, 8, 10].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  data-testid={`pax-option-${num}`}
+                  onClick={() => {
+                    setGuestCount(num);
+                  }}
+                  className={`py-3 rounded-2xl font-black text-sm border transition flex flex-col items-center justify-center gap-0.5 ${
+                    guestCount === num
+                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/30'
+                      : 'bg-slate-900 border-slate-700 hover:border-amber-500/50 text-white'
+                  }`}
+                >
+                  <span className="text-base">{num}</span>
+                  <span className="text-[9px] font-bold opacity-75">{num === 1 ? 'Guest' : 'Guests'}</span>
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              data-testid="pax-confirm-btn"
+              onClick={() => {
+                setShowPaxModal(false);
+                if (tableNumber) {
+                  try {
+                    localStorage.setItem(`spicehub_table_pax_set_${tableNumber}`, String(guestCount || 2));
+                    localStorage.setItem('spicehub_customer_guest_count', String(guestCount || 2));
+                  } catch {}
+                }
+              }}
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm shadow-xl transition"
+            >
+              Continue to Menu ({guestCount || 2} Pax) ➔
+            </button>
+          </div>
+        </div>
+      )}
       {liveToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-bounce">
           <div

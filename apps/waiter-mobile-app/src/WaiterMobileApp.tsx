@@ -20,6 +20,7 @@ import {
   Search,
   Plus,
   ArrowRightLeft,
+  ArrowLeft,
   Printer,
   ChevronRight,
   ExternalLink,
@@ -1259,17 +1260,38 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
         <header className={`px-3 sm:px-5 py-2 sm:py-2.5 border-b flex items-center justify-between shrink-0 shadow-xs z-10 transition-colors ${
           isDark ? 'bg-[#10131d] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
         }`}>
-          {/* Left Header: Drawer Toggle + Mobile Brand + Desktop Search */}
+          {/* Left Header: Contextual Back or Waiter Profile Avatar + Mobile Brand + Desktop Search */}
           <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 mr-2 sm:mr-4">
-            <button
-              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-              className={`p-1.5 sm:p-2 rounded-xl lg:hidden transition shrink-0 ${
-                isDark ? 'text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700' : 'text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200'
-              }`}
-              title="Toggle Menu Drawer"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+            {activeSidebarItem !== 'Dashboard' ? (
+              <button
+                onClick={() => setActiveSidebarItem('Dashboard')}
+                className={`px-2.5 py-1.5 rounded-xl transition shrink-0 flex items-center gap-1.5 font-bold text-xs shadow-xs ${
+                  isDark
+                    ? 'text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30'
+                    : 'text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200'
+                }`}
+                title="Back to Dashboard"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="font-extrabold text-[11px]">Dashboard</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 shrink-0">
+                <img
+                  src={currentStaff.avatar}
+                  alt={currentStaff.name}
+                  className="w-8 h-8 rounded-full object-cover border-2 border-orange-500 shadow-xs"
+                />
+                <div className="hidden xs:flex flex-col">
+                  <span className={`text-xs font-black leading-tight truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    {currentStaff.name}
+                  </span>
+                  <span className="text-[10px] text-orange-500 font-bold leading-tight">
+                    {currentStaff.role}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Mobile Brand Title */}
             <div className="flex sm:hidden items-center gap-1.5 truncate">
@@ -1294,6 +1316,16 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
           {/* Right Header Controls */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            {/* Desktop / Tablet Quick Take Order Button */}
+            <button
+              onClick={() => setIsPunchKotOpen(true)}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-black text-xs shadow-md shadow-orange-500/30 active:scale-95 transition"
+              title="Punch New Order (Quick KOT)"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>+ Take Order</span>
+            </button>
+
             {/* Mobile Search Toggle Icon */}
             <button
               onClick={() => setIsMobileSearchOpen((prev) => !prev)}
@@ -1555,7 +1587,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
         {/* Scrollable Main Workspace: 4 Columns (Responsive layout: stacks on mobile/tablet, 4 columns on desktop) */}
         {activeSidebarItem === 'Dashboard' && (
-          <div className="flex-1 flex flex-col overflow-y-auto min-h-0 px-3 sm:px-4 lg:px-5 pb-24 lg:pb-3 gap-3 custom-scrollbar">
+          <div className="flex-1 flex flex-col overflow-y-auto min-h-0 px-3 sm:px-4 lg:px-5 pb-32 lg:pb-6 gap-3 custom-scrollbar">
             {/* Mobile & Tablet KPI Cards (scrolls with content so it doesn't take 50% of screen height) */}
             <div className="lg:hidden shrink-0">
               {renderKpiCards(true)}
@@ -2726,51 +2758,62 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
       />
 
       {/* Mobile Bottom Navigation Bar (Thumb-friendly, hidden on lg+ screens) */}
-      <nav aria-label="Mobile Navigation" className={`fixed bottom-0 inset-x-0 z-30 lg:hidden border-t px-2 py-1.5 flex items-center justify-around shadow-lg transition-colors ${
-        isDark
-          ? 'bg-[#10131d]/95 backdrop-blur-md border-slate-800 text-slate-400'
-          : 'bg-white/95 backdrop-blur-md border-slate-200 text-slate-600'
-      }`}>
+      <nav
+        aria-label="Mobile Navigation"
+        className={`fixed bottom-0 inset-x-0 z-40 lg:hidden border-t px-3 pt-2 pb-3 flex items-center justify-around shadow-2xl backdrop-blur-xl transition-colors ${
+          isDark
+            ? 'bg-[#10131d]/98 border-slate-800 text-slate-400'
+            : 'bg-white/98 border-slate-200 text-slate-600'
+        }`}
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 12px))' }}
+      >
         <button
           onClick={() => setActiveSidebarItem('Dashboard')}
           className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition ${
             activeSidebarItem === 'Dashboard'
-              ? 'text-orange-500 font-bold'
+              ? 'text-orange-500 font-black scale-105'
               : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <LayoutDashboard className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Dashboard</span>
+          <span className="text-[10px] mt-0.5 font-bold">Dashboard</span>
         </button>
 
         <button
           onClick={() => setActiveSidebarItem('My Tables')}
           className={`relative flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition ${
             activeSidebarItem === 'My Tables'
-              ? 'text-orange-500 font-bold'
+              ? 'text-orange-500 font-black scale-105'
               : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <Grid className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Tables</span>
+          <span className="text-[10px] mt-0.5 font-bold">Tables</span>
           {tablesList.filter(t => t.status === 'My Table').length > 0 && (
-            <span className="absolute top-0 right-1 px-1 min-w-3.5 h-3.5 rounded-full bg-orange-500 text-white text-[8px] font-bold flex items-center justify-center">
+            <span className="absolute -top-0.5 right-1 px-1 min-w-3.5 h-3.5 rounded-full bg-orange-500 text-white text-[8px] font-black flex items-center justify-center shadow-xs">
               {tablesList.filter(t => t.status === 'My Table').length}
             </span>
           )}
         </button>
 
-        {/* Quick Order Center Action Button */}
+        {/* Quick Order Center Action Button - HIGH CONTRAST, ELEVATED, NEVER TRANSPARENT */}
         <button
+          data-testid="bottom-quick-order-btn"
           onClick={() => setIsPunchKotOpen(true)}
-          className="-mt-5 flex flex-col items-center justify-center group"
+          className="-mt-7 flex flex-col items-center justify-center group focus:outline-none shrink-0"
           title="Take New Order (Quick KOT)"
         >
-          <div className="w-12 h-12 rounded-full bg-linear-to-tr from-orange-600 to-amber-500 text-white flex items-center justify-center shadow-lg shadow-orange-500/40 ring-4 ring-white dark:ring-[#10131d] group-active:scale-95 transition-transform">
-            <Plus className="w-6 h-6 stroke-[2.5]" />
+          <div
+            className="w-14 h-14 rounded-full text-white flex items-center justify-center shadow-2xl shadow-orange-500/60 ring-4 ring-white dark:ring-[#10131d] group-active:scale-90 group-hover:scale-105 transition-all"
+            style={{
+              background: 'linear-gradient(135deg, #ea580c 0%, #f59e0b 50%, #ea580c 100%)',
+              boxShadow: '0 10px 25px -3px rgba(234, 88, 12, 0.55), 0 4px 6px -4px rgba(234, 88, 12, 0.4)'
+            }}
+          >
+            <Plus className="w-7 h-7 stroke-[3] text-white drop-shadow-sm" />
           </div>
-          <span className="text-[10px] font-black mt-0.5 text-orange-600 dark:text-orange-400 tracking-tight">
-            + Order
+          <span className="text-[10.5px] font-black mt-1 text-orange-600 dark:text-orange-400 tracking-tight whitespace-nowrap">
+            + Take Order
           </span>
         </button>
 
@@ -2778,33 +2821,35 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
           onClick={() => setActiveSidebarItem('Live Orders & KOT')}
           className={`relative flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition ${
             activeSidebarItem === 'Live Orders & KOT'
-              ? 'text-orange-500 font-bold'
+              ? 'text-orange-500 font-black scale-105'
               : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <Flame className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Live KOT</span>
+          <span className="text-[10px] mt-0.5 font-bold">Live KOT</span>
           {(myKitchenPickups.length + myKitchenCooking.length) > 0 && (
-            <span className="absolute top-0 right-1 px-1 min-w-3.5 h-3.5 rounded-full bg-red-600 text-white text-[8px] font-bold flex items-center justify-center">
+            <span className="absolute -top-0.5 right-1 px-1 min-w-3.5 h-3.5 rounded-full bg-red-600 text-white text-[8px] font-black flex items-center justify-center shadow-xs">
               {myKitchenPickups.length + myKitchenCooking.length}
             </span>
           )}
         </button>
 
         <button
+          data-testid="bottom-more-nav-btn"
           onClick={() => setIsMobileMenuOpen(true)}
           className={`relative flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition ${
             isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
           }`}
+          title="Open Full Navigation Drawer"
         >
           <Menu className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">More</span>
+          <span className="text-[10px] mt-0.5 font-bold">More</span>
           {unreadCount > 0 ? (
-            <span className="absolute top-0 right-1 px-1 min-w-3.5 h-3.5 rounded-full bg-red-600 text-white text-[8px] font-bold flex items-center justify-center animate-pulse">
+            <span className="absolute -top-0.5 right-1 px-1 min-w-3.5 h-3.5 rounded-full bg-red-600 text-white text-[8px] font-black flex items-center justify-center animate-pulse shadow-xs">
               {unreadCount}
             </span>
           ) : myGuestRequests.length > 0 ? (
-            <span className="absolute top-0 right-1 w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+            <span className="absolute -top-0.5 right-1 w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shadow-xs" />
           ) : null}
         </button>
       </nav>

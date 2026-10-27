@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev": "vite --port 3012 --host",
     "build": "vite build",
     "build:web": "vite build",
     "sync": "npx cap sync android",
@@ -11,9 +12,11 @@
   },
   "dependencies": {
     "@capacitor/android": "^6.1.0",
+    "@capacitor/app": "^6.0.0",
     "@capacitor/core": "^6.1.0",
     "@capacitor/splash-screen": "^6.0.4",
     "@capacitor/status-bar": "^6.0.3",
+    "jsqr": "^1.4.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },

@@ -86,3 +86,11 @@ scripts/serve_all_portals*
 .zcodeignore
 .zcode/
 .claude/
+
+# Audit artifacts
+audit_reports/
+screenshots_mobile_audit/
+evidence/
+scripts/evidence/
+apps/spicehub-customer-android/android/evidence/
+project-pack.md

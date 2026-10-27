@@ -15,6 +15,7 @@ import {
   getSubscriptionInvoices,
   generateSubscriptionInvoice,
   settleSubscriptionInvoice,
+  updateTenantBranding,
 } from '../controllers/superAdminController';
 import { authenticateJWT, requireRole } from '../middlewares/auth';
 import { UserRole, TenantRequest } from '../types';
@@ -39,6 +40,7 @@ router.get('/users', listPlatformUsers);
 router.put('/tenants/:tenantId/status', toggleTenantStatus);
 router.put('/tenants/:tenantId/flags', updateTenantFeatureFlags);
 router.put('/tenants/:tenantId/portals', updateTenantPortalsAndPricing);
+router.put('/tenants/:tenantId/branding', updateTenantBranding);
 router.post('/tenants/:tenantId/assign-plan', assignPlanToTenant);
 router.post('/tenants/:tenantId/provision', provisionTenantCapacity);
 

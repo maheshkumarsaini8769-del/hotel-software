@@ -55,7 +55,10 @@ import { requirePortal } from './middlewares/portalGate';
 import { TenantRequest } from './types';
 import { assertProductionSecurityConfig, getJwtSecret, isDevAuthBypassEnabled } from './config/security';
 
+import path from 'path';
 dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const app: Application = express();
 const server = http.createServer(app);
@@ -451,12 +454,20 @@ io.on('connection', (socket) => {
 });
 
 // Global Middlewares
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false,
+    frameguard: false,
+  })
+);
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 app.use(
   cors({
     origin: (origin, callback) => {
-      callback(null, origin || '*');
+      // Allow any origin in dev/LAN network, echoing back the requesting origin for credentials: true compatibility
+      callback(null, origin || true);
     },
     credentials: true,
   })

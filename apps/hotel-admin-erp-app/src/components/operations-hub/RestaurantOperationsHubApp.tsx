@@ -25,6 +25,7 @@ import {
   DollarSign,
   UserCheck,
   Percent,
+  Wifi,
 } from 'lucide-react';
 
 export type OperationsTab =
@@ -72,6 +73,13 @@ export const RestaurantOperationsHubApp: React.FC<RestaurantOperationsHubAppProp
     operatingHours: '07:00 AM - 11:30 PM (Daily)',
     currency: 'INR',
     currencySymbol: '₹',
+    logoUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=300&auto=format&fit=crop&q=80',
+    coverImageUrl: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1600&auto=format&fit=crop&q=80',
+    stayImageUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80',
+    diningImageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80',
+    wifiSsid: 'TajGateway_HighSpeed',
+    wifiPassword: 'SpiceGuest@2026',
+    photos: [] as string[],
     totalRooms: 48,
     totalDiningCapacity: 230,
   });
@@ -526,6 +534,176 @@ export const RestaurantOperationsHubApp: React.FC<RestaurantOperationsHubAppProp
             </button>
           </div>
 
+          {/* Property Imagery & Brand Identity Showcase Section */}
+          <div className={`p-4 rounded-xl border space-y-4 ${
+            isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+          }`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-amber-500 flex items-center gap-1.5">
+                  <span>🖼️</span>
+                  <span>Property Imagery & Brand Identity</span>
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Manage hotel cover banner, brand logo, and photography displayed to staff & guests across mobile apps & portals.
+                </p>
+              </div>
+
+              {/* 1-Click Luxury Presets */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-slate-500 font-bold uppercase">Presets:</span>
+                <button
+                  type="button"
+                  onClick={() => setInfo({
+                    ...info,
+                    coverImageUrl: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1600&auto=format&fit=crop&q=80',
+                    logoUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=300&auto=format&fit=crop&q=80',
+                    tagline: 'Luxury Stays, Fine Dining & Serene Hospitality'
+                  })}
+                  className="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[10px] font-bold border border-amber-500/30 transition"
+                >
+                  👑 Royal Resort
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInfo({
+                    ...info,
+                    coverImageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1600&auto=format&fit=crop&q=80',
+                    logoUrl: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=300&auto=format&fit=crop&q=80',
+                    tagline: 'Timeless Rajputana Royalty & World-Class Splendor'
+                  })}
+                  className="px-2 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-[10px] font-bold border border-indigo-500/30 transition"
+                >
+                  🏰 Heritage Palace
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInfo({
+                    ...info,
+                    coverImageUrl: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1600&auto=format&fit=crop&q=80',
+                    logoUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=300&auto=format&fit=crop&q=80',
+                    tagline: 'Boutique Elegance & Contemporary Urban Comfort'
+                  })}
+                  className="px-2 py-1 rounded-lg bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 text-[10px] font-bold border border-pink-500/30 transition"
+                >
+                  ✨ Boutique Urban
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">Cover / Facade Banner Photo URL</label>
+                <input
+                  type="url"
+                  value={info.coverImageUrl || ''}
+                  onChange={(e) => setInfo({ ...info, coverImageUrl: e.target.value })}
+                  placeholder="https://images.unsplash.com/photo-..."
+                  className={`w-full px-3 py-2 rounded-xl text-xs border outline-none font-semibold ${
+                    isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
+                />
+                {info.coverImageUrl ? (
+                  <div className="mt-2 h-28 w-full rounded-xl overflow-hidden border border-slate-700 relative shadow-inner">
+                    <img src={info.coverImageUrl} alt="Hotel Cover" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-2">
+                      <span className="text-[10px] text-white font-bold">Live Cover Banner Preview</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 h-16 rounded-xl border border-dashed border-slate-800 flex items-center justify-center text-xs text-slate-500">
+                    No cover banner set
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">Hotel Brand Logo URL</label>
+                <input
+                  type="url"
+                  value={info.logoUrl || ''}
+                  onChange={(e) => setInfo({ ...info, logoUrl: e.target.value })}
+                  placeholder="https://images.unsplash.com/photo-... or /assets/logo.png"
+                  className={`w-full px-3 py-2 rounded-xl text-xs border outline-none font-semibold ${
+                    isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
+                />
+                <div className="mt-2 flex items-center gap-3 p-2 rounded-xl bg-black/20 border border-slate-800">
+                  <div className="h-14 w-14 rounded-full overflow-hidden border-2 border-amber-500 bg-black flex-shrink-0">
+                    {info.logoUrl ? (
+                      <img src={info.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs">
+                        LOGO
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-white truncate">{info.name}</div>
+                    <div className="text-[10px] text-slate-400 truncate">{info.tagline || 'No tagline set'}</div>
+                    <div className="text-[9px] text-amber-400/80 mt-0.5">Displays on sidebar, invoices, and mobile apps</div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">
+                  🛏️ Book a Room (Stay) Card Photo URL
+                </label>
+                <input
+                  type="url"
+                  data-testid="input-stay-image-url"
+                  value={info.stayImageUrl || ''}
+                  onChange={(e) => setInfo({ ...info, stayImageUrl: e.target.value })}
+                  placeholder="https://images.unsplash.com/photo-..."
+                  className={`w-full px-3 py-2 rounded-xl text-xs border outline-none font-semibold ${
+                    isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
+                />
+                {info.stayImageUrl ? (
+                  <div className="mt-2 h-24 w-full rounded-xl overflow-hidden border border-blue-500/40 relative shadow-inner">
+                    <img src={info.stayImageUrl} alt="Stay Banner" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-2">
+                      <span className="text-[10px] text-blue-300 font-bold">Customer App Option 1 (Stay) Preview</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 h-16 rounded-xl border border-dashed border-slate-800 flex items-center justify-center text-xs text-slate-500">
+                    No stay photo set
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">
+                  🍽️ Dine-In / Table Booking Card Photo URL
+                </label>
+                <input
+                  type="url"
+                  data-testid="input-dining-image-url"
+                  value={info.diningImageUrl || ''}
+                  onChange={(e) => setInfo({ ...info, diningImageUrl: e.target.value })}
+                  placeholder="https://images.unsplash.com/photo-..."
+                  className={`w-full px-3 py-2 rounded-xl text-xs border outline-none font-semibold ${
+                    isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
+                />
+                {info.diningImageUrl ? (
+                  <div className="mt-2 h-24 w-full rounded-xl overflow-hidden border border-amber-500/40 relative shadow-inner">
+                    <img src={info.diningImageUrl} alt="Dining Banner" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-2">
+                      <span className="text-[10px] text-amber-300 font-bold">Customer App Option 2 (Dining) Preview</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 h-16 rounded-xl border border-dashed border-slate-800 flex items-center justify-center text-xs text-slate-500">
+                    No dining photo set
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-400 mb-1">Restaurant / Hotel Name *</label>
@@ -649,6 +827,42 @@ export const RestaurantOperationsHubApp: React.FC<RestaurantOperationsHubAppProp
                   }`}
                 />
               </div>
+            </div>
+
+            {/* Guest In-Room Wi-Fi Credentials */}
+            <div className="md:col-span-2 pt-3 border-t border-slate-700/40">
+              <div className="flex items-center gap-2 mb-2">
+                <Wifi className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  Guest In-Room Wi-Fi Credentials (Auto-Synced to Vouchers, Keycards & Room Portal)
+                </h3>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1">Hotel Wi-Fi Network Name (SSID) *</label>
+              <input
+                type="text"
+                value={(info as any).wifiSsid || ''}
+                onChange={(e) => setInfo({ ...info, wifiSsid: e.target.value })}
+                placeholder="e.g. TajGateway_HighSpeed"
+                className={`w-full px-3 py-2 rounded-xl text-xs border outline-none font-semibold ${
+                  isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1">Guest Wi-Fi Password / Passkey *</label>
+              <input
+                type="text"
+                value={(info as any).wifiPassword || ''}
+                onChange={(e) => setInfo({ ...info, wifiPassword: e.target.value })}
+                placeholder="e.g. SpiceGuest@2026"
+                className={`w-full px-3 py-2 rounded-xl text-xs border outline-none font-mono font-semibold ${
+                  isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
+              />
             </div>
           </div>
         </form>

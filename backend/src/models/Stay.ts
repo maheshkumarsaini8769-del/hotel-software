@@ -92,7 +92,7 @@ export interface IStay extends Document {
   masterFolioId?: Types.ObjectId;
   keyCardIssued?: string;
   isCouple?: boolean;
-  verificationMode?: 'NONE' | 'AADHAAR' | 'PASSPORT' | 'DRIVING_LICENSE' | 'OTHER';
+  verificationMode?: 'NONE' | 'AADHAAR' | 'PASSPORT' | 'DRIVING_LICENSE' | 'OTHER' | 'PHYSICAL_AT_RECEPTION';
   idNumberMasked?: string;
   verifiedByReceptionist?: boolean;
   receptionistNotes?: string;
@@ -141,7 +141,7 @@ const StaySchema = new Schema<IStay>(
     isCouple: { type: Boolean, default: false },
     verificationMode: {
       type: String,
-      enum: ['NONE', 'AADHAAR', 'PASSPORT', 'DRIVING_LICENSE', 'OTHER'],
+      enum: ['NONE', 'AADHAAR', 'PASSPORT', 'DRIVING_LICENSE', 'OTHER', 'PHYSICAL_AT_RECEPTION'],
       default: 'NONE',
     },
     idNumberMasked: { type: String, trim: true },

@@ -48,6 +48,10 @@ export interface LiveRoomOrder {
   items: InRoomOrderItem[];
   cookingInstructions?: string;
   grandTotal?: number;
+  waiterEtaMinutes?: number;
+  waiterMessage?: string;
+  waiterName?: string;
+  waiterAvatar?: string;
 }
 
 export interface FolioLineItemModel {

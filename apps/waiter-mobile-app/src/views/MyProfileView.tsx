@@ -165,7 +165,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
       </div>
 
       {/* Main profile contents */}
-      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-4 pb-24 lg:pb-6">
+      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-4 pb-32 lg:pb-8">
         {/* User Card */}
         <div className={`p-4 sm:p-6 rounded-2xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 ${
           isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'

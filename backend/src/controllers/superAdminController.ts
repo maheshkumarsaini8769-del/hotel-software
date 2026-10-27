@@ -111,6 +111,10 @@ export const listAllTenants = async (req: TenantRequest, res: Response): Promise
           contactPhone: t.contactPhone,
           city: t.address?.city || '',
           state: t.address?.state || '',
+          logoUrl: t.logoUrl || '',
+          coverImageUrl: t.coverImageUrl || '',
+          photos: Array.isArray(t.photos) ? t.photos : [],
+          tagline: t.tagline || '',
           status: t.status,
           currency: t.currency,
           enabledPortals:
@@ -236,9 +240,41 @@ export const updateTenantFeatureFlags = async (req: TenantRequest, res: Response
       return;
     }
 
+    // Bidirectional sync: if portal feature flags are passed, keep enabledPortals strictly consistent
+    if (!Array.isArray(tenant.enabledPortals)) {
+      tenant.enabledPortals = ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'];
+    }
+    const flagToPortalMap: Record<string, string> = {
+      pmsEnabled: 'reception',
+      posEnabled: 'cashier',
+      kdsEnabled: 'kds',
+      waiterEnabled: 'waiter',
+      qrDineInEnabled: 'customer',
+      roomServiceEnabled: 'guest',
+    };
+    for (const [flag, portalKey] of Object.entries(flagToPortalMap)) {
+      if ((featureFlags as any)[flag] !== undefined) {
+        if ((featureFlags as any)[flag] && !tenant.enabledPortals.includes(portalKey)) {
+          tenant.enabledPortals.push(portalKey);
+        } else if (!(featureFlags as any)[flag]) {
+          tenant.enabledPortals = tenant.enabledPortals.filter((p) => p !== portalKey);
+        }
+      }
+    }
+    if (!tenant.enabledPortals.includes('admin')) {
+      tenant.enabledPortals.unshift('admin');
+    }
+    tenant.enabledPortals = Array.from(new Set(tenant.enabledPortals));
+
     tenant.featureFlags = {
       ...tenant.featureFlags,
       ...featureFlags,
+      pmsEnabled: tenant.enabledPortals.includes('reception'),
+      posEnabled: tenant.enabledPortals.includes('cashier'),
+      kdsEnabled: tenant.enabledPortals.includes('kds'),
+      waiterEnabled: tenant.enabledPortals.includes('waiter'),
+      qrDineInEnabled: tenant.enabledPortals.includes('customer'),
+      roomServiceEnabled: tenant.enabledPortals.includes('guest'),
     };
     await tenant.save();
 
@@ -923,4 +959,72 @@ export const settleSubscriptionInvoice = async (req: TenantRequest, res: Respons
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
   }
 };
+
+// 14. Update Tenant Branding & Imagery (Super Admin)
+export const updateTenantBranding = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const tenantId = String(req.params.tenantId);
+    if (!Types.ObjectId.isValid(tenantId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ID', message: 'Invalid tenantId' });
+      return;
+    }
+
+    const { logoUrl, coverImageUrl, photos, tagline } = req.body;
+
+    const updateFields: any = {};
+    if (logoUrl !== undefined) updateFields.logoUrl = String(logoUrl).trim();
+    if (coverImageUrl !== undefined) updateFields.coverImageUrl = String(coverImageUrl).trim();
+    if (tagline !== undefined) updateFields.tagline = String(tagline).trim();
+    if (photos !== undefined) {
+      updateFields.photos = Array.isArray(photos) ? photos.map((p: any) => String(p).trim()).filter(Boolean) : [];
+    }
+
+    const tenant = await Tenant.findByIdAndUpdate(
+      new Types.ObjectId(tenantId),
+      { $set: updateFields },
+      { new: true }
+    );
+
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Tenant not found' });
+      return;
+    }
+
+    const socketIO = getSocketIO();
+    if (socketIO) {
+      socketIO.emit('tenant:updated', {
+        id: tenant._id.toString(),
+        slug: tenant.slug,
+        name: tenant.name,
+        logoUrl: tenant.logoUrl,
+        coverImageUrl: tenant.coverImageUrl,
+        tagline: tenant.tagline,
+        photos: tenant.photos,
+      });
+      socketIO.emit('restaurant:info_updated', {
+        name: tenant.name,
+        tagline: tenant.tagline,
+        logoUrl: tenant.logoUrl,
+        coverImageUrl: tenant.coverImageUrl,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Branding updated successfully for ${tenant.name}`,
+      tenant: {
+        id: tenant._id,
+        name: tenant.name,
+        slug: tenant.slug,
+        logoUrl: tenant.logoUrl,
+        coverImageUrl: tenant.coverImageUrl,
+        photos: tenant.photos,
+        tagline: tenant.tagline,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
 

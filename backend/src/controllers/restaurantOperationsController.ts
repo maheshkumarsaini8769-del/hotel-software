@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
+import { Types } from 'mongoose';
 import { io } from '../index';
+import { Tenant } from '../models/Tenant';
 
 // In-Memory Realistic Master State with MongoDB Sync hooks
-let restaurantInfo = {
+let restaurantInfo: any = {
   name: 'The Grand SpiceHub Palace & Resort',
   tagline: 'Luxury Heritage Hotel & Fine Dining Restaurant',
   fssaiNumber: '10020051000892',
@@ -14,7 +16,17 @@ let restaurantInfo = {
   operatingHours: '07:00 AM - 11:30 PM (Daily)',
   currency: 'INR',
   currencySymbol: '₹',
-  logoUrl: '/assets/logo.png',
+  logoUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=200&auto=format&fit=crop&q=80',
+  coverImageUrl: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1600&auto=format&fit=crop&q=80',
+  stayImageUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80',
+  diningImageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80',
+  coordinates: { latitude: 26.9124, longitude: 75.7873 },
+  photos: [
+    'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800&auto=format&fit=crop&q=80',
+  ],
+  wifiSsid: 'TajGateway_HighSpeed',
+  wifiPassword: 'SpiceGuest@2026',
   totalRooms: 48,
   totalDiningCapacity: 230,
 };
@@ -350,14 +362,96 @@ let systemLogs = [
   },
 ];
 
-// 1. Restaurant Info
+// 1. Restaurant Info (Synced with MongoDB Tenant)
 export const getRestaurantInfo = async (req: Request, res: Response) => {
-  res.json({ success: true, data: restaurantInfo });
+  try {
+    const hotelId = (req as any).hotelId || (req as any).user?.hotelId || req.headers?.['x-hotel-id'];
+    let tenant = null;
+    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
+      tenant = await Tenant.findById(new Types.ObjectId(String(hotelId)));
+    }
+    if (!tenant) {
+      tenant = await Tenant.findOne();
+    }
+
+    if (tenant) {
+      const addressStr = typeof tenant.address === 'object' && tenant.address
+        ? [tenant.address.street, tenant.address.city, tenant.address.state, tenant.address.pincode].filter(Boolean).join(', ')
+        : (tenant.address || restaurantInfo.address);
+
+      restaurantInfo = {
+        ...restaurantInfo,
+        name: tenant.name || restaurantInfo.name,
+        tagline: tenant.tagline || restaurantInfo.tagline,
+        logoUrl: tenant.logoUrl || restaurantInfo.logoUrl,
+        coverImageUrl: tenant.coverImageUrl || restaurantInfo.coverImageUrl,
+        stayImageUrl: (tenant as any).stayImageUrl || (restaurantInfo as any).stayImageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80',
+        diningImageUrl: (tenant as any).diningImageUrl || (restaurantInfo as any).diningImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80',
+        coordinates: (tenant as any).coordinates || { latitude: 26.9124, longitude: 75.7873 },
+        photos: Array.isArray(tenant.photos) && tenant.photos.length > 0 ? tenant.photos : restaurantInfo.photos,
+        contactPhone: tenant.contactPhone || restaurantInfo.contactPhone,
+        contactEmail: tenant.contactEmail || restaurantInfo.contactEmail,
+        gstin: tenant.gstin || restaurantInfo.gstin,
+        fssaiNumber: tenant.fssai || restaurantInfo.fssaiNumber,
+        wifiSsid: (tenant as any).wifiSsid || restaurantInfo.wifiSsid || 'TajGateway_HighSpeed',
+        wifiPassword: (tenant as any).wifiPassword || restaurantInfo.wifiPassword || 'SpiceGuest@2026',
+        address: addressStr || restaurantInfo.address,
+      };
+    }
+
+    res.json({ success: true, data: restaurantInfo });
+  } catch (err: any) {
+    res.json({ success: true, data: restaurantInfo });
+  }
 };
 
 export const updateRestaurantInfo = async (req: Request, res: Response) => {
   try {
     restaurantInfo = { ...restaurantInfo, ...req.body };
+
+    const hotelId = (req as any).hotelId || (req as any).user?.hotelId || req.headers?.['x-hotel-id'];
+    let tenant = null;
+    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
+      tenant = await Tenant.findById(new Types.ObjectId(String(hotelId)));
+    }
+    if (!tenant) {
+      tenant = await Tenant.findOne();
+    }
+
+    if (tenant) {
+      const updateData: any = {};
+      if (req.body.name) updateData.name = String(req.body.name).trim();
+      if (req.body.tagline !== undefined) updateData.tagline = String(req.body.tagline).trim();
+      if (req.body.logoUrl !== undefined) updateData.logoUrl = String(req.body.logoUrl).trim();
+      if (req.body.coverImageUrl !== undefined) updateData.coverImageUrl = String(req.body.coverImageUrl).trim();
+      if (req.body.stayImageUrl !== undefined) updateData.stayImageUrl = String(req.body.stayImageUrl).trim();
+      if (req.body.diningImageUrl !== undefined) updateData.diningImageUrl = String(req.body.diningImageUrl).trim();
+      if (req.body.coordinates !== undefined) updateData.coordinates = req.body.coordinates;
+      if (req.body.photos !== undefined) {
+        updateData.photos = Array.isArray(req.body.photos) ? req.body.photos : [];
+      }
+      if (req.body.contactPhone) updateData.contactPhone = String(req.body.contactPhone).trim();
+      if (req.body.contactEmail) updateData.contactEmail = String(req.body.contactEmail).trim();
+      if (req.body.gstin) updateData.gstin = String(req.body.gstin).trim();
+      if (req.body.fssaiNumber) updateData.fssai = String(req.body.fssaiNumber).trim();
+      if (req.body.wifiSsid !== undefined) updateData.wifiSsid = String(req.body.wifiSsid).trim();
+      if (req.body.wifiPassword !== undefined) updateData.wifiPassword = String(req.body.wifiPassword).trim();
+
+      const updatedTenant = await Tenant.findByIdAndUpdate(tenant._id, { $set: updateData }, { new: true });
+
+      if (updatedTenant && io) {
+        io.emit('tenant:updated', {
+          id: updatedTenant._id.toString(),
+          slug: updatedTenant.slug,
+          name: updatedTenant.name,
+          logoUrl: updatedTenant.logoUrl,
+          coverImageUrl: updatedTenant.coverImageUrl,
+          tagline: updatedTenant.tagline,
+          photos: updatedTenant.photos,
+        });
+      }
+    }
+
     io?.emit('restaurant:info_updated', restaurantInfo);
     res.json({ success: true, message: 'Restaurant information updated successfully', data: restaurantInfo });
   } catch (err: any) {

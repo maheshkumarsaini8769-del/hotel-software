@@ -161,7 +161,7 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
       </div>
 
       {/* Main 2-column interface */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 overflow-y-auto pr-1 custom-scrollbar pb-24 lg:pb-6">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 overflow-y-auto pr-1 custom-scrollbar pb-32 lg:pb-8">
         {/* Left Column: Presets & Composer (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
           {/* Quick Presets */}

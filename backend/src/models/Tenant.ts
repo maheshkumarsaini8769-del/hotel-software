@@ -5,6 +5,15 @@ export interface ITenant extends Document {
   slug: string;
   domain?: string;
   logoUrl?: string;
+  coverImageUrl?: string;
+  stayImageUrl?: string;
+  diningImageUrl?: string;
+  coordinates?: {
+    latitude?: number;
+    longitude?: number;
+  };
+  photos?: string[];
+  tagline?: string;
   address?: {
     street?: string;
     city?: string;
@@ -14,6 +23,8 @@ export interface ITenant extends Document {
   };
   gstin?: string;
   fssai?: string;
+  wifiSsid?: string;
+  wifiPassword?: string;
   contactEmail: string;
   contactPhone: string;
   currency: string;
@@ -58,6 +69,15 @@ const TenantSchema = new Schema<ITenant>(
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
     domain: { type: String, trim: true, lowercase: true },
     logoUrl: { type: String },
+    coverImageUrl: { type: String },
+    stayImageUrl: { type: String },
+    diningImageUrl: { type: String },
+    coordinates: {
+      latitude: { type: Number, default: 26.9124 },
+      longitude: { type: Number, default: 75.7873 },
+    },
+    photos: { type: [String], default: [] },
+    tagline: { type: String, trim: true },
     address: {
       street: String,
       city: String,
@@ -67,6 +87,8 @@ const TenantSchema = new Schema<ITenant>(
     },
     gstin: { type: String, uppercase: true, trim: true },
     fssai: { type: String, trim: true },
+    wifiSsid: { type: String, trim: true, default: 'TajGateway_HighSpeed' },
+    wifiPassword: { type: String, trim: true, default: 'SpiceGuest@2026' },
     contactEmail: { type: String, required: true, lowercase: true, trim: true },
     contactPhone: { type: String, required: true, trim: true },
     currency: { type: String, default: 'INR' },
@@ -162,6 +184,49 @@ TenantSchema.pre('save', function (next) {
     lastPaymentDate: existingSub.lastPaymentDate || new Date(),
   };
 
+  next();
+});
+
+/**
+ * Single Source of Truth Enforcement Hook for findOneAndUpdate:
+ * Guarantees zero-drift between enabledPortals array and boolean feature flags.
+ */
+TenantSchema.pre('findOneAndUpdate', function (next) {
+  const update = this.getUpdate() as any;
+  if (!update) return next();
+
+  const enabledPortals = update.enabledPortals || update.$set?.enabledPortals;
+  if (Array.isArray(enabledPortals)) {
+    if (!enabledPortals.includes('admin')) {
+      enabledPortals.unshift('admin');
+    }
+    const uniquePortals = Array.from(new Set(enabledPortals));
+    if (update.enabledPortals) update.enabledPortals = uniquePortals;
+    if (update.$set?.enabledPortals) update.$set.enabledPortals = uniquePortals;
+
+    const flagSync = {
+      pmsEnabled: uniquePortals.includes('reception'),
+      posEnabled: uniquePortals.includes('cashier'),
+      kdsEnabled: uniquePortals.includes('kds'),
+      waiterEnabled: uniquePortals.includes('waiter'),
+      qrDineInEnabled: uniquePortals.includes('customer'),
+      roomServiceEnabled: uniquePortals.includes('guest'),
+    };
+
+    if (update.featureFlags) {
+      update.featureFlags = { ...update.featureFlags, ...flagSync };
+    } else if (update.$set?.featureFlags) {
+      update.$set.featureFlags = { ...update.$set.featureFlags, ...flagSync };
+    } else {
+      if (!update.$set) update.$set = {};
+      update.$set['featureFlags.pmsEnabled'] = flagSync.pmsEnabled;
+      update.$set['featureFlags.posEnabled'] = flagSync.posEnabled;
+      update.$set['featureFlags.kdsEnabled'] = flagSync.kdsEnabled;
+      update.$set['featureFlags.waiterEnabled'] = flagSync.waiterEnabled;
+      update.$set['featureFlags.qrDineInEnabled'] = flagSync.qrDineInEnabled;
+      update.$set['featureFlags.roomServiceEnabled'] = flagSync.roomServiceEnabled;
+    }
+  }
   next();
 });
 

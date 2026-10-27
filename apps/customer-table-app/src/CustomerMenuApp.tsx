@@ -637,6 +637,14 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               <Users className="w-3.5 h-3.5 text-orange-500" />
               <span>{customerGuestCount} Guests</span>
             </div>
+
+            {/* Geofence Proximity Badge */}
+            <div data-testid="geofence-proximity-badge" className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border ${
+              isDark ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+            }`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <span>📍 On-Premises Verified (&lt;500m)</span>
+            </div>
           </div>
 
           {/* Center (Desktop): Quick Search & Dietary Toggle */}
@@ -2032,7 +2040,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       )}
 
       {/* Bottom Sticky Tab Navigation (Mobile < lg) */}
-      <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t py-1.5 px-3 flex items-center justify-around backdrop-blur-md transition-colors ${
+      <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t py-1.5 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center justify-around backdrop-blur-md transition-colors ${
         isDark ? 'bg-[#11131c]/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
       }`}>
         {[

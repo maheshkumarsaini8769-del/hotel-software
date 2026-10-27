@@ -27,7 +27,8 @@ const hasExplicitRoom = Boolean(rawRoomParam);
 const isExplicitRoomsTab = Boolean(urlParams.get('tab') && urlParams.get('tab')?.toUpperCase() === 'ROOMS');
 let targetRoom = rawRoomParam || '';
 const roomIdFromUrl = urlParams.get('roomId') || '';
-const qrTokenFromUrl = urlParams.get('token') || urlParams.get('qrToken') || '';
+const sessionTokenFromUrl = urlParams.get('token') || urlParams.get('sessionToken') || '';
+const permanentQrTokenFromUrl = urlParams.get('qrToken') || '';
 let resolvedHotelId =
   urlParams.get('hotelId') ||
   (import.meta as any).env?.VITE_HOTEL_ID ||
@@ -67,8 +68,11 @@ async function resolveHotelId(): Promise<string> {
 
 async function probeGuestSession(token: string): Promise<boolean> {
   try {
+    const hotelId = resolvedHotelId || urlParams.get('hotelId') || '';
+    const headers: Record<string, string> = { 'x-guest-session-token': token };
+    if (hotelId) headers['x-hotel-id'] = hotelId;
     const res = await fetch(`${API_BASE}/api/v1/guest-portal/stay/status`, {
-      headers: { 'x-guest-session-token': token },
+      headers,
     });
     const json = await res.json().catch(() => null);
     if (res.ok && json?.success && json.data?.hotelId) {
@@ -81,16 +85,20 @@ async function probeGuestSession(token: string): Promise<boolean> {
 
 async function resolveGuestSession(roomToUse?: string): Promise<void> {
   if (roomToUse) targetRoom = roomToUse;
-  const stored =
-    typeof window !== 'undefined'
+  const candidateToken =
+    sessionTokenFromUrl ||
+    (typeof window !== 'undefined'
       ? localStorage.getItem('spicehub_guest_session') || ''
-      : '';
+      : '');
 
-  if (stored && (await probeGuestSession(stored))) {
-    guestSessionToken = stored;
+  if (candidateToken && (await probeGuestSession(candidateToken))) {
+    guestSessionToken = candidateToken;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('spicehub_guest_session', candidateToken);
+    }
     return;
   }
-  if (stored && typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && !sessionTokenFromUrl) {
     localStorage.removeItem('spicehub_guest_session');
   }
 
@@ -103,7 +111,7 @@ async function resolveGuestSession(roomToUse?: string): Promise<void> {
 
   const params = new URLSearchParams({ hotelId, roomNumber: targetRoom });
   if (roomIdFromUrl) params.set('roomId', roomIdFromUrl);
-  if (qrTokenFromUrl) params.set('qrToken', qrTokenFromUrl);
+  if (permanentQrTokenFromUrl) params.set('qrToken', permanentQrTokenFromUrl);
 
   try {
     const res = await fetch(`${API_BASE}/api/v1/guest-portal/qr/resolve?${params.toString()}`);
@@ -523,6 +531,7 @@ const GuestRoomPortalRoot: React.FC = () => {
       }}
       onInRoomOrderPlaced={async (items, instructions) => {
         try {
+          const hotelId = (await resolveHotelId()) || urlParams.get('hotelId') || '';
           const res = await fetch(`${API_BASE}/api/v1/guest-portal/orders/place`, {
             method: 'POST',
             headers: {
@@ -530,6 +539,9 @@ const GuestRoomPortalRoot: React.FC = () => {
               'x-idempotency-key': `GUEST_ORDER_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             },
             body: JSON.stringify({
+              hotelId,
+              roomNumber: targetRoom,
+              roomId: roomIdFromUrl || undefined,
               items: items.map((it) => ({
                 menuItemId: it.dishId,
                 name: it.name,
@@ -600,8 +612,8 @@ const GuestRoomPortalRoot: React.FC = () => {
                 });
               }
             }
+            return order || true;
           }
-          return true;
         } catch (e) {
           console.warn('In-room order placement error:', e);
           return false;

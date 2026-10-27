@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { Types } from 'mongoose';
 import { User, IUser } from '../models/User';
+import { Tenant } from '../models/Tenant';
 import { UserRole, ShiftStatus, TenantRequest } from '../types';
 import argon2 from 'argon2';
 
@@ -33,13 +34,14 @@ const ASSIGNABLE_STAFF_ROLES: UserRole[] = [
   UserRole.CASHIER,
   UserRole.WAITER,
   UserRole.CHEF,
+  UserRole.RECEPTIONIST,
   UserRole.HOUSEKEEPING,
   UserRole.MAINTENANCE,
 ];
 
 const normalizeStaffRole = (role: unknown): UserRole | null => {
   const upper = String(role || '').toUpperCase();
-  if (upper.includes('RECEPTION') || upper.includes('FRONTDESK')) return UserRole.MANAGER;
+  if (upper.includes('RECEPTION') || upper.includes('FRONTDESK')) return UserRole.RECEPTIONIST;
   if (upper.includes('CASHIER')) return UserRole.CASHIER;
   if (upper.includes('CHEF') || upper.includes('KITCHEN')) return UserRole.CHEF;
   if (upper.includes('HOUSEKEEP')) return UserRole.HOUSEKEEPING;
@@ -52,7 +54,7 @@ const normalizeStaffRole = (role: unknown): UserRole | null => {
 
 const resolveHotelId = (req: TenantRequest): Types.ObjectId | undefined => {
   if (req.hotelId) return req.hotelId;
-  const raw = req.body?.hotelId || req.query?.hotelId;
+  const raw = req.body?.hotelId || req.query?.hotelId || req.headers?.['x-hotel-id'];
   return raw && Types.ObjectId.isValid(String(raw)) ? new Types.ObjectId(String(raw)) : undefined;
 };
 
@@ -142,6 +144,29 @@ export const createHotelStaff = async (req: TenantRequest, res: Response): Promi
     if (!normalizedRole) {
       res.status(400).json({ success: false, errorCode: 'VALIDATION_ERROR', message: 'A valid staff role is required' });
       return;
+    }
+
+    // Enforce Portal Subscription Gating: Hotel Admin can ONLY create staff for subscribed portals
+    const tenant = await Tenant.findById(hotelId).lean();
+    if (tenant && Array.isArray(tenant.enabledPortals)) {
+      const roleToPortalMap: Record<string, string> = {
+        [UserRole.WAITER]: 'waiter',
+        [UserRole.CHEF]: 'kds',
+        [UserRole.CASHIER]: 'cashier',
+        [UserRole.RECEPTIONIST]: 'reception',
+        [UserRole.MANAGER]: 'admin',
+        [UserRole.HOTEL_ADMIN]: 'admin',
+      };
+      const requiredPortal = roleToPortalMap[normalizedRole];
+      if (requiredPortal && !tenant.enabledPortals.includes(requiredPortal)) {
+        res.status(403).json({
+          success: false,
+          errorCode: 'PORTAL_NOT_SUBSCRIBED',
+          requiredPortal,
+          message: `Cannot create staff for role '${normalizedRole}'. The '${requiredPortal}' portal workstation is not included in this hotel's subscription.`,
+        });
+        return;
+      }
     }
 
     if (normalizedRole === UserRole.HOTEL_ADMIN && req.user?.role !== UserRole.HOTEL_ADMIN && req.user?.role !== UserRole.SUPERADMIN) {
@@ -249,6 +274,29 @@ export const updateHotelStaff = async (req: TenantRequest, res: Response): Promi
         res.status(403).json({ success: false, errorCode: 'FORBIDDEN', message: 'Only a hotel admin can grant admin role' });
         return;
       }
+
+      const tenant = await Tenant.findById(hotelId).lean();
+      if (tenant && Array.isArray(tenant.enabledPortals)) {
+        const roleToPortalMap: Record<string, string> = {
+          [UserRole.WAITER]: 'waiter',
+          [UserRole.CHEF]: 'kds',
+          [UserRole.CASHIER]: 'cashier',
+          [UserRole.RECEPTIONIST]: 'reception',
+          [UserRole.MANAGER]: 'admin',
+          [UserRole.HOTEL_ADMIN]: 'admin',
+        };
+        const requiredPortal = roleToPortalMap[role];
+        if (requiredPortal && !tenant.enabledPortals.includes(requiredPortal)) {
+          res.status(403).json({
+            success: false,
+            errorCode: 'PORTAL_NOT_SUBSCRIBED',
+            requiredPortal,
+            message: `Cannot assign role '${role}'. The '${requiredPortal}' portal workstation is not included in this hotel's subscription.`,
+          });
+          return;
+        }
+      }
+
       updates.role = role;
     }
 

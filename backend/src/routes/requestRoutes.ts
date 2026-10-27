@@ -8,6 +8,7 @@ import {
   updateWaiterShiftStatus,
 } from '../controllers/requestController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
+import { requirePortal } from '../middlewares/portalGate';
 import { TenantRequest } from '../types';
 import { isDevAuthBypassEnabled } from '../config/security';
 
@@ -62,19 +63,19 @@ export const authenticateWaiterAction = async (
 };
 
 // Protected Waiter / Staff actions
-router.get('/waiter/assigned', authenticateWaiterAction, getWaiterRequests);
-router.patch('/waiter/shift-status', authenticateWaiterAction, updateWaiterShiftStatus);
+router.get('/waiter/assigned', requirePortal('waiter'), authenticateWaiterAction, getWaiterRequests);
+router.patch('/waiter/shift-status', requirePortal('waiter'), authenticateWaiterAction, updateWaiterShiftStatus);
 
 // Accept Request (supports POST and PATCH)
-router.patch('/:requestId/accept', authenticateWaiterAction, acceptServiceRequest);
-router.post('/:requestId/accept', authenticateWaiterAction, acceptServiceRequest);
+router.patch('/:requestId/accept', requirePortal('waiter'), authenticateWaiterAction, acceptServiceRequest);
+router.post('/:requestId/accept', requirePortal('waiter'), authenticateWaiterAction, acceptServiceRequest);
 
 // Complete / Resolve Request (supports POST and PATCH)
-router.patch('/:requestId/complete', authenticateWaiterAction, completeServiceRequest);
-router.post('/:requestId/complete', authenticateWaiterAction, completeServiceRequest);
-router.patch('/:requestId/resolve', authenticateWaiterAction, completeServiceRequest);
-router.post('/:requestId/resolve', authenticateWaiterAction, completeServiceRequest);
-router.patch('/:requestId/status', authenticateWaiterAction, (req: any, res: any) => {
+router.patch('/:requestId/complete', requirePortal('waiter'), authenticateWaiterAction, completeServiceRequest);
+router.post('/:requestId/complete', requirePortal('waiter'), authenticateWaiterAction, completeServiceRequest);
+router.patch('/:requestId/resolve', requirePortal('waiter'), authenticateWaiterAction, completeServiceRequest);
+router.post('/:requestId/resolve', requirePortal('waiter'), authenticateWaiterAction, completeServiceRequest);
+router.patch('/:requestId/status', requirePortal('waiter'), authenticateWaiterAction, (req: any, res: any) => {
   if (req.body.status === 'RESOLVED' || req.body.status === 'COMPLETED') return completeServiceRequest(req, res);
   return acceptServiceRequest(req, res);
 });

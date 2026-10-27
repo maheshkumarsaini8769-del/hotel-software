@@ -14,6 +14,9 @@ import {
   rotateRoomGuestQr,
   getGuestRoomCatalog,
   bookAndCheckInGuest,
+  approveGuestCheckIn,
+  recalculateDynamicCheckoutBill,
+  updateOrderWaiterEta,
   extendStayDates,
 } from '../controllers/roomServiceController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
@@ -23,6 +26,9 @@ const router = Router();
 // In-Room Guest Portal Routes
 router.get('/rooms/catalog', getGuestRoomCatalog);
 router.post('/rooms/book-and-checkin', bookAndCheckInGuest);
+router.post('/rooms/approve-checkin', approveGuestCheckIn);
+router.post('/stay/recalculate-checkout-bill', recalculateDynamicCheckoutBill);
+router.post('/orders/:orderId/waiter-eta', updateOrderWaiterEta);
 router.post('/stay/extend-dates', extendStayDates);
 router.get('/qr/resolve', resolvePermanentRoomQR);
 router.post('/stay/verify-resident', verifyResidentStay);

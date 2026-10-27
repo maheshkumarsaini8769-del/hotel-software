@@ -102,7 +102,7 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
       </div>
 
       {/* Main 2-column workstation */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 overflow-y-auto pr-1 custom-scrollbar pb-24 lg:pb-6">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 overflow-y-auto pr-1 custom-scrollbar pb-32 lg:pb-8">
         {/* Left Form (7 cols) */}
         <div className={`lg:col-span-7 p-4 sm:p-6 rounded-2xl border space-y-5 ${
           isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'

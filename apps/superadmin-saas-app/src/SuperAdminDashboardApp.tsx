@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { env, getPortalUrl } from './config/env';
 import { SuperAdminRealMap } from './components/SuperAdminRealMap';
 import {
@@ -59,6 +59,10 @@ export interface TenantHotelItem {
   state: string;
   contactEmail: string;
   contactPhone: string;
+  logoUrl?: string;
+  coverImageUrl?: string;
+  photos?: string[];
+  tagline?: string;
   plan: 'TRIAL' | 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE' | 'CUSTOM';
   activeRooms: number;
   totalRooms: number;
@@ -432,6 +436,10 @@ export const SuperAdminDashboardApp: React.FC = () => {
               state: String(tenant.state || '—'),
               contactEmail: String(tenant.contactEmail || ''),
               contactPhone: String(tenant.contactPhone || ''),
+              logoUrl: String(tenant.logoUrl || ''),
+              coverImageUrl: String(tenant.coverImageUrl || ''),
+              photos: Array.isArray(tenant.photos) ? tenant.photos : [],
+              tagline: String(tenant.tagline || ''),
               plan:
                 (tenant.plan as TenantHotelItem['plan']) ||
                 (tenant.status === 'TRIAL' ? 'TRIAL' : 'CUSTOM'),
@@ -592,9 +600,22 @@ export const SuperAdminDashboardApp: React.FC = () => {
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [newRooms, setNewRooms] = useState(30);
   const [newTables, setNewTables] = useState(20);
+  const [newLogoUrl, setNewLogoUrl] = useState('');
+  const [newCoverImageUrl, setNewCoverImageUrl] = useState('');
+  const [newTagline, setNewTagline] = useState('');
   const [onboarding, setOnboarding] = useState(false);
   const [onboardError, setOnboardError] = useState('');
   const [tenantActionId, setTenantActionId] = useState('');
+
+  // Edit Branding Modal State
+  const [isBrandingModalOpen, setIsBrandingModalOpen] = useState(false);
+  const [editingBrandingTenant, setEditingBrandingTenant] = useState<TenantHotelItem | null>(null);
+  const [editLogoUrl, setEditLogoUrl] = useState('');
+  const [editCoverImageUrl, setEditCoverImageUrl] = useState('');
+  const [editTagline, setEditTagline] = useState('');
+  const [isSavingBranding, setIsSavingBranding] = useState(false);
+  const [brandingError, setBrandingError] = useState('');
+  const [brandingSuccess, setBrandingSuccess] = useState('');
 
   // Modular Portals & Dynamic Pricing State for Onboarding
   const [onboardPortals, setOnboardPortals] = useState<PortalKey[]>([
@@ -638,6 +659,65 @@ export const SuperAdminDashboardApp: React.FC = () => {
     }
   };
 
+  // Dynamic DB-Backed Portal Pricing Catalog
+  const [dbPortalCatalog, setDbPortalCatalog] = useState(DEFAULT_PORTAL_CATALOG);
+  const [editingPriceKey, setEditingPriceKey] = useState<PortalKey | null>(null);
+  const [customPriceInput, setCustomPriceInput] = useState<string>('');
+  const [isUpdatingDbPrice, setIsUpdatingDbPrice] = useState(false);
+
+  const loadPortalPricing = useCallback(async () => {
+    try {
+      const res = await fetch(`${env.apiBaseUrl}/superadmin/portal-pricing`, {
+        headers: platformAuthHeaders(),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.success && Array.isArray(json.catalog) && json.catalog.length > 0) {
+          setDbPortalCatalog(
+            json.catalog.map((item: any) => ({
+              id: item.portalKey || item.id,
+              name: item.name,
+              role: item.role,
+              port: item.port,
+              category: item.category,
+              categoryLabel: item.categoryLabel,
+              defaultMonthlyPriceINR: Number(item.defaultMonthlyPriceINR) || 0,
+              badge: item.badge || '',
+              emoji: item.emoji || '💻',
+              description: item.description || '',
+              requiredBase: (item.portalKey || item.id) === 'admin',
+            }))
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('DB portal pricing fetch fallback:', err);
+    }
+  }, [env.apiBaseUrl]);
+
+  useEffect(() => {
+    void loadPortalPricing();
+  }, [loadPortalPricing, refreshKey]);
+
+  const handleUpdateDbPortalPrice = async (portalKey: PortalKey, newPrice: number) => {
+    setIsUpdatingDbPrice(true);
+    try {
+      const res = await fetch(`${env.apiBaseUrl}/superadmin/portal-pricing`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...platformAuthHeaders() },
+        body: JSON.stringify({ portalKey, defaultMonthlyPriceINR: newPrice }),
+      });
+      if (res.ok) {
+        await loadPortalPricing();
+        setEditingPriceKey(null);
+      }
+    } catch (err) {
+      console.error('Failed to update DB portal price:', err);
+    } finally {
+      setIsUpdatingDbPrice(false);
+    }
+  };
+
   // Modular Portals & Dynamic Pricing State for Editing Existing Tenant
   const [editingTenantPortals, setEditingTenantPortals] = useState<TenantHotelItem | null>(null);
   const [editPortalsList, setEditPortalsList] = useState<PortalKey[]>([]);
@@ -646,10 +726,22 @@ export const SuperAdminDashboardApp: React.FC = () => {
   const [isSavingPortals, setIsSavingPortals] = useState(false);
   const [editPortalsError, setEditPortalsError] = useState('');
 
-  const editPricing = useMemo(
-    () => calculateModularSubscription(editPortalsList, editDiscount, editBillingCycle),
-    [editPortalsList, editDiscount, editBillingCycle]
-  );
+  const editPricing = useMemo(() => {
+    const catalogMap = new Map(dbPortalCatalog.map((c) => [c.id, c.defaultMonthlyPriceINR]));
+    const subtotal = editPortalsList.reduce((sum, p) => sum + (catalogMap.get(p) || 0), 0);
+    const discount = Math.min(subtotal, Math.max(0, editDiscount));
+    const monthlyTotal = Math.max(0, subtotal - discount);
+    const annualMultiplier = 10;
+    const annualTotal = monthlyTotal * annualMultiplier;
+    return {
+      baseMonthlyTotalINR: subtotal,
+      customAdjustmentINR: discount,
+      finalMonthlyTotalINR: monthlyTotal,
+      billingCycle: editBillingCycle,
+      effectiveRateINR: editBillingCycle === 'ANNUAL' ? annualTotal : monthlyTotal,
+      annualTotalINR: annualTotal,
+    };
+  }, [editPortalsList, editDiscount, editBillingCycle, dbPortalCatalog]);
 
   const handleOpenEditPortals = (tenant: TenantHotelItem) => {
     setEditingTenantPortals(tenant);
@@ -742,6 +834,60 @@ export const SuperAdminDashboardApp: React.FC = () => {
     }
   };
 
+  const handleOpenEditBranding = (tenant: TenantHotelItem) => {
+    setEditingBrandingTenant(tenant);
+    setEditLogoUrl(tenant.logoUrl || '');
+    setEditCoverImageUrl(tenant.coverImageUrl || '');
+    setEditTagline(tenant.tagline || '');
+    setBrandingError('');
+    setBrandingSuccess('');
+    setIsBrandingModalOpen(true);
+  };
+
+  const handleSaveBranding = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBrandingTenant) return;
+    setIsSavingBranding(true);
+    setBrandingError('');
+    setBrandingSuccess('');
+    try {
+      const response = await fetch(`${env.apiBaseUrl}/superadmin/tenants/${editingBrandingTenant.id}/branding`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...platformAuthHeaders() },
+        body: JSON.stringify({
+          logoUrl: editLogoUrl.trim(),
+          coverImageUrl: editCoverImageUrl.trim(),
+          tagline: editTagline.trim(),
+        }),
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success) {
+        setBrandingError(json?.message || 'Failed to update property branding.');
+        return;
+      }
+      setTenants((prev) =>
+        prev.map((t) =>
+          t.id === editingBrandingTenant.id
+            ? {
+                ...t,
+                logoUrl: editLogoUrl.trim(),
+                coverImageUrl: editCoverImageUrl.trim(),
+                tagline: editTagline.trim(),
+              }
+            : t
+        )
+      );
+      setBrandingSuccess('Branding updated across all portals successfully!');
+      setTimeout(() => {
+        setIsBrandingModalOpen(false);
+      }, 900);
+    } catch {
+      setBrandingError('Failed to connect to backend server.');
+    } finally {
+      setIsSavingBranding(false);
+    }
+  };
+
   const handleOnboardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
@@ -772,6 +918,9 @@ export const SuperAdminDashboardApp: React.FC = () => {
           monthlyPriceINR: onboardPricing.finalMonthlyTotalINR,
           billingCycle: onboardBillingCycle,
           customPricingAdjustmentINR: onboardDiscount,
+          logoUrl: newLogoUrl.trim() || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=300&auto=format&fit=crop&q=80',
+          coverImageUrl: newCoverImageUrl.trim() || 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1600&auto=format&fit=crop&q=80',
+          tagline: newTagline.trim() || 'Luxury Stays & Fine Hospitality',
         }),
       });
       const json = await response.json().catch(() => null);
@@ -844,6 +993,9 @@ export const SuperAdminDashboardApp: React.FC = () => {
       setNewPhone('');
       setNewAdminName('');
       setNewAdminPassword('');
+      setNewLogoUrl('');
+      setNewCoverImageUrl('');
+      setNewTagline('');
       setOnboardPortals([...ALL_PORTAL_KEYS]);
       setOnboardDiscount(0);
       setOnboardBillingCycle('MONTHLY');
@@ -1992,18 +2144,18 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           .sort((a, b) => b.todayRevenue - a.todayRevenue)
                           .slice(0, 5)
                           .map((b, i) => (
-                          <tr key={b.id} className="hover:bg-white/5 transition">
+                          <tr key={b.id} className={`transition ${theme === 'dark' ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}>
                             <td className="py-2.5 text-slate-500 font-mono text-[10px]">{i + 1}</td>
-                            <td className="py-2.5 font-bold text-white truncate max-w-[120px]">{b.name}</td>
+                            <td className={`py-2.5 font-bold truncate max-w-[120px] ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{b.name}</td>
                             <td className="py-2.5 text-slate-400">{b.city}</td>
                             <td className="py-2.5 text-right font-medium">{b.orders}</td>
-                            <td className="py-2.5 text-right font-bold text-emerald-400">
+                            <td className="py-2.5 text-right font-bold text-emerald-500">
                               ₹{b.todayRevenue.toLocaleString('en-IN')}
                             </td>
                             <td className="py-2.5 text-right">
                               <span
                                 className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                  b.status === 'ONLINE' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                                  b.status === 'ONLINE' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
                                 }`}
                               >
                                 {b.status}
@@ -2068,7 +2220,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       />
                     </svg>
                     <div className="absolute flex flex-col items-center justify-center text-center">
-                      <span className="text-xl font-black text-white">
+                      <span className={`text-xl font-black ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                         {totalRoomsCount > 0
                           ? `${Math.round((occupiedRoomsCount / totalRoomsCount) * 100)}%`
                           : '—'}
@@ -2078,30 +2230,30 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   </div>
 
                   {/* Live Inventory Legend */}
-                  <div className="grid grid-cols-2 gap-1.5 text-[11px] pt-2 border-t border-slate-800/60">
+                  <div className={`grid grid-cols-2 gap-1.5 text-[11px] pt-2 border-t ${theme === 'dark' ? 'border-slate-800/60' : 'border-slate-200'}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-indigo-400">● Occupied rooms</span>
-                      <strong className="text-white">{occupiedRoomsCount}</strong>
+                      <span className="text-indigo-500 font-medium">● Occupied rooms</span>
+                      <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{occupiedRoomsCount}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-emerald-400">● Available rooms</span>
-                      <strong className="text-white">{Math.max(0, totalRoomsCount - occupiedRoomsCount)}</strong>
+                      <span className="text-emerald-500 font-medium">● Available rooms</span>
+                      <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{Math.max(0, totalRoomsCount - occupiedRoomsCount)}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-cyan-400">● Busy tables</span>
-                      <strong className="text-white">{activeTablesCount}</strong>
+                      <span className="text-cyan-500 font-medium">● Busy tables</span>
+                      <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{activeTablesCount}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400">● Total tables</span>
-                      <strong className="text-white">{totalTablesCount}</strong>
+                      <span className="text-slate-500 font-medium">● Total tables</span>
+                      <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{totalTablesCount}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-pink-400">● Guests</span>
-                      <strong className="text-white">{formatCount(metricsData.totalGuests)}</strong>
+                      <span className="text-pink-500 font-medium">● Guests</span>
+                      <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{formatCount(metricsData.totalGuests)}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-amber-400">● Staff accounts</span>
-                      <strong className="text-white">{metricsData.totalStaff}</strong>
+                      <span className="text-amber-500 font-medium">● Staff accounts</span>
+                      <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{metricsData.totalStaff}</strong>
                     </div>
                   </div>
                 </div>
@@ -2234,86 +2386,135 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 {tenants.map((t) => (
                   <div
                     key={t.id}
-                    className={`p-5 rounded-2xl border transition-all ${
+                    className={`rounded-2xl border transition-all overflow-hidden flex flex-col ${
                       theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h3 className="font-bold text-sm text-white">{t.name}</h3>
-                        <p className="text-xs text-slate-400">{t.city}, {t.state}</p>
-                      </div>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          t.status === 'ACTIVE'
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                        }`}
-                      >
-                        {t.status}
-                      </span>
-                    </div>
+                    {/* Hotel Cover Image Banner */}
+                    <div className="relative h-28 w-full bg-slate-900 overflow-hidden">
+                      {t.coverImageUrl ? (
+                        <img
+                          src={t.coverImageUrl}
+                          alt={t.name}
+                          className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-indigo-900/60 via-slate-900 to-black flex items-center justify-center text-indigo-400 font-bold text-xl">
+                          🏨
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0f131d] via-[#0f131d]/30 to-transparent" />
 
-                    <div className="grid grid-cols-3 gap-2 my-3 p-2 rounded-xl bg-black/20 border border-white/5 text-center text-xs">
-                      <div>
-                        <div className="text-[10px] text-slate-400">Code</div>
-                        <div className="font-mono font-bold text-white mt-0.5">{t.code}</div>
+                      {/* Status Pill on Top-Right */}
+                      <div className="absolute top-2.5 right-2.5">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold shadow-md ${
+                            t.status === 'ACTIVE'
+                              ? 'bg-emerald-500/90 text-white'
+                              : 'bg-rose-500/90 text-white'
+                          }`}
+                        >
+                          {t.status}
+                        </span>
                       </div>
-                      <div>
-                        <div className="text-[10px] text-slate-400">Rooms</div>
-                        <div className="font-bold text-indigo-400 mt-0.5">{t.activeRooms} / {t.totalRooms}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-slate-400">Tables</div>
-                        <div className="font-bold text-cyan-400 mt-0.5">{t.activeTables} / {t.totalTables}</div>
-                      </div>
-                    </div>
 
-                    <div className="mb-3 flex items-center justify-between gap-2 text-[11px]">
-                      <span className="text-slate-400">Subscription Plan</span>
-                      <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold">
-                        {t.plan}
-                        {t.monthlyBilling ? ` · ₹${t.monthlyBilling.toLocaleString('en-IN')}/mo` : ''}
-                      </span>
-                    </div>
-
-                    {/* Modular Portals Allocation Badges */}
-                    <div className="mb-3 space-y-1.5">
-                      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        <span>Allocated Portals ({t.enabledPortals?.length ?? 7}/7)</span>
-                        <span className="text-indigo-400 font-mono text-[9px]">{t.billingCycle || 'MONTHLY'}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {DEFAULT_PORTAL_CATALOG.map((portal) => {
-                          const isAllocated = !t.enabledPortals || t.enabledPortals.includes(portal.id);
-                          return (
-                            <span
-                              key={portal.id}
-                              title={`${portal.name} - ${isAllocated ? 'Subscribed' : 'Not Subscribed'}`}
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition ${
-                                isAllocated
-                                  ? 'bg-slate-800 text-slate-200 border border-slate-700'
-                                  : 'bg-rose-950/20 text-rose-500/60 border border-rose-900/30 line-through opacity-50'
-                              }`}
-                            >
-                              <span>{portal.emoji}</span>
-                              <span>{portal.name.split(' ')[0]}</span>
-                              {!isAllocated && <span className="no-underline text-[8px]">🔒</span>}
-                            </span>
-                          );
-                        })}
+                      {/* Hotel Brand Logo Badge overlapping banner bottom */}
+                      <div className="absolute -bottom-2 left-4 flex items-end gap-3">
+                        <div className="h-12 w-12 rounded-xl overflow-hidden border-2 border-[#0f131d] bg-black shadow-lg flex-shrink-0">
+                          {t.logoUrl ? (
+                            <img src={t.logoUrl} alt={t.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+                              {t.name.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    {/* Button to open modular portals and dynamic pricing editor */}
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditPortals(t)}
-                      className="mb-3 w-full rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-xs font-bold text-indigo-300 hover:bg-indigo-600 hover:text-white transition flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <span>⚙️</span>
-                      <span>Portals & Dynamic Pricing</span>
-                    </button>
+                    <div className="p-4 pt-3 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-sm text-white truncate">{t.name}</h3>
+                            <p className="text-xs text-slate-400">{t.city}, {t.state}</p>
+                            {t.tagline && (
+                              <p className="text-[10px] text-indigo-300 italic mt-0.5 truncate">"{t.tagline}"</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 my-2.5 p-2 rounded-xl bg-black/20 border border-white/5 text-center text-xs">
+                          <div>
+                            <div className="text-[10px] text-slate-400">Code</div>
+                            <div className="font-mono font-bold text-white mt-0.5">{t.code}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-slate-400">Rooms</div>
+                            <div className="font-bold text-indigo-400 mt-0.5">{t.activeRooms} / {t.totalRooms}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-slate-400">Tables</div>
+                            <div className="font-bold text-cyan-400 mt-0.5">{t.activeTables} / {t.totalTables}</div>
+                          </div>
+                        </div>
+
+                        <div className="mb-2.5 flex items-center justify-between gap-2 text-[11px]">
+                          <span className="text-slate-400">Subscription Plan</span>
+                          <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold">
+                            {t.plan}
+                            {t.monthlyBilling ? ` · ₹${t.monthlyBilling.toLocaleString('en-IN')}/mo` : ''}
+                          </span>
+                        </div>
+
+                        {/* Modular Portals Allocation Badges */}
+                        <div className="mb-3 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            <span>Allocated Portals ({t.enabledPortals?.length ?? 7}/7)</span>
+                            <span className="text-indigo-400 font-mono text-[9px]">{t.billingCycle || 'MONTHLY'}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {dbPortalCatalog.map((portal) => {
+                              const isAllocated = !t.enabledPortals || t.enabledPortals.includes(portal.id);
+                              return (
+                                <span
+                                  key={portal.id}
+                                  title={`${portal.name} - ${isAllocated ? 'Subscribed' : 'Not Subscribed'}`}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition ${
+                                    isAllocated
+                                      ? 'bg-slate-800 text-slate-200 border border-slate-700'
+                                      : 'bg-rose-950/20 text-rose-500/60 border border-rose-900/30 line-through opacity-50'
+                                  }`}
+                                >
+                                  <span>{portal.emoji}</span>
+                                  <span>{portal.name.split(' ')[0]}</span>
+                                  {!isAllocated && <span className="no-underline text-[8px]">🔒</span>}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Dual Action Buttons: Portals & Dynamic Pricing + Branding / Imagery */}
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditPortals(t)}
+                          className="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-2 py-2 text-[11px] font-bold text-indigo-300 hover:bg-indigo-600 hover:text-white transition flex items-center justify-center gap-1 shadow-sm"
+                        >
+                          <span>⚙️</span>
+                          <span>Portals</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditBranding(t)}
+                          className="rounded-xl border border-pink-500/40 bg-pink-500/10 px-2 py-2 text-[11px] font-bold text-pink-300 hover:bg-pink-600 hover:text-white transition flex items-center justify-center gap-1 shadow-sm"
+                        >
+                          <span>🖼️</span>
+                          <span>Branding</span>
+                        </button>
+                      </div>
 
                     {platformPlans.length > 0 && (
                       <select
@@ -2373,6 +2574,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           ? 'Reactivate Property'
                           : 'Suspend Property'}
                     </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -3301,6 +3503,114 @@ export const SuperAdminDashboardApp: React.FC = () => {
               </div>
             </div>
 
+            {/* Property Imagery & Brand Identity */}
+            <div className="space-y-3 pt-3 border-t border-slate-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🖼️</span>
+                    <span>1.5 Property Imagery & Brand Identity</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    High-res hotel facade cover photo and brand logo displayed to guests and staff across all mobile apps & portals.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">Photo Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCoverImageUrl('https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1600&auto=format&fit=crop&q=80');
+                      setNewLogoUrl('https://images.unsplash.com/photo-1566073771259-6a8506099945?w=300&auto=format&fit=crop&q=80');
+                      setNewTagline('Luxury Stays, Fine Dining & Serene Hospitality');
+                    }}
+                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-semibold border border-slate-700 transition"
+                  >
+                    👑 Luxury Resort
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCoverImageUrl('https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1600&auto=format&fit=crop&q=80');
+                      setNewLogoUrl('https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=300&auto=format&fit=crop&q=80');
+                      setNewTagline('Timeless Rajputana Royalty & World-Class Splendor');
+                    }}
+                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-semibold border border-slate-700 transition"
+                  >
+                    🏰 Heritage Palace
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCoverImageUrl('https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1600&auto=format&fit=crop&q=80');
+                      setNewLogoUrl('https://images.unsplash.com/photo-1590490360182-c33d57733427?w=300&auto=format&fit=crop&q=80');
+                      setNewTagline('Boutique Elegance & Contemporary Urban Comfort');
+                    }}
+                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-semibold border border-slate-700 transition"
+                  >
+                    ✨ Boutique Hotel
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Cover / Banner Photo URL</label>
+                  <input
+                    type="url"
+                    value={newCoverImageUrl}
+                    onChange={(e) => setNewCoverImageUrl(e.target.value)}
+                    placeholder="https://images.unsplash.com/photo-..."
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                  {newCoverImageUrl ? (
+                    <div className="mt-2 h-24 rounded-xl overflow-hidden border border-slate-700 relative">
+                      <img src={newCoverImageUrl} alt="Cover preview" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-2">
+                        <span className="text-[10px] text-white font-semibold">Cover Photo Live Preview</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 h-14 rounded-xl border border-dashed border-slate-800 flex items-center justify-center text-[10px] text-slate-500">
+                      No cover photo specified (luxury default will apply)
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Hotel Brand Logo URL</label>
+                  <input
+                    type="url"
+                    value={newLogoUrl}
+                    onChange={(e) => setNewLogoUrl(e.target.value)}
+                    placeholder="https://images.unsplash.com/photo-... or /assets/logo.png"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                  <div className="mt-2 flex items-center gap-3">
+                    {newLogoUrl ? (
+                      <div className="h-14 w-14 rounded-full overflow-hidden border-2 border-indigo-500 bg-black flex-shrink-0">
+                        <img src={newLogoUrl} alt="Logo preview" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="h-14 w-14 rounded-full border border-dashed border-slate-800 flex items-center justify-center text-[9px] text-slate-500 text-center flex-shrink-0">
+                        Default Logo
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Tagline / Brand Motto</label>
+                      <input
+                        type="text"
+                        value={newTagline}
+                        onChange={(e) => setNewTagline(e.target.value)}
+                        placeholder="e.g. Luxury Stays & Fine Hospitality"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-slate-800 text-xs text-white mt-0.5"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Modular Portal Allocation & Dynamic Pricing Engine */}
             <div className="space-y-3 pt-3 border-t border-slate-800">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -3613,9 +3923,9 @@ export const SuperAdminDashboardApp: React.FC = () => {
               </div>
             </div>
 
-            {/* 7 Portals Grid */}
+            {/* 7 Portals Grid (Dynamic DB Catalog) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {DEFAULT_PORTAL_CATALOG.map((portal) => {
+              {dbPortalCatalog.map((portal) => {
                 const isChecked = editPortalsList.includes(portal.id);
                 const isBase = portal.requiredBase;
 
@@ -3648,9 +3958,52 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       </div>
                       <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{portal.description}</p>
                       <div className="mt-1.5 flex items-center justify-between text-[10px]">
-                        <span className="font-bold text-indigo-400">
-                          +₹{portal.defaultMonthlyPriceINR.toLocaleString('en-IN')}/mo
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {editingPriceKey === portal.id ? (
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              <span className="text-slate-400">₹</span>
+                              <input
+                                type="number"
+                                value={customPriceInput}
+                                onChange={(e) => setCustomPriceInput(e.target.value)}
+                                className="w-16 px-1.5 py-0.5 rounded bg-black border border-indigo-500 text-[10px] text-white"
+                              />
+                              <button
+                                type="button"
+                                disabled={isUpdatingDbPrice}
+                                onClick={() => void handleUpdateDbPortalPrice(portal.id, Number(customPriceInput))}
+                                className="px-1.5 py-0.5 rounded bg-indigo-600 text-white font-bold hover:bg-indigo-500"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingPriceKey(null)}
+                                className="text-slate-400 hover:text-white"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-indigo-400">
+                                +₹{portal.defaultMonthlyPriceINR.toLocaleString('en-IN')}/mo
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingPriceKey(portal.id);
+                                  setCustomPriceInput(String(portal.defaultMonthlyPriceINR));
+                                }}
+                                className="text-slate-500 hover:text-indigo-300 text-[9px] underline cursor-pointer"
+                                title="Edit DB Catalog Base Price"
+                              >
+                                ✏️ Edit
+                              </button>
+                            </div>
+                          )}
+                        </div>
                         {isBase ? (
                           <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[9px] border border-indigo-500/30">
                             Core Base
@@ -3756,6 +4109,180 @@ export const SuperAdminDashboardApp: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 13.6 EDIT TENANT BRANDING & IMAGERY MODAL                 */}
+      {/* ======================================================== */}
+      {isBrandingModalOpen && editingBrandingTenant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <form
+            onSubmit={handleSaveBranding}
+            className="bg-[#0f131d] border border-pink-500/40 rounded-3xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="font-bold text-base text-white flex items-center gap-2">
+                  <span>🖼️</span>
+                  <span>Property Branding & Imagery — {editingBrandingTenant.name}</span>
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Update cover photo, logo, and tagline. These are projected in real time to mobile apps & ERP.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBrandingModalOpen(false)}
+                className="text-slate-400 hover:text-white font-bold text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Curated Presets Bar */}
+            <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                1-Click Curated Luxury Presets:
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditCoverImageUrl('https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1600&auto=format&fit=crop&q=80');
+                    setEditLogoUrl('https://images.unsplash.com/photo-1566073771259-6a8506099945?w=300&auto=format&fit=crop&q=80');
+                    setEditTagline('Luxury Stays, Fine Dining & Serene Hospitality');
+                  }}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-left border border-slate-700 text-[10px] transition"
+                >
+                  <div className="font-bold text-amber-300">👑 Royal Resort</div>
+                  <div className="text-slate-400 text-[9px] truncate">Poolside luxury</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditCoverImageUrl('https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1600&auto=format&fit=crop&q=80');
+                    setEditLogoUrl('https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=300&auto=format&fit=crop&q=80');
+                    setEditTagline('Timeless Rajputana Royalty & World-Class Splendor');
+                  }}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-left border border-slate-700 text-[10px] transition"
+                >
+                  <div className="font-bold text-indigo-300">🏰 Heritage Palace</div>
+                  <div className="text-slate-400 text-[9px] truncate">Historic courtyard</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditCoverImageUrl('https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1600&auto=format&fit=crop&q=80');
+                    setEditLogoUrl('https://images.unsplash.com/photo-1590490360182-c33d57733427?w=300&auto=format&fit=crop&q=80');
+                    setEditTagline('Boutique Elegance & Contemporary Urban Comfort');
+                  }}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-left border border-slate-700 text-[10px] transition"
+                >
+                  <div className="font-bold text-pink-300">✨ Boutique Urban</div>
+                  <div className="text-slate-400 text-[9px] truncate">Modern minimalist</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditCoverImageUrl('https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1600&auto=format&fit=crop&q=80');
+                    setEditLogoUrl('https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=300&auto=format&fit=crop&q=80');
+                    setEditTagline('Premier Hospitality, Business Lounges & Banquets');
+                  }}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-left border border-slate-700 text-[10px] transition"
+                >
+                  <div className="font-bold text-emerald-300">🏙️ Metropolitan</div>
+                  <div className="text-slate-400 text-[9px] truncate">Executive suites</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Inputs & Live Previews */}
+            <div className="space-y-4">
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase">Hotel Cover / Facade Photo URL</label>
+                <input
+                  type="url"
+                  value={editCoverImageUrl}
+                  onChange={(e) => setEditCoverImageUrl(e.target.value)}
+                  placeholder="https://images.unsplash.com/..."
+                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                />
+                {editCoverImageUrl && (
+                  <div className="mt-2 h-32 w-full rounded-2xl overflow-hidden border border-slate-700 relative shadow-md">
+                    <img src={editCoverImageUrl} alt="Cover preview" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-2.5">
+                      <span className="text-xs text-white font-bold">Cover Photo Live Preview</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Hotel Brand Logo URL</label>
+                  <input
+                    type="url"
+                    value={editLogoUrl}
+                    onChange={(e) => setEditLogoUrl(e.target.value)}
+                    placeholder="https://.../logo.png"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                  {editLogoUrl && (
+                    <div className="mt-2 flex items-center gap-2.5 p-2 rounded-xl bg-black/30 border border-slate-800">
+                      <div className="h-12 w-12 rounded-xl overflow-hidden border border-indigo-500 bg-black flex-shrink-0">
+                        <img src={editLogoUrl} alt="Logo" className="w-full h-full object-cover" />
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-semibold">Avatar Badge Preview</span>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Hotel Tagline / Brand Motto</label>
+                  <input
+                    type="text"
+                    value={editTagline}
+                    onChange={(e) => setEditTagline(e.target.value)}
+                    placeholder="e.g. Luxury Stays & Fine Hospitality"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                  <div className="mt-2 p-2 rounded-xl bg-black/30 border border-slate-800 text-[11px] text-slate-300 italic">
+                    "{editTagline || 'No tagline set'}"
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {brandingError && (
+              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold">
+                {brandingError}
+              </div>
+            )}
+            {brandingSuccess && (
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
+                {brandingSuccess}
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsBrandingModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSavingBranding}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-pink-600 hover:bg-pink-500 text-white shadow-lg shadow-pink-600/30 transition flex items-center gap-1.5 disabled:opacity-60"
+              >
+                <span>💾</span>
+                <span>{isSavingBranding ? 'Saving...' : 'Save & Broadcast Branding'}</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

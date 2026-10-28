@@ -1,9 +1,16 @@
 import { Request, Response } from 'express';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { Types } from 'mongoose';
 import { User } from '../models/User';
 import { Tenant } from '../models/Tenant';
+import { Room } from '../models/Room';
+import { RoomType } from '../models/RoomType';
+import { DiningTable } from '../models/DiningTable';
+import { KitchenStation } from '../models/KitchenStation';
+import { MenuCategory } from '../models/MenuCategory';
+import { MenuItem, FoodType } from '../models/MenuItem';
 import { UserRole, ShiftStatus, TenantRequest } from '../types';
 import { getJwtSecret, isDevAuthBypassEnabled } from '../config/security';
 import { ITenant } from '../models/Tenant';
@@ -25,6 +32,8 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
       slug,
       contactEmail,
       contactPhone,
+      city = 'Sikar',
+      state = 'Rajasthan',
       gstin,
       adminName,
       adminPassword,
@@ -37,6 +46,8 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
       coverImageUrl,
       photos,
       tagline,
+      initialRooms = 10,
+      initialTables = 6,
     } = req.body;
 
     if (!hotelName || !slug || !contactEmail || !adminPassword) {
@@ -72,6 +83,11 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
       slug: slug.toLowerCase(),
       contactEmail,
       contactPhone: contactPhone || '9999999999',
+      address: {
+        city: city || 'Sikar',
+        state: state || 'Rajasthan',
+        country: 'India',
+      },
       logoUrl: logoUrl || '',
       coverImageUrl: coverImageUrl || '',
       photos: Array.isArray(photos) ? photos : [],
@@ -98,6 +114,7 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
 
     // 2. Hash Password using Argon2
     const passwordHash = await argon2.hash(adminPassword);
+    const pinCodeHash = await argon2.hash('1111');
 
     // 3. Create Hotel Admin User
     const adminUser = await User.create({
@@ -106,10 +123,164 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
       email: contactEmail.toLowerCase(),
       phone: contactPhone || '9999999999',
       passwordHash,
+      pinCodeHash,
+      pinApprovedByAdmin: true,
       role: UserRole.HOTEL_ADMIN,
       permissions: ['*'],
       shiftStatus: ShiftStatus.ON_DUTY,
     });
+
+    // Automatically provision initial rooms & tables
+    const hashToken = (seed: string) =>
+      crypto.createHash('sha256').update(`${seed}:${crypto.randomUUID()}`).digest('hex');
+
+    if (initialRooms > 0) {
+      const roomType = await RoomType.create({
+        hotelId: tenant._id,
+        name: 'Deluxe Room',
+        code: 'DLX',
+        baseCapacityAdults: 2,
+        baseCapacityChildren: 1,
+        maxCapacity: 3,
+        basePriceOvernight: 2800,
+        weekendPrice: 3500,
+        extraBedPrice: 600,
+        gstRate: 12,
+        basePriceDayUse: 1800,
+        basePriceHourly: 450,
+        amenities: ['King Bed', 'AC', 'High-Speed WiFi', 'Room Service'],
+        totalRoomsCount: initialRooms,
+        isActive: true,
+      });
+
+      const roomDocs = Array.from({ length: initialRooms }, (_, idx) => {
+        const roomNumber = String(101 + idx);
+        return {
+          hotelId: tenant._id,
+          roomNumber,
+          roomTypeId: roomType._id,
+          floorNumber: 1,
+          status: 'AVAILABLE',
+          permanentQrCodeHash: hashToken(`room:${tenant._id}:${roomNumber}`),
+        };
+      });
+      await Room.insertMany(roomDocs);
+    }
+
+    if (initialTables > 0) {
+      const tableDocs = Array.from({ length: initialTables }, (_, idx) => {
+        const tableNumber = `T-${String(idx + 1).padStart(2, '0')}`;
+        return {
+          hotelId: tenant._id,
+          tableNumber,
+          floorLevel: 'Ground Floor',
+          section: 'AC_DINING',
+          capacity: 4,
+          currentStatus: 'AVAILABLE',
+          isCommunityTable: false,
+          allowCoDining: true,
+          seats: [1, 2, 3, 4].map((s) => ({
+            seatNumber: s,
+            seatLabel: `S${s}`,
+            status: 'AVAILABLE',
+          })),
+          availableSeatsCount: 4,
+          occupiedSeatsCount: 0,
+          qrTokenHash: hashToken(`table:${tenant._id}:${tableNumber}`),
+        };
+      });
+      await DiningTable.insertMany(tableDocs);
+    }
+
+    // Seed default kitchen station, menu categories, and dishes
+    const mainKitchen = await KitchenStation.create({
+      hotelId: tenant._id,
+      stationName: 'Main Kitchen',
+      screenToken: hashToken(`station:${tenant._id}:main`),
+      assignedChefIds: [],
+      isOnline: true,
+    });
+
+    const startersCat = await MenuCategory.create({
+      hotelId: tenant._id,
+      name: 'Appetizers & Starters',
+      slug: 'appetizers-starters',
+      displayOrder: 1,
+      kitchenStationId: mainKitchen._id,
+      isActive: true,
+    });
+
+    const mainsCat = await MenuCategory.create({
+      hotelId: tenant._id,
+      name: 'Main Course & Room Dining',
+      slug: 'mains-room-dining',
+      displayOrder: 2,
+      kitchenStationId: mainKitchen._id,
+      isActive: true,
+    });
+
+    await MenuItem.insertMany([
+      {
+        hotelId: tenant._id,
+        categoryId: startersCat._id,
+        kitchenStationId: mainKitchen._id,
+        name: 'Paneer Tikka',
+        description: 'Charcoal grilled cottage cheese marinated in spiced hung curd with herbs',
+        foodType: FoodType.VEG,
+        basePrice: 280,
+        hasVariants: false,
+        variants: [],
+        addons: [],
+        isAvailable: true,
+        prepTimeMinutes: 12,
+        images: ['https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=600&auto=format&fit=crop&q=80'],
+      },
+      {
+        hotelId: tenant._id,
+        categoryId: mainsCat._id,
+        kitchenStationId: mainKitchen._id,
+        name: 'Club Sandwich',
+        description: 'Classic triple-decker toasted sandwich with cheese, tomatoes, crisp lettuce and house dip',
+        foodType: FoodType.VEG,
+        basePrice: 220,
+        hasVariants: false,
+        variants: [],
+        addons: [],
+        isAvailable: true,
+        prepTimeMinutes: 10,
+        images: ['https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=600&auto=format&fit=crop&q=80'],
+      },
+      {
+        hotelId: tenant._id,
+        categoryId: mainsCat._id,
+        kitchenStationId: mainKitchen._id,
+        name: 'Dal Makhani',
+        description: 'Slow-simmered black lentils with butter and dairy cream',
+        foodType: FoodType.VEG,
+        basePrice: 260,
+        hasVariants: false,
+        variants: [],
+        addons: [],
+        isAvailable: true,
+        prepTimeMinutes: 15,
+        images: ['https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=600&auto=format&fit=crop&q=80'],
+      },
+      {
+        hotelId: tenant._id,
+        categoryId: mainsCat._id,
+        kitchenStationId: mainKitchen._id,
+        name: 'Butter Naan',
+        description: 'Tandoor-baked flatbread glazed with melted butter',
+        foodType: FoodType.VEG,
+        basePrice: 60,
+        hasVariants: false,
+        variants: [],
+        addons: [],
+        isAvailable: true,
+        prepTimeMinutes: 5,
+        images: ['https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop&q=80'],
+      },
+    ]);
 
     // 4. Issue JWT
     const secret = getJwtSecret();
@@ -167,38 +338,118 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+    const rawPassword = String(password);
+
     let tenantFilter: any = {};
     const hotelIdHeader = req.headers['x-hotel-id'] as string;
     const targetHotelId = req.body.hotelId || hotelIdHeader;
 
+    let targetTenant: any = null;
+
     if (slug) {
-      const tenant = await Tenant.findOne({ slug: slug.toLowerCase() });
-      if (!tenant) {
+      const trimmedSlug = String(slug).trim().toLowerCase();
+      const slugified = trimmedSlug.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const escapedSlug = trimmedSlug.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const escapedSlugified = slugified.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+
+      const tenantQuery: any[] = [
+        { slug: trimmedSlug },
+        { slug: slugified },
+        { slug: new RegExp(`^${escapedSlug}(-\\d+)?$`, 'i') },
+        { slug: new RegExp(`^${escapedSlugified}(-\\d+)?$`, 'i') },
+        { name: new RegExp(`^${escapedSlug}$`, 'i') },
+        { name: new RegExp(`^${escapedSlugified.replace(/-/g, ' ')}$`, 'i') },
+      ];
+      if (Types.ObjectId.isValid(trimmedSlug)) {
+        tenantQuery.push({ _id: new Types.ObjectId(trimmedSlug) });
+      }
+
+      targetTenant = await Tenant.findOne({ $or: tenantQuery });
+
+      // If no tenant directly matched the provided code/slug,
+      // check if this email has user accounts and see if one belongs to a tenant with a matching or partial slug/name
+      if (!targetTenant) {
+        const userMatches = await User.find({ email: normalizedEmail, isActive: true });
+        if (userMatches.length === 1 && userMatches[0].hotelId) {
+          targetTenant = await Tenant.findById(userMatches[0].hotelId);
+        } else if (userMatches.length > 1) {
+          const tenantIds = userMatches.map((u) => u.hotelId).filter(Boolean);
+          const candidateTenants = await Tenant.find({ _id: { $in: tenantIds } });
+          const partialMatch = candidateTenants.find(
+            (t) =>
+              t.slug.toLowerCase().includes(slugified) ||
+              t.name.toLowerCase().includes(trimmedSlug) ||
+              slugified.includes(t.slug.toLowerCase())
+          );
+          if (partialMatch) {
+            targetTenant = partialMatch;
+          }
+        }
+      }
+
+      if (!targetTenant) {
+        // If still no tenant found, check if this email is unique to a single hotel
+        const singleHotelCheck = await User.find({ email: normalizedEmail, isActive: true });
+        if (singleHotelCheck.length === 1 && singleHotelCheck[0].hotelId) {
+          targetTenant = await Tenant.findById(singleHotelCheck[0].hotelId);
+        }
+      }
+
+      if (!targetTenant) {
         res.status(404).json({
           success: false,
           errorCode: 'TENANT_NOT_FOUND',
-          message: 'Invalid hotel slug',
+          message: 'Invalid hotel slug or code. Leave Hotel Code blank if your email is registered to a single hotel.',
         });
         return;
       }
-      tenantFilter = { hotelId: tenant._id };
+      tenantFilter = { hotelId: targetTenant._id };
     } else if (targetHotelId && Types.ObjectId.isValid(targetHotelId)) {
       tenantFilter = { hotelId: new Types.ObjectId(targetHotelId) };
     } else {
-      // Check if this email is ambiguously registered across multiple active hotel tenants
-      const matchingUsers = await User.find({ email: email.toLowerCase(), isActive: true }).limit(2);
-      if (matchingUsers.length > 1) {
-        res.status(409).json({
-          success: false,
-          errorCode: 'AMBIGUOUS_TENANT_LOGIN',
-          message: 'Multiple hotel accounts found for this email. Please specify hotel slug or hotel ID to login.',
-        });
-        return;
+      // No slug provided. Let's find all active user accounts for this email.
+      const candidateUsers = await User.find({ email: normalizedEmail, isActive: true });
+      if (candidateUsers.length > 1) {
+        // Multiple hotel accounts exist for this email.
+        // Test password verification across candidates so single matching account can log in directly!
+        const matchingPasswordUsers: any[] = [];
+        for (const candidate of candidateUsers) {
+          try {
+            const isMatch = await argon2.verify(candidate.passwordHash, rawPassword);
+            if (isMatch) matchingPasswordUsers.push(candidate);
+          } catch {}
+        }
+
+        if (matchingPasswordUsers.length === 1) {
+          tenantFilter = { _id: matchingPasswordUsers[0]._id };
+        } else if (matchingPasswordUsers.length > 1) {
+          const tenantDocs = await Tenant.find({
+            _id: { $in: matchingPasswordUsers.map((u) => u.hotelId).filter(Boolean) },
+          }).select('name slug');
+          res.status(409).json({
+            success: false,
+            errorCode: 'AMBIGUOUS_TENANT_LOGIN',
+            message: `Multiple hotel accounts found for ${normalizedEmail}. Please specify hotel slug or name (${tenantDocs.map((t) => t.slug).join(', ')}) to login.`,
+            tenants: tenantDocs.map((t) => ({ id: t._id, name: t.name, slug: t.slug })),
+          });
+          return;
+        } else {
+          // None of the candidate accounts matched this password
+          res.status(401).json({
+            success: false,
+            errorCode: 'INVALID_CREDENTIALS',
+            message: 'Invalid email or password',
+          });
+          return;
+        }
+      } else if (candidateUsers.length === 1) {
+        tenantFilter = { _id: candidateUsers[0]._id };
       }
     }
 
     const user = await User.findOne({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       ...tenantFilter,
     });
 
@@ -211,7 +462,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const isMatch = await argon2.verify(user.passwordHash, password);
+    const isMatch = await argon2.verify(user.passwordHash, rawPassword);
     if (!isMatch) {
       res.status(401).json({
         success: false,
@@ -319,9 +570,10 @@ const STAFF_PIN_ROLES = [
 export const waiterLogin = async (req: Request, res: Response): Promise<void> => {
   try {
     const { pin, pinCode, hotelSlug, hotelId, demo, staffId, email } = req.body || {};
-    const effectivePin = String(pin || pinCode || '');
+    const effectivePin = String(pin || pinCode || '').trim();
     const requesterIp = String(req.ip || req.socket?.remoteAddress || 'unknown');
-    const throttleKey = `${requesterIp}:${String(hotelSlug || hotelId || 'default')}`;
+    const rawHotelId = hotelId || (req.headers['x-hotel-id'] as string) || (req.query?.hotelId as string);
+    const throttleKey = `${requesterIp}:${String(hotelSlug || rawHotelId || 'default')}`;
 
     const attempt = waiterLoginAttempts.get(throttleKey);
     if (attempt && attempt.lockedUntil > Date.now()) {
@@ -335,8 +587,8 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
     }
 
     let tenant: ITenant | null = null;
-    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
-      tenant = await Tenant.findById(hotelId);
+    if (rawHotelId && Types.ObjectId.isValid(String(rawHotelId))) {
+      tenant = await Tenant.findById(rawHotelId);
     } else if (hotelSlug) {
       tenant = await Tenant.findOne({ slug: String(hotelSlug).toLowerCase() });
     } else {
@@ -359,28 +611,6 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
     }
 
     const staffCandidates = await User.find(staffQuery).select('+pendingPinHash');
-
-    const roleToPortalMap: Record<string, string> = {
-      [UserRole.WAITER]: 'waiter',
-      [UserRole.CHEF]: 'kds',
-      [UserRole.CASHIER]: 'cashier',
-      [UserRole.RECEPTIONIST]: 'reception',
-      [UserRole.MANAGER]: 'admin',
-      [UserRole.HOTEL_ADMIN]: 'admin',
-    };
-
-    const targetStaff = staffCandidates[0];
-    const targetPortal = String((req.body && req.body.portal) || (targetStaff ? roleToPortalMap[targetStaff.role] : 'waiter')).toLowerCase();
-
-    if (tenant.enabledPortals && Array.isArray(tenant.enabledPortals) && !tenant.enabledPortals.includes(targetPortal)) {
-      res.status(403).json({
-        success: false,
-        errorCode: 'PORTAL_NOT_SUBSCRIBED',
-        requiredPortal: targetPortal,
-        message: `The '${targetPortal}' workstation portal is not included in this hotel's subscription. Please contact your Super Administrator to activate it.`,
-      });
-      return;
-    }
 
     // Local demo helper: only available while the dev auth bypass is enabled.
     if (demo === true) {
@@ -427,11 +657,11 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    if (!effectivePin || typeof effectivePin !== 'string' || effectivePin.length < 4) {
+    if (!effectivePin || typeof effectivePin !== 'string' || !/^\d{4}$/.test(effectivePin)) {
       res.status(400).json({
         success: false,
         errorCode: 'PIN_REQUIRED',
-        message: 'A valid staff PIN is required',
+        message: 'A valid 4-digit staff PIN is required (must be exactly 4 numeric digits, numbers only)',
       });
       return;
     }
@@ -482,6 +712,28 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
             : `Invalid staff PIN. ${WAITER_LOGIN_MAX_ATTEMPTS - next} attempt${
                 WAITER_LOGIN_MAX_ATTEMPTS - next === 1 ? '' : 's'
               } remaining.`,
+      });
+      return;
+    }
+
+    // Enforce Portal Subscription Gating on matched staff role or requested portal
+    const roleToPortalMap: Record<string, string> = {
+      [UserRole.WAITER]: 'waiter',
+      [UserRole.CHEF]: 'kds',
+      [UserRole.CASHIER]: 'cashier',
+      [UserRole.RECEPTIONIST]: 'reception',
+      [UserRole.MANAGER]: 'admin',
+      [UserRole.HOTEL_ADMIN]: 'admin',
+    };
+    const requestedPortal = req.body && req.body.portal ? String(req.body.portal).toLowerCase() : undefined;
+    const targetPortal = requestedPortal || (matched ? roleToPortalMap[matched.role] : 'waiter');
+
+    if (targetPortal && tenant.enabledPortals && Array.isArray(tenant.enabledPortals) && !tenant.enabledPortals.includes(targetPortal)) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'PORTAL_NOT_SUBSCRIBED',
+        requiredPortal: targetPortal,
+        message: `The '${targetPortal}' workstation portal is not included in this hotel's subscription. Please contact your Super Administrator to activate it.`,
       });
       return;
     }
@@ -577,8 +829,8 @@ export const requestPin = async (req: Request, res: Response): Promise<void> => 
   try {
     const { hotelSlug, hotelId, email, phone, pin, role } = req.body || {};
 
-    if (!pin || !/^\d{4,6}$/.test(String(pin))) {
-      res.status(400).json({ success: false, errorCode: 'INVALID_PIN', message: 'PIN must be 4 to 6 numeric digits' });
+    if (!pin || !/^\d{4}$/.test(String(pin))) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PIN', message: 'PIN must be exactly 4 numeric digits' });
       return;
     }
 
@@ -716,12 +968,11 @@ export const sendPinOtp = async (req: Request, res: Response): Promise<void> => 
 
     res.status(200).json({
       success: true,
-      message: `Verification OTP sent to ${staff.email}. Valid for 10 minutes.`,
+      message: `Verification OTP sent to ${staff.email}. Valid for 10 minutes. Please check your email inbox.`,
       data: {
         email: staff.email,
         name: staff.name,
         expiresInSeconds: 600,
-        otpPreview: result.otpPreview,
       },
     });
   } catch (error: any) {
@@ -743,8 +994,8 @@ export const verifyPinOtp = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    if (!newPin || !/^\d{4,6}$/.test(String(newPin))) {
-      res.status(400).json({ success: false, errorCode: 'INVALID_PIN', message: 'New PIN must be 4 to 6 numeric digits' });
+    if (!newPin || !/^\d{4}$/.test(String(newPin))) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PIN', message: 'New PIN must be exactly 4 numeric digits' });
       return;
     }
 

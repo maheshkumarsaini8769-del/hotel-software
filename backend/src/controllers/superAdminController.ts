@@ -1,11 +1,12 @@
 import { Response } from 'express';
 import { Types } from 'mongoose';
 import crypto from 'crypto';
+import argon2 from 'argon2';
 import { Tenant, ITenant } from '../models/Tenant';
 import { SubscriptionPlan } from '../models/SubscriptionPlan';
 import { PortalPricing, ensureDefaultPortalPricing } from '../models/PortalPricing';
 import { SubscriptionInvoice } from '../models/SubscriptionInvoice';
-import { DEFAULT_PORTAL_CATALOG } from '@spicehub/shared-types';
+import { DEFAULT_PORTAL_CATALOG } from '../types/sharedTypes';
 import { Room, RoomStatus } from '../models/Room';
 import { RoomType } from '../models/RoomType';
 import { Booking } from '../models/Booking';
@@ -14,7 +15,10 @@ import { DiningTable, TableStatus } from '../models/DiningTable';
 import { GuestProfile } from '../models/GuestProfile';
 import { User } from '../models/User';
 import { Payment, PaymentStatus } from '../models/Payment';
-import { TenantRequest, UserRole } from '../types';
+import { KitchenStation } from '../models/KitchenStation';
+import { MenuCategory } from '../models/MenuCategory';
+import { MenuItem, FoodType } from '../models/MenuItem';
+import { TenantRequest, UserRole, ShiftStatus } from '../types';
 
 function getSocketIO(): any {
   try {
@@ -56,6 +60,7 @@ export const listAllTenants = async (req: TenantRequest, res: Response): Promise
           bookingCount,
           periodOrders,
           periodRevenue,
+          adminUser,
         ] = await Promise.all([
           Room.countDocuments({ hotelId: t._id }),
           Room.countDocuments({ hotelId: t._id, status: RoomStatus.OCCUPIED }),
@@ -85,6 +90,9 @@ export const listAllTenants = async (req: TenantRequest, res: Response): Promise
             },
             { $group: { _id: null, total: { $sum: '$amount' } } },
           ]),
+          User.findOne({ hotelId: t._id, role: UserRole.HOTEL_ADMIN, isActive: true })
+            .select('name email phone')
+            .lean(),
         ]);
         // Prefer the plan actually assigned to the tenant. Legacy tenants that
         // were never assigned a plan fall back to a feature-flag estimate.
@@ -103,12 +111,24 @@ export const listAllTenants = async (req: TenantRequest, res: Response): Promise
                   ? 'PROFESSIONAL'
                   : 'STARTER');
 
+        const subStart = t.subscriptionStartDate || t.subscription?.cycleStartDate || t.createdAt;
+        const subDurationMonths = t.subscriptionDurationMonths || t.subscription?.durationMonths || (t.billingCycle === 'ANNUAL' ? 12 : 1);
+        const subEnd = t.subscriptionEndDate || t.subscription?.nextBillingDate || new Date(new Date(subStart).getTime() + subDurationMonths * 30 * 86400000);
+
         return {
           id: t._id,
           name: t.name,
           slug: t.slug,
+          code: t.slug.toUpperCase(),
           contactEmail: t.contactEmail,
           contactPhone: t.contactPhone,
+          adminEmail: (adminUser as any)?.email || t.contactEmail,
+          adminName: (adminUser as any)?.name || `${t.name} Admin`,
+          adminPhone: (adminUser as any)?.phone || t.contactPhone,
+          subscriptionStartDate: subStart,
+          subscriptionEndDate: subEnd,
+          subscriptionDurationMonths: subDurationMonths,
+          subscriptionStatus: t.status,
           city: t.address?.city || '',
           state: t.address?.state || '',
           logoUrl: t.logoUrl || '',
@@ -446,6 +466,60 @@ export const getSubscriptionPlans = async (req: TenantRequest, res: Response): P
   try {
     const plans = await SubscriptionPlan.find({ isActive: true }).sort({ monthlyPriceINR: 1 });
     res.status(200).json({ success: true, count: plans.length, plans });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 5b. Update Subscription Plan (Pricing & Limits)
+export const updateSubscriptionPlan = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const planId = String(req.params.planId);
+    const { name, monthlyPriceINR, annualPriceINR, limits, featureFlags, isActive } = req.body;
+
+    const plan = await SubscriptionPlan.findById(new Types.ObjectId(planId));
+    if (!plan) {
+      res.status(404).json({ success: false, errorCode: 'PLAN_NOT_FOUND', message: 'Subscription plan not found' });
+      return;
+    }
+
+    if (name !== undefined) plan.name = String(name);
+    if (monthlyPriceINR !== undefined) plan.monthlyPriceINR = Math.max(0, Number(monthlyPriceINR));
+    if (annualPriceINR !== undefined) plan.annualPriceINR = Math.max(0, Number(annualPriceINR));
+    if (limits && typeof limits === 'object') {
+      plan.limits = {
+        maxRooms: limits.maxRooms !== undefined ? Number(limits.maxRooms) : plan.limits.maxRooms,
+        maxTables: limits.maxTables !== undefined ? Number(limits.maxTables) : plan.limits.maxTables,
+        maxStaffUsers: limits.maxStaffUsers !== undefined ? Number(limits.maxStaffUsers) : plan.limits.maxStaffUsers,
+      };
+    }
+    if (featureFlags && typeof featureFlags === 'object') {
+      plan.featureFlags = { ...plan.featureFlags, ...featureFlags };
+    }
+    if (isActive !== undefined) plan.isActive = Boolean(isActive);
+
+    await plan.save();
+
+    // Also update any tenants using this plan code if monthly price changed
+    if (monthlyPriceINR !== undefined) {
+      await Tenant.updateMany(
+        { subscriptionPlanCode: plan.code },
+        { $set: { subscriptionMonthlyINR: plan.monthlyPriceINR, subscriptionPlanName: plan.name } }
+      );
+    }
+
+    res.status(200).json({ success: true, message: 'Subscription plan updated successfully', plan });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 5b. Deactivate / Delete Subscription Plan
+export const deleteSubscriptionPlan = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const planId = String(req.params.planId);
+    await SubscriptionPlan.findByIdAndUpdate(new Types.ObjectId(planId), { isActive: false });
+    res.status(200).json({ success: true, message: 'Plan deactivated successfully' });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
   }
@@ -969,12 +1043,18 @@ export const updateTenantBranding = async (req: TenantRequest, res: Response): P
       return;
     }
 
-    const { logoUrl, coverImageUrl, photos, tagline } = req.body;
+    const { logoUrl, coverImageUrl, photos, tagline, primaryColor, secondaryColor, domain } = req.body;
 
     const updateFields: any = {};
     if (logoUrl !== undefined) updateFields.logoUrl = String(logoUrl).trim();
     if (coverImageUrl !== undefined) updateFields.coverImageUrl = String(coverImageUrl).trim();
     if (tagline !== undefined) updateFields.tagline = String(tagline).trim();
+    if (primaryColor !== undefined) {
+      updateFields.primaryColor = String(primaryColor).trim();
+      updateFields['branding.primaryColor'] = String(primaryColor).trim();
+    }
+    if (secondaryColor !== undefined) updateFields.secondaryColor = String(secondaryColor).trim();
+    if (domain !== undefined) updateFields.domain = String(domain).trim().toLowerCase();
     if (photos !== undefined) {
       updateFields.photos = Array.isArray(photos) ? photos.map((p: any) => String(p).trim()).filter(Boolean) : [];
     }
@@ -1026,5 +1106,577 @@ export const updateTenantBranding = async (req: TenantRequest, res: Response): P
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
   }
 };
+
+// 15. Create New Hotel Tenant & Provision Admin Account
+export const createTenant = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const {
+      name,
+      slug: customSlug,
+      email,
+      contactEmail,
+      contactPhone,
+      adminPassword = 'SpiceHub@123',
+      adminName,
+      city = 'Sikar',
+      state = 'Rajasthan',
+      planCode = 'starter',
+      initialRooms = 10,
+      initialTables = 6,
+    } = req.body;
+
+    const tenantName = String(name || '').trim();
+    const effectiveEmail = String(email || contactEmail || '').trim().toLowerCase();
+
+    if (!tenantName || !effectiveEmail) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'VALIDATION_FAILED',
+        message: 'Hotel Name and Admin Contact Email are required',
+      });
+      return;
+    }
+
+    // Generate or sanitize unique slug
+    let baseSlug = customSlug
+      ? String(customSlug).trim().toLowerCase().replace(/[^a-z0-9-]/g, '-')
+      : tenantName.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+    baseSlug = baseSlug.replace(/^-|-$/g, '') || 'hotel';
+
+    let uniqueSlug = baseSlug;
+    let counter = 1;
+    while (await Tenant.findOne({ slug: uniqueSlug })) {
+      uniqueSlug = `${baseSlug}-${counter}`;
+      counter += 1;
+    }
+
+    // Resolve subscription plan
+    const plan = await SubscriptionPlan.findOne({
+      $or: [{ code: planCode.toLowerCase() }, { isDefault: true }],
+    }).sort({ monthlyPriceINR: 1 });
+
+    const tenant = await Tenant.create({
+      name: tenantName,
+      slug: uniqueSlug,
+      contactEmail: effectiveEmail,
+      contactPhone: contactPhone || '9876543210',
+      currency: 'INR',
+      status: 'ACTIVE',
+      subscriptionPlanId: plan?._id,
+      subscriptionPlanCode: plan?.code || 'starter',
+      subscriptionPlanName: plan?.name || 'Starter Tier',
+      subscriptionMonthlyINR: plan?.monthlyPriceINR || 4999,
+      billingCycle: 'MONTHLY',
+      enabledPortals: ['admin', 'cashier', 'waiter', 'kds', 'reception', 'customer'],
+      featureFlags: {
+        pmsEnabled: true,
+        posEnabled: true,
+        kdsEnabled: true,
+        waiterEnabled: true,
+        qrDineInEnabled: true,
+        roomServiceEnabled: true,
+        banquetEnabled: false,
+        loyaltyEnabled: false,
+        aiInsightsEnabled: false,
+        tallyExportEnabled: false,
+      },
+      address: {
+        city: city || 'Sikar',
+        state: state || 'Rajasthan',
+        country: 'India',
+      },
+    });
+
+    // Create Hotel Admin User with argon2 hashes
+    const passwordHash = await argon2.hash(String(adminPassword));
+    const pinCodeHash = await argon2.hash('1111');
+
+    await User.create({
+      hotelId: tenant._id,
+      name: adminName || `${tenantName} Admin`,
+      email: effectiveEmail,
+      phone: contactPhone || '9876543210',
+      passwordHash,
+      pinCodeHash,
+      pinApprovedByAdmin: true,
+      role: UserRole.HOTEL_ADMIN,
+      permissions: ['*'],
+      shiftStatus: 'OFF_DUTY',
+      isMfaEnabled: false,
+      isActive: true,
+    });
+
+    // Automatically provision initial rooms & tables so the hotel is immediately functional
+    const hashToken = (seed: string) =>
+      crypto.createHash('sha256').update(`${seed}:${crypto.randomUUID()}`).digest('hex');
+
+    if (initialRooms > 0) {
+      const roomType = await RoomType.create({
+        hotelId: tenant._id,
+        name: 'Deluxe Room',
+        code: 'DLX',
+        baseCapacityAdults: 2,
+        baseCapacityChildren: 1,
+        maxCapacity: 3,
+        basePriceOvernight: 2800,
+        weekendPrice: 3500,
+        extraBedPrice: 600,
+        gstRate: 12,
+        basePriceDayUse: 1800,
+        basePriceHourly: 450,
+        amenities: ['King Bed', 'AC', 'High-Speed WiFi', 'Room Service'],
+        totalRoomsCount: initialRooms,
+        isActive: true,
+      });
+
+      const roomDocs = Array.from({ length: initialRooms }, (_, idx) => {
+        const roomNumber = String(101 + idx);
+        return {
+          hotelId: tenant._id,
+          roomNumber,
+          roomTypeId: roomType._id,
+          floorNumber: 1,
+          status: 'AVAILABLE',
+          permanentQrCodeHash: hashToken(`room:${tenant._id}:${roomNumber}`),
+        };
+      });
+      await Room.insertMany(roomDocs);
+    }
+
+    if (initialTables > 0) {
+      const tableDocs = Array.from({ length: initialTables }, (_, idx) => {
+        const tableNumber = `T-${String(idx + 1).padStart(2, '0')}`;
+        return {
+          hotelId: tenant._id,
+          tableNumber,
+          floorLevel: 'Ground Floor',
+          section: 'AC_DINING',
+          capacity: 4,
+          currentStatus: 'AVAILABLE',
+          isCommunityTable: false,
+          allowCoDining: true,
+          seats: [1, 2, 3, 4].map((s) => ({
+            seatNumber: s,
+            seatLabel: `S${s}`,
+            status: 'AVAILABLE',
+          })),
+          availableSeatsCount: 4,
+          occupiedSeatsCount: 0,
+          qrTokenHash: hashToken(`table:${tenant._id}:${tableNumber}`),
+        };
+      });
+      await DiningTable.insertMany(tableDocs);
+    }
+
+    // Seed default kitchen station, menu categories, and dishes (e.g. Paneer Tikka, Club Sandwich)
+    const mainKitchen = await KitchenStation.create({
+      hotelId: tenant._id,
+      stationName: 'Main Kitchen',
+      screenToken: hashToken(`station:${tenant._id}:main`),
+      assignedChefIds: [],
+      isOnline: true,
+    });
+
+    const startersCat = await MenuCategory.create({
+      hotelId: tenant._id,
+      name: 'Appetizers & Starters',
+      slug: 'appetizers-starters',
+      displayOrder: 1,
+      kitchenStationId: mainKitchen._id,
+      isActive: true,
+    });
+
+    const mainsCat = await MenuCategory.create({
+      hotelId: tenant._id,
+      name: 'Main Course & Room Dining',
+      slug: 'mains-room-dining',
+      displayOrder: 2,
+      kitchenStationId: mainKitchen._id,
+      isActive: true,
+    });
+
+    await MenuItem.insertMany([
+      {
+        hotelId: tenant._id,
+        categoryId: startersCat._id,
+        kitchenStationId: mainKitchen._id,
+        name: 'Paneer Tikka',
+        description: 'Charcoal grilled cottage cheese marinated in spiced hung curd with herbs',
+        foodType: FoodType.VEG,
+        basePrice: 280,
+        hasVariants: false,
+        variants: [],
+        addons: [],
+        isAvailable: true,
+        prepTimeMinutes: 12,
+        images: ['https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=600&auto=format&fit=crop&q=80'],
+      },
+      {
+        hotelId: tenant._id,
+        categoryId: mainsCat._id,
+        kitchenStationId: mainKitchen._id,
+        name: 'Club Sandwich',
+        description: 'Classic triple-decker toasted sandwich with cheese, tomatoes, crisp lettuce and house dip',
+        foodType: FoodType.VEG,
+        basePrice: 220,
+        hasVariants: false,
+        variants: [],
+        addons: [],
+        isAvailable: true,
+        prepTimeMinutes: 10,
+        images: ['https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=600&auto=format&fit=crop&q=80'],
+      },
+      {
+        hotelId: tenant._id,
+        categoryId: mainsCat._id,
+        kitchenStationId: mainKitchen._id,
+        name: 'Dal Makhani',
+        description: 'Slow-simmered black lentils with butter and dairy cream',
+        foodType: FoodType.VEG,
+        basePrice: 260,
+        hasVariants: false,
+        variants: [],
+        addons: [],
+        isAvailable: true,
+        prepTimeMinutes: 15,
+        images: ['https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=600&auto=format&fit=crop&q=80'],
+      },
+      {
+        hotelId: tenant._id,
+        categoryId: mainsCat._id,
+        kitchenStationId: mainKitchen._id,
+        name: 'Butter Naan',
+        description: 'Tandoor-baked flatbread glazed with melted butter',
+        foodType: FoodType.VEG,
+        basePrice: 60,
+        hasVariants: false,
+        variants: [],
+        addons: [],
+        isAvailable: true,
+        prepTimeMinutes: 5,
+        images: ['https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop&q=80'],
+      },
+    ]);
+
+    res.status(201).json({
+      success: true,
+      message: `Hotel tenant "${tenant.name}" created successfully!`,
+      tenant: {
+        id: tenant._id,
+        name: tenant.name,
+        slug: tenant.slug,
+        contactEmail: tenant.contactEmail,
+        contactPhone: tenant.contactPhone,
+        status: tenant.status,
+        planName: tenant.subscriptionPlanName,
+        planCode: tenant.subscriptionPlanCode,
+        monthlyPriceINR: tenant.subscriptionMonthlyINR,
+        enabledPortals: tenant.enabledPortals,
+      },
+      credentials: {
+        email: effectiveEmail,
+        password: String(adminPassword),
+        pin: '1111',
+        portalUrl: 'http://localhost:3005',
+      },
+    });
+  } catch (error: any) {
+    console.error('[createTenant error]:', error);
+    res.status(500).json({ success: false, errorCode: 'TENANT_CREATION_FAILED', message: error.message });
+  }
+};
+
+// 16. Delete Tenant & Cascade Cleanup
+export const deleteTenant = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const tenantId = String(req.params.tenantId);
+    if (!Types.ObjectId.isValid(tenantId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ID', message: 'Valid tenantId is required' });
+      return;
+    }
+
+    const tenant = await Tenant.findById(new Types.ObjectId(tenantId));
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Tenant not found' });
+      return;
+    }
+
+    // Cascade delete associated operational data
+    await Promise.all([
+      User.deleteMany({ hotelId: tenant._id }),
+      Room.deleteMany({ hotelId: tenant._id }),
+      RoomType.deleteMany({ hotelId: tenant._id }),
+      DiningTable.deleteMany({ hotelId: tenant._id }),
+      Booking.deleteMany({ hotelId: tenant._id }),
+      RestaurantOrder.deleteMany({ hotelId: tenant._id }),
+      Tenant.findByIdAndDelete(tenant._id),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: `Tenant "${tenant.name}" and all associated records have been permanently deleted`,
+      deletedId: tenantId,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 16b. Reset Hotel Admin Password
+export const resetTenantAdminPassword = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const tenantId = String(req.params.tenantId);
+    if (!Types.ObjectId.isValid(tenantId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ID', message: 'Valid tenantId is required' });
+      return;
+    }
+
+    const { newPassword } = req.body;
+    const passwordToSet = newPassword && typeof newPassword === 'string' && newPassword.trim().length >= 6
+      ? newPassword.trim()
+      : `SpiceHub@${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const passwordHash = await argon2.hash(passwordToSet);
+
+    let adminUser = await User.findOneAndUpdate(
+      { hotelId: new Types.ObjectId(tenantId), role: UserRole.HOTEL_ADMIN },
+      { passwordHash },
+      { new: true }
+    );
+
+    const tenant = await Tenant.findById(new Types.ObjectId(tenantId));
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Tenant not found' });
+      return;
+    }
+
+    if (!adminUser) {
+      // If no admin user found by role HOTEL_ADMIN, check if any user exists in this hotel
+      adminUser = await User.findOneAndUpdate(
+        { hotelId: tenant._id },
+        { passwordHash, role: UserRole.HOTEL_ADMIN },
+        { new: true }
+      );
+      if (!adminUser) {
+        // Create an admin user for this hotel
+        const pinCodeHash = await argon2.hash('1111');
+        adminUser = await User.create({
+          hotelId: tenant._id,
+          name: `${tenant.name} Admin`,
+          email: tenant.contactEmail.toLowerCase(),
+          phone: tenant.contactPhone || '9876543210',
+          passwordHash,
+          pinCodeHash,
+          pinApprovedByAdmin: true,
+          role: UserRole.HOTEL_ADMIN,
+          permissions: ['*'],
+          shiftStatus: ShiftStatus.ON_DUTY,
+          isActive: true,
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Admin credentials reset for ${tenant.name}`,
+      credentials: {
+        email: adminUser.email,
+        password: passwordToSet,
+        hotelSlug: tenant.slug,
+        hotelName: tenant.name,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 16c. Update Tenant Subscription (Duration in Months/Years, Start/End Dates)
+export const updateTenantSubscription = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const tenantId = String(req.params.tenantId);
+    if (!Types.ObjectId.isValid(tenantId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ID', message: 'Valid tenantId is required' });
+      return;
+    }
+
+    const {
+      durationMonths,
+      durationYears,
+      startDate,
+      endDate,
+      status,
+      monthlyPriceINR,
+      billingCycle,
+      planCode,
+      planName,
+    } = req.body;
+
+    const tenant = await Tenant.findById(new Types.ObjectId(tenantId));
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Tenant not found' });
+      return;
+    }
+
+    let totalMonths = 1;
+    if (durationYears && Number(durationYears) > 0) {
+      totalMonths = Number(durationYears) * 12;
+    } else if (durationMonths && Number(durationMonths) > 0) {
+      totalMonths = Number(durationMonths);
+    }
+
+    const effectiveStart = startDate ? new Date(startDate) : (tenant.subscriptionStartDate || tenant.createdAt || new Date());
+    
+    let effectiveEnd: Date;
+    if (endDate) {
+      effectiveEnd = new Date(endDate);
+    } else {
+      effectiveEnd = new Date(effectiveStart);
+      effectiveEnd.setMonth(effectiveEnd.getMonth() + totalMonths);
+    }
+
+    if (status && ['ACTIVE', 'TRIAL', 'SUSPENDED'].includes(status)) {
+      tenant.status = status;
+    }
+    if (monthlyPriceINR !== undefined) {
+      tenant.subscriptionMonthlyINR = Math.max(0, Number(monthlyPriceINR));
+    }
+    if (billingCycle) {
+      tenant.billingCycle = billingCycle === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY';
+    }
+    if (planCode) tenant.subscriptionPlanCode = String(planCode);
+    if (planName) tenant.subscriptionPlanName = String(planName);
+
+    tenant.subscriptionStartDate = effectiveStart;
+    tenant.subscriptionEndDate = effectiveEnd;
+    tenant.subscriptionDurationMonths = totalMonths;
+
+    await tenant.save();
+
+    const socketIO = getSocketIO();
+    if (socketIO) {
+      socketIO.to(`${tenant._id.toString()}_global`).emit('tenant:subscription_updated', {
+        tenantId: tenant._id,
+        status: tenant.status,
+        subscriptionStartDate: tenant.subscriptionStartDate,
+        subscriptionEndDate: tenant.subscriptionEndDate,
+        subscriptionDurationMonths: tenant.subscriptionDurationMonths,
+        monthlyPriceINR: tenant.subscriptionMonthlyINR,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Subscription for ${tenant.name} updated: valid from ${effectiveStart.toISOString().split('T')[0]} to ${effectiveEnd.toISOString().split('T')[0]} (${totalMonths} months)`,
+      tenant: {
+        id: tenant._id,
+        name: tenant.name,
+        slug: tenant.slug,
+        status: tenant.status,
+        subscriptionStartDate: tenant.subscriptionStartDate,
+        subscriptionEndDate: tenant.subscriptionEndDate,
+        subscriptionDurationMonths: tenant.subscriptionDurationMonths,
+        monthlyPriceINR: tenant.subscriptionMonthlyINR,
+        billingCycle: tenant.billingCycle,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 17. Consolidated System Activity & Audit Logs
+export const getSystemLogs = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const limit = Math.min(100, Math.max(10, Number(req.query.limit || 30)));
+
+    const [recentOrders, recentBookings, tenants, users] = await Promise.all([
+      RestaurantOrder.find()
+        .sort({ placedAt: -1 })
+        .limit(limit)
+        .populate('hotelId', 'name slug')
+        .lean(),
+      Booking.find()
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .populate('hotelId', 'name slug')
+        .lean(),
+      Tenant.find().select('name slug status createdAt').sort({ createdAt: -1 }).limit(10).lean(),
+      User.find().select('name email role hotelId createdAt').sort({ createdAt: -1 }).limit(10).populate('hotelId', 'name').lean(),
+    ]);
+
+    const logs: any[] = [];
+
+    // Map orders to logs
+    for (const rawOrder of recentOrders) {
+      const o = rawOrder as any;
+      logs.push({
+        id: `log-ord-${o._id}`,
+        timestamp: o.placedAt || o.createdAt || new Date(),
+        level: o.orderStatus === 'CANCELLED' ? 'WARN' : 'INFO',
+        source: 'ORDER_ENGINE',
+        action: `Order #${o.orderNumber || 'N/A'} (${o.orderStatus || 'CONFIRMED'})`,
+        hotelName: o.hotelId?.name || 'Central Platform',
+        details: `${(o.items || []).length} items • Table: ${o.tableNumber || 'Room Service'}`,
+        ip: '127.0.0.1',
+      });
+    }
+
+    // Map bookings to logs
+    for (const rawBooking of recentBookings) {
+      const b = rawBooking as any;
+      logs.push({
+        id: `log-bk-${b._id}`,
+        timestamp: b.createdAt || new Date(),
+        level: b.bookingStatus === 'CANCELLED' ? 'WARN' : 'INFO',
+        source: 'PMS_FRONTDESK',
+        action: `Booking #${b.bookingNumber || 'N/A'} (${b.bookingStatus || 'CONFIRMED'})`,
+        hotelName: b.hotelId?.name || 'Central Platform',
+        details: `Guest: ${b.guestName || 'Walk-in'} (${b.guestPhone || ''}) • ₹${b.grandTotal || 0}`,
+        ip: '127.0.0.1',
+      });
+    }
+
+    // Map recent tenant on-boardings
+    for (const t of tenants) {
+      logs.push({
+        id: `log-tn-${t._id}`,
+        timestamp: t.createdAt || new Date(),
+        level: 'INFO',
+        source: 'TENANT_PROVISIONER',
+        action: `Tenant Registered: ${t.name}`,
+        hotelName: t.name,
+        details: `Status: ${t.status} • Slug: ${t.slug}`,
+        ip: '127.0.0.1',
+      });
+    }
+
+    // Map recent user provisions
+    for (const u of users) {
+      logs.push({
+        id: `log-usr-${u._id}`,
+        timestamp: u.createdAt || new Date(),
+        level: 'INFO',
+        source: 'RBAC_SECURITY',
+        action: `User Provisioned: ${u.email}`,
+        hotelName: (u.hotelId as any)?.name || 'Platform SuperAdmin',
+        details: `Role: ${u.role} • Name: ${u.name}`,
+        ip: '127.0.0.1',
+      });
+    }
+
+    // Sort by timestamp descending
+    logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    res.status(200).json({
+      success: true,
+      count: logs.length,
+      logs: logs.slice(0, limit),
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
 
 

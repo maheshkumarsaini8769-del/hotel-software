@@ -94,3 +94,10 @@ evidence/
 scripts/evidence/
 apps/spicehub-customer-android/android/evidence/
 project-pack.md
+
+# Screenshots and QA test runs
+*.png
+qa-runs/
+verification_screenshots/
+screenshots_verification/
+.logs/

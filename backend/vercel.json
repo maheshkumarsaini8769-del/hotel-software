@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "buildCommand": "echo 'Prebuilt dist ready'",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

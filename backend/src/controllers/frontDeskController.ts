@@ -126,6 +126,12 @@ export const quickFrontDeskCheckIn = async (req: TenantRequest, res: Response): 
     const effectivePhone = guestPhone || booking?.guestPhone || '9999999999';
     const effectiveEmail = guestEmail || booking?.guestEmail || `${effectivePhone}@guest.spicehub.com`;
 
+    // Fetch Tenant for dynamic taxConfig
+    const tenant = await Tenant.findById(hotelId).select('taxConfig maxRooms name address gstin fssai contactPhone contactEmail');
+    const underThresholdRate = Number(tenant?.taxConfig?.roomGstUnderThresholdPercent ?? 12);
+    const aboveThresholdRate = Number(tenant?.taxConfig?.roomGstAboveThresholdPercent ?? 18);
+    const thresholdLimit = Number(tenant?.taxConfig?.roomGstTariffThreshold ?? 7500);
+
     let tariff = 3500;
     let taxes = 420;
     let totalAmount = 3920;
@@ -138,7 +144,8 @@ export const quickFrontDeskCheckIn = async (req: TenantRequest, res: Response): 
       const checkOutDate = new Date(Date.now() + 86400000); // 1 night default
 
       tariff = (room.roomTypeId as any)?.basePriceOvernight || 3500;
-      taxes = Math.round((tariff * 0.12) * 100) / 100;
+      const applicableRate = tariff > thresholdLimit ? aboveThresholdRate : underThresholdRate;
+      taxes = Math.round((tariff * (applicableRate / 100)) * 100) / 100;
       totalAmount = tariff + taxes;
       totalAdvance = Number(advancePaid) || 0;
 
@@ -262,6 +269,7 @@ export const quickFrontDeskCheckIn = async (req: TenantRequest, res: Response): 
       });
 
       // Post initial room accommodation line item to folio ledger
+      const appliedTaxRate = tariff > thresholdLimit ? aboveThresholdRate : underThresholdRate;
       await FolioLineItem.create({
         hotelId,
         folioId: masterFolio._id,
@@ -269,7 +277,7 @@ export const quickFrontDeskCheckIn = async (req: TenantRequest, res: Response): 
         description: `Room ${room.roomNumber} Accommodation Tariff`,
         rate: tariff,
         quantity: 1,
-        taxRate: 12,
+        taxRate: appliedTaxRate,
         taxAmount: taxes,
         netAmount: totalAmount,
         postedAt: new Date(),
@@ -4475,7 +4483,7 @@ export const createPmsRoom = async (req: TenantRequest, res: Response): Promise<
       return;
     }
 
-    const tenant = await Tenant.findById(hotelId).select('maxRooms name');
+    const tenant = await Tenant.findById(hotelId).select('maxRooms name subscriptionPlanName subscriptionPlanCode');
     const maxAllowedRooms = Number(tenant?.maxRooms || 30);
     const currentCount = await Room.countDocuments({ hotelId });
 
@@ -4483,9 +4491,16 @@ export const createPmsRoom = async (req: TenantRequest, res: Response): Promise<
       res.status(403).json({
         success: false,
         errorCode: 'ROOM_LIMIT_EXCEEDED',
-        message: `Room limit reached: SuperAdmin has allocated a maximum of ${maxAllowedRooms} rooms for ${tenant?.name || 'this hotel'}. You currently have ${currentCount} rooms. You cannot create more rooms without a SuperAdmin capacity upgrade.`,
+        message: `Subscription limit reached: Your current tier (${tenant?.subscriptionPlanName || tenant?.subscriptionPlanCode || 'Base Tier'}) allows a maximum of ${maxAllowedRooms} rooms. You already have ${currentCount} rooms. Please upgrade your plan or contact support to expand capacity.`,
         maxAllowed: maxAllowedRooms,
         currentCount,
+        requiresUpgrade: true,
+        upgradeUrl: '/billing/upgrade',
+        supportContact: {
+          phone: '+91 98765 43210',
+          email: 'support@spicehub.com',
+          desk: 'SpiceHub Enterprise Operations Desk'
+        }
       });
       return;
     }

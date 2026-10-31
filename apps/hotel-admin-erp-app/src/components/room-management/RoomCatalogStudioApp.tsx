@@ -28,6 +28,11 @@ import {
   Eye,
   EyeOff,
   Check,
+  ShieldAlert,
+  Headphones,
+  ArrowUpRight,
+  PhoneCall,
+  Crown,
 } from 'lucide-react';
 
 export interface RoomTypeDTO {
@@ -116,6 +121,8 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
   const [isAddRoomModalOpen, setIsAddRoomModalOpen] = useState(false);
   const [isEditRoomModalOpen, setIsEditRoomModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<PhysicalRoomDTO | null>(null);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState<string>('');
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<RoomTypeDTO | null>(null);
@@ -357,7 +364,10 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
       return;
     }
     if (rooms.length >= maxRoomsAllowed) {
-      alert(`Room limit reached! SuperAdmin allocated max ${maxRoomsAllowed} rooms. Upgrade capacity in SuperAdmin.`);
+      setUpgradeReason(
+        `Subscription capacity reached: ${rooms.length} of ${maxRoomsAllowed} rooms are already created.`
+      );
+      setIsUpgradeModalOpen(true);
       return;
     }
 
@@ -570,7 +580,10 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
             <button
               onClick={() => {
                 if (rooms.length >= maxRoomsAllowed) {
-                  alert(`Room ceiling reached (${maxRoomsAllowed}). SuperAdmin upgrade required.`);
+                  setUpgradeReason(
+                    `Your current subscription plan allows up to ${maxRoomsAllowed} rooms, and you have already created ${rooms.length} rooms.`
+                  );
+                  setIsUpgradeModalOpen(true);
                   return;
                 }
                 setRoomForm({
@@ -1516,6 +1529,86 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: SUBSCRIPTION ROOM LIMIT CEILING REACHED - UPGRADE PLAN OR CONTACT SUPPORT */}
+      {isUpgradeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-md bg-white border-2 border-amber-500 rounded-3xl p-6 shadow-2xl text-slate-900 space-y-4 text-center">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-600 flex items-center justify-center shadow-inner">
+              <Crown className="w-7 h-7 text-amber-500 animate-bounce" />
+            </div>
+
+            <div>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
+                Subscription Quota Ceiling
+              </span>
+              <h3 className="text-lg font-black text-slate-900 mt-2">
+                Room Creation Limit Reached
+              </h3>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                {upgradeReason ||
+                  `Your active hotel plan includes a maximum allocation of ${maxRoomsAllowed} rooms, and all ${rooms.length} rooms are currently created.`}
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Allocated Capacity:</span>
+                <span className="font-mono font-bold text-slate-900">{maxRoomsAllowed} Rooms</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Currently Created:</span>
+                <span className="font-mono font-bold text-amber-600">{rooms.length} Rooms</span>
+              </div>
+              <div className="flex justify-between items-center border-t border-slate-200 pt-1.5">
+                <span className="text-slate-500 font-medium">Permission Status:</span>
+                <span className="font-bold text-red-600 flex items-center gap-1">
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Expansion Locked</span>
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500">
+              To add more rooms, please upgrade your subscription plan or contact our SuperAdmin support desk to expand capacity.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-2">
+              <a
+                href="mailto:support@spicehub.com?subject=Request%20Room%20Capacity%20Upgrade&body=Hi%20SpiceHub%20Support,%20we%20have%20reached%20our%20room%20capacity%20and%20request%20an%20upgrade%20for%20more%20rooms."
+                target="_blank"
+                rel="noreferrer"
+                className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95"
+              >
+                <Headphones className="w-3.5 h-3.5 text-amber-400" />
+                <span>Contact Support</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  alert(
+                    `Upgrade Your Plan:\n\nContact your dedicated SpiceHub Account Executive at +91 98765 43210 or email corporate@spicehub.app to upgrade to the Professional (50 Rooms) or Enterprise (500 Rooms) tier!`
+                  );
+                }}
+                className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-95"
+              >
+                <Crown className="w-3.5 h-3.5 text-slate-950" />
+                <span>Upgrade Plan</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsUpgradeModalOpen(false)}
+              className="text-xs text-slate-400 hover:text-slate-700 underline font-semibold mt-1"
+            >
+              Dismiss
+            </button>
           </div>
         </div>
       )}

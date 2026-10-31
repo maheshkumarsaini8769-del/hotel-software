@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Types } from 'mongoose';
 import { io } from '../index';
 import { Tenant } from '../models/Tenant';
+import { TaxRule, TaxApplicability, TaxType } from '../models/TaxRule';
 
 // In-Memory Realistic Master State with MongoDB Sync hooks
 let restaurantInfo: any = {
@@ -461,16 +462,115 @@ export const updateRestaurantInfo = async (req: Request, res: Response) => {
   }
 };
 
-// 2. Operational Settings
+// 2. Operational Settings (Backed by MongoDB Tenant & TaxRule)
 export const getOperationalSettings = async (req: Request, res: Response) => {
-  res.json({ success: true, data: operationalSettings });
+  try {
+    const hotelId = (req as any).hotelId || (req as any).user?.hotelId || req.headers?.['x-hotel-id'];
+    let tenant = null;
+    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
+      tenant = await Tenant.findById(new Types.ObjectId(String(hotelId)));
+    }
+    if (!tenant) {
+      tenant = await Tenant.findOne();
+    }
+
+    if (tenant && tenant.taxConfig) {
+      operationalSettings = {
+        ...operationalSettings,
+        cgstPercent: tenant.taxConfig.cgstPercent ?? operationalSettings.cgstPercent,
+        sgstPercent: tenant.taxConfig.sgstPercent ?? operationalSettings.sgstPercent,
+        serviceChargePercent: tenant.taxConfig.serviceChargePercent ?? operationalSettings.serviceChargePercent,
+        autoPrintKot: tenant.taxConfig.autoPrintKot ?? operationalSettings.autoPrintKot,
+        kotSoundAlert: tenant.taxConfig.kotSoundAlert ?? operationalSettings.kotSoundAlert,
+        roundOffBills: tenant.taxConfig.roundOffBills ?? operationalSettings.roundOffBills,
+        smsReceipts: tenant.taxConfig.smsReceipts ?? operationalSettings.smsReceipts,
+        whatsappReceipts: tenant.taxConfig.whatsappReceipts ?? operationalSettings.whatsappReceipts,
+        autoCloseShiftTime: tenant.taxConfig.autoCloseShiftTime ?? operationalSettings.autoCloseShiftTime,
+        billFooterNote: tenant.taxConfig.billFooterNote ?? operationalSettings.billFooterNote,
+        currency: tenant.currency || 'INR',
+      };
+    }
+
+    res.json({ success: true, data: operationalSettings });
+  } catch (err: any) {
+    res.json({ success: true, data: operationalSettings });
+  }
 };
 
 export const updateOperationalSettings = async (req: Request, res: Response) => {
   try {
     operationalSettings = { ...operationalSettings, ...req.body };
+
+    const hotelId = (req as any).hotelId || (req as any).user?.hotelId || req.headers?.['x-hotel-id'];
+    let tenant = null;
+    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
+      tenant = await Tenant.findById(new Types.ObjectId(String(hotelId)));
+    }
+    if (!tenant) {
+      tenant = await Tenant.findOne();
+    }
+
+    if (tenant) {
+      tenant.taxConfig = {
+        ...(tenant.taxConfig || {}),
+        cgstPercent: Number(operationalSettings.cgstPercent ?? 2.5),
+        sgstPercent: Number(operationalSettings.sgstPercent ?? 2.5),
+        serviceChargePercent: Number(operationalSettings.serviceChargePercent ?? 5.0),
+        roundOffBills: Boolean(operationalSettings.roundOffBills),
+        autoPrintKot: Boolean(operationalSettings.autoPrintKot),
+        kotSoundAlert: Boolean(operationalSettings.kotSoundAlert),
+        smsReceipts: Boolean(operationalSettings.smsReceipts),
+        whatsappReceipts: Boolean(operationalSettings.whatsappReceipts),
+        autoCloseShiftTime: String(operationalSettings.autoCloseShiftTime || '02:00 AM'),
+        billFooterNote: String(operationalSettings.billFooterNote || ''),
+      };
+      await tenant.save();
+
+      // Synchronize TaxRule documents in MongoDB
+      const cgst = Number(operationalSettings.cgstPercent ?? 2.5);
+      const sgst = Number(operationalSettings.sgstPercent ?? 2.5);
+      const sc = Number(operationalSettings.serviceChargePercent ?? 0);
+      const total = cgst + sgst + sc;
+
+      await TaxRule.findOneAndUpdate(
+        { hotelId: tenant._id, applicableTo: TaxApplicability.RESTAURANT_DINE_IN },
+        {
+          hotelId: tenant._id,
+          taxName: 'GST Dine-In',
+          taxType: TaxType.GST,
+          applicableTo: TaxApplicability.RESTAURANT_DINE_IN,
+          cgstRate: cgst,
+          sgstRate: sgst,
+          serviceChargeRate: sc,
+          totalEffectiveRate: total,
+          isDefault: true,
+          isActive: true,
+        },
+        { upsert: true, new: true }
+      );
+
+      await TaxRule.findOneAndUpdate(
+        { hotelId: tenant._id, applicableTo: TaxApplicability.ROOM_SERVICE },
+        {
+          hotelId: tenant._id,
+          taxName: 'GST In-Room Dining',
+          taxType: TaxType.GST,
+          applicableTo: TaxApplicability.ROOM_SERVICE,
+          cgstRate: cgst,
+          sgstRate: sgst,
+          serviceChargeRate: sc,
+          totalEffectiveRate: total,
+          isDefault: true,
+          isActive: true,
+        },
+        { upsert: true, new: true }
+      );
+    }
+
     io?.emit('settings:updated', operationalSettings);
-    res.json({ success: true, message: 'Settings updated successfully', data: operationalSettings });
+    io?.to(`${tenant?._id?.toString()}_global`).emit('tenant:tax_updated', operationalSettings);
+
+    res.json({ success: true, message: 'Settings updated and persisted to database successfully', data: operationalSettings });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -478,13 +578,78 @@ export const updateOperationalSettings = async (req: Request, res: Response) => 
 
 // 2b. Authoritative Hotel Operational Policies & Compliance Rules
 export const getHotelPolicies = async (req: Request, res: Response) => {
-  res.json({ success: true, count: Object.keys(hotelPolicies).length, data: hotelPolicies });
+  try {
+    const hotelId = (req as any).hotelId || (req as any).user?.hotelId || req.headers?.['x-hotel-id'];
+    let tenant = null;
+    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
+      tenant = await Tenant.findById(new Types.ObjectId(String(hotelId)));
+    }
+    if (!tenant) {
+      tenant = await Tenant.findOne();
+    }
+
+    if (tenant && tenant.taxConfig) {
+      hotelPolicies = {
+        ...hotelPolicies,
+        roomGstUnderThresholdPercent: tenant.taxConfig.roomGstUnderThresholdPercent ?? hotelPolicies.roomGstUnderThresholdPercent,
+        roomGstAboveThresholdPercent: tenant.taxConfig.roomGstAboveThresholdPercent ?? hotelPolicies.roomGstAboveThresholdPercent,
+        roomGstTariffThreshold: tenant.taxConfig.roomGstTariffThreshold ?? hotelPolicies.roomGstTariffThreshold,
+        restaurantGstPercent: (tenant.taxConfig.cgstPercent ?? 2.5) + (tenant.taxConfig.sgstPercent ?? 2.5),
+        serviceChargePercent: tenant.taxConfig.serviceChargePercent ?? hotelPolicies.serviceChargePercent,
+      };
+    }
+
+    res.json({ success: true, count: Object.keys(hotelPolicies).length, data: hotelPolicies });
+  } catch (err: any) {
+    res.json({ success: true, count: Object.keys(hotelPolicies).length, data: hotelPolicies });
+  }
 };
 
 export const updateHotelPolicies = async (req: Request, res: Response) => {
   try {
     hotelPolicies = { ...hotelPolicies, ...req.body, updatedAt: new Date().toISOString() };
+
+    const hotelId = (req as any).hotelId || (req as any).user?.hotelId || req.headers?.['x-hotel-id'];
+    let tenant = null;
+    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
+      tenant = await Tenant.findById(new Types.ObjectId(String(hotelId)));
+    }
+    if (!tenant) {
+      tenant = await Tenant.findOne();
+    }
+
+    if (tenant) {
+      tenant.taxConfig = {
+        ...(tenant.taxConfig || {}),
+        roomGstUnderThresholdPercent: Number(hotelPolicies.roomGstUnderThresholdPercent ?? 12),
+        roomGstAboveThresholdPercent: Number(hotelPolicies.roomGstAboveThresholdPercent ?? 18),
+        roomGstTariffThreshold: Number(hotelPolicies.roomGstTariffThreshold ?? 7500),
+      };
+      await tenant.save();
+
+      // Sync TaxRule for ROOM_STAY
+      const underRate = Number(hotelPolicies.roomGstUnderThresholdPercent ?? 12);
+      await TaxRule.findOneAndUpdate(
+        { hotelId: tenant._id, applicableTo: TaxApplicability.ROOM_STAY },
+        {
+          hotelId: tenant._id,
+          taxName: 'GST Room Stay Statutory Slab',
+          taxType: TaxType.GST,
+          applicableTo: TaxApplicability.ROOM_STAY,
+          cgstRate: underRate / 2,
+          sgstRate: underRate / 2,
+          serviceChargeRate: 0,
+          totalEffectiveRate: underRate,
+          isDefault: true,
+          isActive: true,
+        },
+        { upsert: true, new: true }
+      );
+    }
+
     io?.emit('policies:updated', hotelPolicies);
+    io?.to(`${tenant?._id?.toString()}_global`).emit('tenant:policies_updated', hotelPolicies);
+
     res.json({
       success: true,
       message: 'Hotel operational policies successfully updated and synchronized across all portals',

@@ -4157,6 +4157,46 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 </div>
               </div>
 
+              {/* Multi-Tenant Room & Capacity Quota Statistics Bar */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 shadow-xs">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Registered Hotels</span>
+                  <span className="text-xl font-black text-slate-900 dark:text-white mt-0.5 flex items-center gap-1.5">
+                    <span>🏨</span>
+                    <span>{tenants.length} Properties</span>
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Live Physical Rooms</span>
+                  <span className="text-xl font-black text-amber-500 mt-0.5 flex items-center gap-1.5">
+                    <span>🛏️</span>
+                    <span>{tenants.reduce((acc, t) => acc + (t.totalRooms || 0), 0)} Rooms</span>
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Subscription Ceiling</span>
+                  <span className="text-xl font-black text-blue-500 mt-0.5 flex items-center gap-1.5">
+                    <span>🛡️</span>
+                    <span>{tenants.reduce((acc, t) => acc + (t.maxRooms || 30), 0)} Max Cap</span>
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Average Capacity Used</span>
+                  <span className="text-xl font-black text-emerald-500 mt-0.5 flex items-center gap-1.5">
+                    <span>📊</span>
+                    <span>
+                      {tenants.length > 0
+                        ? `${Math.round(
+                            (tenants.reduce((acc, t) => acc + (t.totalRooms || 0), 0) /
+                              Math.max(1, tenants.reduce((acc, t) => acc + (t.maxRooms || 30), 0))) *
+                              100
+                          )}%`
+                        : '0%'}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
               {/* Tenants Data Table */}
               {tenantViewMode === 'table' ? (
                 <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
@@ -4237,8 +4277,27 @@ export const SuperAdminDashboardApp: React.FC = () => {
                               </div>
                             </td>
                             <td className="py-3 px-4">
-                              <div className="text-slate-700 dark:text-slate-300 font-medium">{t.activeRooms || 0}/{t.totalRooms || 0} Rooms</div>
-                              <div className="text-[11px] text-slate-400">{t.activeTables || 0}/{t.totalTables || 0} Tables</div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-slate-900 dark:text-white">
+                                  {t.totalRooms || 0}
+                                </span>
+                                <span className="text-slate-400">/</span>
+                                <span className="font-mono font-bold text-amber-500">
+                                  {t.maxRooms || 30} max
+                                </span>
+                                {t.totalRooms && t.maxRooms && t.totalRooms >= t.maxRooms ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400 border border-red-300 dark:border-red-800">
+                                    Limit Reached
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                                    {Math.max(0, (t.maxRooms || 30) - (t.totalRooms || 0))} Available
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                {t.activeRooms || 0} occupied • {t.totalTables || 0}/{t.maxTables || 20} Tables
+                              </div>
                             </td>
                             <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end gap-1.5">
@@ -4359,16 +4418,18 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
                         <div className="grid grid-cols-3 gap-2 my-2.5 p-2 rounded-xl bg-black/20 border border-white/5 text-center text-xs">
                           <div>
-                            <div className="text-[10px] text-slate-400">Code</div>
-                            <div className="font-mono font-bold text-white mt-0.5">{t.code}</div>
+                            <div className="text-[10px] text-slate-400">Plan Tier</div>
+                            <div className="font-mono font-bold text-amber-400 mt-0.5 truncate">{t.plan || 'STARTER'}</div>
                           </div>
                           <div>
-                            <div className="text-[10px] text-slate-400">Rooms</div>
-                            <div className="font-bold text-slate-700 dark:text-slate-300 mt-0.5">{t.activeRooms} / {t.totalRooms}</div>
+                            <div className="text-[10px] text-slate-400">Rooms Created</div>
+                            <div className="font-bold text-slate-200 mt-0.5">
+                              {t.totalRooms || 0} / <span className="text-amber-400 font-mono">{t.maxRooms || 30}</span>
+                            </div>
                           </div>
                           <div>
                             <div className="text-[10px] text-slate-400">Tables</div>
-                            <div className="font-bold text-slate-700 dark:text-slate-300 mt-0.5">{t.activeTables} / {t.totalTables}</div>
+                            <div className="font-bold text-slate-200 mt-0.5">{t.totalTables || 0} / <span className="text-amber-400 font-mono">{t.maxTables || 20}</span></div>
                           </div>
                         </div>
 

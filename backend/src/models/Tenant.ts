@@ -76,6 +76,21 @@ export interface ITenant extends Document {
     aiInsightsEnabled: boolean;
     tallyExportEnabled: boolean;
   };
+  taxConfig?: {
+    cgstPercent?: number;
+    sgstPercent?: number;
+    serviceChargePercent?: number;
+    roomGstUnderThresholdPercent?: number;
+    roomGstAboveThresholdPercent?: number;
+    roomGstTariffThreshold?: number;
+    roundOffBills?: boolean;
+    autoPrintKot?: boolean;
+    kotSoundAlert?: boolean;
+    smsReceipts?: boolean;
+    whatsappReceipts?: boolean;
+    autoCloseShiftTime?: string;
+    billFooterNote?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -165,6 +180,25 @@ const TenantSchema = new Schema<ITenant>(
       durationMonths: { type: Number, default: 1 },
       lastPaymentDate: { type: Date },
       paymentStatus: { type: String, enum: ['PAID', 'PENDING', 'OVERDUE'], default: 'PAID' },
+    },
+    taxConfig: {
+      cgstPercent: { type: Number, default: 2.5, min: 0, max: 14 },
+      sgstPercent: { type: Number, default: 2.5, min: 0, max: 14 },
+      serviceChargePercent: { type: Number, default: 5.0, min: 0, max: 20 },
+      roomGstUnderThresholdPercent: { type: Number, default: 12, min: 0, max: 28 },
+      roomGstAboveThresholdPercent: { type: Number, default: 18, min: 0, max: 28 },
+      roomGstTariffThreshold: { type: Number, default: 7500, min: 0 },
+      roundOffBills: { type: Boolean, default: true },
+      autoPrintKot: { type: Boolean, default: true },
+      kotSoundAlert: { type: Boolean, default: true },
+      smsReceipts: { type: Boolean, default: true },
+      whatsappReceipts: { type: Boolean, default: true },
+      autoCloseShiftTime: { type: String, default: '02:00 AM' },
+      billFooterNote: {
+        type: String,
+        trim: true,
+        default: 'Thank you for dining with us! All prices subject to GST.',
+      },
     },
   },
   { timestamps: true }

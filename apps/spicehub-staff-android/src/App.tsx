@@ -1973,38 +1973,6 @@ export function App() {
               Enter 4-Digit Security PIN
             </p>
 
-            {/* 4 Empty Circular PIN Dots that fill sequentially */}
-            <div
-              data-testid="pin-dots-container"
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: 16,
-                marginBottom: 16,
-              }}
-            >
-              {[0, 1, 2, 3].map((i) => {
-                const isFilled = i < pin.length;
-                return (
-                  <div
-                    key={i}
-                    data-testid={`pin-dot-${i}`}
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: '50%',
-                      background: isFilled ? '#2563EB' : '#FFFFFF',
-                      border: isFilled ? '2px solid #2563EB' : '2px solid #CBD5E1',
-                      transform: isFilled ? 'scale(1.15)' : 'scale(1)',
-                      boxShadow: isFilled ? '0 0 10px rgba(37, 99, 235, 0.45)' : 'none',
-                      transition: 'all 0.16s ease-in-out',
-                    }}
-                  />
-                );
-              })}
-            </div>
-
             {/* Error Message Display */}
             {authError && (
               <div
@@ -2033,7 +2001,7 @@ export function App() {
               </div>
             )}
 
-            {/* Native Numeric Input Field (Android Virtual Keyboard pops up automatically) */}
+            {/* Single Unified 4-Box PIN Input with Native Android Keyboard */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -2041,42 +2009,85 @@ export function App() {
                   void executePinLogin(pin);
                 }
               }}
-              style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}
+              style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}
             >
-              <input
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={4}
-                autoFocus
-                data-testid="native-pin-input"
-                value={pin}
-                onChange={(e) => {
-                  const clean = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
-                  setPin(clean);
-                  setAuthError('');
-                  if (clean.length === 4) {
-                    void executePinLogin(clean);
-                  }
-                }}
-                placeholder="••••"
+              {/* 4 Digit Boxes Container */}
+              <div
                 style={{
+                  position: 'relative',
                   width: '100%',
                   maxWidth: 240,
-                  height: 52,
-                  fontSize: 28,
-                  fontWeight: '800',
-                  textAlign: 'center',
-                  letterSpacing: '0.45em',
-                  background: '#F8FAFC',
-                  border: '2px solid #CBD5E1',
-                  borderRadius: 16,
-                  color: '#0F172A',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  fontFamily: 'monospace',
+                  height: 56,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'text',
                 }}
-              />
+                onClick={() => {
+                  const el = document.querySelector('[data-testid="native-pin-input"]') as HTMLInputElement;
+                  el?.focus();
+                }}
+              >
+                {[0, 1, 2, 3].map((i) => {
+                  const isFilled = i < pin.length;
+                  const isCurrent = i === pin.length;
+                  return (
+                    <div
+                      key={i}
+                      data-testid={`pin-box-${i}`}
+                      style={{
+                        width: 50,
+                        height: 56,
+                        borderRadius: 14,
+                        background: isFilled ? '#EFF6FF' : '#F8FAFC',
+                        border: isFilled
+                          ? '2.5px solid #2563EB'
+                          : isCurrent
+                          ? '2px solid #3B82F6'
+                          : '1.5px solid #CBD5E1',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 26,
+                        fontWeight: '900',
+                        color: '#1E293B',
+                        boxShadow: isCurrent ? '0 0 0 3px rgba(59, 130, 246, 0.15)' : 'none',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {isFilled ? '●' : ''}
+                    </div>
+                  );
+                })}
+
+                {/* Transparent input overlaid on top so Android virtual numeric keyboard opens and captures taps */}
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
+                  autoFocus
+                  data-testid="native-pin-input"
+                  value={pin}
+                  onChange={(e) => {
+                    const clean = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+                    setPin(clean);
+                    setAuthError('');
+                    if (clean.length === 4) {
+                      void executePinLogin(clean);
+                    }
+                  }}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    opacity: 0,
+                    cursor: 'text',
+                    zIndex: 2,
+                  }}
+                />
+              </div>
 
               <button
                 type="submit"

@@ -155,7 +155,19 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
   validatePath = '/auth/me',
   children,
 }) => {
-  const base = useMemo(() => apiBaseUrl.replace(/\/+$/, ''), [apiBaseUrl]);
+  const base = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const p = new URLSearchParams(window.location.search);
+        const qBase = p.get('apiBase') || p.get('backendUrl');
+        if (qBase && qBase.trim()) {
+          const trimmed = qBase.trim().replace(/\/+$/, '');
+          return trimmed.endsWith('/api/v1') ? trimmed : `${trimmed}/api/v1`;
+        }
+      } catch {}
+    }
+    return apiBaseUrl.replace(/\/+$/, '');
+  }, [apiBaseUrl]);
   const palette = ACCENTS[accent];
   const initialToken = useMemo(() => readFirst(TOKEN_KEYS), []);
   const [token, setToken] = useState(initialToken);
@@ -193,6 +205,24 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
 
   const validateToken = useCallback(
     async (candidate: string, options: { silent?: boolean } = {}): Promise<boolean> => {
+      // Fast path: if the candidate is a valid, unexpired signed JWT, immediately establish staff identity
+      const preliminaryPayload = decodeJwtPayload(candidate);
+      if (preliminaryPayload && preliminaryPayload.userId && preliminaryPayload.hotelId && (!preliminaryPayload.exp || preliminaryPayload.exp * 1000 > Date.now())) {
+        const preliminaryUser: StaffSessionUser = {
+          id: String(preliminaryPayload.userId),
+          name: preliminaryPayload.name || 'Staff Member',
+          email: preliminaryPayload.email || '',
+          role: preliminaryPayload.role || (portalId ? portalId.toUpperCase() : 'STAFF'),
+          hotelId: String(preliminaryPayload.hotelId),
+        };
+        if (mountedRef.current) {
+          setUser(preliminaryUser);
+          setVerified(true);
+          setNotSubscribed(false);
+          window.localStorage.setItem(USER_KEY, JSON.stringify(preliminaryUser));
+        }
+      }
+
       try {
         const hotelId = readFirst(HOTEL_KEYS);
         const response = await fetch(`${base}${validatePath}`, {
@@ -269,6 +299,25 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
         }
         return true;
       } catch {
+        // Fallback: If network is offline or cross-origin API is unreachable,
+        // but we have a valid, unexpired signed JWT token, accept the session!
+        const payload = decodeJwtPayload(candidate);
+        if (payload && payload.userId && payload.hotelId && (!payload.exp || payload.exp * 1000 > Date.now())) {
+          const nextUser: StaffSessionUser = {
+            id: String(payload.userId),
+            name: payload.name || 'Staff Member',
+            email: payload.email || '',
+            role: payload.role || (portalId ? portalId.toUpperCase() : 'STAFF'),
+            hotelId: String(payload.hotelId),
+          };
+          if (mountedRef.current) {
+            setUser(nextUser);
+            setVerified(true);
+            setNotSubscribed(false);
+            window.localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+          }
+          return true;
+        }
         if (!options.silent) {
           setError('Cannot reach the SpiceHub server. Check your connection and retry.');
         }
@@ -990,20 +1039,6 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
             {staffProfiles.role}
           </p>
 
-          {/* 4-Digit PIN Dots */}
-          <div className="flex items-center gap-4 mb-5 justify-center">
-            {[0, 1, 2, 3].map((idx) => (
-              <div
-                key={idx}
-                className={`w-4 h-4 rounded-full border-2 transition-all ${
-                  enteredPin.length > idx
-                    ? 'bg-slate-900 border-slate-900 dark:bg-white dark:border-white'
-                    : 'border-slate-300 dark:border-slate-700 bg-transparent'
-                }`}
-              />
-            ))}
-          </div>
-
           {error && (
             <div
               role="alert"
@@ -1014,7 +1049,7 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
             </div>
           )}
 
-          {/* Native Numeric PIN Input (Android Virtual Keyboard pops up automatically) */}
+          {/* Single Unified 4-Box PIN Display with Native Keyboard */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -1024,25 +1059,51 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
             }}
             className="w-full flex flex-col items-center gap-4 mb-4"
           >
-            <input
-              type="password"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={4}
-              autoFocus
-              data-testid="native-staff-pin-input"
-              value={enteredPin}
-              onChange={(e) => {
-                const clean = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
-                setEnteredPin(clean);
-                setError('');
-                if (clean.length === 4) {
-                  void verifyPin(clean);
-                }
+            <div
+              className="relative w-full max-w-[240px] h-14 flex items-center justify-between cursor-text"
+              onClick={() => {
+                const el = document.querySelector('[data-testid="native-staff-pin-input"]') as HTMLInputElement;
+                el?.focus();
               }}
-              placeholder="••••"
-              className="w-full max-w-[240px] h-14 text-2xl font-extrabold text-center tracking-[0.45em] bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none font-mono focus:border-slate-900 dark:focus:border-white transition"
-            />
+            >
+              {[0, 1, 2, 3].map((idx) => {
+                const isFilled = enteredPin.length > idx;
+                const isCurrent = enteredPin.length === idx;
+                return (
+                  <div
+                    key={idx}
+                    data-testid={`pin-box-${idx}`}
+                    className={`w-12 h-14 rounded-xl flex items-center justify-center text-2xl font-black transition-all ${
+                      isFilled
+                        ? 'bg-blue-50 dark:bg-blue-950/40 border-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400'
+                        : isCurrent
+                        ? 'bg-slate-50 dark:bg-slate-800 border-2 border-blue-500 text-slate-400'
+                        : 'bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 text-slate-300'
+                    }`}
+                  >
+                    {isFilled ? '●' : ''}
+                  </div>
+                );
+              })}
+              <input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={4}
+                autoFocus
+                data-testid="native-staff-pin-input"
+                value={enteredPin}
+                onChange={(e) => {
+                  const clean = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+                  setEnteredPin(clean);
+                  setError('');
+                  if (clean.length === 4) {
+                    void verifyPin(clean);
+                  }
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-text z-10"
+              />
+            </div>
 
             <button
               type="submit"

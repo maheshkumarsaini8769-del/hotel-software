@@ -84,53 +84,6 @@ const compressImageToBase64 = (file: File): Promise<string> => {
   });
 };
 
-const generateSampleAadhaarImage = (side: 'FRONT' | 'BACK', name: string, phone: string): string => {
-  const canvas = document.createElement('canvas');
-  canvas.width = 600;
-  canvas.height = 380;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.fillStyle = side === 'FRONT' ? '#f8fafc' : '#f1f5f9';
-    ctx.fillRect(0, 0, 600, 380);
-    ctx.fillStyle = '#ea580c';
-    ctx.fillRect(0, 0, 600, 28);
-    ctx.fillStyle = '#16a34a';
-    ctx.fillRect(0, 352, 600, 28);
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 18px sans-serif';
-    ctx.fillText(
-      side === 'FRONT' ? 'GOVERNMENT OF INDIA - AADHAAR CARD' : 'UNIQUE IDENTIFICATION AUTHORITY OF INDIA',
-      24,
-      64
-    );
-    ctx.font = '14px sans-serif';
-    if (side === 'FRONT') {
-      ctx.fillText(`Name: ${name || 'Resident Guest'}`, 170, 115);
-      ctx.fillText(`DOB: 15/08/1990`, 170, 145);
-      ctx.fillText(`Gender: MALE`, 170, 175);
-      ctx.font = 'bold 22px monospace';
-      ctx.fillText(`XXXX XXXX ${phone.slice(-4) || '9012'}`, 170, 230);
-      ctx.fillStyle = '#cbd5e1';
-      ctx.fillRect(24, 90, 120, 150);
-      ctx.fillStyle = '#475569';
-      ctx.font = 'bold 13px sans-serif';
-      ctx.fillText('ID PHOTO', 55, 170);
-    } else {
-      ctx.fillText(`Address: H-44, Civil Lines, Jaipur, Rajasthan - 302006`, 24, 115);
-      ctx.fillText(`Guardian: K. S. Oberoi`, 24, 145);
-      ctx.fillText(`UIDAI Official Helpline: 1947`, 24, 195);
-      ctx.font = 'bold 22px monospace';
-      ctx.fillText(`XXXX XXXX ${phone.slice(-4) || '9012'}`, 24, 250);
-      ctx.fillStyle = '#334155';
-      ctx.fillRect(440, 95, 130, 130);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '11px monospace';
-      ctx.fillText('VERIFIED QR', 460, 165);
-    }
-  }
-  return canvas.toDataURL('image/jpeg', 0.8);
-};
-
 export interface CatalogRoom {
   id: string;
   roomNumber: string;
@@ -495,12 +448,6 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
     } finally {
       setAadhaarCompressing(null);
     }
-  };
-
-  const handleAttachSampleAadhaar = (side: 'FRONT' | 'BACK') => {
-    const uri = generateSampleAadhaarImage(side, guestName || 'Resident Guest', guestPhone || '9820011223');
-    if (side === 'FRONT') setAadhaarFront(uri);
-    else setAadhaarBack(uri);
   };
 
   // Resident Stay Unlock State
@@ -1869,10 +1816,20 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                         </button>
                       </div>
                     ) : (
-                      <div className="flex flex-col gap-1.5">
-                        <label className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold cursor-pointer transition">
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold cursor-pointer transition">
+                          <Upload className="w-3.5 h-3.5 text-blue-400" />
+                          <span>{aadhaarCompressing === 'FRONT' ? 'Reading...' : 'Choose Gallery'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleUploadAadhaar(e, 'FRONT')}
+                            className="hidden"
+                          />
+                        </label>
+                        <label className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold cursor-pointer transition">
                           <Camera className="w-3.5 h-3.5" />
-                          <span>{aadhaarCompressing === 'FRONT' ? 'Compressing...' : 'Upload Front Side'}</span>
+                          <span>Take Photo</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -1881,13 +1838,6 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                             className="hidden"
                           />
                         </label>
-                        <button
-                          type="button"
-                          onClick={() => handleAttachSampleAadhaar('FRONT')}
-                          className="text-[10px] text-slate-400 hover:text-amber-400 underline transition text-center"
-                        >
-                          Use Sample Front ID
-                        </button>
                       </div>
                     )}
                   </div>
@@ -1913,10 +1863,20 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                         </button>
                       </div>
                     ) : (
-                      <div className="flex flex-col gap-1.5">
-                        <label className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold cursor-pointer transition">
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold cursor-pointer transition">
+                          <Upload className="w-3.5 h-3.5 text-blue-400" />
+                          <span>{aadhaarCompressing === 'BACK' ? 'Reading...' : 'Choose Gallery'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleUploadAadhaar(e, 'BACK')}
+                            className="hidden"
+                          />
+                        </label>
+                        <label className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold cursor-pointer transition">
                           <Camera className="w-3.5 h-3.5" />
-                          <span>{aadhaarCompressing === 'BACK' ? 'Compressing...' : 'Upload Back Side'}</span>
+                          <span>Take Photo</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -1925,13 +1885,6 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                             className="hidden"
                           />
                         </label>
-                        <button
-                          type="button"
-                          onClick={() => handleAttachSampleAadhaar('BACK')}
-                          className="text-[10px] text-slate-400 hover:text-amber-400 underline transition text-center"
-                        >
-                          Use Sample Back ID
-                        </button>
                       </div>
                     )}
                   </div>

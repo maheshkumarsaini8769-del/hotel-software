@@ -170,10 +170,28 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
   }, [apiBaseUrl]);
   const palette = ACCENTS[accent];
   const initialToken = useMemo(() => readFirst(TOKEN_KEYS), []);
+  const initialUser = useMemo(() => {
+    const stored = readStoredUser();
+    if (stored) return stored;
+    if (initialToken) {
+      const payload = decodeJwtPayload(initialToken);
+      if (payload && payload.userId && payload.hotelId && (!payload.exp || payload.exp * 1000 > Date.now())) {
+        return {
+          id: String(payload.userId),
+          name: payload.name || 'Staff Member',
+          email: payload.email || '',
+          role: payload.role || (portalId ? portalId.toUpperCase() : 'STAFF'),
+          hotelId: String(payload.hotelId),
+        } as StaffSessionUser;
+      }
+    }
+    return null;
+  }, [initialToken, portalId]);
+
   const [token, setToken] = useState(initialToken);
-  const [user, setUser] = useState<StaffSessionUser | null>(readStoredUser);
-  const [verified, setVerified] = useState(false);
-  const [booting, setBooting] = useState(Boolean(initialToken));
+  const [user, setUser] = useState<StaffSessionUser | null>(initialUser);
+  const [verified, setVerified] = useState(Boolean(initialUser));
+  const [booting, setBooting] = useState(Boolean(initialToken && !initialUser));
   const [submitting, setSubmitting] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -1128,15 +1146,48 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
             </button>
           )}
 
-          <div className="mt-4 flex items-center justify-end w-full text-xs text-slate-500 pt-3 border-t border-slate-200 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={() => setUsePinMode(false)}
-              className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium underline"
-            >
-              Password Login
-            </button>
+          {portalId === 'admin' && (
+            <div className="mt-4 flex items-center justify-end w-full text-xs text-slate-500 pt-3 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setUsePinMode(false)}
+                className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium underline"
+              >
+                Password Login
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Floor staff workstations (reception, cashier, kds, waiter) only authenticate via staff PIN.
+  // Never show generic website email/password forms for operational terminals.
+  if (requireHotel && portalId !== 'admin') {
+    return (
+      <div className="min-h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white flex flex-col justify-center items-center p-4 font-sans select-none">
+        <div className="w-full min-h-screen md:min-h-0 md:max-w-md mx-auto md:mt-20 bg-white dark:bg-slate-900 md:border md:border-slate-200 md:dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col items-center text-center justify-center">
+          <img
+            src={staffProfiles.avatar}
+            alt={staffProfiles.name}
+            className="w-20 h-20 rounded-full border-2 border-slate-200 dark:border-slate-700 object-cover mb-3"
+          />
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{staffProfiles.name}</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{staffProfiles.role}</p>
+          <div className="text-xs text-red-600 dark:text-red-400 font-semibold mb-3">
+            {error || 'Please enter your 4-digit staff PIN to unlock this workstation.'}
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              setUsePinMode(true);
+              setError('');
+            }}
+            className="h-12 w-full bg-blue-600 text-white rounded-xl text-base font-bold hover:bg-blue-700 transition"
+          >
+            Enter 4-Digit PIN
+          </button>
         </div>
       </div>
     );

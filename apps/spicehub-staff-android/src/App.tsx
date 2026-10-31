@@ -2054,85 +2054,76 @@ export function App() {
               </div>
             )}
 
-            {/* Custom In-App Numeric Keypad: 1-9, 0, Clear, Delete (NO device virtual keyboard) */}
-            <div
-              data-testid="custom-touch-keypad"
-              style={{
-                width: '100%',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: 10,
+            {/* Native Numeric Input Field (Android Virtual Keyboard pops up automatically) */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (pin.length === 4) {
+                  void executePinLogin(pin);
+                }
               }}
+              style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}
             >
-              {[
-                { label: '1', value: '1', action: 'digit' },
-                { label: '2', value: '2', action: 'digit' },
-                { label: '3', value: '3', action: 'digit' },
-                { label: '4', value: '4', action: 'digit' },
-                { label: '5', value: '5', action: 'digit' },
-                { label: '6', value: '6', action: 'digit' },
-                { label: '7', value: '7', action: 'digit' },
-                { label: '8', value: '8', action: 'digit' },
-                { label: '9', value: '9', action: 'digit' },
-                { label: 'Clear', value: 'clear', action: 'clear' },
-                { label: '0', value: '0', action: 'digit' },
-                { label: 'Delete', value: 'delete', action: 'delete' },
-              ].map((k) => {
-                const isClear = k.action === 'clear';
-                const isDelete = k.action === 'delete';
+              <input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={4}
+                autoFocus
+                data-testid="native-pin-input"
+                value={pin}
+                onChange={(e) => {
+                  const clean = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+                  setPin(clean);
+                  setAuthError('');
+                  if (clean.length === 4) {
+                    void executePinLogin(clean);
+                  }
+                }}
+                placeholder="••••"
+                style={{
+                  width: '100%',
+                  maxWidth: 240,
+                  height: 52,
+                  fontSize: 28,
+                  fontWeight: '800',
+                  textAlign: 'center',
+                  letterSpacing: '0.45em',
+                  background: '#F8FAFC',
+                  border: '2px solid #CBD5E1',
+                  borderRadius: 16,
+                  color: '#0F172A',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  fontFamily: 'monospace',
+                }}
+              />
 
-                return (
-                  <button
-                    key={k.label}
-                    type="button"
-                    data-testid={`keypad-${k.value}`}
-                    disabled={isSubmitting}
-                    onClick={() => {
-                      if (isClear) {
-                        setPin('');
-                        setAuthError('');
-                      } else if (isDelete) {
-                        setPin((prev) => prev.slice(0, -1));
-                        setAuthError('');
-                      } else {
-                        handlePinDigit(k.value);
-                      }
-                    }}
-                    style={{
-                      height: 52,
-                      borderRadius: 14,
-                      border: isClear
-                        ? '1px solid #FECACA'
-                        : isDelete
-                        ? '1px solid #CBD5E1'
-                        : '1px solid #E2E8F0',
-                      background: isClear
-                        ? '#FEF2F2'
-                        : isDelete
-                        ? '#F8FAFC'
-                        : '#FFFFFF',
-                      color: isClear
-                        ? '#DC2626'
-                        : isDelete
-                        ? '#475569'
-                        : '#0F172A',
-                      fontSize: isClear || isDelete ? 13 : 22,
-                      fontWeight: '800',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: '0 2px 4px rgba(15, 23, 42, 0.04)',
-                      userSelect: 'none',
-                      WebkitUserSelect: 'none',
-                      touchAction: 'manipulation',
-                    }}
-                  >
-                    {k.label}
-                  </button>
-                );
-              })}
-            </div>
+              <button
+                type="submit"
+                disabled={pin.length !== 4 || isSubmitting}
+                data-testid="btn-login-pin"
+                style={{
+                  width: '100%',
+                  height: 50,
+                  background: pin.length === 4 && !isSubmitting ? '#2563EB' : '#94A3B8',
+                  color: '#FFFFFF',
+                  borderRadius: 14,
+                  border: 'none',
+                  fontSize: 14,
+                  fontWeight: '800',
+                  cursor: pin.length === 4 && !isSubmitting ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  boxShadow: pin.length === 4 ? '0 4px 12px rgba(37, 99, 235, 0.25)' : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>{isSubmitting ? 'Verifying PIN...' : '🔓 Unlock Workstation'}</span>
+              </button>
+            </form>
 
             {/* Forgot PIN Action Button */}
             <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px dashed #E2E8F0', width: '100%', textAlign: 'center' }}>

@@ -775,55 +775,45 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
                   </div>
                 )}
 
-                {/* 3-Column Numpad */}
-                <div className="grid grid-cols-3 gap-3 w-full mb-5">
-                  {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-                    <button
-                      key={digit}
-                      type="button"
-                      data-testid={`btn-digit-${digit}`}
-                      onClick={() => handlePinDigit(digit)}
-                      className="h-14 text-xl font-semibold bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-slate-800 transition flex items-center justify-center cursor-pointer active:scale-95"
-                    >
-                      {digit}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    data-testid="btn-digit-clear"
-                    onClick={handleClearPin}
-                    className="h-14 text-sm font-semibold bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-slate-600 transition flex items-center justify-center cursor-pointer active:scale-95"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="btn-digit-0"
-                    onClick={() => handlePinDigit('0')}
-                    className="h-14 text-xl font-semibold bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-slate-800 transition flex items-center justify-center cursor-pointer active:scale-95"
-                  >
-                    0
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="btn-digit-delete"
-                    onClick={handleBackspace}
-                    className="h-14 text-lg font-semibold bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-slate-700 transition flex items-center justify-center cursor-pointer active:scale-95"
-                  >
-                    ⌫
-                  </button>
-                </div>
-
-                {/* Login Button */}
-                <button
-                  type="button"
-                  data-testid="btn-login-pin"
-                  onClick={() => void verifyPin(enteredPin)}
-                  disabled={enteredPin.length !== 4 || submitting}
-                  className="h-12 w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition flex items-center justify-center cursor-pointer shadow-sm active:scale-95 disabled:opacity-40"
+                {/* Native Numeric PIN Input */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (enteredPin.length === 4) {
+                      void verifyPin(enteredPin);
+                    }
+                  }}
+                  className="w-full flex flex-col items-center gap-4 mb-4"
                 >
-                  {submitting ? 'Verifying PIN…' : 'Unlock ERP Console'}
-                </button>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={4}
+                    autoFocus
+                    data-testid="native-admin-pin-input"
+                    value={enteredPin}
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+                      setEnteredPin(clean);
+                      setError('');
+                      if (clean.length === 4) {
+                        void verifyPin(clean);
+                      }
+                    }}
+                    placeholder="••••"
+                    className="w-full max-w-[240px] h-12 text-2xl font-extrabold text-center tracking-[0.45em] bg-slate-50 border-2 border-slate-300 rounded-xl text-slate-900 outline-none font-mono focus:border-blue-500 focus:bg-white transition"
+                  />
+
+                  <button
+                    type="submit"
+                    data-testid="btn-login-pin"
+                    disabled={enteredPin.length !== 4 || submitting}
+                    className="h-12 w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition flex items-center justify-center cursor-pointer shadow-sm active:scale-95 disabled:opacity-40"
+                  >
+                    {submitting ? 'Verifying PIN…' : 'Unlock ERP Console'}
+                  </button>
+                </form>
 
                 <div className="mt-5 flex items-center justify-end w-full text-xs text-slate-500 pt-4 border-t border-slate-200">
                   <button
@@ -988,55 +978,45 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
             </div>
           )}
 
-          {/* 3-Column Numpad */}
-          <div className="grid grid-cols-3 gap-3 w-full mb-4">
-            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-              <button
-                key={digit}
-                type="button"
-                data-testid={`btn-digit-${digit}`}
-                onClick={() => handlePinDigit(digit)}
-                className="h-16 text-2xl font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white transition flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
-              >
-                {digit}
-              </button>
-            ))}
-            <button
-              type="button"
-              data-testid="btn-digit-clear"
-              onClick={handleClearPin}
-              className="h-16 text-base font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition flex items-center justify-center cursor-pointer active:scale-95"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              data-testid="btn-digit-0"
-              onClick={() => handlePinDigit('0')}
-              className="h-16 text-2xl font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white transition flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
-            >
-              0
-            </button>
-            <button
-              type="button"
-              data-testid="btn-digit-delete"
-              onClick={handleBackspace}
-              className="h-16 text-xl font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition flex items-center justify-center cursor-pointer active:scale-95"
-            >
-              ⌫
-            </button>
-          </div>
-
-          {/* Login Button */}
-          <button
-            type="button"
-            data-testid="btn-login-pin"
-            onClick={() => void verifyPin(enteredPin)}
-            disabled={enteredPin.length !== 4 || submitting}
-            className="h-14 w-full bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-xl text-lg font-bold hover:opacity-90 disabled:opacity-40 transition flex items-center justify-center cursor-pointer shadow-sm active:scale-95"
+          {/* Native Numeric PIN Input (Android Virtual Keyboard pops up automatically) */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (enteredPin.length === 4) {
+                void verifyPin(enteredPin);
+              }
+            }}
+            className="w-full flex flex-col items-center gap-4 mb-4"
           >
-            {submitting ? 'Authenticating...' : 'Sign In'}
-          </button>
+            <input
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              autoFocus
+              data-testid="native-staff-pin-input"
+              value={enteredPin}
+              onChange={(e) => {
+                const clean = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+                setEnteredPin(clean);
+                setError('');
+                if (clean.length === 4) {
+                  void verifyPin(clean);
+                }
+              }}
+              placeholder="••••"
+              className="w-full max-w-[240px] h-14 text-2xl font-extrabold text-center tracking-[0.45em] bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none font-mono focus:border-slate-900 dark:focus:border-white transition"
+            />
+
+            <button
+              type="submit"
+              data-testid="btn-login-pin"
+              disabled={enteredPin.length !== 4 || submitting}
+              className="h-12 w-full bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-xl text-base font-bold hover:opacity-90 disabled:opacity-40 transition flex items-center justify-center cursor-pointer shadow-sm active:scale-95"
+            >
+              {submitting ? 'Authenticating...' : 'Sign In'}
+            </button>
+          </form>
 
           {/* Optional Station Mode Auto Login for Chef KDS */}
           {portalId === 'kds' && (

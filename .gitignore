@@ -103,3 +103,4 @@ screenshots_verification/
 .logs/
 *.apk
 .vercel/
+.github/workflows/

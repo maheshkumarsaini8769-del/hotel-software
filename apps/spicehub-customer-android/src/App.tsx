@@ -1591,6 +1591,19 @@ export const App: React.FC = () => {
 
   // Step 1 of Booking: User clicks an available room -> Location & Radius Check Dialog
   const handleSelectRoomForBooking = (room: CatalogRoom) => {
+    if (activeReservation) {
+      launchResidentPortal(
+        activeReservation.roomNumber,
+        selectedHotel,
+        activeReservation.sessionToken,
+        'HOME'
+      );
+      return;
+    }
+    if (pendingApprovalBooking) {
+      setCustomerView('waiting_approval');
+      return;
+    }
     setSelectedRoomForBooking(room);
     setBookingNights(1);
     setBookingError(null);
@@ -2762,7 +2775,20 @@ export const App: React.FC = () => {
                   <button
                     type="button"
                     data-testid="home-book-room-card"
-                    onClick={() => setCustomerView('rooms')}
+                    onClick={() => {
+                      if (activeReservation) {
+                        launchResidentPortal(
+                          activeReservation.roomNumber,
+                          selectedHotel,
+                          activeReservation.sessionToken,
+                          'HOME'
+                        );
+                      } else if (pendingApprovalBooking) {
+                        setCustomerView('waiting_approval');
+                      } else {
+                        setCustomerView('rooms');
+                      }
+                    }}
                     className="rounded-2xl border border-blue-500/40 relative overflow-hidden min-h-[175px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
                   >
                     <img
@@ -2867,18 +2893,38 @@ export const App: React.FC = () => {
               )}
             </div>
 
-            {/* Resident Verification Subtle Link */}
-            <div className="pt-1 text-center">
+            {/* Resident Verification Accent Card */}
+            <div className="pt-2 text-center">
+              {/* Highlight Accent Line */}
+              <div className="w-24 h-1 mx-auto bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 rounded-full mb-3 shadow-sm shadow-amber-500/30" />
               <button
                 type="button"
                 data-testid="home-resident-verify-link"
-                onClick={() => setCustomerView('resident_verify')}
-                className={`text-xs font-semibold hover:underline flex items-center justify-center gap-1.5 mx-auto ${
-                  isDark ? 'text-slate-400 hover:text-amber-400' : 'text-slate-600 hover:text-amber-600'
+                onClick={() => {
+                  if (activeReservation) {
+                    launchResidentPortal(
+                      activeReservation.roomNumber,
+                      selectedHotel,
+                      activeReservation.sessionToken,
+                      'HOME'
+                    );
+                  } else {
+                    setCustomerView('resident_verify');
+                  }
+                }}
+                className={`text-xs font-bold hover:underline flex items-center justify-center gap-2 mx-auto px-4 py-2 rounded-xl transition ${
+                  isDark
+                    ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30'
+                    : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 shadow-xs'
                 }`}
               >
-                <span>Already checked in at Front Desk? Verify Room Stay</span>
-                <Icons.ArrowRight className="w-3.5 h-3.5" />
+                <Icons.Key className="w-3.5 h-3.5 text-amber-500" />
+                <span>
+                  {activeReservation
+                    ? `Already checked in? Open My Stay (Room ${activeReservation.roomNumber})`
+                    : 'Already checked in at Front Desk? Verify Room Stay'}
+                </span>
+                <Icons.ArrowRight className="w-3.5 h-3.5 text-amber-500" />
               </button>
             </div>
           </div>
@@ -3913,11 +3959,11 @@ export const App: React.FC = () => {
       </main>
 
       {/* ======================================================== */}
-      {/* FIXED UNIFIED BOTTOM NAVIGATION BAR                      */}
+      {/* FIXED BOTTOM NAVIGATION BAR                              */}
       {/* ======================================================== */}
       <nav
         data-testid="customer-bottom-nav"
-        className={`fixed bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:max-w-md z-40 border-t backdrop-blur-md px-3 flex items-center justify-around transition-colors ${
+        className={`fixed bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:max-w-md z-40 border-t backdrop-blur-md px-6 flex items-center justify-around transition-colors ${
           isDark ? 'bg-slate-950/95 border-slate-800 text-slate-400' : 'bg-white/95 border-slate-200 text-slate-600 shadow-lg'
         }`}
         style={{
@@ -3930,9 +3976,9 @@ export const App: React.FC = () => {
           type="button"
           data-testid="nav-tab-home"
           onClick={() => setCustomerView('home')}
-          className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center py-1 px-3 rounded-xl transition font-medium text-[11px] gap-1 ${
+          className={`min-h-[48px] min-w-[64px] flex flex-col items-center justify-center py-1 px-4 rounded-xl transition font-medium text-[11px] gap-1 ${
             customerView === 'home'
-              ? isDark ? 'text-blue-400 bg-blue-500/15 font-semibold' : 'text-blue-600 bg-blue-50 font-semibold'
+              ? isDark ? 'text-amber-400 bg-amber-500/15 font-semibold' : 'text-amber-600 bg-amber-50 font-semibold'
               : 'hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
@@ -3940,84 +3986,12 @@ export const App: React.FC = () => {
           <span>{t('Home')}</span>
         </button>
 
-        {/* 2. Rooms / Stay (Only shown when no active resident booking, unhighlighted) */}
-        {!activeReservation && (
-          <button
-            type="button"
-            data-testid="nav-tab-rooms"
-            onClick={() => setCustomerView('rooms')}
-            className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center py-1 px-3 rounded-xl transition font-medium text-[11px] gap-1 ${
-              customerView === 'rooms'
-                ? isDark ? 'text-blue-400 bg-blue-500/15 font-semibold' : 'text-blue-600 bg-blue-50 font-semibold'
-                : 'hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            <Icons.Bed className="w-5 h-5" />
-            <span>{t('Stay')}</span>
-          </button>
-        )}
-
-        {/* 3. Dine-In / In-Room Food */}
-        <button
-          type="button"
-          data-testid="nav-tab-dining"
-          onClick={() => {
-            if (activeReservation) {
-              launchResidentPortal(
-                activeReservation.roomNumber,
-                selectedHotel,
-                activeReservation.sessionToken,
-                'DINING'
-              );
-            } else {
-              setCustomerView('table_scan');
-            }
-          }}
-          className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center py-1 px-3 rounded-xl transition font-medium text-[11px] gap-1 ${
-            customerView === 'table_scan'
-              ? isDark ? 'text-blue-400 bg-blue-500/15 font-semibold' : 'text-blue-600 bg-blue-50 font-semibold'
-              : 'hover:text-slate-900 dark:hover:text-slate-200'
-          }`}
-        >
-          <Icons.Utensils className="w-5 h-5" />
-          <span>{activeReservation ? t('In-Room Food') : t('Dine-In')}</span>
-        </button>
-
-        {/* 4. My Stay / Keycard */}
-        <button
-          type="button"
-          data-testid="nav-tab-mystay"
-          onClick={() => {
-            if (activeReservation) {
-              launchResidentPortal(
-                activeReservation.roomNumber,
-                selectedHotel,
-                activeReservation.sessionToken,
-                'HOME'
-              );
-            } else {
-              setCustomerView('resident_verify');
-            }
-          }}
-          className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center py-1 px-3 rounded-xl transition font-medium text-[11px] gap-1 relative ${
-            customerView === 'resident_verify'
-              ? isDark ? 'text-emerald-400 bg-emerald-500/15 font-semibold' : 'text-emerald-700 bg-emerald-50 font-semibold'
-              : 'hover:text-slate-900 dark:hover:text-slate-200'
-          }`}
-        >
-          {activeReservation && (
-            <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          )}
-          <Icons.Key className="w-5 h-5" />
-          <span>{activeReservation ? `${t('Room')} ${activeReservation.roomNumber}` : t('My Room')}</span>
-        </button>
-
-        {/* 5. Settings */}
+        {/* 2. Settings */}
         <button
           type="button"
           data-testid="nav-tab-settings"
           onClick={() => setIsSettingsModalOpen(true)}
-          className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center py-1 px-3 rounded-xl transition font-medium text-[11px] gap-1 ${
+          className={`min-h-[48px] min-w-[64px] flex flex-col items-center justify-center py-1 px-4 rounded-xl transition font-medium text-[11px] gap-1 ${
             isSettingsModalOpen
               ? isDark ? 'text-slate-200 bg-slate-800 font-semibold' : 'text-slate-900 bg-slate-100 font-semibold'
               : 'hover:text-slate-900 dark:hover:text-slate-200'
@@ -4025,6 +3999,21 @@ export const App: React.FC = () => {
         >
           <Icons.Settings className="w-5 h-5 text-slate-500" />
           <span>{t('Settings')}</span>
+        </button>
+
+        {/* 3. Profile */}
+        <button
+          type="button"
+          data-testid="nav-tab-profile"
+          onClick={() => setCustomerView('profile')}
+          className={`min-h-[48px] min-w-[64px] flex flex-col items-center justify-center py-1 px-4 rounded-xl transition font-medium text-[11px] gap-1 ${
+            customerView === 'profile'
+              ? isDark ? 'text-blue-400 bg-blue-500/15 font-semibold' : 'text-blue-600 bg-blue-50 font-semibold'
+              : 'hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          <Icons.User className="w-5 h-5" />
+          <span>{t('Profile')}</span>
         </button>
       </nav>
 

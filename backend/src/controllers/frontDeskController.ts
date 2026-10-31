@@ -367,6 +367,8 @@ export const getExpectedArrivals = async (req: TenantRequest, res: Response): Pr
       guestName: b.guestName,
       guestPhone: b.guestPhone,
       guestEmail: b.guestEmail,
+      loginPhone: b.loginPhone || b.guestPhone,
+      loginGuestName: b.loginGuestName || b.guestName,
       roomTypeId: b.roomTypeId?._id?.toString() || '',
       roomTypeName: b.roomTypeId?.name || 'Deluxe Heritage Room',
       roomTypeCode: b.roomTypeId?.code || 'DLX',

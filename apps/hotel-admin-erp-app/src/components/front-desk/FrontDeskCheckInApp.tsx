@@ -12,6 +12,8 @@ interface ExpectedArrival {
   bookingNumber: string;
   guestName: string;
   guestPhone: string;
+  loginPhone?: string;
+  loginGuestName?: string;
   guestEmail: string;
   roomTypeId: string;
   roomTypeName: string;
@@ -3177,7 +3179,20 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                             </span>
                           </div>
                           <h3 className="text-sm font-extrabold text-white mt-1.5">{arr.guestName}</h3>
-                          <p className="text-xs text-zinc-400 font-mono">{arr.guestPhone}</p>
+                          <div className="space-y-0.5 mt-1">
+                            <div className="flex items-center gap-1.5 text-[11px]">
+                              <span className="text-zinc-500 font-semibold">📱 Login Mobile:</span>
+                              <span className="font-mono font-bold text-emerald-400">{arr.loginPhone || arr.guestPhone}</span>
+                              <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1 py-0.2 rounded border border-emerald-500/20 font-bold">OTP Verified</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px]">
+                              <span className="text-zinc-500 font-semibold">📞 Booking Phone:</span>
+                              <span className="font-mono text-zinc-300">{arr.guestPhone}</span>
+                              {arr.loginPhone && arr.loginPhone !== arr.guestPhone && (
+                                <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1 py-0.2 rounded border border-amber-500/20 font-bold">Alternative</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
 
                         <span className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">

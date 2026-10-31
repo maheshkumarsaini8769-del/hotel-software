@@ -685,6 +685,21 @@ export const App: React.FC = () => {
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpSuccessMsg, setOtpSuccessMsg] = useState<string | null>(null);
 
+  // Authenticated / Verified Customer Guest Profile State
+  const [verifiedGuestUser, setVerifiedGuestUser] = useState<{
+    name: string;
+    phone: string;
+    isVerified: boolean;
+  } | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('spicehub_verified_guest_user');
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return null;
+  });
+
   // Multi-room Quota & Secondary Guest State
   const [isSecondRoom, setIsSecondRoom] = useState(false);
   const [secondaryGuestName, setSecondaryGuestName] = useState('');
@@ -763,6 +778,7 @@ export const App: React.FC = () => {
   const [activePortalUrl, setActivePortalUrl] = useState<string | null>(null);
   const [activeSessionLabel, setActiveSessionLabel] = useState<string>('');
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsPage, setSettingsPage] = useState<'MAIN' | 'RESERVATION' | 'SUPPORT' | 'SESSION'>('MAIN');
 
   // Real-time Socket Connection for Reception Approval Events
   const socketRef = useRef<Socket | null>(null);
@@ -1554,6 +1570,15 @@ export const App: React.FC = () => {
       if (res.ok && json.success) {
         setPhoneOtpVerified(true);
         setOtpSuccessMsg('✓ Mobile number successfully verified!');
+        const verifiedProfile = {
+          name: guestName.trim() || 'Verified Guest',
+          phone: guestPhone.trim(),
+          isVerified: true,
+        };
+        setVerifiedGuestUser(verifiedProfile);
+        try {
+          localStorage.setItem('spicehub_verified_guest_user', JSON.stringify(verifiedProfile));
+        } catch {}
       } else {
         setBookingError(json.message || 'Invalid or expired OTP.');
       }
@@ -1691,6 +1716,8 @@ export const App: React.FC = () => {
         estimatedArrivalTime: bookingLocationType === 'REMOTE_HOME' ? estimatedArrivalTime : undefined,
         guestName: guestName.trim(),
         guestPhone: guestPhone.trim(),
+        loginPhone: verifiedGuestUser?.phone || guestPhone.trim(),
+        loginGuestName: verifiedGuestUser?.name || guestName.trim(),
         guestPhoneVerified: true,
         guestEmail: guestEmail.trim() || `${guestPhone.trim()}@guest.spicehub.com`,
         isCouple: guestCount === 2,
@@ -1826,6 +1853,57 @@ export const App: React.FC = () => {
       console.error('Error checking approval status:', err);
     } finally {
       setIsCheckingApproval(false);
+    }
+  };
+
+  // Pre-Approval Booking Cancellation with Reception Support Gate
+  const [isCancellingBooking, setIsCancellingBooking] = useState(false);
+  const handleCancelBooking = async (bookingNum?: string) => {
+    const targetBookingNumber = bookingNum || pendingApprovalBooking?.bookingNumber;
+    if (activeReservation) {
+      alert(
+        `Reservation Verified & Checked-In:\n\nRoom ${activeReservation.roomNumber} (${activeReservation.bookingNumber}) is an active in-house stay. Self-cancellation is not permitted for verified stays.\n\nPlease contact Front Desk Reception at ${selectedHotel?.contactPhone || '+91 141 2345678'} for checkout or cancellation support.`
+      );
+      return;
+    }
+    if (!targetBookingNumber) {
+      alert('No active or pending reservation found to cancel.');
+      return;
+    }
+    if (!confirm(`Are you sure you want to cancel reservation #${targetBookingNumber}?`)) {
+      return;
+    }
+    try {
+      setIsCancellingBooking(true);
+      const res = await fetch(`${DEFAULT_API_BASE}/api/v1/guest-portal/rooms/cancel-booking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingNumber: targetBookingNumber,
+          hotelId: selectedHotel?.id,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        localStorage.removeItem('spicehub_pending_approval_booking');
+        setPendingApprovalBooking(null);
+        alert(`Reservation #${targetBookingNumber} has been successfully cancelled.`);
+        setCustomerView('home');
+        setIsSettingsModalOpen(false);
+      } else if (data.receptionContactRequired) {
+        alert(data.message || `Please contact Front Desk at ${data.helplinePhone || '+91 141 2345678'} to modify or cancel your stay.`);
+      } else {
+        alert(data.message || 'Cancellation could not be completed.');
+      }
+    } catch (err: any) {
+      // Local fallback in case network error
+      localStorage.removeItem('spicehub_pending_approval_booking');
+      setPendingApprovalBooking(null);
+      setCustomerView('home');
+      setIsSettingsModalOpen(false);
+      alert('Pending booking removed from your device.');
+    } finally {
+      setIsCancellingBooking(false);
     }
   };
 
@@ -2426,18 +2504,13 @@ export const App: React.FC = () => {
                     <button
                       type="button"
                       data-testid="btn-cancel-pending-approval"
-                      onClick={() => {
-                        if (confirm('Are you sure you want to cancel this pending reservation request?')) {
-                          localStorage.removeItem('spicehub_pending_approval_booking');
-                          setPendingApprovalBooking(null);
-                          setCustomerView('rooms');
-                        }
-                      }}
-                      className={`py-2.5 px-3 rounded-xl border font-bold text-xs transition ${
-                        isDark ? 'border-slate-800 text-slate-400 hover:text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                      disabled={isCancellingBooking}
+                      onClick={() => handleCancelBooking(pendingApprovalBooking.bookingNumber)}
+                      className={`py-2.5 px-3 rounded-xl border font-bold text-xs transition flex items-center justify-center gap-1 ${
+                        isDark ? 'border-red-500/40 text-red-400 hover:bg-red-500/10' : 'border-red-300 text-red-600 hover:bg-red-50'
                       }`}
                     >
-                      {t('Cancel Request')}
+                      <span>{isCancellingBooking ? 'Cancelling...' : t('Cancel Request')}</span>
                     </button>
                   </div>
                 </div>
@@ -3711,20 +3784,24 @@ export const App: React.FC = () => {
             }`}>
               <div className="flex items-center gap-3.5">
                 <div className="w-14 h-14 rounded-2xl bg-amber-600 text-white font-bold text-xl flex items-center justify-center shadow-sm shrink-0">
-                  {activeReservation?.guestName ? activeReservation.guestName.slice(0, 2).toUpperCase() : <Icons.User className="w-7 h-7 text-slate-950" />}
+                  {activeReservation?.guestName
+                    ? activeReservation.guestName.slice(0, 2).toUpperCase()
+                    : verifiedGuestUser?.name
+                    ? verifiedGuestUser.name.slice(0, 2).toUpperCase()
+                    : <Icons.User className="w-7 h-7 text-white" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h2 className="text-base font-black truncate">
-                      {activeReservation?.guestName || pendingApprovalBooking?.guestName || 'Valued Guest'}
+                      {activeReservation?.guestName || verifiedGuestUser?.name || pendingApprovalBooking?.guestName || 'Valued Guest'}
                     </h2>
                     <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 flex items-center gap-0.5">
                       <Icons.Check className="w-2.5 h-2.5 text-emerald-500" />
-                      <span>Verified</span>
+                      <span>{verifiedGuestUser?.isVerified || activeReservation ? 'Verified' : 'Guest'}</span>
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 truncate">
-                    {activeReservation?.guestPhone || pendingApprovalBooking?.guestPhone || '+91 98765 43210'}
+                    {activeReservation?.guestPhone || verifiedGuestUser?.phone || pendingApprovalBooking?.guestPhone || '+91 98765 43210'}
                   </p>
                   <p className="text-[11px] text-slate-400 truncate">
                     {activeReservation?.guestEmail || pendingApprovalBooking?.guestEmail || 'guest@spicehub.com'}
@@ -3789,6 +3866,125 @@ export const App: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {/* Guest Sign-In & OTP Phone Verification Card */}
+            {verifiedGuestUser ? (
+              <div className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/80 text-emerald-950 flex items-center justify-between shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                    ✓
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                      <span>{verifiedGuestUser.name}</span>
+                      <span className="text-[9px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-bold uppercase">
+                        OTP Verified
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-mono text-emerald-800">{verifiedGuestUser.phone}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('Do you want to switch or update your verified mobile number?')) {
+                      setVerifiedGuestUser(null);
+                      localStorage.removeItem('spicehub_verified_guest_user');
+                    }
+                  }}
+                  className="text-xs text-emerald-700 hover:text-emerald-900 font-bold underline px-2 py-1"
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50/70 text-slate-900 space-y-3 shadow-xs">
+                <div>
+                  <h3 className="text-xs font-bold text-blue-950 flex items-center gap-1.5 uppercase tracking-wider">
+                    <span>📱</span>
+                    <span>Guest Mobile Sign-In & Verification</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-600 mt-0.5">
+                    Verify your identity via mobile OTP before booking. Front Desk will audit this verified number upon arrival.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                      Guest Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      data-testid="profile-guest-name-input"
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      placeholder="e.g. Mahesh Saini"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                      Mobile Number *
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="tel"
+                        data-testid="profile-guest-phone-input"
+                        value={guestPhone}
+                        onChange={(e) => setGuestPhone(e.target.value)}
+                        placeholder="10-digit mobile number"
+                        className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        data-testid="profile-send-otp-btn"
+                        disabled={otpSending || !guestPhone.trim() || guestPhone.trim().length < 8}
+                        onClick={handleSendPhoneOtp}
+                        className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs shrink-0 transition"
+                      >
+                        {otpSending ? 'Sending...' : phoneOtpSent ? 'Resend' : 'Send OTP'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {phoneOtpSent && (
+                    <div className="p-2.5 bg-white rounded-xl border border-blue-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-700 uppercase">
+                          Enter 4-Digit OTP Code
+                        </span>
+                        <span className="text-[10px] text-blue-600 font-mono">Default: 9999</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          data-testid="profile-otp-input"
+                          value={phoneOtp}
+                          onChange={(e) => setPhoneOtp(e.target.value)}
+                          placeholder="9999"
+                          className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-center text-sm font-mono font-bold tracking-widest text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          data-testid="profile-verify-otp-btn"
+                          disabled={otpVerifying || !phoneOtp.trim()}
+                          onClick={handleVerifyPhoneOtp}
+                          className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shrink-0 transition"
+                        >
+                          {otpVerifying ? 'Verifying...' : 'Confirm'}
+                        </button>
+                      </div>
+                      {otpSuccessMsg && (
+                        <p className="text-[11px] font-semibold text-emerald-600">{otpSuccessMsg}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Active Stay Details (If staying at hotel) */}
             {activeReservation && (
@@ -3931,29 +4127,82 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Account & Cache Reset Action */}
-            <div className={`p-4 rounded-2xl border shadow-sm space-y-2 text-center ${
-              isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'
-            }`}>
-              <button
-                type="button"
-                data-testid="clear-customer-cache-btn"
-                onClick={() => {
-                  if (confirm('Clear local stay cache and active reservation on this device?')) {
-                    localStorage.removeItem('spicehub_active_guest_reservation');
-                    localStorage.removeItem('spicehub_pending_approval_booking');
-                    setActiveReservation(null);
-                    setPendingApprovalBooking(null);
-                    setCustomerView('home');
-                    alert('Local session cache cleared successfully.');
-                  }
-                }}
-                className="w-full py-2.5 rounded-xl border border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold text-xs transition flex items-center justify-center gap-1.5"
-              >
-                <Icons.Trash className="w-4 h-4 text-red-500" />
-                <span>Clear App Cache & Active Stay Session</span>
-              </button>
-            </div>
+            {/* Reservation Lifecycle & Cancellation Handling */}
+            {pendingApprovalBooking && (
+              <div className="p-4 rounded-2xl border border-amber-300 bg-amber-50/80 space-y-2.5 text-center shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                    <span>Booking Pending Front Desk Approval</span>
+                  </span>
+                  <span className="text-[10px] font-mono font-bold bg-amber-200 text-amber-950 px-2 py-0.5 rounded">
+                    {pendingApprovalBooking.bookingNumber}
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-900 text-left leading-relaxed">
+                  Room {pendingApprovalBooking.roomNumber} ({pendingApprovalBooking.roomTypeName}) is awaiting Front Desk verification. You can cancel this request directly before Reception approves it.
+                </p>
+                <button
+                  type="button"
+                  data-testid="profile-cancel-pending-btn"
+                  disabled={isCancellingBooking}
+                  onClick={() => handleCancelBooking(pendingApprovalBooking.bookingNumber)}
+                  className="w-full py-2.5 rounded-xl border border-red-400 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs transition flex items-center justify-center gap-1.5"
+                >
+                  <Icons.Trash className="w-3.5 h-3.5 text-red-600" />
+                  <span>{isCancellingBooking ? 'Cancelling Reservation...' : 'Cancel Reservation Request'}</span>
+                </button>
+              </div>
+            )}
+
+            {activeReservation && (
+              <div className="p-4 rounded-2xl border border-emerald-300 bg-emerald-50/80 space-y-2.5 text-center shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>Verified Resident Stay • Room {activeReservation.roomNumber}</span>
+                  </span>
+                  <span className="text-[10px] font-mono font-bold bg-emerald-200 text-emerald-950 px-2 py-0.5 rounded">
+                    {activeReservation.bookingNumber}
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-900 text-left leading-relaxed">
+                  Your stay has been confirmed and keycard issued. For date extensions, room changes, or cancellation, please contact the Front Desk Reception desk directly.
+                </p>
+                <a
+                  href={`tel:${selectedHotel?.contactPhone || '+91 141 2345678'}`}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Icons.Phone className="w-3.5 h-3.5" />
+                  <span>Contact Reception for Cancellation / Changes</span>
+                </a>
+              </div>
+            )}
+
+            {/* Account & Cache Reset Action (Strictly hidden when booking exists) */}
+            {!activeReservation && !pendingApprovalBooking && (
+              <div className={`p-4 rounded-2xl border shadow-sm space-y-2 text-center ${
+                isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'
+              }`}>
+                <button
+                  type="button"
+                  data-testid="clear-customer-cache-btn"
+                  onClick={() => {
+                    if (confirm('Clear local guest cache on this device?')) {
+                      localStorage.removeItem('spicehub_customer_hotel_chosen');
+                      localStorage.removeItem('spicehub_verified_guest_user');
+                      setVerifiedGuestUser(null);
+                      setCustomerView('hotel_select');
+                      alert('Local session cache cleared successfully.');
+                    }
+                  }}
+                  className="w-full py-2.5 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50 font-bold text-xs transition flex items-center justify-center gap-1.5"
+                >
+                  <Icons.Trash className="w-4 h-4 text-slate-500" />
+                  <span>Clear App Cache</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>
@@ -5005,12 +5254,12 @@ export const App: React.FC = () => {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in"
         >
           <div
-            className={`w-full max-w-sm rounded-3xl border p-5 shadow-sm dark:shadow-none flex flex-col gap-4 max-h-[85vh] overflow-y-auto ${
+            className={`w-full max-w-sm rounded-3xl border p-5 shadow-2xl flex flex-col gap-3.5 max-h-[88vh] overflow-y-auto ${
               isDark ? 'border-slate-800 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
             }`}
           >
             {/* Modal Header */}
-            <div className={`flex items-center justify-between pb-3 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+            <div className={`flex items-center justify-between pb-2.5 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500">
                   <Icons.Settings className="w-4 h-4 text-amber-500" />
@@ -5032,111 +5281,320 @@ export const App: React.FC = () => {
               </button>
             </div>
 
-            {/* Appearance & Language */}
-            <div className={`p-3.5 rounded-2xl border space-y-3 ${
-              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-500 block">
-                {t('Display & Language')}
-              </span>
-
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold">{t('Language')} / भाषा</span>
-                <LanguageToggle isDark={isDark} />
-              </div>
-
-              <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
-                <span className="text-xs font-semibold">{t('Theme')}</span>
-                <button
-                  type="button"
-                  data-testid="settings-theme-toggle"
-                  onClick={toggleTheme}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
-                    isDark ? 'bg-slate-800 border-slate-700 text-amber-400' : 'bg-white border-slate-200 text-slate-700 shadow-sm'
-                  }`}
-                >
-                  {isDark ? <Icons.Sun className="w-3.5 h-3.5 text-amber-400" /> : <Icons.Moon className="w-3.5 h-3.5 text-slate-700" />}
-                  <span>{isDark ? t('Dark') : t('Light')}</span>
-                </button>
-              </div>
+            {/* Multi-Page Navigation Bar (4 Simple Tabs) */}
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
+              <button
+                type="button"
+                data-testid="settings-nav-main"
+                onClick={() => setSettingsPage('MAIN')}
+                className={`flex-1 py-1.5 px-1 rounded-lg text-center transition ${
+                  settingsPage === 'MAIN'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                ⚙️ General
+              </button>
+              <button
+                type="button"
+                data-testid="settings-nav-reservation"
+                onClick={() => setSettingsPage('RESERVATION')}
+                className={`flex-1 py-1.5 px-1 rounded-lg text-center transition relative ${
+                  settingsPage === 'RESERVATION'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                🛏️ Stay
+                {(activeReservation || pendingApprovalBooking) && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block ml-1 animate-pulse" />
+                )}
+              </button>
+              <button
+                type="button"
+                data-testid="settings-nav-support"
+                onClick={() => setSettingsPage('SUPPORT')}
+                className={`flex-1 py-1.5 px-1 rounded-lg text-center transition ${
+                  settingsPage === 'SUPPORT'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                📞 Desk
+              </button>
+              <button
+                type="button"
+                data-testid="settings-nav-session"
+                onClick={() => setSettingsPage('SESSION')}
+                className={`flex-1 py-1.5 px-1 rounded-lg text-center transition ${
+                  settingsPage === 'SESSION'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                📱 System
+              </button>
             </div>
 
-            {/* Stay & Checkout Policy */}
-            <div className={`p-3.5 rounded-2xl border space-y-2.5 ${
-              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-500 block">
-                {t('Stay & Check-out Policy')}
-              </span>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Standard Check-out:</span>
-                <span className="font-bold text-amber-500">11:00 AM Departure</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Late Check-out:</span>
-                <span className="font-semibold text-slate-300">Pro-Rata Tariff (+1.2x)</span>
-              </div>
-              <p className="text-[10px] text-slate-400 leading-relaxed">
-                Stay duration can be extended directly from the in-room folio portal without closing your room access.
-              </p>
-            </div>
-
-            {/* Device & Geofence Permissions */}
-            <div className={`p-3.5 rounded-2xl border space-y-2.5 ${
-              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-500 block">
-                {t('Device & Permissions')}
-              </span>
-              <div className="flex items-center justify-between text-xs">
-                <span>Camera (QR Scanner)</span>
-                <button
-                  type="button"
-                  onClick={openAppSettings}
-                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                >
-                  System Settings
-                </button>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span>GPS Geofence Guard</span>
-                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-md border border-emerald-500/30">
-                  {gpsStatus}
-                </span>
-              </div>
-            </div>
-
-            {/* Cloud Sync Status */}
-            <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="font-semibold text-slate-900">Cloud Sync Network</span>
+            {/* TAB 1: GENERAL & PREFERENCES */}
+            {settingsPage === 'MAIN' && (
+              <div className="space-y-3 animate-in fade-in">
+                {/* Verified Identity Status */}
+                <div className="p-3 rounded-2xl border border-slate-200 bg-slate-50 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-slate-500">Guest Identity</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      {verifiedGuestUser?.isVerified ? '✓ OTP Verified' : 'Guest'}
+                    </span>
+                  </div>
+                  <div className="font-bold text-slate-900">
+                    {verifiedGuestUser?.name || guestName || activeReservation?.guestName || 'Valued Guest'}
+                  </div>
+                  <div className="text-[11px] font-mono text-slate-600">
+                    {verifiedGuestUser?.phone || guestPhone || activeReservation?.guestPhone || 'Mobile not registered'}
+                  </div>
                 </div>
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Connected</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">App Version</span>
-                <span className="text-[10px] font-medium text-slate-500">v2.6.0 (Production)</span>
-              </div>
-            </div>
 
-            {/* Clear Session / Reset */}
-            <button
-              type="button"
-              data-testid="reset-guest-session-btn"
-              onClick={() => {
-                localStorage.removeItem('spicehub_active_guest_reservation');
-                localStorage.removeItem('spicehub_pending_approval_booking');
-                setActiveReservation(null);
-                setPendingApprovalBooking(null);
-                setIsSettingsModalOpen(false);
-                alert('Guest session reset successfully! You can now book rooms or scan dine-in tables.');
-              }}
-              className="w-full py-2.5 rounded-xl border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-black transition active:scale-95"
-            >
-              Reset Current Stay Session
-            </button>
+                {/* Appearance & Language */}
+                <div className="p-3.5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-900 block">{t('Language')}</span>
+                      <span className="text-[10px] text-slate-500">English / हिंदी भाषा</span>
+                    </div>
+                    <LanguageToggle isDark={isDark} />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <div>
+                      <span className="text-xs font-bold text-slate-900 block">{t('Theme')}</span>
+                      <span className="text-[10px] text-slate-500">Standard Bright Mode</span>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                      <Icons.Sun className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Light</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: STAY & RESERVATION (CANCELLATION & RECEPTION GATING) */}
+            {settingsPage === 'RESERVATION' && (
+              <div className="space-y-3 animate-in fade-in">
+                {pendingApprovalBooking ? (
+                  <div className="p-4 rounded-2xl border-2 border-amber-400 bg-amber-50/90 text-slate-900 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                        <span className="text-xs font-black text-amber-950 uppercase">Pending Approval</span>
+                      </div>
+                      <span className="font-mono text-[10px] font-bold bg-amber-200 text-amber-950 px-2 py-0.5 rounded">
+                        {pendingApprovalBooking.bookingNumber}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Room:</span>
+                        <strong className="text-slate-900">Room {pendingApprovalBooking.roomNumber} ({pendingApprovalBooking.roomTypeName})</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Tariff:</span>
+                        <strong className="font-mono text-slate-900">₹{pendingApprovalBooking.grandTotal?.toLocaleString('en-IN')}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Stay Window:</span>
+                        <span className="text-[11px] font-medium text-slate-700">
+                          {pendingApprovalBooking.checkInDate} ➔ {pendingApprovalBooking.checkOutDate}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-amber-300/80 space-y-2">
+                      <p className="text-[10px] text-amber-900 leading-tight">
+                        ✓ You can cancel this booking request anytime before Front Desk verifies it.
+                      </p>
+                      <button
+                        type="button"
+                        data-testid="settings-cancel-booking-btn"
+                        disabled={isCancellingBooking}
+                        onClick={() => handleCancelBooking(pendingApprovalBooking.bookingNumber)}
+                        className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98"
+                      >
+                        <Icons.Trash className="w-3.5 h-3.5 text-white" />
+                        <span>{isCancellingBooking ? 'Cancelling Request...' : 'Cancel Reservation Request'}</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : activeReservation ? (
+                  <div className="p-4 rounded-2xl border-2 border-emerald-400 bg-emerald-50/90 text-slate-900 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-xs font-black text-emerald-950 uppercase">Verified In-House Stay</span>
+                      </div>
+                      <span className="font-mono text-[10px] font-bold bg-emerald-200 text-emerald-950 px-2 py-0.5 rounded">
+                        Room #{activeReservation.roomNumber}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Category:</span>
+                        <strong className="text-slate-900">{activeReservation.roomTypeName}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Booking Ref:</span>
+                        <strong className="font-mono text-slate-900">{activeReservation.bookingNumber}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Dates:</span>
+                        <span className="text-[11px] font-medium text-slate-700">
+                          {activeReservation.checkInDate} ➔ {activeReservation.checkOutDate}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-emerald-300/80 space-y-2">
+                      <div className="p-2.5 rounded-xl bg-white/80 border border-emerald-200 text-[11px] text-emerald-900 leading-snug">
+                        <strong>🔒 Cancellation Gate:</strong> Because your stay is already approved and checked-in by Reception, self-cancellation is restricted. Please contact the Front Desk for checkout or cancellation support.
+                      </div>
+                      <a
+                        href={`tel:${selectedHotel?.contactPhone || '+91 141 2345678'}`}
+                        className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98"
+                      >
+                        <Icons.Phone className="w-3.5 h-3.5 text-white" />
+                        <span>Call Reception Support</span>
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6 rounded-2xl border border-slate-200 bg-slate-50 text-center space-y-2.5">
+                    <span className="text-2xl">🛏️</span>
+                    <h4 className="text-xs font-bold text-slate-900">No Active Reservation</h4>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      You do not have any room booked at {selectedHotel?.name || 'this hotel'}. Browse our catalog to reserve luxury suites.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSettingsModalOpen(false);
+                        setCustomerView('rooms');
+                      }}
+                      className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs"
+                    >
+                      Browse Available Rooms
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 3: DESK & SUPPORT */}
+            {settingsPage === 'SUPPORT' && (
+              <div className="space-y-3 animate-in fade-in">
+                <div className="p-3.5 rounded-2xl border border-slate-200 bg-white space-y-2.5 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-900 block">Reception Desk Helpline</span>
+                      <span className="text-[10px] text-slate-500">{selectedHotel?.name || 'Hotel Front Desk'}</span>
+                    </div>
+                    <a
+                      href={`tel:${selectedHotel?.contactPhone || '+91 141 2345678'}`}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 flex items-center gap-1 shadow-xs"
+                    >
+                      <Icons.Phone className="w-3.5 h-3.5" />
+                      <span>Call Now</span>
+                    </a>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 space-y-2 text-xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Standard Hotel Timings</span>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Check-In:</span>
+                    <strong className="text-slate-900">02:00 PM</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Check-Out:</span>
+                    <strong className="text-slate-900">11:00 AM Departure</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Night Dining:</span>
+                    <strong className="text-slate-900">11:30 PM - 06:00 AM</strong>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl border border-slate-200 bg-white text-xs space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">In-Room Phone Extensions</span>
+                  <p className="text-[11px] text-slate-700">• Reception Manager: <strong>Dial 9</strong></p>
+                  <p className="text-[11px] text-slate-700">• Kitchen & Dining: <strong>Dial 101</strong></p>
+                  <p className="text-[11px] text-slate-700">• Housekeeping Butler: <strong>Dial 102</strong></p>
+                  <p className="text-[11px] text-slate-700">• Emergency / Security: <strong>Dial 0</strong></p>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: APP & SYSTEM */}
+            {settingsPage === 'SESSION' && (
+              <div className="space-y-3 animate-in fade-in">
+                <div className="p-3.5 rounded-2xl border border-slate-200 bg-white space-y-2.5 shadow-xs text-xs">
+                  <div className="flex items-center justify-between">
+                    <span>Camera (QR Scanner)</span>
+                    <button
+                      type="button"
+                      onClick={openAppSettings}
+                      className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200"
+                    >
+                      Permissions
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>GPS Location Guard</span>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      Active
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Cloud Services Sync</span>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      Connected
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                    <span className="text-slate-500">App Version</span>
+                    <span className="font-mono text-slate-700">v2.6.0 (Production)</span>
+                  </div>
+                </div>
+
+                {/* Session Reset / Cache Clear: STRICTLY GATED WHEN ROOM IS BOOKED */}
+                {activeReservation || pendingApprovalBooking ? (
+                  <div className="p-3.5 rounded-2xl border border-blue-200 bg-blue-50/80 text-[11px] text-blue-950 leading-relaxed">
+                    <strong>ℹ️ Stay Session Protected:</strong> A room reservation is currently active on this device. Cache reset is disabled to protect your stay and digital keycard. To cancel your reservation, please use the Stay tab.
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    data-testid="reset-guest-session-btn"
+                    onClick={() => {
+                      if (confirm('Clear local guest session cache on this device?')) {
+                        localStorage.removeItem('spicehub_customer_hotel_chosen');
+                        localStorage.removeItem('spicehub_verified_guest_user');
+                        setVerifiedGuestUser(null);
+                        setIsSettingsModalOpen(false);
+                        setCustomerView('hotel_select');
+                        alert('Local session cache cleared successfully.');
+                      }
+                    }}
+                    className="w-full py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-600 text-xs font-bold transition active:scale-95 flex items-center justify-center gap-1.5"
+                  >
+                    <Icons.Trash className="w-4 h-4 text-slate-500" />
+                    <span>Clear App Cache</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

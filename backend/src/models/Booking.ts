@@ -29,6 +29,8 @@ export interface IBooking extends Document {
   guestName: string;
   guestPhone: string;
   guestEmail: string;
+  loginPhone?: string;
+  loginGuestName?: string;
   idProofType?: string;
   idProofNumber?: string;
   idProofDocumentUrl?: string;
@@ -79,6 +81,8 @@ const BookingSchema = new Schema<IBooking>(
     guestName: { type: String, required: true, trim: true },
     guestPhone: { type: String, required: true, trim: true },
     guestEmail: { type: String, required: true, lowercase: true, trim: true },
+    loginPhone: { type: String, trim: true },
+    loginGuestName: { type: String, trim: true },
     idProofType: { type: String },
     idProofNumber: { type: String },
     idProofDocumentUrl: { type: String },

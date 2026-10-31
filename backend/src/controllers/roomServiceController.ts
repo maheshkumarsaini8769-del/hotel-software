@@ -1930,6 +1930,8 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       deviceLocation,
       bookingLocation,
       guestPhoneVerified,
+      loginPhone,
+      loginGuestName,
       secondaryGuestName,
       secondaryGuestPhone,
       secondaryGuestRelationship,
@@ -2196,6 +2198,8 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       guestName: effectiveName,
       guestPhone: effectivePhone,
       guestEmail: effectiveEmail,
+      loginPhone: (loginPhone || '').trim() || effectivePhone,
+      loginGuestName: (loginGuestName || '').trim() || effectiveName,
       idProofType: 'AADHAAR',
       idProofNumber: maskedId,
       idProofDocumentUrl: effectiveAadhaarFront || undefined,
@@ -2245,6 +2249,8 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       roomNumber: room.roomNumber,
       guestName: effectiveName,
       guestPhone: effectivePhone,
+      loginPhone: booking.loginPhone || effectivePhone,
+      loginGuestName: booking.loginGuestName || effectiveName,
       nights: numNights,
       estimatedArrivalTime: effectiveArrivalTime,
       checkInDate: checkIn,
@@ -2619,6 +2625,102 @@ export const rejectGuestCheckIn = async (req: Request, res: Response): Promise<v
     });
   } catch (err: any) {
     console.error('❌ [rejectGuestCheckIn] Error:', err);
+    res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: err.message });
+  }
+};
+
+// 10b2. Guest Self-Cancellation (Allowed ONLY while pending Reception Approval)
+export const cancelGuestBooking = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { bookingId, bookingNumber, hotelId } = req.body;
+
+    let query: any = {};
+    if (bookingId && Types.ObjectId.isValid(bookingId)) {
+      query._id = new Types.ObjectId(bookingId);
+    } else if (bookingNumber) {
+      query.bookingNumber = String(bookingNumber).trim();
+    } else {
+      res.status(400).json({ success: false, errorCode: 'MISSING_FIELDS', message: 'bookingId or bookingNumber is required' });
+      return;
+    }
+
+    if (hotelId && Types.ObjectId.isValid(hotelId)) {
+      query.hotelId = new Types.ObjectId(hotelId);
+    }
+
+    const booking = await Booking.findOne(query);
+    if (!booking) {
+      res.status(404).json({ success: false, errorCode: 'BOOKING_NOT_FOUND', message: 'Booking reservation not found' });
+      return;
+    }
+
+    // STRICT CANCELLATION GATE: If already approved or checked in, self-cancellation is forbidden
+    if (booking.bookingStatus === BookingStatus.CHECKED_IN || (booking as any).receptionApprovedAt) {
+      const tenant = await Tenant.findById(booking.hotelId).select('name contactPhone');
+      res.status(403).json({
+        success: false,
+        errorCode: 'CANCELLATION_LOCKED_APPROVED',
+        receptionContactRequired: true,
+        message: 'This reservation has already been verified and approved by Reception. Self-cancellation is not permitted. Please contact the Front Desk directly for stay modifications or departure assistance.',
+        hotelName: tenant?.name || 'Hotel Front Desk',
+        helplinePhone: tenant?.contactPhone || '+91 141 2345678',
+      });
+      return;
+    }
+
+    if (booking.bookingStatus === BookingStatus.CANCELLED) {
+      res.status(200).json({
+        success: true,
+        message: 'Booking is already cancelled.',
+        data: { bookingNumber: booking.bookingNumber, bookingStatus: 'CANCELLED' },
+      });
+      return;
+    }
+
+    // Only allow self-cancellation if booking is still pending approval
+    booking.bookingStatus = BookingStatus.CANCELLED;
+    (booking as any).receptionRejectionReason = 'Cancelled by Guest before Front Desk approval';
+    await booking.save();
+
+    // Release allocated or reserved physical room back to available inventory
+    if (booking.allocatedRoomId) {
+      const room = await Room.findById(booking.allocatedRoomId);
+      if (room && (room.status === RoomStatus.RESERVED || room.status === RoomStatus.OCCUPIED)) {
+        room.status = RoomStatus.AVAILABLE;
+        await room.save();
+
+        io.to(`${room.hotelId}_admin`)
+          .to(`${room.hotelId}_pms`)
+          .to(`${room.hotelId}_frontdesk`)
+          .to(`${room.hotelId}_global`)
+          .emit('pms:room_status_changed', {
+            roomId: room._id,
+            roomNumber: room.roomNumber,
+            status: RoomStatus.AVAILABLE,
+          });
+      }
+    }
+
+    io.to(`${booking.hotelId}_global`)
+      .to(`${booking.hotelId}_admin`)
+      .to(`${booking.hotelId}_frontdesk`)
+      .emit('pms:booking_cancelled', {
+        bookingNumber: booking.bookingNumber,
+        guestName: booking.guestName,
+        guestPhone: booking.guestPhone,
+        cancelledAt: new Date(),
+      });
+
+    res.status(200).json({
+      success: true,
+      message: `Reservation #${booking.bookingNumber} has been successfully cancelled.`,
+      data: {
+        bookingNumber: booking.bookingNumber,
+        bookingStatus: 'CANCELLED',
+      },
+    });
+  } catch (err: any) {
+    console.error('❌ [cancelGuestBooking] Error:', err);
     res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: err.message });
   }
 };

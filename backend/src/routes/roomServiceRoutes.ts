@@ -16,6 +16,7 @@ import {
   bookAndCheckInGuest,
   approveGuestCheckIn,
   rejectGuestCheckIn,
+  cancelGuestBooking,
   sendGuestPhoneOtp,
   verifyGuestPhoneOtp,
   getBookingStatus,
@@ -34,6 +35,7 @@ router.post('/rooms/book-and-checkin', bookAndCheckInGuest);
 // a staff-only operation. The reception front-desk app sends a staff JWT here.
 router.post('/rooms/approve-checkin', authenticateJWT, requireTenant, approveGuestCheckIn);
 router.post('/rooms/reject-checkin', authenticateJWT, requireTenant, rejectGuestCheckIn);
+router.post('/rooms/cancel-booking', cancelGuestBooking);
 router.post('/rooms/send-phone-otp', sendGuestPhoneOtp);
 router.post('/rooms/verify-phone-otp', verifyGuestPhoneOtp);
 router.get('/rooms/booking-status/:bookingNumber', getBookingStatus);

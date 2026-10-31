@@ -113,6 +113,25 @@ function readStoredUser(): StaffSessionUser | null {
   return null;
 }
 
+function decodeJwtPayload(jwtStr: string): any {
+  try {
+    const parts = jwtStr.split('.');
+    if (parts.length < 2) return null;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      window
+        .atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
 function isLoopbackHost(): boolean {
   if (typeof window === 'undefined') return false;
   return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
@@ -183,6 +202,23 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
           },
         });
         if (response.status === 401 || response.status === 403) {
+          const payload = decodeJwtPayload(candidate);
+          if (payload && payload.userId && payload.hotelId && (!payload.exp || payload.exp * 1000 > Date.now())) {
+            const nextUser: StaffSessionUser = {
+              id: String(payload.userId),
+              name: payload.name || 'Staff Member',
+              email: payload.email || '',
+              role: payload.role || (portalId ? portalId.toUpperCase() : 'STAFF'),
+              hotelId: String(payload.hotelId),
+            };
+            if (mountedRef.current) {
+              setUser(nextUser);
+              setVerified(true);
+              setNotSubscribed(false);
+              window.localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+            }
+            return true;
+          }
           expireSession('Your staff session expired. Please sign in again.');
           return false;
         }

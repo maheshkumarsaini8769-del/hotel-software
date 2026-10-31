@@ -687,52 +687,15 @@ export function App() {
         setPin('');
         setStep('workstation');
       } else {
-        if (enteredPin === '1234' || !res.ok) {
-          const fallbackToken = 'audit-demo-token';
-          localStorage.setItem('spicehub_token', fallbackToken);
-          localStorage.setItem('token', fallbackToken);
-          localStorage.setItem('spicehub_hotel_id', hotel.id);
-          localStorage.setItem('hotelId', hotel.id);
-          const waiterSessionData = {
-            staffId: selectedStaff.id,
-            name: selectedStaff.name,
-            role: selectedStaff.role === 'WAITER' ? 'Senior Waiter' : selectedStaff.role,
-            avatar: selectedStaff.photo,
-            assignedSection: selectedStaff.section,
-            assignedTableStart: 1,
-            assignedTableEnd: 6,
-            assignedTableCount: 6,
-            shift: selectedStaff.shift,
-            permissions: ['KOT Punching', 'Food Pickup & Serving', 'Table Transfer', 'Bill Settle Request', 'Guest Calls'],
-          };
-          localStorage.setItem('spicehub_waiter_session', JSON.stringify(waiterSessionData));
-          setSelectedPortal(targetPortal);
-          setShowAuthModal(false);
-          setPin('');
-          setStep('workstation');
-          return;
-        }
-        if (data.errorCode === 'PIN_PENDING_ADMIN_APPROVAL') {
+        if (data?.errorCode === 'PIN_PENDING_ADMIN_APPROVAL') {
           setAuthError('⏳ PIN Pending Approval: Your 4-digit PIN is awaiting Hotel Admin approval.');
         } else {
-          setAuthError(data.message || 'Invalid 4-digit staff PIN. Please try again.');
+          setAuthError(data?.message || 'Invalid 4-digit staff PIN. Please try again.');
         }
         setPin('');
       }
     } catch (err: any) {
-      if (enteredPin === '1234') {
-        const fallbackToken = 'audit-demo-token';
-        localStorage.setItem('spicehub_token', fallbackToken);
-        localStorage.setItem('token', fallbackToken);
-        localStorage.setItem('spicehub_hotel_id', hotel.id);
-        localStorage.setItem('hotelId', hotel.id);
-        setSelectedPortal(targetPortal);
-        setShowAuthModal(false);
-        setPin('');
-        setStep('workstation');
-        return;
-      }
-      setAuthError('Network error connecting to login service.');
+      setAuthError('Cannot reach staff authentication server. Check connection.');
       setPin('');
     } finally {
       setIsSubmitting(false);
@@ -1766,35 +1729,6 @@ export function App() {
                           🕒 {st.shift}
                         </div>
                       </div>
-
-                      {/* Photo Self-Service Edit Icon */}
-                      <button
-                        type="button"
-                        data-testid={`edit-staff-photo-btn-${st.id}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPhotoTargetStaff(st);
-                          setCustomPhotoUrl(st.photo);
-                          setShowPhotoModal(true);
-                        }}
-                        title="Update Profile Photo"
-                        style={{
-                          background: '#F1F5F9',
-                          border: '1px solid #CBD5E1',
-                          borderRadius: 8,
-                          padding: '5px 7px',
-                          fontSize: 11,
-                          fontWeight: '700',
-                          color: '#475569',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 3,
-                          flexShrink: 0,
-                        }}
-                      >
-                        <span>📷</span>
-                      </button>
                     </div>
 
                     {/* Large 'Unlock' Button (revealed when card is tapped) */}
@@ -2512,205 +2446,6 @@ export function App() {
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Waiter Self-Service Profile Photo Modal */}
-      {showPhotoModal && photoTargetStaff && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            background: 'rgba(15, 23, 42, 0.75)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-          }}
-        >
-          <div
-            style={{
-              width: '100%',
-              maxWidth: 380,
-              background: '#FFFFFF',
-              borderRadius: 24,
-              padding: 20,
-              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 14,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <h3 style={{ fontSize: 16, fontWeight: '800', color: '#0F172A', margin: 0 }}>
-                  📸 Staff Profile Photo
-                </h3>
-                <p style={{ fontSize: 11, color: '#64748B', margin: 0 }}>
-                  Upload or select your photo for Guest Live ETA
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPhotoModal(false)}
-                style={{
-                  background: '#F1F5F9',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: 28,
-                  height: 28,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  fontWeight: '700',
-                  color: '#64748B',
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Current & Preview Avatar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, background: '#F8FAFC', padding: 12, borderRadius: 16, border: '1px solid #E2E8F0' }}>
-              <div style={{ width: 64, height: 64, borderRadius: 16, overflow: 'hidden', border: '2px solid #F59E0B', flexShrink: 0, boxShadow: '0 4px 10px rgba(245,158,11,0.2)' }}>
-                <img
-                  src={customPhotoUrl || photoTargetStaff.photo}
-                  alt={photoTargetStaff.name}
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = photoTargetStaff.photo;
-                  }}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>
-                  {photoTargetStaff.name}
-                </div>
-                <div style={{ fontSize: 11, fontWeight: '700', color: '#D97706' }}>
-                  {photoTargetStaff.role} · {photoTargetStaff.section}
-                </div>
-                <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>
-                  Shown on Guest Room Butler ETA
-                </div>
-              </div>
-            </div>
-
-            {/* Direct Camera & Gallery Upload */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <label style={{
-                padding: '10px 12px',
-                borderRadius: 12,
-                background: '#2563EB',
-                color: '#FFFFFF',
-                fontWeight: '800',
-                fontSize: 11.5,
-                textAlign: 'center',
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4,
-                boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
-              }}>
-                <span>📷 Take Live Photo</span>
-                <span style={{ fontSize: 9.5, opacity: 0.9 }}>Camera Capture</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="user"
-                  style={{ display: 'none' }}
-                  onChange={handlePhotoFileUpload}
-                />
-              </label>
-
-              <label style={{
-                padding: '10px 12px',
-                borderRadius: 12,
-                background: '#1E293B',
-                color: '#F8FAFC',
-                border: '1px solid #334155',
-                fontWeight: '800',
-                fontSize: 11.5,
-                textAlign: 'center',
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4
-              }}>
-                <span>🖼️ Device Gallery</span>
-                <span style={{ fontSize: 9.5, color: '#94A3B8' }}>Select File</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={handlePhotoFileUpload}
-                />
-              </label>
-            </div>
-
-            <div style={{ fontSize: 9.5, color: '#059669', fontFamily: 'monospace', textAlign: 'center' }}>
-              Real Photo Capture • Compressed to 400x400 JPEG (~40 KB)
-            </div>
-
-            {/* Custom Photo URL Input */}
-            <div>
-              <label style={{ fontSize: 10.5, fontWeight: '800', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>
-                Or Custom Photo URL:
-              </label>
-              <input
-                type="url"
-                data-testid="input-waiter-photo-url"
-                value={customPhotoUrl}
-                onChange={(e) => setCustomPhotoUrl(e.target.value)}
-                placeholder="https://..."
-                style={{
-                  width: '100%',
-                  padding: '9px 12px',
-                  borderRadius: 12,
-                  border: '1.5px solid #CBD5E1',
-                  fontSize: 12,
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-
-            {/* Submit Action */}
-            <button
-              type="button"
-              data-testid="save-waiter-photo-btn"
-              disabled={isSavingPhoto}
-              onClick={() => handleSaveStaffPhoto(customPhotoUrl)}
-              style={{
-                width: '100%',
-                padding: '12px',
-                borderRadius: 14,
-                background: photoSaveSuccess ? '#10B981' : '#2563EB',
-                color: '#FFFFFF',
-                border: 'none',
-                fontWeight: '800',
-                fontSize: 13,
-                cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-              }}
-            >
-              {isSavingPhoto ? (
-                <span>Saving Photo...</span>
-              ) : photoSaveSuccess ? (
-                <span>✓ Photo Updated & Synced to Butler ETA!</span>
-              ) : (
-                <span>✓ Save Photo & Sync to Guest ETA</span>
-              )}
-            </button>
           </div>
         </div>
       )}

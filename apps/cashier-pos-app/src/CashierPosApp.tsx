@@ -1049,29 +1049,27 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
       {/* ======================================================== */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Top Header Bar */}
-        <header className={`px-3 sm:px-6 py-2.5 border-b flex items-center justify-between shrink-0 shadow-xs z-10 transition-colors ${
+        <header className={`h-14 px-3 sm:px-5 border-b flex items-center justify-between shrink-0 shadow-xs z-10 transition-colors ${
           isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg border border-slate-800 text-slate-300 hover:text-white shrink-0"
+              className="md:hidden p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 shrink-0"
               title="Toggle Menu"
             >
               {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-bold shrink-0">
-              <Receipt className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700 dark:text-slate-300" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center font-bold shrink-0">
+              <Receipt className="w-4 h-4 text-emerald-700" />
             </div>
             <div className="min-w-0">
-              <h1 className={`text-sm sm:text-lg font-semibold tracking-tight truncate flex items-center gap-2 ${
+              <h1 className={`text-sm sm:text-base font-bold tracking-tight truncate ${
                 isDark ? 'text-white' : 'text-slate-900'
               }`}>
-                Cashier (POS & Billing)
+                Cashier POS
               </h1>
-              <p className={`hidden sm:block text-xs font-normal truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Quick & Easy Billing • Multiple Payment Options • Split Bills • Dine-in, Takeaway, Room Charges
-              </p>
+              <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">Billing & Float Counter</span>
             </div>
           </div>
 

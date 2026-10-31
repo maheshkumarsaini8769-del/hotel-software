@@ -755,8 +755,8 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
       {/* ======================================================== */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Top Header Bar */}
-        <header className={`px-3 sm:px-5 py-2.5 border-b flex items-center justify-between shrink-0 shadow-md z-10 transition-colors ${
-          isDark ? 'bg-slate-900 border-slate-800/80 text-white' : 'bg-white border-slate-200 text-slate-800'
+        <header className={`h-14 px-3 sm:px-5 border-b flex items-center justify-between shrink-0 shadow-xs z-10 transition-colors ${
+          isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-800'
         }`}>
           <div className="flex items-center gap-2 sm:gap-4">
             <button

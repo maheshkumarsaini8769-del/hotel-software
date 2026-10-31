@@ -768,24 +768,24 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
       {/* ======================================================== */}
       {/* 1. TOP RESPONSIVE LUXURY NAVBAR (FULL DESKTOP & MOBILE)  */}
       {/* ======================================================== */}
-      <header className={`sticky top-0 z-40 backdrop-blur-md border-b transition-colors ${
-        isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-xs'
-      }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 sm:h-20 gap-3">
+      <header className="sticky top-0 z-40 backdrop-blur-md border-b bg-white/95 border-slate-200 shadow-xs transition-colors">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16 gap-3">
             {/* Brand Logo & Name */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center font-bold shadow-sm">
-                <UtensilsCrossed className="w-5 h-5" />
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                <UtensilsCrossed className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className={`font-bold text-lg sm:text-xl tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>SpiceHub</span>
-                  <span className="hidden md:inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                    In-Room Portal
+                  <span className="font-bold text-base sm:text-lg tracking-tight text-slate-900 truncate">
+                    SpiceHub
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 shrink-0">
+                    Room {roomNumber || 'Portal'}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 font-medium hidden sm:block">Hotel & Luxury Suites</p>
+                <p className="text-[11px] text-slate-500 font-medium hidden sm:block truncate">In-Room Dining & Hospitality</p>
               </div>
             </div>
 

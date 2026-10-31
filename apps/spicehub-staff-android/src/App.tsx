@@ -852,13 +852,14 @@ export function App() {
             paddingBottom: '8px',
             paddingLeft: '12px',
             paddingRight: '12px',
-            background: '#0F172A',
-            borderBottom: '1px solid #1E293B',
+            background: '#FFFFFF',
+            borderBottom: '1px solid #E2E8F0',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexShrink: 0,
             zIndex: 50,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
           }}
         >
           <button
@@ -871,10 +872,10 @@ export function App() {
             }}
             style={{
               padding: '6px 12px',
-              borderRadius: '12px',
-              background: '#1E293B',
-              color: '#FFFFFF',
-              border: '1px solid #334155',
+              borderRadius: '10px',
+              background: '#F1F5F9',
+              color: '#0F172A',
+              border: '1px solid #CBD5E1',
               fontSize: '12px',
               fontWeight: 700,
               display: 'flex',
@@ -883,10 +884,9 @@ export function App() {
               cursor: 'pointer',
             }}
           >
-            <span>← Exit Workstation</span>
+            <span>← Exit to Staff List</span>
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#F8FAFC' }}>
-            <span>{currentApp.emoji}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
             <span>{selectedStaff?.name || 'Staff'} · {currentApp.label}</span>
           </div>
         </div>

@@ -2334,10 +2334,10 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
               <span className="hidden sm:inline">Wi-Fi & Info</span>
             </button>
 
-            {/* Live Operations Indicator */}
+            {/* Live Status Indicator */}
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>LIVE OPS</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>System Active</span>
             </div>
 
             {/* Quick Refresh Button */}

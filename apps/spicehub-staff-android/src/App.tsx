@@ -841,11 +841,56 @@ export function App() {
           flexDirection: 'column',
           background: '#0F172A',
           boxSizing: 'border-box',
-          paddingTop: 'max(env(safe-area-inset-top, 0px), 16px)',
-          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 14px)',
           position: 'relative',
         }}
       >
+        {/* Workstation Top Control Bar with 1-Click Exit */}
+        <div
+          style={{
+            width: '100%',
+            paddingTop: 'max(env(safe-area-inset-top, 0px), 8px)',
+            paddingBottom: '8px',
+            paddingLeft: '12px',
+            paddingRight: '12px',
+            background: '#0F172A',
+            borderBottom: '1px solid #1E293B',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+            zIndex: 50,
+          }}
+        >
+          <button
+            type="button"
+            data-testid="workstation-exit-btn"
+            onClick={() => {
+              setStep('person');
+              setPin('');
+              setAuthError('');
+            }}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '12px',
+              background: '#1E293B',
+              color: '#FFFFFF',
+              border: '1px solid #334155',
+              fontSize: '12px',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            <span>← Exit Workstation</span>
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#F8FAFC' }}>
+            <span>{currentApp.emoji}</span>
+            <span>{selectedStaff?.name || 'Staff'} · {currentApp.label}</span>
+          </div>
+        </div>
+
         <iframe
           id="workstation-frame"
           src={iframeUrl}

@@ -2266,7 +2266,7 @@ export function App() {
                         boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
                       }}
                     >
-                      {isOtpSubmitting ? 'Sending OTP via Resend...' : '📩 Send 6-Digit Verification OTP'}
+                      {isOtpSubmitting ? 'Sending OTP...' : 'Send Verification OTP'}
                     </button>
                   </form>
                 ) : (
@@ -2367,7 +2367,7 @@ export function App() {
                         boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
                       }}
                     >
-                      {isOtpSubmitting ? 'Activating New PIN...' : '🚀 Verify OTP & Activate New PIN'}
+                      {isOtpSubmitting ? 'Activating...' : 'Verify & Set New PIN'}
                     </button>
 
                     <div style={{ textAlign: 'center', marginTop: 4 }}>
@@ -2389,7 +2389,6 @@ export function App() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: '12px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <span style={{ fontSize: 16 }}>🏨</span>
                     <span style={{ fontSize: 12.5, fontWeight: '800', color: '#1E40AF' }}>
                       Hotel Admin PIN Access
                     </span>
@@ -2401,7 +2400,7 @@ export function App() {
 
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 14, padding: '12px 14px', fontSize: 12, color: '#475569', lineHeight: 1.5 }}>
                   <div style={{ fontWeight: '700', color: '#0F172A', marginBottom: 4 }}>
-                    💡 How to get your PIN from Admin:
+                    Instructions:
                   </div>
                   <ol style={{ margin: 0, paddingLeft: 16 }}>
                     <li>Contact your Shift Manager or Frontdesk Administrator.</li>

@@ -308,7 +308,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
               <Lock className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-bold text-slate-200 text-sm">Cryptographic Day-Close Seal</div>
+              <div className="font-bold text-slate-200 text-sm">Night Audit Day-Close Seal</div>
               <div className="text-xs text-slate-400 mt-1 leading-relaxed">
                 Generates immutable audit certificate and locks previous business date from backdated alterations.
               </div>
@@ -433,7 +433,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
               </div>
               <div className="flex justify-between text-slate-300">
                 <span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5 text-amber-400" /> Security Day Lock:</span>
-                <span className="font-bold text-amber-400">Cryptographically Sealed</span>
+                <span className="font-bold text-amber-400">Audit Locked</span>
               </div>
             </div>
 

@@ -1562,17 +1562,8 @@ export const App: React.FC = () => {
     }
   };
 
-  // Step 1 of Booking: User clicks an available room -> Location & Radius Check Dialog
+  // Step 1 of Booking: User clicks an available room -> Direct Booking Form Modal
   const handleSelectRoomForBooking = (room: CatalogRoom) => {
-    if (activeReservation) {
-      launchResidentPortal(
-        activeReservation.roomNumber,
-        selectedHotel,
-        activeReservation.sessionToken,
-        'HOME'
-      );
-      return;
-    }
     if (pendingApprovalBooking) {
       setCustomerView('waiting_approval');
       return;
@@ -1580,7 +1571,12 @@ export const App: React.FC = () => {
     setSelectedRoomForBooking(room);
     setBookingNights(1);
     setBookingError(null);
-    setShowLocationRadiusCheck(true);
+    if (verifiedGuestUser) {
+      if (verifiedGuestUser.name) setGuestName(verifiedGuestUser.name);
+      if (verifiedGuestUser.phone) setGuestPhone(verifiedGuestUser.phone);
+      setPhoneOtpVerified(Boolean(verifiedGuestUser.isVerified));
+    }
+    setIsBookingModalOpen(true);
   };
 
   // Step 2 of Booking: User confirms location -> Proceed to Guest Details & Reception Documents Form
@@ -2238,23 +2234,19 @@ export const App: React.FC = () => {
             </div>
 
             {/* Glowing Status Radar Centerpiece */}
-            <div className={`p-5 rounded-3xl border text-center relative overflow-hidden flex flex-col items-center justify-center gap-3 ${
-              isDark
-                ? 'bg-slate-900 border-slate-800 shadow-sm'
-                : 'bg-white border-slate-200 shadow-sm'
-            }`}>
+            <div className="p-5 rounded-3xl border border-slate-200 bg-white text-center relative overflow-hidden flex flex-col items-center justify-center gap-3 shadow-xs">
               {/* Radar Rings Effect */}
               <div className="relative w-28 h-28 flex items-center justify-center my-1">
-                <div className="absolute inset-0 rounded-full bg-blue-500/10 animate-ping opacity-60" style={{ animationDuration: '2.5s' }} />
-                <div className="absolute -inset-2 rounded-full border-2 border-dashed border-blue-400/30 animate-spin" style={{ animationDuration: '14s' }} />
-                <div className="absolute -inset-4 rounded-full border border-blue-400/20" />
+                <div className="absolute inset-0 rounded-full bg-amber-500/10 animate-ping opacity-60" style={{ animationDuration: '2.5s' }} />
+                <div className="absolute -inset-2 rounded-full border-2 border-dashed border-amber-400/30 animate-spin" style={{ animationDuration: '14s' }} />
+                <div className="absolute -inset-4 rounded-full border border-amber-400/20" />
                 
                 {/* Core Shield */}
-                <div className="relative z-10 w-20 h-20 rounded-2xl bg-blue-600 p-0.5 shadow-md flex items-center justify-center">
-                  <div className="w-full h-full rounded-[14px] bg-slate-950 flex flex-col items-center justify-center gap-0.5 p-2">
-                    <Icons.Shield className="w-7 h-7 text-blue-400" />
-                    <span className="text-[8px] font-black text-blue-300 uppercase tracking-widest text-center">
-                      PMS DESK
+                <div className="relative z-10 w-20 h-20 rounded-2xl bg-amber-500/20 border border-amber-500/40 p-1 flex items-center justify-center shadow-xs">
+                  <div className="w-full h-full rounded-[14px] bg-amber-50 flex flex-col items-center justify-center gap-0.5 p-2 border border-amber-200">
+                    <Icons.Shield className="w-7 h-7 text-amber-700" />
+                    <span className="text-[8px] font-black text-amber-800 uppercase tracking-widest text-center">
+                      FRONT DESK
                     </span>
                   </div>
                 </div>
@@ -3031,7 +3023,7 @@ export const App: React.FC = () => {
                   <span className={`text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
                     isDark ? 'text-slate-300' : 'text-slate-700'
                   }`}>
-                    <span>❄️ AC & Non-AC Filter</span>
+                    <span>Climate & AC Filter</span>
                   </span>
                   <span className={`text-[10px] font-semibold ${
                     roomAcFilter === 'AC' ? 'text-sky-400' : roomAcFilter === 'NON_AC' ? 'text-amber-400' : isDark ? 'text-slate-400' : 'text-slate-500'
@@ -3054,7 +3046,7 @@ export const App: React.FC = () => {
                     }`}
                   >
                     <Icons.Wind className="w-3.5 h-3.5 text-sky-400" />
-                    <span>❄️ {t('AC Rooms')}</span>
+                    <span>{t('AC Rooms')}</span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
                       roomAcFilter === 'AC'
                         ? 'bg-sky-950/80 text-sky-200 border border-sky-400/40'
@@ -3079,7 +3071,7 @@ export const App: React.FC = () => {
                     }`}
                   >
                     <Icons.Sun className="w-3.5 h-3.5 text-amber-400" />
-                    <span>🌀 {t('Non-AC Rooms')}</span>
+                    <span>{t('Non-AC Rooms')}</span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
                       roomAcFilter === 'NON_AC'
                         ? 'bg-amber-950/80 text-amber-200 border border-amber-400/40'
@@ -3640,7 +3632,7 @@ export const App: React.FC = () => {
                     }}
                     className="self-start text-[11px] font-black text-amber-600 underline hover:text-amber-700"
                   >
-                    👉 Explore available rooms from catalog instead
+                    Explore available rooms from catalog
                   </button>
                 </div>
               )}
@@ -4662,6 +4654,32 @@ export const App: React.FC = () => {
                 }`}
               >
                 ✕
+              </button>
+            </div>
+
+            {/* Booking Mode Selector (At Hotel vs Advance Booking) */}
+            <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setBookingLocationType('HOTEL_RADIUS')}
+                className={`py-2 px-2 rounded-lg text-center transition ${
+                  bookingLocationType === 'HOTEL_RADIUS'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                At Hotel Check-In
+              </button>
+              <button
+                type="button"
+                onClick={() => setBookingLocationType('REMOTE_HOME')}
+                className={`py-2 px-2 rounded-lg text-center transition ${
+                  bookingLocationType === 'REMOTE_HOME'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Advance Booking
               </button>
             </div>
 

@@ -30,10 +30,10 @@ export const StaffRosterHeader: React.FC<StaffRosterHeaderProps> = ({
           <div className="flex items-center gap-3">
             <span className="h-3 w-3 rounded-full bg-slate-800 animate-pulse shadow-sm dark:shadow-none" />
             <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-              Staff Shift Rostering, Attendance & Tip Pool Engine
+              Staff Shift Rostering & Attendance
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
-              Shift 29 • Workforce & Tips
+              Active Roster
             </span>
           </div>
           <p className="text-xs text-zinc-400 mt-1">

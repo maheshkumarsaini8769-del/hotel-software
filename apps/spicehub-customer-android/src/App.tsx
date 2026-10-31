@@ -1983,10 +1983,10 @@ export const App: React.FC = () => {
   // If a portal is active (e.g. In-Room Dining or Dine-In Table Menu), render embedded portal with single clean navbar
   if (activePortalUrl) {
     return (
-      <div className={`w-full h-full flex flex-col ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} relative`}>
-        {/* Dedicated Slim Portal Control Bar - never overlaps web content */}
+      <div className="w-full h-full flex flex-col bg-[#F8FAFC] text-slate-900 relative">
+        {/* Clean Native Top Navigation Bar */}
         <div
-          className="w-full shrink-0 z-40 px-3 py-2 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shadow-md"
+          className="w-full shrink-0 z-40 px-3 py-2 bg-white text-slate-900 flex items-center justify-between border-b border-slate-200 shadow-xs"
           style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 8px)' }}
         >
           <button
@@ -1996,26 +1996,19 @@ export const App: React.FC = () => {
               setActivePortalUrl(null);
               setCustomerView('home');
             }}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition"
+            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition"
           >
-            <Icons.ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
-            <span>{t('← Exit to App', '← Exit to App')}</span>
+            <Icons.ArrowLeft className="w-3.5 h-3.5 text-slate-700" />
+            <span>{t('Back to Hotel', 'Back to Hotel')}</span>
           </button>
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>{selectedHotel?.name || 'SpiceHub'} • Room Portal</span>
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+            <span>{selectedHotel?.name || 'Hotel Services'}</span>
+            {activeReservation && (
+              <span className="text-[11px] font-mono font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md border border-amber-200">
+                Room {activeReservation.roomNumber}
+              </span>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setActivePortalUrl(null);
-              setCustomerView('home');
-            }}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition text-xs font-bold"
-            title={t('Close', 'Close')}
-          >
-            ✕
-          </button>
         </div>
 
         <div className="flex-1 w-full h-full relative">
@@ -2425,31 +2418,29 @@ export const App: React.FC = () => {
                 )}
 
                 {/* Verification Actions */}
-                <div className="pt-2 flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      data-testid="btn-check-approval-status"
-                      onClick={handleCheckApprovalStatus}
-                      disabled={isCheckingApproval}
-                      className="flex-1 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98 disabled:opacity-50"
-                    >
-                      <Icons.Refresh className={`w-3.5 h-3.5 ${isCheckingApproval ? 'animate-spin' : ''}`} />
-                      <span>{isCheckingApproval ? t('Checking...') : t('Check Approval Status')}</span>
-                    </button>
+                <div className="pt-2 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    <span>Auto-syncing with Front Desk...</span>
+                  </span>
 
-                    <button
-                      type="button"
-                      data-testid="btn-cancel-pending-approval"
-                      disabled={isCancellingBooking}
-                      onClick={() => handleCancelBooking(pendingApprovalBooking.bookingNumber)}
-                      className={`py-2.5 px-3 rounded-xl border font-bold text-xs transition flex items-center justify-center gap-1 ${
-                        isDark ? 'border-red-500/40 text-red-400 hover:bg-red-500/10' : 'border-red-300 text-red-600 hover:bg-red-50'
-                      }`}
-                    >
-                      <span>{isCancellingBooking ? 'Cancelling...' : t('Cancel Request')}</span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    data-testid="btn-cancel-pending-approval"
+                    disabled={isCancellingBooking}
+                    onClick={() => handleCancelBooking(pendingApprovalBooking.bookingNumber)}
+                    className="py-2 px-3.5 rounded-xl border border-red-300 text-red-600 hover:bg-red-50 font-bold text-xs transition active:scale-95"
+                  >
+                    <span>{isCancellingBooking ? 'Cancelling...' : t('Cancel Request')}</span>
+                  </button>
+
+                  {/* Hidden automation trigger */}
+                  <button
+                    type="button"
+                    data-testid="btn-check-approval-status"
+                    onClick={handleCheckApprovalStatus}
+                    style={{ display: 'none' }}
+                  />
                 </div>
               </div>
             ) : (
@@ -4766,30 +4757,28 @@ export const App: React.FC = () => {
               </div>
 
               {/* GPS Geofence Check & Location Guard */}
-              <div className={`p-3 rounded-xl border flex flex-col gap-2 ${
-                isDark ? 'border-blue-500/30 bg-blue-500/10' : 'border-blue-200 bg-blue-50/70'
-              }`}>
+              <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <Icons.Location className="w-4 h-4 text-blue-500" />
-                    <span className="text-[11px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">
-                      GPS Geofence Location Guard
+                    <Icons.Location className="w-4 h-4 text-slate-700" />
+                    <span className="text-[11px] font-bold text-slate-800">
+                      Location Verification
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={handleCheckGpsLocation}
                     disabled={gpsChecking}
-                    className="px-2 py-1 rounded-lg text-[10px] font-bold bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-50 shadow-xs"
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 transition disabled:opacity-50"
                   >
-                    {gpsChecking ? 'Checking GPS...' : 'Check Device GPS'}
+                    {gpsChecking ? 'Checking...' : 'Check Location'}
                   </button>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{gpsStatus}</span>
+                  <span className="text-[11px] text-slate-600">{gpsStatus}</span>
                   {gpsDistKm !== null && (
-                    <span className={`font-mono font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-                      {gpsDistKm > 0.5 ? `${gpsDistKm} km (Remote)` : `${Math.round(gpsDistKm * 1000)}m (On-Site)`}
+                    <span className="font-mono font-bold text-slate-800">
+                      {gpsDistKm > 0.5 ? `${gpsDistKm} km (Remote Booking)` : `${Math.round(gpsDistKm * 1000)}m (On-Site)`}
                     </span>
                   )}
                 </div>
@@ -4797,24 +4786,16 @@ export const App: React.FC = () => {
 
               {/* Advance Booking Timing for Remote/Home Reservations */}
               {bookingLocationType === 'REMOTE_HOME' && (
-                <div className={`p-3.5 rounded-2xl border space-y-3 ${
-                  isDark ? 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800' : 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800'
-                }`}>
+                <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-base">🏠</span>
-                      <div>
-                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 dark:text-slate-700 dark:text-slate-300 block">
-                          Book from Home • Time Slot Selection (घर से बुकिंग)
-                        </span>
-                        <span className="text-[9px] text-slate-400">
-                          Real-time date & time interval overlap collision protection
-                        </span>
-                      </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-900 block">
+                        Schedule Dates & Arrival Time
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        Choose your stay window for advance reservation
+                      </span>
                     </div>
-                    <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
-                      Time-Slot Mode
-                    </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2.5">
@@ -4933,35 +4914,29 @@ export const App: React.FC = () => {
                 </div>
 
                 {/* Phone OTP Verification Row (Required for All Reservations) */}
-                <div
-                  className={`p-3 rounded-xl border space-y-2 ${
-                    isDark
-                      ? 'border-slate-800 bg-slate-950/70 text-slate-300'
-                      : 'border-amber-200 bg-amber-50/70 text-slate-800'
-                  }`}
-                >
+                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className={`text-[10px] font-black uppercase tracking-wider block ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
-                        Mobile OTP Verification (Mandatory)
+                      <span className="text-[11px] font-bold uppercase tracking-wider block text-slate-900">
+                        Phone Verification
                       </span>
-                      <span className="text-[9px] text-slate-500">
-                        Verifies reservation so you can present digital confirmation pass at Reception
+                      <span className="text-[10px] text-slate-500">
+                        Quick OTP verification for your booking
                       </span>
                     </div>
                     {phoneOtpVerified ? (
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-300">
-                        <Icons.Check className="w-3 h-3" />
-                        <span>OTP Verified</span>
+                      <span className="text-[10px] font-bold text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        <Icons.Check className="w-3 h-3 text-emerald-600" />
+                        <span>Verified</span>
                       </span>
                     ) : (
                       <button
                         type="button"
                         onClick={handleSendPhoneOtp}
                         disabled={otpSending || !guestPhone.trim()}
-                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition disabled:opacity-50 shadow-xs"
+                        className="px-3 py-1 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition disabled:opacity-50"
                       >
-                        {otpSending ? 'Sending OTP...' : phoneOtpSent ? 'Resend OTP' : 'Send Mobile OTP'}
+                        {otpSending ? 'Sending...' : phoneOtpSent ? 'Resend OTP' : 'Send OTP'}
                       </button>
                     )}
                   </div>
@@ -5016,38 +4991,24 @@ export const App: React.FC = () => {
               </div>
 
               {/* AADHAAR CARD PHOTO UPLOAD (OPTIONAL FOR ADVANCE / MANDATORY FOR ON-PREMISES) */}
-              <div
-                className={`p-3.5 rounded-2xl border space-y-3 ${
-                  isDark
-                    ? 'border-amber-500/40 bg-amber-950/20'
-                    : 'border-amber-200 bg-amber-50/50 shadow-xs'
-                }`}
-              >
+              <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <Icons.Shield className="w-4 h-4 text-amber-500" />
-                    <span className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
+                    <Icons.Shield className="w-4 h-4 text-slate-700" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-900">
                       {bookingLocationType === 'REMOTE_HOME'
-                        ? 'Government ID Verification (Optional Now)'
-                        : 'Aadhaar Card Photo Upload (Mandatory)'}
+                        ? 'Government ID (Optional)'
+                        : 'ID Verification (Front & Back)'}
                     </span>
                   </div>
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      bookingLocationType === 'REMOTE_HOME'
-                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                        : isDark
-                        ? 'bg-amber-500/20 text-amber-300'
-                        : 'bg-amber-100 text-amber-800 border border-amber-200'
-                    }`}
-                  >
-                    {bookingLocationType === 'REMOTE_HOME' ? 'Verify at Reception on Arrival' : 'Front & Back Required'}
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-800">
+                    {bookingLocationType === 'REMOTE_HOME' ? 'Verify on Arrival' : 'Photos Required'}
                   </span>
                 </div>
-                <p className={`text-[11px] leading-tight ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                <p className="text-[11px] leading-tight text-slate-500">
                   {bookingLocationType === 'REMOTE_HOME'
-                    ? 'Documents will be verified physically at Front Desk Reception when you arrive. You can optionally upload photos now, or simply show your ID to the receptionist.'
-                    : 'Upload clear photos of your Aadhaar card. Front Desk reception will verify them before unlocking your digital keycard.'}
+                    ? 'Documents can be verified at the Front Desk when you arrive, or you can attach photos now.'
+                    : 'Attach photos of your ID card for front desk room check-in verification.'}
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

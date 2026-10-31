@@ -198,16 +198,6 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   const [cartSpecialInstructions, setCartSpecialInstructions] = useState('');
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
-  // Smart App Download Banner & Modal States
-  const [isAppDownloadModalOpen, setIsAppDownloadModalOpen] = useState(false);
-  const [isAppBannerDismissed, setIsAppBannerDismissed] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('spicehub_room_app_banner_dismissed') === 'true';
-    }
-    return false;
-  });
-  const customerApkUrl = `${API_BASE}/download/customer-apk`;
-
   // Smooth Room Portal Open (No intrusive popups on entrance)
   useEffect(() => {
     // Intrusive permission popups eliminated on entrance as requested
@@ -775,40 +765,6 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* 0. SMART APP DOWNLOAD BANNER (Fast APK Access for Android Room Guests)   */}
-      {/* ========================================================================= */}
-      {!isAppBannerDismissed && (
-        <div className="bg-slate-900 dark:bg-slate-800 text-white px-3 sm:px-4 py-2 text-xs flex items-center justify-between border-b border-slate-800 relative z-50">
-          <div className="flex items-center gap-2 truncate">
-            <span className="text-base">📱</span>
-            <span className="font-semibold truncate">
-              <span className="font-bold">SpiceHub Android App:</span> Digital room keycard, in-room dining & 1-tap service calls!
-            </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsAppDownloadModalOpen(true)}
-              className="px-2.5 py-1 rounded-md bg-white text-slate-900 font-semibold text-[11px] hover:bg-slate-100 transition flex items-center gap-1 shadow-xs"
-            >
-              <span>⬇️ Get App (.apk)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsAppBannerDismissed(true);
-                sessionStorage.setItem('spicehub_room_app_banner_dismissed', 'true');
-              }}
-              className="text-slate-400 hover:text-white p-1 font-bold text-sm"
-              title="Dismiss banner"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ======================================================== */}
       {/* 1. TOP RESPONSIVE LUXURY NAVBAR (FULL DESKTOP & MOBILE)  */}
       {/* ======================================================== */}
@@ -897,21 +853,6 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   {totalCartCount}
                 </span>
                 <span className="hidden md:inline text-amber-200 font-extrabold">₹{totalAmount}</span>
-              </button>
-
-              {/* Get App Action Button */}
-              <button
-                type="button"
-                onClick={() => setIsAppDownloadModalOpen(true)}
-                className={`hidden sm:flex px-2.5 py-1.5 rounded-xl border text-xs font-bold items-center gap-1.5 transition ${
-                  isDark
-                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/40'
-                    : 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100 shadow-2xs'
-                }`}
-                title="Download SpiceHub Android App (.apk)"
-              >
-                <span>📲</span>
-                <span>Get App</span>
               </button>
 
               {/* Language Switcher */}
@@ -2537,9 +2478,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         {/* VIEW 6: LIVE ORDER TRACKING (DYNAMIC LINKED)          */}
         {/* ===================================================== */}
         {!isEffectiveStayCheckedOut && activeTab === 'TRACKING' && (() => {
-          const currentActiveOrder = store?.getSelectedLiveOrder() || liveOrders[0];
-          
-          if (!currentActiveOrder) {
+          const currentActiveOrder = store?.getSelectedLiveOrder() || (liveOrders.length > 0 ? liveOrders[0] : null);
+          const hasRealOrder = Boolean(currentActiveOrder && currentActiveOrder.id && (currentActiveOrder.items?.length > 0 || (currentActiveOrder.orderNumber && currentActiveOrder.orderNumber !== '—')));
+
+          if (!hasRealOrder || !currentActiveOrder) {
             return (
               <div data-testid="live-order-tracker" className="space-y-6">
                 {/* Back to Food Menu Navigation */}
@@ -2548,33 +2490,24 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     type="button"
                     data-testid="tracker-back-to-menu-btn"
                     onClick={() => setActiveTab('DINING')}
-                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition shadow-xs ${
-                      isDark
-                        ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
-                        : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-100'
-                    }`}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition shadow-xs bg-white border-slate-200 text-slate-800 hover:bg-slate-50"
                   >
                     <span>←</span>
                     <span>Back to In-Room Food Menu</span>
                   </button>
-                  <span className="text-[11px] text-amber-500 font-bold">
-                    ⚡ Live Kitchen KDS Connected
-                  </span>
                 </div>
 
                 {/* True Empty State When No In-Room Orders Exist */}
-                <div className={`p-8 sm:p-12 rounded-3xl border text-center space-y-4 max-w-lg mx-auto ${
-                  isDark ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700 shadow-md'
-                }`}>
-                  <div className="w-16 h-16 rounded-3xl bg-amber-500/15 border border-amber-500/30 text-amber-500 flex items-center justify-center mx-auto text-3xl shadow-sm">
+                <div className="p-8 sm:p-12 rounded-3xl border border-slate-200 bg-white text-center space-y-4 max-w-lg mx-auto shadow-sm">
+                  <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto text-3xl shadow-xs">
                     🍽️
                   </div>
                   <div>
-                    <h2 className={`text-lg font-black ${isDark ? 'text-white' : 'text-slate-950'}`}>
+                    <h2 className="text-lg font-black text-slate-900">
                       No Active In-Room Orders
                     </h2>
-                    <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                      You don't have any meals cooking in the kitchen right now. Browse our curated dining menu to order freshly prepared food directly to Room {roomNumber || '—'}.
+                    <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+                      You haven't ordered food to Room {roomNumber || 'your room'} yet. Browse our curated dining menu to order fresh, delicious meals.
                     </p>
                   </div>
                   <div className="pt-2">
@@ -2617,34 +2550,31 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   <span>←</span>
                   <span>Back to In-Room Food Menu</span>
                 </button>
-                <span className="text-[11px] text-amber-500 font-bold hidden sm:inline">
-                  ⚡ Live Kitchen Dispatch Tracking
-                </span>
               </div>
 
-              <div data-testid="kod-delivery-room-banner" className="bg-slate-900 p-5 rounded-3xl border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl">
+              <div data-testid="kod-delivery-room-banner" className="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
                 <div>
-                  <span className="text-[10px] font-black tracking-widest text-amber-400 uppercase block">
-                    Kitchen Order Dispatch (KOD) Generated
+                  <span className="text-[10px] font-black tracking-widest text-amber-700 uppercase block">
+                    Kitchen Order Confirmed
                   </span>
-                  <h1 data-testid="live-order-title" className="text-xl sm:text-2xl font-black text-white">
+                  <h1 data-testid="live-order-title" className="text-xl sm:text-2xl font-black text-slate-900">
                     Order #{orderNum}
                   </h1>
-                  <p data-testid="kod-delivery-room" className="text-xs text-amber-300 font-bold mt-0.5">
-                    KOD Ticket Tagged • Delivery Target: Room #{roomNumber || '—'} ({guestName || 'Resident Guest'})
+                  <p data-testid="kod-delivery-room" className="text-xs text-slate-500 font-semibold mt-0.5">
+                    Delivery Target: Room #{roomNumber || '—'} ({guestName || 'Resident Guest'})
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-50 text-amber-800 border border-amber-200">
                     Room #{roomNumber || '—'}
                   </span>
                   <div
                     data-testid="order-progress-label"
                     className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                      stepNumber === 4 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' :
-                      stepNumber === 3 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse' :
-                      stepNumber === 2 ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 animate-pulse' :
-                      'bg-blue-500/20 text-blue-300 border-blue-500/40 animate-pulse'
+                      stepNumber === 4 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                      stepNumber === 3 ? 'bg-amber-50 text-amber-800 border-amber-200' :
+                      stepNumber === 2 ? 'bg-blue-50 text-blue-800 border-blue-200' :
+                      'bg-slate-100 text-slate-800 border-slate-200'
                     }`}
                   >
                     {stepNumber === 4 ? 'Delivered to Room' :
@@ -2656,10 +2586,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
               </div>
 
               {/* Waiter Live ETA & Status Message from Staff */}
-              <div data-testid="waiter-live-eta-banner" className="bg-slate-900 p-5 rounded-3xl border border-amber-500/30 shadow-xl space-y-3">
+              <div data-testid="waiter-live-eta-banner" className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-xl shadow-md shrink-0 overflow-hidden border-2 border-amber-400">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 font-black flex items-center justify-center text-xl shadow-xs shrink-0 overflow-hidden">
                       {currentActiveOrder?.waiterAvatar ? (
                         <img
                           src={currentActiveOrder.waiterAvatar}
@@ -2675,37 +2605,36 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                           Assigned In-Room Butler
                         </span>
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          🟢 On Duty
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          On Duty
                         </span>
                       </div>
-                      <h3 className="text-base font-black text-white">
-                        {currentActiveOrder?.waiterName || 'Front Desk Dining Service'}
+                      <h3 className="text-base font-black text-slate-900">
+                        {currentActiveOrder?.waiterName || 'In-Room Dining Butler'}
                       </h3>
-                      <p className="text-xs text-slate-400">
-                        Dedicated Room Service Delivery for Room #{roomNumber || '—'}
+                      <p className="text-xs text-slate-500">
+                        Room Service Delivery for Room #{roomNumber || '—'}
                       </p>
                     </div>
                   </div>
 
                   <div className="text-right">
                     <span className="text-[10px] font-bold text-slate-400 block uppercase">Estimated Arrival</span>
-                    <span data-testid="waiter-eta-badge" className="text-sm font-black text-amber-300 bg-amber-500/20 px-3 py-1 rounded-full border border-amber-500/40 inline-block animate-pulse">
-                      ⏱️ ~{currentActiveOrder?.waiterEtaMinutes || 15} mins
+                    <span data-testid="waiter-eta-badge" className="text-sm font-black text-amber-800 bg-amber-50 px-3 py-1 rounded-full border border-amber-200 inline-block">
+                      ~{currentActiveOrder?.waiterEtaMinutes || 15} mins
                     </span>
                   </div>
                 </div>
 
                 {/* Live message from kitchen / waiter */}
-                <div className="p-3.5 rounded-2xl bg-black/40 border border-amber-500/20 text-xs">
-                  <div className="flex items-center gap-2 text-amber-400 font-bold mb-1">
-                    <span>💬</span>
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
+                  <div className="flex items-center gap-2 text-slate-700 font-bold mb-1">
                     <span>Kitchen Update:</span>
                   </div>
-                  <p data-testid="waiter-live-message" className="text-slate-200 italic">
+                  <p data-testid="waiter-live-message" className="text-slate-600 italic">
                     "{currentActiveOrder?.waiterMessage ||
                       (stepNumber === 4
                         ? `Order delivered fresh to Room ${roomNumber || '—'}. Enjoy your meal!`
@@ -2713,36 +2642,35 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                         ? `Butler has picked up your covered food tray and is en route to Room ${roomNumber || '—'}.`
                         : stepNumber === 2
                         ? 'Executive Chef is simmering gourmet dishes and baking fresh breads.'
-                        : `Order #${orderNum} received by kitchen KDS display.`)}"
+                        : `Order #${orderNum} received by kitchen.`)}"
                   </p>
                 </div>
 
                 {/* Quick Action Button to Call Waiter */}
                 <div className="flex items-center justify-between pt-1">
-                  <span className="text-[11px] text-slate-400">Need cutlery or dining table setup?</span>
+                  <span className="text-[11px] text-slate-500">Need cutlery or dining table setup?</span>
                   <button
                     type="button"
                     data-testid="call-room-waiter-btn"
                     onClick={() => onConciergeRequest && onConciergeRequest('CALL_WAITER', 'Guest called room waiter for dining assistance')}
-                    className="px-3.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold text-xs flex items-center gap-1.5 transition"
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 transition"
                   >
-                    <span>🔔</span>
                     <span>Call Room Butler</span>
                   </button>
                 </div>
               </div>
 
               {liveOrders.length > 1 && (
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-900 p-3">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Your active orders:</span>
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Your active orders:</span>
                   {liveOrders.map((order) => (
                     <button
                       key={order.id}
                       onClick={() => store.openOrderTracker(order)}
                       className={`rounded-lg border px-3 py-1.5 text-[11px] font-bold transition ${
                         currentActiveOrder?.id === order.id
-                          ? 'border-amber-500/50 bg-amber-500/15 text-amber-300'
-                          : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-600'
+                          ? 'border-amber-500 bg-amber-50 text-amber-900 font-extrabold'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
                       }`}
                     >
                       {order.orderNumber} · {order.orderStatus}
@@ -2751,35 +2679,29 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 </div>
               )}
 
-              {!currentActiveOrder && (
-                <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 text-center text-sm text-slate-400">
-                  Place an in-room dining order and its live status will appear here.
-                </div>
-              )}
-
               {/* 2-Column Responsive Layout */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Stepper Card */}
-                <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
-                  <h2 className="text-sm font-black text-white uppercase tracking-wider">
-                    Live Preparation Timeline
+                <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+                  <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                    Preparation Timeline
                   </h2>
-                  <div className="space-y-6 relative before:absolute before:left-4 before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-800">
+                  <div className="space-y-6 relative before:absolute before:left-4 before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-200">
                     {/* Step 1: Order Placed */}
                     <div data-testid="stepper-step-1" className="flex items-start gap-4 relative">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 shadow-lg ${
-                        stepNumber >= 1 ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-500'
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 shadow-xs ${
+                        stepNumber >= 1 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
                       }`}>
                         <Check className="w-4 h-4" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className={`font-bold text-sm ${stepNumber >= 1 ? 'text-white' : 'text-slate-500'}`}>Order Placed</span>
+                          <span className={`font-bold text-sm ${stepNumber >= 1 ? 'text-slate-900' : 'text-slate-400'}`}>Order Placed</span>
                           <span className="text-xs text-slate-500 font-semibold">
                             {currentActiveOrder?.placedAt ? new Date(currentActiveOrder.placedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-xs text-slate-500 mt-0.5">
                           Your order was received and ticket {orderNum} sent to the culinary kitchen.
                         </p>
                       </div>
@@ -2787,65 +2709,65 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
                     {/* Step 2: Preparing in Kitchen */}
                     <div data-testid="stepper-step-2" className="flex items-start gap-4 relative">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 shadow-lg ${
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 shadow-xs ${
                         stepNumber > 2 ? 'bg-emerald-600 text-white' :
-                        stepNumber === 2 ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white animate-pulse' :
-                        'bg-slate-800 text-slate-500'
+                        stepNumber === 2 ? 'bg-amber-500 text-slate-950 font-black' :
+                        'bg-slate-100 text-slate-400'
                       }`}>
                         <Utensils className="w-4 h-4" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className={`font-bold text-sm ${
-                            stepNumber === 2 ? 'text-slate-700 dark:text-slate-300 font-bold' :
-                            stepNumber > 2 ? 'text-white' : 'text-slate-500'
+                            stepNumber === 2 ? 'text-amber-800 font-black' :
+                            stepNumber > 2 ? 'text-slate-900' : 'text-slate-400'
                           }`}>Preparing in Kitchen</span>
-                          <span className="text-xs text-slate-700 dark:text-slate-300 font-semibold">
+                          <span className="text-xs text-slate-500 font-semibold">
                             {stepNumber >= 2 ? (currentActiveOrder?.preparedAt ? new Date(currentActiveOrder.preparedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'In Progress') : 'Pending'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          Executive chef is simmering gourmet dishes and baking fresh naans.
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Executive chef is preparing fresh gourmet dishes for your room.
                         </p>
                       </div>
                     </div>
 
                     {/* Step 3: Out for Room Delivery */}
                     <div data-testid="stepper-step-3" className="flex items-start gap-4 relative">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 shadow-lg ${
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 shadow-xs ${
                         stepNumber > 3 ? 'bg-emerald-600 text-white' :
-                        stepNumber === 3 ? 'bg-amber-500 text-slate-950 font-black animate-pulse' :
-                        'bg-slate-800 text-slate-500'
+                        stepNumber === 3 ? 'bg-amber-500 text-slate-950 font-black' :
+                        'bg-slate-100 text-slate-400'
                       }`}>
                         <Clock className="w-4 h-4" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className={`font-bold text-sm ${
-                            stepNumber === 3 ? 'text-amber-300 font-bold' :
-                            stepNumber > 3 ? 'text-white' : 'text-slate-500'
+                            stepNumber === 3 ? 'text-amber-800 font-black' :
+                            stepNumber > 3 ? 'text-slate-900' : 'text-slate-400'
                           }`}>Out for Delivery</span>
-                          <span className="text-xs text-amber-400 font-semibold">
-                            {stepNumber >= 3 ? (currentActiveOrder?.readyAt ? new Date(currentActiveOrder.readyAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Ready for Butler') : 'Estimated 15m'}
+                          <span className="text-xs text-slate-500 font-semibold">
+                            {stepNumber >= 3 ? (currentActiveOrder?.readyAt ? new Date(currentActiveOrder.readyAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Ready') : 'Estimated 15m'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          In-room dining butler brings the covered food trolley directly to Room {roomNumber}.
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          In-room dining butler brings the covered food trolley to Room {roomNumber}.
                         </p>
                       </div>
                     </div>
 
                     {/* Step 4: Delivered at Room */}
                     <div data-testid="stepper-step-4" className="flex items-start gap-4 relative">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 shadow-lg ${
-                        stepNumber >= 4 ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-500'
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 shadow-xs ${
+                        stepNumber >= 4 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
                       }`}>
                         <BedDouble className="w-4 h-4" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className={`font-bold text-sm ${stepNumber >= 4 ? 'text-emerald-300 font-bold' : 'text-slate-500'}`}>Delivered</span>
-                          <span className="text-xs text-emerald-400 font-semibold">
+                          <span className={`font-bold text-sm ${stepNumber >= 4 ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>Delivered</span>
+                          <span className="text-xs text-emerald-600 font-semibold">
                             {stepNumber >= 4 ? (currentActiveOrder?.servedAt ? new Date(currentActiveOrder.servedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Delivered') : 'Pending'}
                           </span>
                         </div>
@@ -2854,16 +2776,16 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-800 flex gap-3">
+                  <div className="pt-4 border-t border-slate-100 flex gap-3">
                     <button
                       onClick={() => setIsCallModalOpen(true)}
-                      className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs"
+                      className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-200"
                     >
                       Call Kitchen Desk
                     </button>
                     <button
                       onClick={() => setActiveTab('DINING')}
-                      className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs"
+                      className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs"
                     >
                       Order More Dishes
                     </button>
@@ -2871,16 +2793,16 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 </div>
 
                 {/* Kitchen Photo & Chef Card */}
-                <div className="rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between">
-                  <div className="relative h-72 w-full bg-black">
+                <div className="rounded-3xl overflow-hidden bg-white border border-slate-200 shadow-sm flex flex-col justify-between">
+                  <div className="relative h-72 w-full bg-slate-100">
                     <img
                       src="https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=900&auto=format&fit=crop&q=80"
                       alt="Chef cooking in kitchen"
-                      className="w-full h-full object-cover opacity-85"
+                      className="w-full h-full object-cover"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent" />
                     <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/70 backdrop-blur-xs text-xs font-bold text-white border border-white/10">
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/90 backdrop-blur-xs text-xs font-bold text-slate-900 shadow-xs">
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                         <span>Freshly Prepared Just for You</span>
                       </div>
@@ -2888,17 +2810,17 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   </div>
 
                   <div className="p-5 space-y-3">
-                    <h3 className="font-bold text-sm text-white">Items in Order {orderNum}:</h3>
-                    <div className="space-y-1.5 text-xs text-slate-300">
+                    <h3 className="font-bold text-sm text-slate-900">Items in Order {orderNum}:</h3>
+                    <div className="space-y-1.5 text-xs text-slate-700">
                       {currentActiveOrder && currentActiveOrder.items && currentActiveOrder.items.length > 0 ? (
                         currentActiveOrder.items.map((it: any, idx: number) => (
-                          <div key={idx} className="flex justify-between p-2 rounded-xl bg-slate-900 border border-slate-800">
+                          <div key={idx} className="flex justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                             <span>{it.name} ({it.quantity}x)</span>
-                            <span className="font-bold text-white">₹{it.subtotal || ((it.unitPrice || it.price || 0) * (it.quantity || 1))}</span>
+                            <span className="font-bold text-slate-900">₹{it.subtotal || ((it.unitPrice || it.price || 0) * (it.quantity || 1))}</span>
                           </div>
                         ))
                       ) : (
-                        <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-slate-400">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-500">
                           No items to display for this order.
                         </div>
                       )}
@@ -4040,116 +3962,6 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             >
               Close
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* NATIVE ANDROID APP (.APK) DOWNLOAD & OPEN MODAL                          */}
-      {/* ========================================================================= */}
-      {isAppDownloadModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className={`w-full max-w-md rounded-3xl p-6 shadow-sm dark:shadow-none border flex flex-col relative animate-in fade-in zoom-in duration-150 ${
-            isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
-            {/* Close Button */}
-            <button
-              type="button"
-              onClick={() => setIsAppDownloadModalOpen(false)}
-              className={`absolute top-4 right-4 p-2 rounded-full border transition ${
-                isDark ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white' : 'bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            {/* App Icon & Header */}
-            <div className="flex items-center gap-3.5 mb-4">
-              <div className="w-14 h-14 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 flex items-center justify-center text-2xl font-bold shadow-xs">
-                📱
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-black tracking-tight">SpiceHub Guest App</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500/20 text-amber-500 border border-amber-500/30">
-                    Native Android
-                  </span>
-                </div>
-                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Direct APK Download • v1.0.4 • 5.5 MB</p>
-              </div>
-            </div>
-
-            {/* Feature Perks */}
-            <div className={`p-3.5 rounded-2xl border space-y-2 mb-4 text-xs ${
-              isDark ? 'bg-slate-950/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
-            }`}>
-              <div className="flex items-center gap-2 font-medium">
-                <span className="text-amber-500 font-black">✓</span>
-                <span><strong>No Play Store needed:</strong> Direct instant install on any Android phone.</span>
-              </div>
-              <div className="flex items-center gap-2 font-medium">
-                <span className="text-amber-500 font-black">✓</span>
-                <span><strong>Digital Room Keycard:</strong> 1-tap resident verification & Wi-Fi auto-connect.</span>
-              </div>
-              <div className="flex items-center gap-2 font-medium">
-                <span className="text-amber-500 font-black">✓</span>
-                <span><strong>24/7 Room Concierge:</strong> Housekeeping, luggage & room dining buzzer.</span>
-              </div>
-            </div>
-
-            {/* Scannable QR Code for Desktop/Smart TV Guests */}
-            <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 mb-4 text-center">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(customerApkUrl)}`}
-                alt="Scan to Download APK"
-                className="w-32 h-32 object-contain bg-white p-2 rounded-xl border border-slate-200 shadow-xs"
-              />
-              <span className="mt-2 text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                Scan with your Android camera or click below to install
-              </span>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="space-y-2">
-              <a
-                href={customerApkUrl}
-                download="SpiceHub-Customer.apk"
-                className="w-full h-11 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-semibold text-xs tracking-wide flex items-center justify-center gap-2 shadow-xs transition hover:opacity-90 text-center"
-              >
-                <span>⬇️</span>
-                <span>Download Android APK (5.5 MB)</span>
-              </a>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const roomParam = roomNumber ? `&roomNumber=${encodeURIComponent(roomNumber)}` : '';
-                  const hotelParam = hotelId ? `&hotelId=${encodeURIComponent(hotelId)}` : '';
-                  window.location.href = `intent://guest-room?${roomParam}${hotelParam}#Intent;scheme=spicehub;package=com.spicehub.customer;end`;
-                  setTimeout(() => {
-                    setIsAppDownloadModalOpen(false);
-                  }, 1200);
-                }}
-                className={`w-full py-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                  isDark
-                    ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
-                    : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
-                }`}
-              >
-                <span>🚀</span>
-                <span>Already Installed? Open App Directly</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsAppDownloadModalOpen(false)}
-                className={`w-full py-2 text-xs font-semibold text-center transition ${
-                  isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                Continue in Browser
-              </button>
-            </div>
           </div>
         </div>
       )}

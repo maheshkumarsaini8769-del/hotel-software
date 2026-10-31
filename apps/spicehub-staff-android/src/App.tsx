@@ -147,6 +147,7 @@ export function App() {
   const [otpStep, setOtpStep] = useState<'request' | 'verify'>('request');
   const [isOtpSubmitting, setIsOtpSubmitting] = useState(false);
   const [otpStatusMsg, setOtpStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [otpPreviewHint, setOtpPreviewHint] = useState('');
 
   // Waiter & Staff Self-Service Profile Photo Modal State
   const [showPhotoModal, setShowPhotoModal] = useState(false);

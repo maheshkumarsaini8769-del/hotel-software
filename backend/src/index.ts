@@ -519,20 +519,37 @@ app.use(
 
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
-// Production CORS Domain Whitelisting
-const ALLOWED_CORS_ORIGINS = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-  : [
-      'https://spicehub.in',
-      'https://admin.spicehub.in',
-      'https://pos.spicehub.in',
-      'https://kds.spicehub.in',
-      'https://guest.spicehub.in',
-      'https://spicehub-backend.vercel.app',
-      'https://spicehub-guest-portal.vercel.app',
-      'https://spicehub-customer-table.vercel.app',
-      'https://spicehub-socket-server.onrender.com',
-    ];
+// Production & Local Authorized CORS Domain Whitelisting
+const DEFAULT_ALLOWED_ORIGINS = new Set([
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:3003',
+  'http://localhost:3004',
+  'http://localhost:3005',
+  'http://localhost:3006',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:3002',
+  'http://127.0.0.1:3003',
+  'http://127.0.0.1:3004',
+  'http://127.0.0.1:3005',
+  'http://127.0.0.1:3006',
+  'http://127.0.0.1:5173',
+  'https://localhost',
+  'capacitor://localhost',
+  'https://spicehub.in',
+  'https://admin.spicehub.in',
+  'https://pos.spicehub.in',
+  'https://kds.spicehub.in',
+  'https://guest.spicehub.in',
+  'https://spicehub-backend.vercel.app',
+  'https://spicehub-guest-portal.vercel.app',
+  'https://spicehub-customer-table.vercel.app',
+  'https://spicehub-socket-server.onrender.com',
+  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()) : []),
+]);
 
 /**
  * Detect primary LAN IP (WiFi / Ethernet) so mobile devices on the same local network
@@ -576,9 +593,25 @@ function isLanOrigin(origin: string): boolean {
   }
 }
 
-// Permissive CORS for Public Cloud & Mobile APK Access (Allow all origins)
+// CORS configuration restricted to authorized frontend ports and Vercel cloud domains
 const corsMiddleware = cors({
-  origin: '*',
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (DEFAULT_ALLOWED_ORIGINS.has(origin)) return callback(null, true);
+    if (isLanOrigin(origin)) return callback(null, true);
+    try {
+      const url = new URL(origin);
+      if (
+        url.hostname.endsWith('.vercel.app') ||
+        url.hostname.endsWith('.onrender.com') ||
+        url.hostname.endsWith('spicehub.app')
+      ) {
+        return callback(null, true);
+      }
+    } catch {}
+    callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 });
 

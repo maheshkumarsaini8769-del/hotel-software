@@ -232,15 +232,20 @@ export const verifyResidentStay = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    // WhatsApp OTP Verification (Fixed to '9999' for testing, ready for WhatsApp Business Webhook)
+    // WhatsApp / Phone OTP Verification (Master OTP bypass removed: must match stored OTP)
+    const cleanPhone = guestPhone ? String(guestPhone).replace(/[^0-9]/g, '').slice(-10) : '';
     const submittedOtp = String(otp || whatsappOtp || '').trim();
-    if (submittedOtp && submittedOtp !== '9999') {
-      res.status(401).json({
-        success: false,
-        errorCode: 'INVALID_OTP',
-        message: 'Invalid WhatsApp OTP code. Please enter the 4-digit code sent to your registered WhatsApp (Test OTP: 9999).',
-      });
-      return;
+    if (submittedOtp) {
+      const stored = cleanPhone ? guestPhoneOtpStore.get(cleanPhone) : null;
+      if (!stored || Date.now() > stored.expiresAt || stored.otp !== submittedOtp) {
+        res.status(401).json({
+          success: false,
+          errorCode: 'INVALID_OTP',
+          message: 'Invalid or expired OTP code. Please enter the valid code sent to your registered phone.',
+        });
+        return;
+      }
+      guestPhoneOtpStore.delete(cleanPhone);
     }
 
     const room = await Room.findOne({
@@ -1748,6 +1753,7 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
 
 // Store for customer phone OTP verification (in-hotel bookings)
 const guestPhoneOtpStore = new Map<string, { otp: string; expiresAt: number; phone: string }>();
+const verifiedGuestPhones = new Map<string, number>();
 
 // 9b. Public Phone OTP Sender (In-Hotel Booking Verification)
 export const sendGuestPhoneOtp = async (req: Request, res: Response): Promise<void> => {
@@ -1784,7 +1790,7 @@ export const sendGuestPhoneOtp = async (req: Request, res: Response): Promise<vo
   }
 };
 
-// 9c. Public Phone OTP Verification
+// 9c. Public Phone OTP Verification (Master OTP bypass removed: must match stored OTP)
 export const verifyGuestPhoneOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     const { phone, otp } = req.body;
@@ -1796,23 +1802,18 @@ export const verifyGuestPhoneOtp = async (req: Request, res: Response): Promise<
     const cleanOtp = String(otp).trim();
     const stored = guestPhoneOtpStore.get(cleanPhone);
 
-    // SECURITY: master OTPs are a local-development convenience only and must never
-    // be honored in production. Production guests must present the OTP we issued.
-    const isMasterOtp =
-      process.env.NODE_ENV !== 'production' &&
-      (cleanOtp === '9999' || cleanOtp === '1234');
-    if (!isMasterOtp) {
-      if (!stored || Date.now() > stored.expiresAt) {
-        guestPhoneOtpStore.delete(cleanPhone);
-        res.status(400).json({ success: false, errorCode: 'OTP_EXPIRED', message: 'Verification OTP expired. Please request a new one.' });
-        return;
-      }
-      if (stored.otp !== cleanOtp) {
-        res.status(400).json({ success: false, errorCode: 'INVALID_OTP', message: 'Incorrect OTP. Please check and try again.' });
-        return;
-      }
+    if (!stored || Date.now() > stored.expiresAt) {
+      guestPhoneOtpStore.delete(cleanPhone);
+      res.status(400).json({ success: false, errorCode: 'OTP_EXPIRED', message: 'Verification OTP expired. Please request a new one.' });
+      return;
+    }
+    if (stored.otp !== cleanOtp) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_OTP', message: 'Incorrect OTP. Please check and try again.' });
+      return;
     }
     guestPhoneOtpStore.delete(cleanPhone);
+    verifiedGuestPhones.set(cleanPhone, Date.now() + 60 * 60 * 1000); // 1-hour verification window
+
     res.status(200).json({
       success: true,
       message: `Phone number +91 ${cleanPhone} verified successfully!`,
@@ -1926,10 +1927,8 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       aadhaarBackUrl,
       aadhaarFrontImage,
       aadhaarBackImage,
-      advancePaid = 0,
       deviceLocation,
       bookingLocation,
-      guestPhoneVerified,
       loginPhone,
       loginGuestName,
       secondaryGuestName,
@@ -2147,7 +2146,16 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       return;
     }
 
-    // On-site hotel bookings require phone OTP verification
+    // Verify server-side phone OTP flag (Client-trusted flag security fix)
+    const cleanGuestPhone = String(guestPhone || '').replace(/[^0-9]/g, '').slice(-10);
+    const cleanLoginPhone = String(loginPhone || '').replace(/[^0-9]/g, '').slice(-10);
+    const isOtpVerifiedOnServer = Boolean(
+      (cleanGuestPhone && verifiedGuestPhones.has(cleanGuestPhone) && (verifiedGuestPhones.get(cleanGuestPhone) || 0) > Date.now()) ||
+      (cleanLoginPhone && verifiedGuestPhones.has(cleanLoginPhone) && (verifiedGuestPhones.get(cleanLoginPhone) || 0) > Date.now())
+    );
+    const guestPhoneVerified = isOtpVerifiedOnServer;
+
+    // On-site hotel bookings require phone OTP verification passed on the server
     if (isHotelClaimed && !guestPhoneVerified) {
       res.status(400).json({
         success: false,
@@ -2167,8 +2175,10 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
     const totalTariff = basePrice * numNights;
     const taxAmount = Math.round((totalTariff * (gstRate / 100)) * 100) / 100;
     const grandTotal = totalTariff + taxAmount;
-    const advance = Number(advancePaid) || 0;
-    const dueAmount = Math.max(0, grandTotal - advance);
+    // Client-trusted flag security fix: advancePaid must not be trusted from client req.body
+    // Fixed: Set advancePaid = 0; will be updated by payment webhook later
+    const advance = 0;
+    const dueAmount = grandTotal;
 
     // Aadhaar Document Handling
     const effectiveAadhaarFront = (aadhaarFrontUrl || aadhaarFrontImage || '').trim();
@@ -2207,7 +2217,7 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       aadhaarBackUrl: effectiveAadhaarBack || undefined,
       nights: numNights,
       estimatedArrivalTime: effectiveArrivalTime,
-      guestPhoneVerified: Boolean(guestPhoneVerified),
+      guestPhoneVerified,
       secondaryGuestName: (secondaryGuestName || '').trim(),
       secondaryGuestPhone: (secondaryGuestPhone || '').trim(),
       secondaryGuestRelationship: (secondaryGuestRelationship || '').trim(),
@@ -2218,8 +2228,8 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       totalTariff,
       taxAmount,
       grandTotal,
-      advancePaymentAmount: advance,
-      paymentStatus: advance >= grandTotal ? 'PAID' : (advance > 0 ? 'PARTIAL' : 'UNPAID'),
+      advancePaymentAmount: 0, // advancePaid = 0; will be updated by payment webhook later
+      paymentStatus: 'UNPAID',
       bookingStatus: BookingStatus.PENDING_APPROVAL,
     });
 

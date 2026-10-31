@@ -688,19 +688,6 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
             >
               {submitting ? 'Authenticating Platform Access…' : 'Sign In to Control Plane'}
             </button>
-
-            <div className="pt-4 border-t border-slate-200 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail(demoEmail || 'superadmin@spicehub.com');
-                  setPassword(demoPassword || 'SpiceHub@123');
-                }}
-                className="text-xs text-blue-600 hover:text-blue-800 font-semibold"
-              >
-                Demo Auto-Fill ({demoEmail || 'superadmin@spicehub.com'})
-              </button>
-            </div>
           </form>
         </div>
       </div>
@@ -838,17 +825,7 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
                   {submitting ? 'Verifying PIN…' : 'Unlock ERP Console'}
                 </button>
 
-                <div className="mt-5 flex items-center justify-between w-full text-xs text-slate-500 pt-4 border-t border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEnteredPin('1234');
-                      void verifyPin('1234');
-                    }}
-                    className="text-blue-600 hover:text-blue-800 font-semibold"
-                  >
-                    Demo Auto-Fill (1234)
-                  </button>
+                <div className="mt-5 flex items-center justify-end w-full text-xs text-slate-500 pt-4 border-t border-slate-200">
                   <button
                     type="button"
                     onClick={() => setUsePinMode(false)}
@@ -944,18 +921,7 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
                     {submitting ? 'Verifying Admin Session…' : 'Sign In to Hotel ERP'}
                   </button>
 
-                  <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-xs">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail(demoEmail || 'admin@tajgateway.com');
-                        setPassword(demoPassword || 'SpiceHub@123');
-                        setHotelSlug('taj-gateway');
-                      }}
-                      className="text-blue-600 hover:text-blue-800 font-semibold"
-                    >
-                      Demo Auto-Fill (admin@tajgateway.com)
-                    </button>
+                  <div className="pt-4 border-t border-slate-200 flex items-center justify-end text-xs">
                     <button
                       type="button"
                       onClick={() => setUsePinMode(true)}
@@ -1085,17 +1051,7 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
             </button>
           )}
 
-          <div className="mt-4 flex items-center justify-between w-full text-xs text-slate-500 pt-3 border-t border-slate-200 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={() => {
-                setEnteredPin(staffProfiles.defaultPin);
-                void verifyPin(staffProfiles.defaultPin);
-              }}
-              className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium"
-            >
-              Demo Auto-Fill ({staffProfiles.defaultPin})
-            </button>
+          <div className="mt-4 flex items-center justify-end w-full text-xs text-slate-500 pt-3 border-t border-slate-200 dark:border-slate-800">
             <button
               type="button"
               onClick={() => setUsePinMode(false)}

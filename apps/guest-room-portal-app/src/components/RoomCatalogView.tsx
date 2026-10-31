@@ -314,7 +314,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
   const [aadhaarCompressing, setAadhaarCompressing] = useState<'FRONT' | 'BACK' | null>(null);
 
   // Phone OTP Verification (Mandatory for In-Hotel Bookings)
-  const [phoneOtp, setPhoneOtp] = useState('9999');
+  const [phoneOtp, setPhoneOtp] = useState('');
   const [phoneOtpSent, setPhoneOtpSent] = useState(false);
   const [phoneOtpVerified, setPhoneOtpVerified] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
@@ -513,7 +513,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
   });
   const [unlockRoomNumber, setUnlockRoomNumber] = useState('');
   const [unlockLastName, setUnlockLastName] = useState('');
-  const [unlockOtp, setUnlockOtp] = useState('9999');
+  const [unlockOtp, setUnlockOtp] = useState('');
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [isUnlocking, setIsUnlocking] = useState(false);
 
@@ -1803,7 +1803,6 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                     >
                       {otpVerifying ? 'Verifying...' : 'Verify OTP'}
                     </button>
-                    <span className="text-[10px] text-slate-400 font-mono">Dev: 9999</span>
                   </div>
                 )}
 
@@ -2212,11 +2211,23 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
               </span>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
+                  try {
+                    if (pendingBooking?.bookingNumber) {
+                      await fetch(`${apiBase}/api/v1/guest-portal/rooms/cancel-booking`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          bookingNumber: pendingBooking.bookingNumber,
+                          hotelId,
+                        }),
+                      });
+                    }
+                  } catch {}
                   setIsWaitingForApproval(false);
                   localStorage.removeItem('spicehub_pending_approval_booking');
                 }}
-                className="text-[10px] text-slate-400 hover:text-white underline"
+                className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
               >
                 Cancel / Return to Rooms
               </button>

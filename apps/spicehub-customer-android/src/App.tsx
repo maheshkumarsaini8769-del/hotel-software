@@ -671,6 +671,7 @@ export const App: React.FC = () => {
   const [receptionNotes, setReceptionNotes] = useState('');
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Mandatory Aadhaar Front & Back Photos
   const [aadhaarFront, setAadhaarFront] = useState<string | null>(null);
@@ -678,7 +679,7 @@ export const App: React.FC = () => {
   const [aadhaarCompressing, setAadhaarCompressing] = useState<'FRONT' | 'BACK' | null>(null);
 
   // Phone OTP Verification (Mandatory for Hotel on-site bookings)
-  const [phoneOtp, setPhoneOtp] = useState('9999');
+  const [phoneOtp, setPhoneOtp] = useState('');
   const [phoneOtpSent, setPhoneOtpSent] = useState(false);
   const [phoneOtpVerified, setPhoneOtpVerified] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
@@ -2041,7 +2042,10 @@ export const App: React.FC = () => {
           <button
             type="button"
             data-testid="portal-floating-home-btn"
-            onClick={() => setActivePortalUrl(null)}
+            onClick={() => {
+              setActivePortalUrl(null);
+              setCustomerView('home');
+            }}
             className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition"
           >
             <Icons.ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
@@ -2053,7 +2057,10 @@ export const App: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={() => setActivePortalUrl(null)}
+            onClick={() => {
+              setActivePortalUrl(null);
+              setCustomerView('home');
+            }}
             className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition text-xs font-bold"
             title={t('Close', 'Close')}
           >

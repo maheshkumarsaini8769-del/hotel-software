@@ -2303,12 +2303,6 @@ export const App: React.FC = () => {
                     : 'Your booking details and Aadhaar card photos have been forwarded to Front Desk Reception for guest verification.'}
                 </p>
               </div>
-
-              {/* Real-time Socket Indicator */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 dark:text-emerald-400 text-[10px] font-bold">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Live PMS Socket Sync Active • Auto-unlocks when Reception approves check-in</span>
-              </div>
             </div>
 
             {/* Scannable Reception Digital Booking Pass / Voucher */}
@@ -4061,20 +4055,6 @@ export const App: React.FC = () => {
                 </span>
               </div>
 
-              {/* Cloud Sync Status */}
-              <div className="flex items-center justify-between py-1 border-b border-slate-200">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <div>
-                    <span className="text-xs font-semibold block">Cloud Services</span>
-                    <span className="text-[10px] text-slate-400">Secure Live Synchronization</span>
-                  </div>
-                </div>
-                <span className="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-200">
-                  CONNECTED
-                </span>
-              </div>
-
               {/* Front Desk Phone */}
               <div className="flex items-center justify-between py-1">
                 <div className="flex items-center gap-2">
@@ -5539,12 +5519,6 @@ export const App: React.FC = () => {
                     <span>GPS Location Guard</span>
                     <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                       Active
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Cloud Services Sync</span>
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                      Connected
                     </span>
                   </div>
                   <div className="flex items-center justify-between pt-1 border-t border-slate-100">

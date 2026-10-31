@@ -1542,7 +1542,8 @@ export const App: React.FC = () => {
       const json = await res.json();
       if (res.ok && json.success) {
         setPhoneOtpSent(true);
-        if (json.data?.devOtp) setPhoneOtp(json.data.devOtp);
+        const code = json.data?.devOtpHint || json.data?.devOtp;
+        if (code) setPhoneOtp(code);
         setOtpSuccessMsg(json.message || 'OTP sent successfully to your mobile number.');
       } else {
         setBookingError(json.message || 'Failed to send OTP.');
@@ -1640,6 +1641,11 @@ export const App: React.FC = () => {
   const handleProceedToBookingForm = (locationType: 'HOTEL_RADIUS' | 'REMOTE_HOME') => {
     setBookingLocationType(locationType);
     setShowLocationRadiusCheck(false);
+    if (verifiedGuestUser) {
+      if (verifiedGuestUser.name) setGuestName(verifiedGuestUser.name);
+      if (verifiedGuestUser.phone) setGuestPhone(verifiedGuestUser.phone);
+      setPhoneOtpVerified(Boolean(verifiedGuestUser.isVerified));
+    }
     setIsBookingModalOpen(true);
   };
 
@@ -4736,7 +4742,6 @@ export const App: React.FC = () => {
                       >
                         {otpVerifying ? 'Verifying...' : 'Verify OTP'}
                       </button>
-                      <span className="text-[10px] font-mono text-slate-500">Dev: 9999</span>
                     </div>
                   )}
 
@@ -4994,16 +4999,25 @@ export const App: React.FC = () => {
               {/* Submit CTA */}
               <button
                 type="submit"
-                disabled={isSubmittingBooking}
+                disabled={isSubmittingBooking || !phoneOtpVerified}
                 data-testid="submit-reception-docs-btn"
-                className="min-h-[46px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 transition active:scale-98 disabled:opacity-50 mt-1"
+                className={`min-h-[46px] rounded-xl font-bold text-xs sm:text-sm uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 transition active:scale-98 mt-1 ${
+                  !phoneOtpVerified
+                    ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed border border-slate-300 dark:border-slate-700'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20'
+                }`}
               >
                 {isSubmittingBooking ? (
-                  <span>Submitting Aadhaar & Booking to Reception...</span>
+                  <span>Submitting Booking to Reception...</span>
+                ) : !phoneOtpVerified ? (
+                  <>
+                    <Icons.Shield className="w-4 h-4 text-amber-500" />
+                    <span>Verify Mobile OTP Above to Book</span>
+                  </>
                 ) : (
                   <>
                     <Icons.Check className="w-4 h-4 text-white" />
-                    <span>Submit Aadhaar & Booking to Reception</span>
+                    <span>Submit Booking to Reception</span>
                   </>
                 )}
               </button>

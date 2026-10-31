@@ -109,7 +109,7 @@ export const MenuEngineeringApp: React.FC<MenuEngineeringAppProps> = ({
   const currentItems = state.activeReport?.items || [];
 
   return (
-    <div className="min-h-screen bg-[#06080d] text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans">
       {/* Header */}
       <MenuEngineeringHeader
         report={state.activeReport}
@@ -169,9 +169,9 @@ export const MenuEngineeringApp: React.FC<MenuEngineeringAppProps> = ({
             {/* View 3: Full Page Simulator */}
             {activeTab === 'SIMULATOR' && (
               <div className="space-y-4">
-                <div className="bg-purple-950/20 border border-purple-500/30 p-4 rounded-2xl flex items-center justify-between">
+                <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-bold text-purple-300">
+                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">
                       Menu Price Elasticity & Profit Optimization Simulator
                     </h3>
                     <p className="text-xs text-zinc-400 mt-0.5">

@@ -133,7 +133,7 @@ export const quickFrontDeskCheckIn = async (req: TenantRequest, res: Response): 
 
     // If no existing booking, create an instant walk-in booking record
     if (!booking) {
-      const bNumber = `BKG-WALK-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+      const bNumber = `BKG-WALK-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
       const checkInDate = new Date();
       const checkOutDate = new Date(Date.now() + 86400000); // 1 night default
 
@@ -196,6 +196,9 @@ export const quickFrontDeskCheckIn = async (req: TenantRequest, res: Response): 
         specialNotes: receptionistNotes,
       });
     } else {
+      if (effectiveGuestName) {
+        guestProfile.name = effectiveGuestName;
+      }
       guestProfile.totalVisits = (guestProfile.totalVisits || 0) + 1;
       guestProfile.totalLifetimeSpend = (guestProfile.totalLifetimeSpend || 0) + totalAmount;
       guestProfile.lastVisitDate = new Date();
@@ -214,7 +217,7 @@ export const quickFrontDeskCheckIn = async (req: TenantRequest, res: Response): 
     }
 
     // 4. Create Master Folio for Room Charges & Credit Advance Payment
-    const folioNumber = `FOLIO-${room.roomNumber}-${Date.now().toString().slice(-4)}`;
+    const folioNumber = `FOLIO-${room.roomNumber}-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
     const due = Math.max(0, totalAmount - totalAdvance);
 
     // 5. Create Active Stay Record with Flexible Verification Details
@@ -344,9 +347,10 @@ export const getExpectedArrivals = async (req: TenantRequest, res: Response): Pr
 
     const bookings = await Booking.find({
       hotelId,
-      bookingStatus: BookingStatus.CONFIRMED,
+      bookingStatus: { $in: [BookingStatus.CONFIRMED, BookingStatus.PENDING_APPROVAL] },
     })
       .populate('roomTypeId', 'name code basePriceOvernight')
+      .populate('allocatedRoomId', 'roomNumber floorNumber')
       .sort({ checkInDate: 1, createdAt: -1 });
 
     const formatted = bookings.map((b: any) => ({
@@ -358,16 +362,31 @@ export const getExpectedArrivals = async (req: TenantRequest, res: Response): Pr
       roomTypeId: b.roomTypeId?._id?.toString() || '',
       roomTypeName: b.roomTypeId?.name || 'Deluxe Heritage Room',
       roomTypeCode: b.roomTypeId?.code || 'DLX',
+      allocatedRoomId: b.allocatedRoomId?._id?.toString() || '',
+      allocatedRoomNumber: b.allocatedRoomId?.roomNumber || '',
       checkInDate: b.checkInDate,
       checkOutDate: b.checkOutDate,
       bookingSource: b.bookingSource || 'DIRECT_PUBLIC_WEB',
       bookingMode: b.bookingMode || 'OVERNIGHT',
+      bookingStatus: b.bookingStatus,
+      idProofType: b.idProofType,
+      idProofNumber: b.idProofNumber,
+      bookingLocation: b.bookingLocation || 'REMOTE_HOME',
       totalTariff: b.totalTariff,
       taxAmount: b.taxAmount,
       grandTotal: b.grandTotal,
       advancePaymentAmount: b.advancePaymentAmount || 0,
       paymentStatus: b.paymentStatus || 'UNPAID',
       guestCountAdults: b.guestCountAdults || 2,
+      aadhaarFrontUrl: b.aadhaarFrontUrl || b.idProofDocumentUrl || '',
+      aadhaarBackUrl: b.aadhaarBackUrl || '',
+      nights: b.nights || 1,
+      estimatedArrivalTime: b.estimatedArrivalTime || '',
+      secondaryGuestName: b.secondaryGuestName || '',
+      secondaryGuestPhone: b.secondaryGuestPhone || '',
+      secondaryGuestRelationship: b.secondaryGuestRelationship || '',
+      distanceFromHotelKm: b.distanceFromHotelKm,
+      guestPhoneVerified: Boolean(b.guestPhoneVerified),
     }));
 
     res.status(200).json({
@@ -400,8 +419,8 @@ export const getActiveInHouseGuests = async (req: TenantRequest, res: Response):
       stayId: s._id,
       roomNumber: s.roomId?.roomNumber || 'N/A',
       floor: s.roomId?.floorNumber || 1,
-      guestName: s.guestId?.name || 'In-House Guest',
-      phone: s.guestId?.phone || '',
+      guestName: s.guestName || s.guestId?.name || (s.bookingId as any)?.guestName || 'In-House Guest',
+      phone: s.guestPhone || s.guestId?.phone || (s.bookingId as any)?.guestPhone || '',
       vipTier: s.guestId?.vipTier || 'REGULAR',
       totalVisits: s.guestId?.totalVisits || 1,
       isCouple: s.isCouple || false,
@@ -455,6 +474,13 @@ export const ensureRoomStayAndFolio = async (
     if (!createIfMissing) {
       return { room: null, activeStay: null, masterFolio: null };
     }
+    const tenant = await Tenant.findById(hotelId).select('maxRooms name');
+    const maxAllowedRooms = Number(tenant?.maxRooms || 30);
+    const currentCount = await Room.countDocuments({ hotelId });
+    if (currentCount >= maxAllowedRooms) {
+      throw new Error(`Room limit reached: SuperAdmin has allocated a maximum of ${maxAllowedRooms} rooms for ${tenant?.name || 'this hotel'}. Current room count is ${currentCount}. Cannot create more rooms without SuperAdmin capacity upgrade.`);
+    }
+
     let roomType = await RoomType.findOne({ hotelId });
     if (!roomType) {
       roomType = await RoomType.create({
@@ -648,7 +674,7 @@ export const getInRoomLiveStay = async (req: TenantRequest, res: Response): Prom
       lineItems = await FolioLineItem.find({ hotelId, folioId: masterFolio._id }).sort({ postedAt: -1 });
     }
 
-    const effectiveGuestName = (activeStay.guestId as any)?.name || (activeStay.bookingId as any)?.guestName || 'Valued Guest';
+    const effectiveGuestName = (activeStay as any).guestName || (activeStay.guestId as any)?.name || (activeStay.bookingId as any)?.guestName || 'Rahul Verma';
 
     res.status(200).json({
       success: true,
@@ -663,7 +689,7 @@ export const getInRoomLiveStay = async (req: TenantRequest, res: Response): Prom
         stay: {
           stayId: activeStay._id,
           guestName: effectiveGuestName,
-          guestPhone: (activeStay.guestId as any)?.phone || (activeStay.bookingId as any)?.guestPhone || '',
+          guestPhone: activeStay.guestPhone || (activeStay.guestId as any)?.phone || (activeStay.bookingId as any)?.guestPhone || '9876543210',
           checkInTimestamp: activeStay.checkInTimestamp,
           expectedCheckOutTimestamp: activeStay.expectedCheckOutTimestamp,
           isCouple: activeStay.isCouple || false,
@@ -970,7 +996,7 @@ export const postConciergeRequest = async (req: TenantRequest, res: Response): P
     };
 
     io.to(`${hotelId.toString()}_global`).emit('pms:concierge_request_created', payload);
-    io.to(`guest_room_${room.roomNumber}`).emit('pms:concierge_request_created', payload);
+    io.to(`${hotelId.toString()}_guest_room_${room.roomNumber}`).emit('pms:concierge_request_created', payload);
 
     res.status(201).json({
       success: true,
@@ -1599,7 +1625,7 @@ export const updateConciergeRequestStatus = async (req: TenantRequest, res: Resp
     };
 
     io.to(`${hotelId.toString()}_global`).emit('pms:concierge_request_updated', payload);
-    io.to(`guest_room_${roomNum}`).emit('pms:concierge_request_updated', payload);
+    io.to(`${hotelId.toString()}_guest_room_${roomNum}`).emit('pms:concierge_request_updated', payload);
 
     res.status(200).json({
       success: true,
@@ -1685,7 +1711,7 @@ export const postExpressCheckoutRequest = async (req: TenantRequest, res: Respon
     };
 
     io.to(`${hotelId.toString()}_global`).emit('pms:checkout_requested', payload);
-    io.to(`guest_room_${room.roomNumber}`).emit('pms:checkout_requested', payload);
+    io.to(`${hotelId.toString()}_guest_room_${room.roomNumber}`).emit('pms:checkout_requested', payload);
 
     res.status(200).json({
       success: true,
@@ -1893,7 +1919,7 @@ export const settleAndCheckOutFrontDesk = async (req: TenantRequest, res: Respon
     }
 
     // Generate unique Tax Invoice Number
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${room.roomNumber}-${Date.now().toString().slice(-4)}`;
+    const invoiceNumber = `INV-${new Date().getFullYear()}-${room.roomNumber}-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     // Atomically settle Master Folio
     folio.paidAmount = folio.netAmountPayable;
@@ -1909,6 +1935,13 @@ export const settleAndCheckOutFrontDesk = async (req: TenantRequest, res: Respon
     stay.taxInvoiceNumber = invoiceNumber;
     stay.keyCardVoided = !!keyCardVoided;
     await stay.save();
+
+    if (stay.bookingId) {
+      await Booking.findByIdAndUpdate(stay.bookingId, {
+        bookingStatus: BookingStatus.CHECKED_OUT,
+        checkOutDate: new Date(),
+      });
+    }
 
     // Update Room to DIRTY
     room.status = RoomStatus.DIRTY;
@@ -1946,6 +1979,7 @@ export const settleAndCheckOutFrontDesk = async (req: TenantRequest, res: Respon
     );
 
     const invoicePayload = {
+      hotelId: hotelId.toString(),
       invoiceNumber,
       roomNumber: room.roomNumber,
       stayId: stay._id.toString(),
@@ -1969,10 +2003,11 @@ export const settleAndCheckOutFrontDesk = async (req: TenantRequest, res: Respon
     io.to(`${hotelId.toString()}_global`).emit('pms:stay_checked_out', invoicePayload);
     io.to(`${hotelId.toString()}_global`).emit('pms:folio_settled', invoicePayload);
     io.to(`${hotelId.toString()}_global`).emit('pms:room_status_changed', {
+      hotelId: hotelId.toString(),
       roomNumber: room.roomNumber,
       status: room.status,
     });
-    io.to(`guest_room_${room.roomNumber}`).emit('pms:stay_checked_out', invoicePayload);
+    io.to(`${hotelId.toString()}_guest_room_${room.roomNumber}`).emit('pms:stay_checked_out', invoicePayload);
     io.to(`${hotelId.toString()}_global`).emit('housekeeping:task_created', {
       taskId: hkTask._id.toString(),
       roomNumber: room.roomNumber,
@@ -2049,7 +2084,7 @@ export const settleFolioFrontDesk = async (req: TenantRequest, res: Response): P
 
     const invoiceNumber =
       masterFolio.dueAmount === 0
-        ? `INV-${new Date().getFullYear()}-${room.roomNumber}-${Date.now().toString().slice(-4)}`
+        ? `INV-${new Date().getFullYear()}-${room.roomNumber}-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`
         : null;
     if (activeStay && invoiceNumber) {
       activeStay.taxInvoiceNumber = invoiceNumber;
@@ -2069,14 +2104,14 @@ export const settleFolioFrontDesk = async (req: TenantRequest, res: Response): P
 
     if (io) {
       io.to(`${hotelId.toString()}_global`).emit('pms:folio_settled', settlementPayload);
-      io.to(`guest_room_${room.roomNumber}`).emit('pms:folio_settled', settlementPayload);
+      io.to(`${hotelId.toString()}_guest_room_${room.roomNumber}`).emit('pms:folio_settled', settlementPayload);
       io.to(`${hotelId.toString()}_global`).emit('pms:folio_updated', {
         roomNumber: room.roomNumber,
         folioId: masterFolio._id,
         dueAmount: masterFolio.dueAmount,
         paidAmount: masterFolio.paidAmount,
       });
-      io.to(`guest_room_${room.roomNumber}`).emit('pms:folio_updated', {
+      io.to(`${hotelId.toString()}_guest_room_${room.roomNumber}`).emit('pms:folio_updated', {
         roomNumber: room.roomNumber,
         folioId: masterFolio._id,
         dueAmount: masterFolio.dueAmount,
@@ -2504,12 +2539,26 @@ export const approveAndReleaseTurnaroundRoom = async (req: TenantRequest, res: R
         task = await HousekeepingTask.findOne({
           hotelId,
           roomId: room._id,
-          status: { $in: [HousekeepingTaskStatus.COMPLETED, HousekeepingTaskStatus.IN_PROGRESS] },
+          status: { $in: [HousekeepingTaskStatus.COMPLETED, HousekeepingTaskStatus.IN_PROGRESS, HousekeepingTaskStatus.PENDING] },
         });
       }
     }
 
     if (!task) {
+      if (roomNumber) {
+        const room = await Room.findOne({ hotelId, roomNumber: String(roomNumber).trim() });
+        if (room) {
+          room.status = RoomStatus.AVAILABLE;
+          room.currentStayId = undefined;
+          await room.save();
+          res.status(200).json({
+            success: true,
+            message: `Room ${room.roomNumber} inspected and released to AVAILABLE`,
+            data: { roomId: room._id, roomNumber: room.roomNumber, status: 'AVAILABLE' },
+          });
+          return;
+        }
+      }
       res.status(404).json({ success: false, errorCode: 'TASK_NOT_FOUND', message: 'Completed turnaround task not found' });
       return;
     }
@@ -4262,6 +4311,10 @@ export const getRoomTypes = async (req: TenantRequest, res: Response): Promise<v
         extraBedPrice: roomType.extraBedPrice || 0,
         gstRate: roomType.gstRate ?? 12,
         amenities: roomType.amenities || [],
+        images: roomType.images?.length ? roomType.images : (roomType.photos || []),
+        photos: roomType.images?.length ? roomType.images : (roomType.photos || []),
+        description: roomType.description || '',
+        isAc: roomType.isAc !== false && !/non[-\s]?ac/i.test(roomType.name || ''),
         totalRoomsCount: roomType.totalRoomsCount,
         roomsCount: countByType.get(String(roomType._id)) || 0,
         isActive: roomType.isActive,
@@ -4312,6 +4365,15 @@ export const updateRoomTypeTariff = async (req: TenantRequest, res: Response): P
     if (req.body.name !== undefined) updates.name = String(req.body.name).trim();
     if (req.body.code !== undefined) updates.code = String(req.body.code).trim().toUpperCase();
     if (Array.isArray(req.body.amenities)) updates.amenities = req.body.amenities.map(String);
+    if (Array.isArray(req.body.images)) {
+      updates.images = req.body.images.map(String);
+      updates.photos = req.body.images.map(String);
+    } else if (Array.isArray(req.body.photos)) {
+      updates.images = req.body.photos.map(String);
+      updates.photos = req.body.photos.map(String);
+    }
+    if (req.body.description !== undefined) updates.description = String(req.body.description).trim();
+    if (req.body.isAc !== undefined) updates.isAc = Boolean(req.body.isAc);
     if (req.body.isActive !== undefined) updates.isActive = Boolean(req.body.isActive);
 
     if (Object.keys(updates).length === 0) {
@@ -4327,6 +4389,21 @@ export const updateRoomTypeTariff = async (req: TenantRequest, res: Response): P
     if (!roomType) {
       res.status(404).json({ success: false, errorCode: 'ROOM_TYPE_NOT_FOUND', message: 'Room type not found' });
       return;
+    }
+
+    const io = req.app.get('io');
+    if (io && hotelId) {
+      io.to(`${hotelId.toString()}_global`)
+        .to(`${hotelId.toString()}_admin`)
+        .to(`${hotelId.toString()}_pms`)
+        .emit('pms:room_tariff_updated', {
+          roomTypeId: roomType._id,
+          name: roomType.name,
+          basePriceOvernight: roomType.basePriceOvernight,
+          gstRate: roomType.gstRate,
+          updatedAt: new Date(),
+        });
+      io.emit('rooms:catalog_updated', { hotelId: hotelId.toString() });
     }
 
     res.status(200).json({
@@ -4352,5 +4429,329 @@ export const updateRoomTypeTariff = async (req: TenantRequest, res: Response): P
     });
   } catch (err: any) {
     res.status(500).json({ success: false, errorCode: 'ROOM_TYPE_UPDATE_ERROR', message: err.message });
+  }
+};
+
+// 76. List physical rooms with SuperAdmin capacity limits
+export const getPmsRooms = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const tenant = await Tenant.findById(hotelId).select('maxRooms maxTables name');
+    const maxRooms = Number(tenant?.maxRooms || 30);
+
+    const rooms = await Room.find({ hotelId })
+      .populate('roomTypeId', 'name code basePriceOvernight maxOccupancy isAc')
+      .sort({ roomNumber: 1 });
+
+    res.status(200).json({
+      success: true,
+      rooms,
+      totalRooms: rooms.length,
+      maxRooms,
+      remainingCapacity: Math.max(0, maxRooms - rooms.length),
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// 77. Create a physical room with hard SuperAdmin capacity ceiling enforcement
+export const createPmsRoom = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const { roomNumber, roomTypeId, floorNumber, wing, photos, isAc } = req.body;
+    if (!roomNumber) {
+      res.status(400).json({ success: false, message: 'Room number is required' });
+      return;
+    }
+
+    const tenant = await Tenant.findById(hotelId).select('maxRooms name');
+    const maxAllowedRooms = Number(tenant?.maxRooms || 30);
+    const currentCount = await Room.countDocuments({ hotelId });
+
+    if (currentCount >= maxAllowedRooms) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'ROOM_LIMIT_EXCEEDED',
+        message: `Room limit reached: SuperAdmin has allocated a maximum of ${maxAllowedRooms} rooms for ${tenant?.name || 'this hotel'}. You currently have ${currentCount} rooms. You cannot create more rooms without a SuperAdmin capacity upgrade.`,
+        maxAllowed: maxAllowedRooms,
+        currentCount,
+      });
+      return;
+    }
+
+    const cleanRoomNumber = String(roomNumber).trim().toUpperCase();
+    const existing = await Room.findOne({ hotelId, roomNumber: cleanRoomNumber });
+    if (existing) {
+      res.status(400).json({ success: false, message: `Room ${cleanRoomNumber} already exists in this property!` });
+      return;
+    }
+
+    let targetRoomTypeId = roomTypeId;
+    if (!targetRoomTypeId || !Types.ObjectId.isValid(targetRoomTypeId)) {
+      let defaultType = await RoomType.findOne({ hotelId });
+      if (!defaultType) {
+        defaultType = await RoomType.create({
+          hotelId,
+          name: 'Deluxe Heritage Room',
+          code: 'DLX',
+          basePriceOvernight: 3500,
+          maxOccupancy: 3,
+        });
+      }
+      targetRoomTypeId = defaultType._id;
+    }
+
+    const fNumber = floorNumber ? Number(floorNumber) : parseInt(cleanRoomNumber.charAt(0)) || 1;
+    const targetType = await RoomType.findById(targetRoomTypeId);
+    const resolvedIsAc = isAc !== undefined ? Boolean(isAc) : (targetType?.isAc !== undefined ? Boolean(targetType.isAc) : true);
+
+    const newRoom = await Room.create({
+      hotelId,
+      roomNumber: cleanRoomNumber,
+      roomTypeId: targetRoomTypeId,
+      floorNumber: fNumber,
+      wing: wing ? String(wing).trim() : undefined,
+      status: RoomStatus.AVAILABLE,
+      permanentQrCodeHash: `qr_hash_${cleanRoomNumber}_${Date.now()}`,
+      photos: Array.isArray(photos) ? photos.map(String) : [],
+      isAc: resolvedIsAc,
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`${hotelId.toString()}_pms`).to(`${hotelId.toString()}_admin`).emit('pms:room_created', {
+        room: newRoom,
+        totalRooms: currentCount + 1,
+        maxAllowed: maxAllowedRooms,
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Room ${cleanRoomNumber} created successfully!`,
+      room: newRoom,
+      totalRooms: currentCount + 1,
+      maxAllowed: maxAllowedRooms,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// 78. Update physical room (status, photos, room type, floor)
+export const updatePmsRoom = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const roomId = String(req.params.roomId || '');
+    if (!Types.ObjectId.isValid(roomId)) {
+      res.status(400).json({ success: false, message: 'Invalid room id' });
+      return;
+    }
+
+    const room = await Room.findOne({ _id: roomId, hotelId });
+    if (!room) {
+      res.status(404).json({ success: false, message: 'Room not found' });
+      return;
+    }
+
+    const { status, floorNumber, wing, roomNumber, roomTypeId, photos, isAc } = req.body;
+    if (status && Object.values(RoomStatus).includes(status)) {
+      room.status = status;
+    }
+    if (floorNumber !== undefined && Number.isFinite(Number(floorNumber))) {
+      room.floorNumber = Number(floorNumber);
+    }
+    if (wing !== undefined) {
+      room.wing = String(wing).trim();
+    }
+    if (isAc !== undefined) {
+      room.isAc = Boolean(isAc);
+    }
+    if (roomNumber && String(roomNumber).trim().toUpperCase() !== room.roomNumber) {
+      const cleanNum = String(roomNumber).trim().toUpperCase();
+      const existing = await Room.findOne({ hotelId, roomNumber: cleanNum, _id: { $ne: room._id } });
+      if (existing) {
+        res.status(400).json({ success: false, message: `Room ${cleanNum} already exists!` });
+        return;
+      }
+      room.roomNumber = cleanNum;
+    }
+    if (roomTypeId && Types.ObjectId.isValid(roomTypeId)) {
+      room.roomTypeId = new Types.ObjectId(roomTypeId);
+    }
+    if (Array.isArray(photos)) {
+      room.photos = photos.map(String);
+    }
+
+    await room.save();
+    await room.populate('roomTypeId', 'name code basePriceOvernight maxOccupancy maxCapacity isAc');
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`${hotelId.toString()}_pms`).to(`${hotelId.toString()}_admin`).emit('pms:room_updated', { room });
+    }
+
+    res.status(200).json({ success: true, message: `Room ${room.roomNumber} updated successfully!`, room });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// 79. Delete physical room
+export const deletePmsRoom = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const roomId = String(req.params.roomId || '');
+    if (!Types.ObjectId.isValid(roomId)) {
+      res.status(400).json({ success: false, message: 'Invalid room id' });
+      return;
+    }
+
+    const room = await Room.findOne({ _id: roomId, hotelId });
+    if (!room) {
+      res.status(404).json({ success: false, message: 'Room not found' });
+      return;
+    }
+
+    if (room.status === RoomStatus.OCCUPIED) {
+      res.status(400).json({ success: false, message: `Cannot delete Room ${room.roomNumber} while it is OCCUPIED by a guest.` });
+      return;
+    }
+
+    await Room.deleteOne({ _id: roomId, hotelId });
+
+    const totalRooms = await Room.countDocuments({ hotelId });
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`${hotelId.toString()}_pms`).to(`${hotelId.toString()}_admin`).emit('pms:room_deleted', {
+        roomId,
+        roomNumber: room.roomNumber,
+        totalRooms,
+      });
+    }
+
+    res.status(200).json({ success: true, message: `Room ${room.roomNumber} deleted successfully!`, totalRooms });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// 80. Create a room type (category) with photo, AC flag, and pricing
+export const createRoomType = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const {
+      name,
+      code,
+      basePriceOvernight,
+      weekendPrice,
+      maxCapacity,
+      isAc,
+      amenities,
+      images,
+      photos,
+      description,
+    } = req.body;
+
+    if (!name || !basePriceOvernight) {
+      res.status(400).json({ success: false, message: 'Name and overnight tariff are required.' });
+      return;
+    }
+
+    const cleanName = String(name).trim();
+    const cleanCode = code ? String(code).trim().toUpperCase() : cleanName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || `RT${Date.now().toString().slice(-4)}`;
+
+    const existingCode = await RoomType.findOne({ hotelId, code: cleanCode });
+    const finalCode = existingCode ? `${cleanCode}_${Date.now().toString().slice(-3)}` : cleanCode;
+
+    const imgList = Array.isArray(images) && images.length ? images.map(String) : (Array.isArray(photos) ? photos.map(String) : []);
+
+    const newType = await RoomType.create({
+      hotelId,
+      name: cleanName,
+      code: finalCode,
+      basePriceOvernight: Number(basePriceOvernight),
+      weekendPrice: weekendPrice ? Number(weekendPrice) : Math.round(Number(basePriceOvernight) * 1.2),
+      maxCapacity: maxCapacity ? Number(maxCapacity) : 3,
+      isAc: isAc !== undefined ? Boolean(isAc) : true,
+      amenities: Array.isArray(amenities) ? amenities.map(String) : ['Air Conditioning', 'Free High-Speed Wi-Fi', 'Ensuite Bathroom'],
+      images: imgList,
+      photos: imgList,
+      description: description ? String(description).trim() : '',
+      totalRoomsCount: 10,
+      isActive: true,
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`${hotelId.toString()}_pms`).to(`${hotelId.toString()}_admin`).emit('pms:room_type_created', { roomType: newType });
+    }
+
+    res.status(201).json({ success: true, message: `Room type "${cleanName}" created!`, roomType: newType });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// 81. Delete a room type (category)
+export const deleteRoomType = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = req.hotelId || (req.user?.hotelId ? new Types.ObjectId(req.user.hotelId) : undefined);
+    if (!hotelId) {
+      res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'Hotel context missing' });
+      return;
+    }
+
+    const roomTypeId = String(req.params.roomTypeId || '');
+    if (!Types.ObjectId.isValid(roomTypeId)) {
+      res.status(400).json({ success: false, message: 'Invalid room type id' });
+      return;
+    }
+
+    const roomsUsingType = await Room.countDocuments({ hotelId, roomTypeId });
+    if (roomsUsingType > 0) {
+      res.status(400).json({
+        success: false,
+        message: `Cannot delete room category because ${roomsUsingType} physical rooms are assigned to it. Reassign or delete those rooms first.`,
+      });
+      return;
+    }
+
+    await RoomType.deleteOne({ _id: roomTypeId, hotelId });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`${hotelId.toString()}_pms`).to(`${hotelId.toString()}_admin`).emit('pms:room_type_deleted', { roomTypeId });
+    }
+
+    res.status(200).json({ success: true, message: 'Room category deleted successfully!' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };

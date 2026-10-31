@@ -101,8 +101,8 @@ export const NewStockBatchModal: React.FC<NewStockBatchModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-blue-500/30 bg-[#0f131a] text-zinc-100 shadow-2xl">
-        <div className="flex items-start justify-between border-b border-zinc-800 bg-[#121620] px-6 py-4">
+      <div className="w-full max-w-xl overflow-hidden rounded-3xl border border-blue-500/30 bg-slate-900 text-zinc-100 shadow-sm dark:shadow-none">
+        <div className="flex items-start justify-between border-b border-zinc-800 bg-slate-900 px-6 py-4">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-black text-white">
               <span>📦</span> Receive New Stock Batch
@@ -123,7 +123,7 @@ export const NewStockBatchModal: React.FC<NewStockBatchModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
           {error && (
-            <div className="rounded-xl border border-rose-500/40 bg-rose-950/60 px-3 py-2 text-xs font-semibold text-rose-200">
+            <div className="rounded-xl border border-red-500/40 bg-red-950/60 px-3 py-2 text-xs font-semibold text-red-200">
               {error}
             </div>
           )}

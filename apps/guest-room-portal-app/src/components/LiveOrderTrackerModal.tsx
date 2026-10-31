@@ -77,7 +77,7 @@ export const LiveOrderTrackerModal: React.FC<LiveOrderTrackerModalProps> = ({
           <div className="relative flex items-center justify-between">
             <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-800 -translate-y-1/2 z-0" />
             <div
-              className="absolute top-1/2 left-0 h-1 bg-gradient-to-r from-amber-500 to-amber-400 -translate-y-1/2 z-0 transition-all duration-500"
+              className="absolute top-1/2 left-0 h-1 bg-amber-500 -translate-y-1/2 z-0 transition-all duration-500"
               style={{ width: `${((progress.step - 1) / 3) * 100}%` }}
             />
 

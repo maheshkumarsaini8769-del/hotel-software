@@ -171,10 +171,10 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-5 gap-3 sm:gap-4">
       {/* Header Banner */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold shadow-md shadow-emerald-950/40">
+          <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
             <ChefHat className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -246,7 +246,7 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
                 activeTab === tab.id
                   ? 'bg-orange-500 text-white shadow-sm'
                   : isDark
-                  ? 'bg-[#181c2b] text-slate-400 hover:text-white border border-slate-800'
+                  ? 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
               }`}
             >
@@ -294,17 +294,18 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
               return (
                 <div
                   key={ticket.id}
+                  data-testid={`card-live-ticket-${ticket.orderNumber}`}
                   className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 shadow-xs transition hover:shadow-md ${
                     isReady
                       ? isDark
-                        ? 'bg-gradient-to-br from-emerald-950/40 to-[#181c2b] border-emerald-500/60'
+                        ? 'bg-slate-900 border-emerald-500/60'
                         : 'bg-emerald-50/70 border-emerald-300 shadow-2xs'
                       : isPreparing
                       ? isDark
-                        ? 'bg-gradient-to-br from-amber-950/30 to-[#181c2b] border-amber-500/40'
+                        ? 'bg-slate-900 border-amber-500/40'
                         : 'bg-amber-50/70 border-amber-300 shadow-2xs'
                       : isDark
-                      ? 'bg-[#181c2b] border-slate-800'
+                      ? 'bg-slate-900 border-slate-800'
                       : 'bg-white border-slate-200'
                   }`}
                 >
@@ -394,8 +395,9 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
                     {isReady ? (
                       <>
                         <button
+                          data-testid="btn-serve-order"
                           onClick={() => onServeOrder(ticket.id, ticket.orderNumber, ticket.destination)}
-                          className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950/40 transition"
+                          className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition"
                         >
                           <CheckCircle2 className="w-4 h-4" />
                           <span>Pick Up & Serve to Table</span>

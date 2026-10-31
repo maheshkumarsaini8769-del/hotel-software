@@ -163,7 +163,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-6 rounded-2xl shadow-xl">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-xl text-cyan-400">
+            <div className="p-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300">
               <TrendingUp className="w-6 h-6" />
             </div>
             <div>
@@ -202,7 +202,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
         {/* Left Column: Interactive Simulation Controls */}
         <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 space-y-6">
           <div className="flex items-center gap-2 text-base font-semibold text-slate-200 border-b border-slate-800 pb-3">
-            <Sliders className="w-5 h-5 text-cyan-400" />
+            <Sliders className="w-5 h-5 text-slate-700 dark:text-slate-300" />
             <span>Real-Time Yield Simulation</span>
           </div>
 
@@ -217,7 +217,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
                 setSelectedRoomTypeId(e.target.value);
                 fetchDynamicQuote(e.target.value, simulatedOccupancy, simulatedWeekend);
               }}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-cyan-500"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-slate-200 dark:border-slate-800"
             >
               {strategies.map((s) => (
                 <option key={s._id} value={s.roomTypeId?._id || s.roomTypeId}>
@@ -233,7 +233,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
               <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                 Live Occupancy Threshold
               </label>
-              <span className="text-sm font-bold text-cyan-400">{simulatedOccupancy}%</span>
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{simulatedOccupancy}%</span>
             </div>
             <input
               type="range"
@@ -269,7 +269,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
                 fetchDynamicQuote(selectedRoomTypeId, simulatedOccupancy, nextVal);
               }}
               className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
-                simulatedWeekend ? 'bg-cyan-500 justify-end' : 'bg-slate-800 justify-start'
+                simulatedWeekend ? 'bg-slate-800 dark:bg-slate-200 justify-end' : 'bg-slate-800 justify-start'
               }`}
             >
               <div className="w-4 h-4 bg-white rounded-full shadow-md" />
@@ -289,7 +289,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
               </div>
               <div className="flex justify-between text-slate-400">
                 <span>Legal Ceiling Price:</span>
-                <span className="font-semibold text-rose-400">₹{activeStrategy.maxPriceCeiling}</span>
+                <span className="font-semibold text-red-400">₹{activeStrategy.maxPriceCeiling}</span>
               </div>
             </div>
           )}
@@ -298,7 +298,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
         {/* Center & Right Column: Calculated Dynamic Rate Quote & Competitor Benchmark */}
         <div className="lg:col-span-2 space-y-6">
           {/* Main Calculated Quote Card */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/30 border border-cyan-500/20 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/30 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm dark:shadow-none relative overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
               <div>
                 <span
@@ -320,7 +320,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
                 <button
                   onClick={handleApplyToLiveInventory}
                   disabled={isApplyingRate || !currentQuote}
-                  className="flex items-center gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-cyan-600/25 transition-all cursor-pointer text-sm"
+                  className="flex items-center gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-sm transition-all cursor-pointer text-sm"
                 >
                   {isApplyingRate ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -336,7 +336,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 py-6 items-center">
               <div>
                 <div className="text-xs text-slate-400 uppercase font-semibold">Authoritative Dynamic Rate</div>
-                <div className="text-4xl font-extrabold text-cyan-400 mt-1">
+                <div className="text-4xl font-extrabold text-slate-700 dark:text-slate-300 mt-1">
                   {currentQuote ? RevenueManagerHelper.formatCurrency(currentQuote.finalDynamicRate) : '₹0'}
                 </div>
                 <div className="text-xs text-slate-400 mt-1">Per room / night before GST</div>
@@ -372,10 +372,10 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
             </div>
 
             {/* AI Yield Recommendation Banner */}
-            <div className="bg-slate-950/70 border border-cyan-500/20 p-4 rounded-xl flex items-start gap-3">
-              <Sparkles className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+            <div className="bg-slate-950/70 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex items-start gap-3">
+              <Sparkles className="w-5 h-5 text-slate-700 dark:text-slate-300 shrink-0 mt-0.5" />
               <div className="text-xs text-slate-300 leading-relaxed">
-                <span className="font-semibold text-cyan-300">Yield Engine Advice: </span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">Yield Engine Advice: </span>
                 {currentQuote?.yieldRecommendation || 'Analyzing live market compression metrics...'}
               </div>
             </div>
@@ -385,7 +385,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
           <div className="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
             <div className="p-4 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Building className="w-4 h-4 text-cyan-400" />
+                <Building className="w-4 h-4 text-slate-700 dark:text-slate-300" />
                 <h3 className="font-semibold text-sm text-slate-200">Local Comp-Set Benchmark Parity</h3>
               </div>
               <div className="text-xs text-slate-400">
@@ -416,7 +416,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
                         <td className="py-3 px-4 text-slate-300">
                           {RevenueManagerHelper.formatCurrency(comp.benchmarkPrice)}
                         </td>
-                        <td className="py-3 px-4 font-semibold text-cyan-400">
+                        <td className="py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">
                           {RevenueManagerHelper.formatCurrency(currentQuote.finalDynamicRate)}
                         </td>
                         <td className="py-3 px-4">

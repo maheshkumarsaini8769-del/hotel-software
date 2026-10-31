@@ -13,7 +13,7 @@ const RequestTypeIconMap: Record<string, { icon: React.ComponentType<{ className
   [RequestType.WATER]: { icon: Droplets, label: 'Water Request', bg: 'bg-blue-500/10 border-blue-500/30', color: 'text-blue-400' },
   [RequestType.CUTLERY]: { icon: Utensils, label: 'Cutlery Needed', bg: 'bg-emerald-500/10 border-emerald-500/30', color: 'text-emerald-400' },
   [RequestType.BILL]: { icon: Receipt, label: 'Bill / Settle', bg: 'bg-amber-500/10 border-amber-500/30', color: 'text-amber-400' },
-  [RequestType.CALL_WAITER]: { icon: Bell, label: 'Call Waiter', bg: 'bg-purple-500/10 border-purple-500/30', color: 'text-purple-400' },
+  [RequestType.CALL_WAITER]: { icon: Bell, label: 'Call Waiter', bg: 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800', color: 'text-slate-700 dark:text-slate-300' },
   [RequestType.CLEANING]: { icon: Sparkles, label: 'Table Cleaning', bg: 'bg-orange-500/10 border-orange-500/30', color: 'text-orange-400' },
 };
 
@@ -26,8 +26,8 @@ export const ServiceRequestCard: React.FC<ServiceRequestCardProps> = ({
   const typeMeta = RequestTypeIconMap[rawType] || {
     icon: Bell,
     label: rawType.replace(/_/g, ' '),
-    bg: 'bg-purple-950/60 border-purple-700/60',
-    color: 'text-purple-300',
+    bg: 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800',
+    color: 'text-slate-700 dark:text-slate-300',
   };
   const IconComponent = typeMeta.icon;
 
@@ -44,8 +44,8 @@ export const ServiceRequestCard: React.FC<ServiceRequestCardProps> = ({
     <div
       className={`p-4 rounded-2xl border transition-all duration-200 shadow-md ${
         isPending
-          ? 'border-amber-500/70 bg-gradient-to-br from-amber-950/40 to-slate-900 shadow-amber-950/30'
-          : 'border-slate-800 bg-slate-900 shadow-sm'
+          ? 'border-amber-500 bg-slate-900 shadow-xs'
+          : 'border-slate-800 bg-slate-900 shadow-xs'
       }`}
       data-testid={`request-card-${request.id}`}
     >

@@ -35,9 +35,9 @@ export const FloorSectionTabs: React.FC<FloorSectionTabsProps> = ({
           <div className="text-xs text-emerald-600">Available</div>
           <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{stats.available}</div>
         </div>
-        <div className="bg-rose-50 dark:bg-rose-950/30 p-3 rounded-xl border border-rose-200 dark:border-rose-800">
-          <div className="text-xs text-rose-600">Occupied</div>
-          <div className="text-xl font-bold text-rose-700 dark:text-rose-400">{stats.occupied}</div>
+        <div className="bg-red-50 dark:bg-red-950/30 p-3 rounded-xl border border-red-200 dark:border-red-800">
+          <div className="text-xs text-red-600">Occupied</div>
+          <div className="text-xl font-bold text-red-700 dark:text-red-400">{stats.occupied}</div>
         </div>
         <div className="bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200 dark:border-amber-800">
           <div className="text-xs text-amber-600">Billing</div>
@@ -47,9 +47,9 @@ export const FloorSectionTabs: React.FC<FloorSectionTabsProps> = ({
           <div className="text-xs text-orange-600">Dirty / Cleaning</div>
           <div className="text-xl font-bold text-orange-700 dark:text-orange-400">{stats.dirty}</div>
         </div>
-        <div className="bg-purple-50 dark:bg-purple-950/30 p-3 rounded-xl border border-purple-200 dark:border-purple-800">
-          <div className="text-xs text-purple-600">Occupancy</div>
-          <div className="text-xl font-bold text-purple-700 dark:text-purple-400">{stats.occupancyRate}%</div>
+        <div className="bg-slate-800 dark:bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-200 dark:border-slate-800">
+          <div className="text-xs text-slate-700 dark:text-slate-300">Occupancy</div>
+          <div className="text-xl font-bold text-slate-700 dark:text-slate-300 dark:text-slate-700 dark:text-slate-300">{stats.occupancyRate}%</div>
         </div>
       </div>
 

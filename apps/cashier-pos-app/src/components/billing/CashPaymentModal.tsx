@@ -46,7 +46,7 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full shadow-2xl p-6 space-y-5">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full shadow-sm dark:shadow-none p-6 space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
           <div>
@@ -110,12 +110,12 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
         <div className={`p-4 rounded-xl border flex items-center justify-between ${
           calculation.isSufficient
             ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300'
-            : 'bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300'
+            : 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-300'
         }`}>
           <div>
             <div className="text-xs font-bold uppercase">Change Returned to Guest</div>
             {!calculation.isSufficient && (
-              <div className="text-[11px] text-rose-600 dark:text-rose-400">Insufficient cash tendered</div>
+              <div className="text-[11px] text-red-600 dark:text-red-400">Insufficient cash tendered</div>
             )}
           </div>
           <div className="text-2xl font-black">

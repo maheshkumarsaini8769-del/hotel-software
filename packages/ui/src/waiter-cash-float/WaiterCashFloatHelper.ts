@@ -73,7 +73,7 @@ export class WaiterCashFloatHelper {
     if (variance === 0) {
       return { text: '₹0.00 (Exact Match)', color: 'text-emerald-400', status: 'MATCH' };
     } else if (variance < 0) {
-      return { text: `-₹${Math.abs(variance).toFixed(2)} (Shortage)`, color: 'text-rose-400', status: 'SHORT' };
+      return { text: `-₹${Math.abs(variance).toFixed(2)} (Shortage)`, color: 'text-red-400', status: 'SHORT' };
     } else {
       return { text: `+₹${variance.toFixed(2)} (Surplus)`, color: 'text-amber-400', status: 'SURPLUS' };
     }

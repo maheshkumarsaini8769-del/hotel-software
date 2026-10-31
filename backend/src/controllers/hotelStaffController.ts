@@ -58,14 +58,14 @@ const resolveHotelId = (req: TenantRequest): Types.ObjectId | undefined => {
   return raw && Types.ObjectId.isValid(String(raw)) ? new Types.ObjectId(String(raw)) : undefined;
 };
 
-const toDTO = (u: IUser & Record<string, any>, includePin = false, plainPin?: string): HotelStaffDTO => ({
+const toDTO = (u: IUser & Record<string, any>, includePin = true, plainPin?: string): HotelStaffDTO => ({
   id: u._id.toString(),
   name: u.name,
   email: u.email,
   phone: u.phone || '+91 98765 00000',
   role: u.role,
-  pin: includePin && plainPin ? plainPin : '••••',
-  hasPin: Boolean(u.pinCodeHash || u.pendingPinHash),
+  pin: plainPin || u.pinCode || '1234',
+  hasPin: Boolean(u.pinCode || u.pinCodeHash || u.pendingPinHash),
   pinApprovedByAdmin: u.pinApprovedByAdmin !== false,
   pinStatus: (u.pinStatus || (u.pinCodeHash ? 'ACTIVE' : 'NONE')) as 'NONE' | 'ACTIVE' | 'PENDING_APPROVAL',
   shift: u.shift || 'Morning Shift',
@@ -93,7 +93,13 @@ export const getHotelStaff = async (req: TenantRequest, res: Response): Promise<
       return;
     }
 
-    const users = await User.find({ hotelId }).sort({ createdAt: -1 });
+    const includeAdmins = req.query.includeAdmins === 'true';
+    const query: Record<string, any> = { hotelId };
+    if (!includeAdmins) {
+      query.role = { $nin: [UserRole.HOTEL_ADMIN, UserRole.SUPERADMIN] };
+    }
+
+    const users = await User.find(query).sort({ createdAt: -1 });
     const staff = users.map((user) => toDTO(user as IUser & Record<string, any>));
 
     res.status(200).json({
@@ -174,16 +180,25 @@ export const createHotelStaff = async (req: TenantRequest, res: Response): Promi
       return;
     }
 
-    if (!pin || !/^\d{4,6}$/.test(String(pin))) {
+    if (!pin || !/^\d{4}$/.test(String(pin))) {
       res.status(400).json({
         success: false,
         errorCode: 'INVALID_PIN',
-        message: 'A 4-6 digit access PIN is required for new staff',
+        message: 'A 4-digit numeric access PIN is required for new staff (must be exactly 4 digits, numbers only)',
       });
       return;
     }
 
-    const staffEmail = String(email || `${String(name).toLowerCase().replace(/[^a-z0-9]/g, '')}.${normalizedRole.toLowerCase()}@spicehub.hotel`).toLowerCase();
+    let staffEmail = String(email || '').trim().toLowerCase();
+    if (!staffEmail) {
+      const baseSlug = String(name).toLowerCase().replace(/[^a-z0-9]/g, '');
+      const candidateEmail = `${baseSlug}.${normalizedRole.toLowerCase()}@spicehub.hotel`;
+      const existing = await User.findOne({ hotelId, email: candidateEmail });
+      staffEmail = existing
+        ? `${baseSlug}${Math.floor(100 + Math.random() * 900)}.${normalizedRole.toLowerCase()}@spicehub.hotel`
+        : candidateEmail;
+    }
+
     const staffPhone = phone || '+91 98000 00000';
     const staffAvatar = avatar || `https://images.unsplash.com/photo-${1535713875002 + Math.floor(Math.random() * 50)}?w=150&auto=format&fit=crop&q=80`;
 
@@ -196,7 +211,10 @@ export const createHotelStaff = async (req: TenantRequest, res: Response): Promi
       email: staffEmail,
       phone: staffPhone,
       passwordHash,
+      pinCode: String(pin),
       pinCodeHash,
+      pinApprovedByAdmin: true,
+      pinStatus: 'ACTIVE',
       role: normalizedRole,
       shiftStatus: shiftStatus || ShiftStatus.ON_DUTY,
       isActive: true,
@@ -311,12 +329,16 @@ export const updateHotelStaff = async (req: TenantRequest, res: Response): Promi
     }
 
     if (req.body.pin !== undefined) {
-      if (!/^\d{4,6}$/.test(String(req.body.pin))) {
-        res.status(400).json({ success: false, errorCode: 'INVALID_PIN', message: 'PIN must be 4-6 digits' });
+      if (!/^\d{4}$/.test(String(req.body.pin))) {
+        res.status(400).json({ success: false, errorCode: 'INVALID_PIN', message: 'PIN must be exactly 4 numeric digits' });
         return;
       }
+      updates.pinCode = String(req.body.pin);
       updates.pinCodeHash = await argon2.hash(String(req.body.pin));
       updates.passwordHash = await argon2.hash(String(req.body.pin));
+      updates.pinApprovedByAdmin = true;
+      updates.pinStatus = 'ACTIVE';
+      updates.pendingPinHash = undefined;
     }
 
     if (Object.keys(updates).length === 0) {

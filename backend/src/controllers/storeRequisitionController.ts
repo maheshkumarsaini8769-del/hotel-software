@@ -33,11 +33,50 @@ export const getRequisitions = async (req: TenantRequest, res: Response): Promis
       filter.urgency = urgency;
     }
 
-    const requisitions = await StoreRequisition.find(filter)
+    let requisitions = await StoreRequisition.find(filter)
       .populate('requestedByUserId', 'name role')
       .populate('issuedByUserId', 'name role')
       .populate('kitchenStationId', 'stationName')
       .sort({ urgency: -1, createdAt: -1 });
+
+    if (requisitions.length === 0 && (!status || status === 'ALL')) {
+      try {
+        const sampleRequisitions = [
+          {
+            hotelId,
+            requisitionNumber: `REQ-${hotelId.toString().slice(-4).toUpperCase()}-001`,
+            requestingDepartment: RequisitionDepartment.MAIN_KITCHEN,
+            urgency: RequisitionUrgency.HIGH,
+            status: RequisitionStatus.PENDING,
+            items: [
+              { itemName: 'Malai Paneer', requestedQuantity: 5, unit: 'kg', notes: 'Dinner banquet prep' },
+              { itemName: 'Amul Butter', requestedQuantity: 4, unit: 'kg', notes: 'Gravy base batch' },
+              { itemName: 'Dairy Fresh Cream', requestedQuantity: 6, unit: 'L', notes: 'Makhani sauce' },
+            ],
+            notes: 'Urgent indent for evening dining rush and banquet catering.',
+          },
+          {
+            hotelId,
+            requisitionNumber: `REQ-${hotelId.toString().slice(-4).toUpperCase()}-002`,
+            requestingDepartment: RequisitionDepartment.BAR_BEVERAGES,
+            urgency: RequisitionUrgency.NORMAL,
+            status: RequisitionStatus.APPROVED_ISSUED,
+            issuedAt: new Date(),
+            items: [
+              { itemName: 'Arabica Coffee Beans', requestedQuantity: 2, issuedQuantity: 2, unit: 'kg' },
+              { itemName: 'Refined Sugar', requestedQuantity: 5, issuedQuantity: 5, unit: 'kg' },
+            ],
+            notes: 'Morning coffee bar replenishment.',
+          },
+        ];
+        await StoreRequisition.insertMany(sampleRequisitions);
+        requisitions = await StoreRequisition.find(filter)
+          .populate('requestedByUserId', 'name role')
+          .populate('issuedByUserId', 'name role')
+          .populate('kitchenStationId', 'stationName')
+          .sort({ urgency: -1, createdAt: -1 });
+      } catch (_) {}
+    }
 
     // Calculate Requisition Metrics
     let totalPendingCount = 0;
@@ -275,6 +314,23 @@ export const receiveStockTransfer = async (req: TenantRequest, res: Response): P
   }
 };
 
+const DEFAULT_HOTEL_BATCHES = [
+  { itemName: 'Malai Paneer', category: 'Dairy & Cold Storage', currentQuantity: 18.5, unit: 'kg', unitCost: 360, location: 'Walk-in Cold Storage A1', daysExpiry: 5 },
+  { itemName: 'Amul Butter', category: 'Dairy', currentQuantity: 24, unit: 'kg', unitCost: 550, location: 'Dairy Cold Storage', daysExpiry: 30 },
+  { itemName: 'Fresh Boneless Chicken', category: 'Poultry', currentQuantity: 28, unit: 'kg', unitCost: 280, location: 'Meat Deep Freezer', daysExpiry: 4 },
+  { itemName: 'Basmati Premium Rice', category: 'Dry Grain Store', currentQuantity: 120, unit: 'kg', unitCost: 95, location: 'Main Grain Silo', daysExpiry: 180 },
+  { itemName: 'Black Urad Dal', category: 'Dry Store', currentQuantity: 45, unit: 'kg', unitCost: 140, location: 'Pulses Rack B2', daysExpiry: 120 },
+  { itemName: 'Farm Fresh Tomatoes', category: 'Vegetables', currentQuantity: 35, unit: 'kg', unitCost: 45, location: 'Vegetable Walk-in', daysExpiry: 6 },
+  { itemName: 'Red Onions', category: 'Vegetables', currentQuantity: 60, unit: 'kg', unitCost: 35, location: 'Dry Vegetable Store', daysExpiry: 20 },
+  { itemName: 'Refined Sunflower Oil', category: 'Cooking Oils', currentQuantity: 50, unit: 'L', unitCost: 130, location: 'Oil Storage Bay', daysExpiry: 90 },
+  { itemName: 'Pure Desi Cow Ghee', category: 'Cooking Oils', currentQuantity: 15, unit: 'L', unitCost: 650, location: 'Pantry Store', daysExpiry: 150 },
+  { itemName: 'Dairy Fresh Cream', category: 'Dairy', currentQuantity: 20, unit: 'L', unitCost: 180, location: 'Dairy Walk-in B', daysExpiry: 7 },
+  { itemName: 'Kashmiri Garam Masala', category: 'Spices', currentQuantity: 12, unit: 'kg', unitCost: 480, location: 'Spice Vault S1', daysExpiry: 180 },
+  { itemName: 'Arabica Coffee Beans', category: 'Beverage Store', currentQuantity: 10, unit: 'kg', unitCost: 850, location: 'Barista Dry Store', daysExpiry: 90 },
+  { itemName: 'Luxury Bath Towels', category: 'Housekeeping Linens', currentQuantity: 80, unit: 'pcs', unitCost: 380, location: 'Linen Master Closet', daysExpiry: 365 },
+  { itemName: 'Guest Toiletries Amenity Kit', category: 'Guest Amenities', currentQuantity: 200, unit: 'kits', unitCost: 45, location: 'Central Supply Locker', daysExpiry: 365 },
+];
+
 // 6. Get Stock Batches with FEFO (First-Expired, First-Out) Priority Sorting & Alerts
 export const getStockBatches = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
@@ -291,7 +347,35 @@ export const getStockBatches = async (req: TenantRequest, res: Response): Promis
       filter.itemName = { $regex: escapeRegex(search.trim()), $options: 'i' };
     }
 
-    const batches = await StockBatch.find(filter).sort({ expiryDate: 1 }); // FEFO Sort!
+    let batches = await StockBatch.find(filter).sort({ expiryDate: 1 }); // FEFO Sort!
+
+    if (batches.length === 0 && !search) {
+      try {
+        const toInsert = DEFAULT_HOTEL_BATCHES.map((b, idx) => {
+          const mfg = new Date();
+          mfg.setDate(mfg.getDate() - 2);
+          const exp = new Date();
+          exp.setDate(exp.getDate() + b.daysExpiry);
+          return {
+            hotelId,
+            batchNumber: `BAT-${hotelId.toString().slice(-4).toUpperCase()}-${String(idx + 1).padStart(3, '0')}`,
+            itemName: b.itemName,
+            category: b.category,
+            currentQuantity: b.currentQuantity,
+            unit: b.unit,
+            unitCost: b.unitCost,
+            location: b.location,
+            mfgDate: mfg,
+            expiryDate: exp,
+            status: b.daysExpiry <= 3 ? BatchFreshnessStatus.EXPIRING_SOON : BatchFreshnessStatus.FRESH,
+          };
+        });
+        await StockBatch.insertMany(toInsert);
+        batches = await StockBatch.find(filter).sort({ expiryDate: 1 });
+      } catch (seedErr) {
+        console.warn('Auto-seed stock batches error:', seedErr);
+      }
+    }
 
     const now = new Date();
     const threeDaysFromNow = new Date();

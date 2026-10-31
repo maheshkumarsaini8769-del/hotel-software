@@ -131,6 +131,15 @@ export const listAllTenants = async (req: TenantRequest, res: Response): Promise
           subscriptionStatus: t.status,
           city: t.address?.city || '',
           state: t.address?.state || '',
+          street: t.address?.street || '',
+          pincode: t.address?.pincode || '',
+          country: t.address?.country || 'India',
+          address: t.address,
+          coordinates: t.coordinates || { latitude: 26.9124, longitude: 75.7873 },
+          latitude: t.coordinates?.latitude ?? (t as any).latitude ?? 26.9124,
+          longitude: t.coordinates?.longitude ?? (t as any).longitude ?? 75.7873,
+          googleMapUrl: t.googleMapUrl || `https://www.google.com/maps/search/?api=1&query=${t.coordinates?.latitude || 26.9124},${t.coordinates?.longitude || 75.7873}`,
+          locationNotes: t.locationNotes || '',
           logoUrl: t.logoUrl || '',
           coverImageUrl: t.coverImageUrl || '',
           photos: Array.isArray(t.photos) ? t.photos : [],
@@ -148,6 +157,8 @@ export const listAllTenants = async (req: TenantRequest, res: Response): Promise
           planCode: storedPlanCode || plan,
           planName: t.subscriptionPlanName || '',
           monthlyPriceINR: Number(t.subscriptionMonthlyINR || 0),
+          maxRooms: Number(t.maxRooms || 30),
+          maxTables: Number(t.maxTables || 20),
           roomCount,
           occupiedRoomCount,
           totalTables,
@@ -1120,6 +1131,13 @@ export const createTenant = async (req: TenantRequest, res: Response): Promise<v
       adminName,
       city = 'Sikar',
       state = 'Rajasthan',
+      street,
+      pincode,
+      country = 'India',
+      latitude,
+      longitude,
+      googleMapUrl,
+      locationNotes,
       planCode = 'starter',
       initialRooms = 10,
       initialTables = 6,
@@ -1167,7 +1185,9 @@ export const createTenant = async (req: TenantRequest, res: Response): Promise<v
       subscriptionPlanName: plan?.name || 'Starter Tier',
       subscriptionMonthlyINR: plan?.monthlyPriceINR || 4999,
       billingCycle: 'MONTHLY',
-      enabledPortals: ['admin', 'cashier', 'waiter', 'kds', 'reception', 'customer'],
+      maxRooms: Math.max(1, Number(req.body?.maxRooms || initialRooms || 30)),
+      maxTables: Math.max(1, Number(req.body?.maxTables || initialTables || 20)),
+      enabledPortals: ['admin', 'cashier', 'waiter', 'kds', 'reception', 'customer', 'guest'],
       featureFlags: {
         pmsEnabled: true,
         posEnabled: true,
@@ -1180,10 +1200,18 @@ export const createTenant = async (req: TenantRequest, res: Response): Promise<v
         aiInsightsEnabled: false,
         tallyExportEnabled: false,
       },
+      coordinates: {
+        latitude: typeof latitude === 'number' ? latitude : (typeof req.body?.coordinates?.latitude === 'number' ? req.body.coordinates.latitude : 26.9124),
+        longitude: typeof longitude === 'number' ? longitude : (typeof req.body?.coordinates?.longitude === 'number' ? req.body.coordinates.longitude : 75.7873),
+      },
+      googleMapUrl: googleMapUrl || (typeof latitude === 'number' && typeof longitude === 'number' ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : undefined),
+      locationNotes: locationNotes ? String(locationNotes).trim() : '',
       address: {
+        street: street ? String(street).trim() : '',
         city: city || 'Sikar',
         state: state || 'Rajasthan',
-        country: 'India',
+        country: country || 'India',
+        pincode: pincode ? String(pincode).trim() : '',
       },
     });
 
@@ -1201,7 +1229,7 @@ export const createTenant = async (req: TenantRequest, res: Response): Promise<v
       pinApprovedByAdmin: true,
       role: UserRole.HOTEL_ADMIN,
       permissions: ['*'],
-      shiftStatus: 'OFF_DUTY',
+      shiftStatus: ShiftStatus.OFFLINE,
       isMfaEnabled: false,
       isActive: true,
     });
@@ -1546,6 +1574,12 @@ export const updateTenantSubscription = async (req: TenantRequest, res: Response
     }
     if (planCode) tenant.subscriptionPlanCode = String(planCode);
     if (planName) tenant.subscriptionPlanName = String(planName);
+    if (req.body?.maxRooms !== undefined) {
+      tenant.maxRooms = Math.max(1, Number(req.body.maxRooms));
+    }
+    if (req.body?.maxTables !== undefined) {
+      tenant.maxTables = Math.max(1, Number(req.body.maxTables));
+    }
 
     tenant.subscriptionStartDate = effectiveStart;
     tenant.subscriptionEndDate = effectiveEnd;
@@ -1578,6 +1612,63 @@ export const updateTenantSubscription = async (req: TenantRequest, res: Response
         subscriptionDurationMonths: tenant.subscriptionDurationMonths,
         monthlyPriceINR: tenant.subscriptionMonthlyINR,
         billingCycle: tenant.billingCycle,
+        maxRooms: tenant.maxRooms,
+        maxTables: tenant.maxTables,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 16d. Update Tenant Capacity Ceiling (Max Rooms & Max Tables allocated by SuperAdmin)
+export const updateTenantCapacity = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const tenantId = String(req.params.tenantId);
+    if (!Types.ObjectId.isValid(tenantId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ID', message: 'Valid tenantId is required' });
+      return;
+    }
+    const tenant = await Tenant.findById(new Types.ObjectId(tenantId));
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Tenant not found' });
+      return;
+    }
+
+    const { maxRooms, maxTables } = req.body;
+    if (maxRooms !== undefined) {
+      tenant.maxRooms = Math.max(1, Number(maxRooms));
+    }
+    if (maxTables !== undefined) {
+      tenant.maxTables = Math.max(1, Number(maxTables));
+    }
+
+    await tenant.save();
+
+    const [currentRooms, currentTables] = await Promise.all([
+      Room.countDocuments({ hotelId: tenant._id }),
+      DiningTable.countDocuments({ hotelId: tenant._id }),
+    ]);
+
+    const socketIO = getSocketIO();
+    if (socketIO) {
+      socketIO.to(`${tenant._id.toString()}_global`).emit('tenant:capacity_updated', {
+        tenantId: tenant._id,
+        maxRooms: tenant.maxRooms,
+        maxTables: tenant.maxTables,
+        currentRooms,
+        currentTables,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Capacity ceiling for ${tenant.name} updated: Max ${tenant.maxRooms} rooms, Max ${tenant.maxTables} tables`,
+      capacity: {
+        maxRooms: tenant.maxRooms,
+        maxTables: tenant.maxTables,
+        currentRooms,
+        currentTables,
       },
     });
   } catch (error: any) {
@@ -1675,6 +1766,85 @@ export const getSystemLogs = async (req: TenantRequest, res: Response): Promise<
     });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+export const updateTenantLocation = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const tenantIdStr = Array.isArray(req.params.tenantId) ? req.params.tenantId[0] : String(req.params.tenantId || '').trim();
+    if (!tenantIdStr || !Types.ObjectId.isValid(tenantIdStr)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_TENANT_ID', message: 'Valid tenantId is required' });
+      return;
+    }
+
+    const {
+      latitude,
+      longitude,
+      street,
+      city,
+      state,
+      country = 'India',
+      pincode,
+      googleMapUrl,
+      locationNotes,
+    } = req.body;
+
+    const tenant = await Tenant.findById(tenantIdStr);
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Hotel tenant not found' });
+      return;
+    }
+
+    const currentLat = tenant.coordinates?.latitude ?? (tenant as any).latitude ?? 26.9124;
+    const currentLng = tenant.coordinates?.longitude ?? (tenant as any).longitude ?? 75.7873;
+
+    const newLat = typeof latitude === 'number' ? latitude : (typeof req.body?.coordinates?.latitude === 'number' ? req.body.coordinates.latitude : currentLat);
+    const newLng = typeof longitude === 'number' ? longitude : (typeof req.body?.coordinates?.longitude === 'number' ? req.body.coordinates.longitude : currentLng);
+
+    tenant.coordinates = {
+      latitude: newLat,
+      longitude: newLng,
+    };
+    (tenant as any).latitude = newLat;
+    (tenant as any).longitude = newLng;
+
+    tenant.address = {
+      street: street !== undefined ? String(street).trim() : (tenant.address?.street || ''),
+      city: city !== undefined ? String(city).trim() : (tenant.address?.city || 'Jaipur'),
+      state: state !== undefined ? String(state).trim() : (tenant.address?.state || 'Rajasthan'),
+      country: country !== undefined ? String(country).trim() : (tenant.address?.country || 'India'),
+      pincode: pincode !== undefined ? String(pincode).trim() : (tenant.address?.pincode || ''),
+    };
+
+    if (googleMapUrl) {
+      tenant.googleMapUrl = String(googleMapUrl).trim();
+    } else {
+      tenant.googleMapUrl = `https://www.google.com/maps/search/?api=1&query=${newLat},${newLng}`;
+    }
+
+    if (locationNotes !== undefined) {
+      tenant.locationNotes = String(locationNotes).trim();
+    }
+
+    await tenant.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Real location and Google Maps coordinates updated successfully for ${tenant.name}`,
+      tenant: {
+        id: tenant._id,
+        name: tenant.name,
+        coordinates: tenant.coordinates,
+        latitude: newLat,
+        longitude: newLng,
+        address: tenant.address,
+        googleMapUrl: tenant.googleMapUrl,
+        locationNotes: tenant.locationNotes,
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ [updateTenantLocation] Error:', error);
+    res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: error.message });
   }
 };
 

@@ -68,9 +68,9 @@ export class StoreRequisitionHelper {
       case 'APPROVED_PARTIALLY':
         return {
           label: 'Partially Issued',
-          bg: 'bg-purple-950/60',
-          border: 'border-purple-500/40',
-          text: 'text-purple-400',
+          bg: 'bg-slate-100 dark:bg-slate-800',
+          border: 'border-slate-200 dark:border-slate-800',
+          text: 'text-slate-700 dark:text-slate-300',
         };
       case 'REJECTED':
         return {

@@ -216,7 +216,7 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-zinc-100 flex flex-col font-sans select-none">
+    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans select-none">
       {/* Header */}
       <InventoryPoHeader
         metrics={metrics}
@@ -279,7 +279,7 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
                 vendors.map((v) => (
                   <div
                     key={v._id}
-                    className="p-5 rounded-2xl bg-[#0f131a] border border-zinc-800 hover:border-zinc-700 shadow-md flex flex-col justify-between"
+                    className="p-5 rounded-2xl bg-slate-900 border border-zinc-800 hover:border-zinc-700 shadow-md flex flex-col justify-between"
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2 pb-2 border-b border-zinc-800/80">

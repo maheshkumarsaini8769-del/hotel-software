@@ -37,9 +37,9 @@ export class KotVoidHelper {
     switch (disposition) {
       case WasteDisposition.WASTED_SCRAPPED:
         return {
-          bg: 'bg-rose-500/10',
-          text: 'text-rose-400',
-          border: 'border-rose-500/30',
+          bg: 'bg-red-500/10',
+          text: 'text-red-400',
+          border: 'border-red-500/30',
           label: 'Food Wasted (Scrap Loss)',
         };
       case WasteDisposition.REUSABLE_RETURNED_TO_STORE:
@@ -98,8 +98,8 @@ export class KotVoidHelper {
       return { isValid: false, error: 'Manager PIN is required' };
     }
     const cleanPin = pin.trim();
-    if (!/^\d{4,6}$/.test(cleanPin)) {
-      return { isValid: false, error: 'Manager PIN must be 4 to 6 digits' };
+    if (!/^\d{4}$/.test(cleanPin)) {
+      return { isValid: false, error: 'Manager PIN must be exactly 4 numeric digits' };
     }
     return { isValid: true };
   }

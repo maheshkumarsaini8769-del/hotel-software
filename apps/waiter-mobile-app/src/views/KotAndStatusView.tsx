@@ -90,7 +90,7 @@ export const KotAndStatusView: React.FC<KotAndStatusViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-5 gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-500 flex items-center justify-center font-bold">
@@ -147,7 +147,7 @@ export const KotAndStatusView: React.FC<KotAndStatusViewProps> = ({
                       ? 'bg-emerald-950/20 border-emerald-500/50'
                       : 'bg-emerald-50/60 border-emerald-300'
                     : isDark
-                    ? 'bg-[#181c2b] border-slate-800'
+                    ? 'bg-slate-900 border-slate-800'
                     : 'bg-white border-slate-200'
                 }`}
               >
@@ -161,7 +161,7 @@ export const KotAndStatusView: React.FC<KotAndStatusViewProps> = ({
                         isReady
                           ? 'bg-emerald-500 text-white'
                           : isFired
-                          ? 'bg-rose-500/20 text-rose-400'
+                          ? 'bg-red-500/20 text-red-400'
                           : 'bg-amber-500/20 text-amber-400'
                       }`}>
                         {kot.status}

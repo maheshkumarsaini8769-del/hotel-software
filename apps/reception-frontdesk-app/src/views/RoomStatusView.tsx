@@ -176,19 +176,19 @@ export const RoomStatusView: React.FC<RoomStatusViewProps> = ({ isDark = true, o
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div
         className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
         }`}
       >
         <div>
           <h2
             className={`text-lg font-black tracking-tight flex items-center gap-2 ${
-              isDark ? 'text-white' : 'text-slate-900'
+              isDark ? 'text-white' : 'text-slate-800'
             }`}
           >
             <Sparkles className="w-5 h-5 text-amber-500" />
             <span>Room Status & Housekeeping Inspection Matrix</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             Live housekeeping board for this hotel. Actions create real tasks, inspections and
             maintenance tickets.
           </p>
@@ -202,13 +202,21 @@ export const RoomStatusView: React.FC<RoomStatusViewProps> = ({ isDark = true, o
               placeholder="Search room..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white focus:outline-none"
+              className={`pl-8 pr-3 py-1.5 rounded-xl border text-xs focus:outline-none transition ${
+                isDark
+                  ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500'
+                  : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
+              }`}
             />
           </div>
           <button
             onClick={() => void loadRooms()}
             disabled={loading}
-            className="p-2 rounded-xl border border-slate-700 bg-slate-900 text-slate-300 hover:text-white disabled:opacity-50"
+            className={`p-2 rounded-xl border transition disabled:opacity-50 ${
+              isDark
+                ? 'border-slate-700 bg-slate-900 text-slate-300 hover:text-white'
+                : 'border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900'
+            }`}
             title="Refresh housekeeping board"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -220,9 +228,9 @@ export const RoomStatusView: React.FC<RoomStatusViewProps> = ({ isDark = true, o
         {[
           { label: 'All', count: counts.All, color: 'bg-blue-600' },
           { label: 'Available', count: counts.Available, color: 'bg-emerald-600' },
-          { label: 'Occupied', count: counts.Occupied, color: 'bg-rose-600' },
+          { label: 'Occupied', count: counts.Occupied, color: 'bg-red-600' },
           { label: 'Cleaning', count: counts.Cleaning, color: 'bg-amber-600' },
-          { label: 'Inspected', count: counts.Inspected, color: 'bg-indigo-600' },
+          { label: 'Inspected', count: counts.Inspected, color: 'bg-slate-900 dark:bg-white text-white dark:text-slate-900' },
           { label: 'Maintenance', count: counts.Maintenance, color: 'bg-slate-600' },
         ].map((t) => (
           <button
@@ -232,7 +240,7 @@ export const RoomStatusView: React.FC<RoomStatusViewProps> = ({ isDark = true, o
               filter === t.label
                 ? `${t.color} text-white shadow-md`
                 : isDark
-                  ? 'bg-[#141620] border border-slate-800 text-slate-400 hover:text-white'
+                  ? 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -243,7 +251,7 @@ export const RoomStatusView: React.FC<RoomStatusViewProps> = ({ isDark = true, o
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
           <span className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
             {error}
@@ -262,7 +270,7 @@ export const RoomStatusView: React.FC<RoomStatusViewProps> = ({ isDark = true, o
       ) : filtered.length === 0 ? (
         <div
           className={`rounded-2xl border px-6 py-14 text-center ${
-            isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
           }`}
         >
           <Bed className="w-9 h-9 text-slate-500 mx-auto mb-3" />
@@ -275,49 +283,69 @@ export const RoomStatusView: React.FC<RoomStatusViewProps> = ({ isDark = true, o
           {filtered.map((r) => {
             const badgeClass =
               r.status === 'Available'
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                ? isDark
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
                 : r.status === 'Occupied'
-                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                  ? isDark
+                    ? 'bg-red-500/20 text-red-300 border-red-500/30'
+                    : 'bg-red-50 text-red-800 border-red-200'
                   : r.status === 'Cleaning'
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                    ? isDark
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
                     : r.status === 'Inspected'
-                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
-                      : 'bg-slate-500/20 text-slate-300 border-slate-500/30';
+                      ? isDark
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                        : 'bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                      : isDark
+                        ? 'bg-slate-500/20 text-slate-300 border-slate-500/30'
+                        : 'bg-slate-100 text-slate-700 border-slate-200';
 
             return (
               <div
                 key={r.roomId}
                 className={`p-3.5 rounded-2xl border flex flex-col justify-between gap-2.5 transition ${
-                  isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="font-black text-base text-white">Room {r.number}</span>
+                    <span className={`font-black text-base ${isDark ? 'text-white' : 'text-slate-800'}`}>Room {r.number}</span>
                     <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md border ${badgeClass}`}>
                       {r.status}
                     </span>
                   </div>
-                  <div className="text-[10px] text-slate-400 mt-1">
+                  <div className={`text-[10px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     {r.floor} • {r.type}
                   </div>
                   {r.guestName && (
-                    <div className="text-[10px] text-rose-300 font-semibold mt-1 truncate">
+                    <div className={`text-[10px] font-semibold mt-1 truncate ${
+                      isDark ? 'text-red-300' : 'text-red-700'
+                    }`}>
                       👤 {r.guestName}
                     </div>
                   )}
                   {r.housekeeper && (
-                    <div className="text-[10px] text-amber-300 font-medium mt-0.5 truncate">
+                    <div className={`text-[10px] font-medium mt-0.5 truncate ${
+                      isDark ? 'text-amber-300' : 'text-amber-700'
+                    }`}>
                       🧹 {r.housekeeper}
                     </div>
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-1 pt-1 border-t border-slate-800/80">
+                <div className={`grid grid-cols-2 gap-1 pt-1 border-t ${
+                  isDark ? 'border-slate-800/80' : 'border-slate-100'
+                }`}>
                   <button
                     onClick={() => void runAction(r, 'inspect')}
                     disabled={busyRoom === r.number}
-                    className="py-1 rounded-md bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-[9px] font-bold text-indigo-200 hover:text-white transition disabled:opacity-50"
+                    className={`py-1 rounded-md text-[9px] font-bold border transition disabled:opacity-50 ${
+                      isDark
+                        ? 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-white'
+                        : 'bg-slate-800 hover:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
                     title="Approve housekeeping inspection"
                   >
                     Inspect
@@ -325,7 +353,11 @@ export const RoomStatusView: React.FC<RoomStatusViewProps> = ({ isDark = true, o
                   <button
                     onClick={() => void runAction(r, 'clean')}
                     disabled={busyRoom === r.number}
-                    className="py-1 rounded-md bg-amber-600/30 hover:bg-amber-600 border border-amber-500/40 text-[9px] font-bold text-amber-200 hover:text-white transition disabled:opacity-50"
+                    className={`py-1 rounded-md text-[9px] font-bold border transition disabled:opacity-50 ${
+                      isDark
+                        ? 'bg-amber-600/30 hover:bg-amber-600 border-amber-500/40 text-amber-200 hover:text-white'
+                        : 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800'
+                    }`}
                     title="Create a checkout cleaning task"
                   >
                     Cleaning
@@ -333,7 +365,11 @@ export const RoomStatusView: React.FC<RoomStatusViewProps> = ({ isDark = true, o
                   <button
                     onClick={() => void runAction(r, 'available')}
                     disabled={busyRoom === r.number}
-                    className="py-1 rounded-md bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 text-[9px] font-bold text-emerald-200 hover:text-white transition disabled:opacity-50"
+                    className={`py-1 rounded-md text-[9px] font-bold border transition disabled:opacity-50 ${
+                      isDark
+                        ? 'bg-emerald-600/30 hover:bg-emerald-600 border-emerald-500/40 text-emerald-200 hover:text-white'
+                        : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800'
+                    }`}
                     title="Approve and release room to available"
                   >
                     Available
@@ -341,7 +377,11 @@ export const RoomStatusView: React.FC<RoomStatusViewProps> = ({ isDark = true, o
                   <button
                     onClick={() => void runAction(r, 'maintenance')}
                     disabled={busyRoom === r.number}
-                    className="py-1 rounded-md bg-slate-700/60 hover:bg-slate-600 border border-slate-600 text-[9px] font-bold text-slate-300 hover:text-white transition disabled:opacity-50"
+                    className={`py-1 rounded-md text-[9px] font-bold border transition disabled:opacity-50 ${
+                      isDark
+                        ? 'bg-slate-700/60 hover:bg-slate-600 border-slate-600 text-slate-300 hover:text-white'
+                        : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                    }`}
                     title="Create a maintenance ticket"
                   >
                     Maint.

@@ -47,9 +47,9 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-[#0f131a] border-2 border-red-500/40 rounded-3xl w-full max-w-2xl flex flex-col overflow-hidden shadow-[0_0_50px_rgba(239,68,68,0.2)] animate-in fade-in zoom-in-95">
+      <div className="bg-slate-900 border-2 border-red-500/40 rounded-3xl w-full max-w-2xl flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
         {/* Header */}
-        <div className="bg-[#161316] px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <div className="bg-slate-950 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-xl">🗑️</span>
             <div>
@@ -173,7 +173,7 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
             <span className="text-xs uppercase font-bold text-red-300 font-sans">
               Monetary Loss to Kitchen:
             </span>
-            <span className="text-xl font-black text-rose-400">
+            <span className="text-xl font-black text-red-400">
               {RecipeCostingHelper.formatCurrency(totalLoss)}
             </span>
           </div>
@@ -235,7 +235,7 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
             <button
               type="submit"
               disabled={loading || !itemName || !reason}
-              className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+              className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
             >
               {loading ? 'Logging Entry...' : 'Audit Spoilage Entry'}
             </button>

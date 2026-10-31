@@ -55,9 +55,9 @@ export class InventoryPoHelper {
       case 'PARTIALLY_RECEIVED':
         return {
           label: 'Partially Received',
-          bg: 'bg-purple-950/60',
-          border: 'border-purple-500/40',
-          text: 'text-purple-400',
+          bg: 'bg-slate-100 dark:bg-slate-800',
+          border: 'border-slate-200 dark:border-slate-800',
+          text: 'text-slate-700 dark:text-slate-300',
         };
       case 'COMPLETED':
         return {
@@ -100,9 +100,9 @@ export class InventoryPoHelper {
       case 'FLAGGED_DISCREPANCY':
         return {
           label: 'Discrepancy / Partial Rejection',
-          bg: 'bg-rose-950/60',
-          border: 'border-rose-500/40',
-          text: 'text-rose-400',
+          bg: 'bg-red-950/60',
+          border: 'border-red-500/40',
+          text: 'text-red-400',
         };
       case 'REJECTED':
         return {

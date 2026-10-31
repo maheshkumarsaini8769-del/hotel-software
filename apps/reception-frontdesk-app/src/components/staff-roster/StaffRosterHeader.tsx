@@ -23,16 +23,16 @@ export const StaffRosterHeader: React.FC<StaffRosterHeaderProps> = ({
   loading,
 }) => {
   return (
-    <div className="bg-[#0b0e14] border-b border-cyan-500/20 px-6 py-6 text-zinc-100 shadow-xl">
+    <div className="bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-6 py-6 text-zinc-100 shadow-xl">
       {/* Title & Actions */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <span className="h-3 w-3 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_12px_rgba(6,182,212,0.8)]" />
+            <span className="h-3 w-3 rounded-full bg-slate-800 animate-pulse shadow-sm dark:shadow-none" />
             <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
               Staff Shift Rostering, Attendance & Tip Pool Engine
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
               Shift 29 • Workforce & Tips
             </span>
           </div>
@@ -54,7 +54,7 @@ export const StaffRosterHeader: React.FC<StaffRosterHeaderProps> = ({
           <button
             type="button"
             onClick={onOpenClockTerminal}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-cyan-900/30 transition-all flex items-center gap-2"
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-sm transition-all flex items-center gap-2"
           >
             <span>⏰</span> PIN Clock Terminal
           </button>
@@ -93,11 +93,11 @@ export const StaffRosterHeader: React.FC<StaffRosterHeaderProps> = ({
           </div>
         </div>
 
-        <div className="bg-zinc-900/80 border border-rose-500/30 p-4 rounded-2xl flex flex-col justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-rose-400">Late Arrivals</span>
+        <div className="bg-zinc-900/80 border border-red-500/30 p-4 rounded-2xl flex flex-col justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-red-400">Late Arrivals</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-black text-rose-400">{metrics.lateArrivalsCount}</span>
-            <span className="text-[10px] text-rose-500/80">&gt; 10 min grace</span>
+            <span className="text-2xl font-black text-red-400">{metrics.lateArrivalsCount}</span>
+            <span className="text-[10px] text-red-500/80">&gt; 10 min grace</span>
           </div>
         </div>
 
@@ -127,7 +127,7 @@ export const StaffRosterHeader: React.FC<StaffRosterHeaderProps> = ({
           onClick={() => onTabChange('ROSTER')}
           className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
             activeTab === 'ROSTER'
-              ? 'border-cyan-400 text-cyan-400 bg-cyan-500/10'
+              ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
               : 'border-transparent text-zinc-400 hover:text-zinc-200'
           }`}
         >

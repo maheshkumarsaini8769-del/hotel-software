@@ -4,6 +4,7 @@ import { MenuCategory } from '../models/MenuCategory';
 import { MenuItem, FoodType } from '../models/MenuItem';
 import { KitchenStation } from '../models/KitchenStation';
 import { io } from '../index';
+import { invalidateMenuCache } from './posController';
 
 export interface CategoryDTO {
   id: string;
@@ -253,13 +254,33 @@ export const getCategories = async (req: Request, res: Response): Promise<void> 
             imageUrl: c.imageUrl,
             createdAt: c.createdAt ? c.createdAt.toISOString() : undefined,
           }));
+        } else if (hotelId) {
+          const toInsert = DEFAULT_CATEGORIES.map((dc) => ({
+            hotelId,
+            name: dc.name,
+            slug: `${dc.slug}-${hotelId.toString().slice(-4)}`,
+            displayOrder: dc.displayOrder,
+            isActive: true,
+            imageUrl: dc.imageUrl || '',
+          }));
+          const inserted = await MenuCategory.insertMany(toInsert);
+          dbCategories = inserted.map((c: any) => ({
+            id: c._id.toString(),
+            name: c.name,
+            slug: c.slug,
+            displayOrder: c.displayOrder || 0,
+            itemCount: 0,
+            isActive: c.isActive,
+            imageUrl: c.imageUrl,
+            createdAt: c.createdAt ? c.createdAt.toISOString() : undefined,
+          }));
         }
       } catch (err) {
         console.warn('DB categories fetch error, using in-memory store:', err);
       }
     }
 
-    const finalCats = hotelId ? dbCategories : DEFAULT_CATEGORIES;
+    const finalCats = (hotelId && dbCategories.length > 0) ? dbCategories : DEFAULT_CATEGORIES;
 
     res.status(200).json({
       success: true,
@@ -315,6 +336,7 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
     };
 
     try {
+      invalidateMenuCache();
       if (io) {
         io.emit('menu:category_created', newCategoryDTO);
         io.emit('menu:catalog_updated', { type: 'CATEGORY_CREATED', category: newCategoryDTO });
@@ -371,6 +393,7 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
     };
 
     try {
+      invalidateMenuCache();
       if (io) {
         io.emit('menu:category_updated', updatedCat);
         io.emit('menu:catalog_updated', { type: 'CATEGORY_UPDATED', category: updatedCat });
@@ -411,6 +434,7 @@ export const deleteCategory = async (req: Request, res: Response): Promise<void>
     await MenuItem.deleteMany({ hotelId, categoryId: category._id });
 
     try {
+      invalidateMenuCache();
       if (io) {
         io.emit('menu:category_deleted', { id, name: category.name });
         io.emit('menu:catalog_updated', { type: 'CATEGORY_DELETED', categoryId: id });
@@ -469,13 +493,68 @@ export const getMenuItems = async (req: Request, res: Response): Promise<void> =
               createdAt: m.createdAt ? m.createdAt.toISOString() : undefined,
             };
           });
+        } else if (hotelId) {
+          const cats = await MenuCategory.find({ hotelId });
+          if (cats.length > 0) {
+            const catMap = new Map<string, Types.ObjectId>();
+            cats.forEach(c => catMap.set(c.name.toLowerCase(), c._id));
+
+            let station = await KitchenStation.findOne({ hotelId });
+            if (!station) {
+              station = await KitchenStation.create({
+                hotelId,
+                stationName: 'Main Kitchen',
+                screenToken: `station_${hotelId.toString()}_${Date.now()}`,
+              });
+            }
+
+            const itemsToInsert = DEFAULT_ITEMS.map((di) => {
+              const catId = catMap.get(di.category.toLowerCase()) || cats[0]._id;
+              return {
+                hotelId,
+                categoryId: catId,
+                kitchenStationId: station._id,
+                name: di.name,
+                description: di.description || '',
+                foodType: di.foodType === 'NON_VEG' ? FoodType.NON_VEG : FoodType.VEG,
+                basePrice: di.basePrice || di.price || 150,
+                hasVariants: false,
+                variants: [],
+                addons: [],
+                isAvailable: di.isAvailable !== false,
+                prepTimeMinutes: di.prepTimeMinutes || 12,
+                images: di.images || [],
+              };
+            });
+            const createdItems = await MenuItem.insertMany(itemsToInsert);
+            dbItems = createdItems.map((m: any) => {
+              const catObj = cats.find(c => c._id.equals(m.categoryId));
+              return {
+                id: m._id.toString(),
+                name: m.name,
+                categoryId: m.categoryId.toString(),
+                category: catObj?.name || 'Main Course',
+                kitchenStationId: m.kitchenStationId?.toString(),
+                foodType: m.foodType || 'VEG',
+                price: m.basePrice,
+                basePrice: m.basePrice,
+                isAvailable: m.isAvailable !== false,
+                description: m.description || '',
+                prepTimeMinutes: m.prepTimeMinutes || 12,
+                images: m.images && m.images.length > 0 ? m.images : [
+                  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80'
+                ],
+                createdAt: m.createdAt ? m.createdAt.toISOString() : undefined,
+              };
+            });
+          }
         }
       } catch (err) {
         console.warn('DB menu items fetch error:', err);
       }
     }
 
-    let results = hotelId ? dbItems : DEFAULT_ITEMS;
+    let results = (hotelId && dbItems.length > 0) ? dbItems : DEFAULT_ITEMS;
 
     if (categoryId && categoryId !== 'ALL' && categoryId !== 'All') {
       results = results.filter(i => i.categoryId === categoryId || i.category.toLowerCase() === String(categoryId).toLowerCase());
@@ -601,6 +680,7 @@ export const createMenuItem = async (req: Request, res: Response): Promise<void>
     };
 
     try {
+      invalidateMenuCache();
       if (io) {
         io.emit('menu:item_created', newItemDTO);
         io.emit('menu:catalog_updated', { type: 'ITEM_CREATED', item: newItemDTO });
@@ -674,9 +754,15 @@ export const updateMenuItem = async (req: Request, res: Response): Promise<void>
     };
 
     try {
+      invalidateMenuCache();
       if (io) {
         io.emit('menu:item_updated', updatedItem);
-        io.emit('menu:catalog_updated', { type: 'ITEM_UPDATED', item: updatedItem });
+        io.emit('menu:catalog_updated', { type: 'ITEM_UPDATED', item: updatedItem, hotelId: hotelId.toString() });
+        io.to(`${hotelId.toString()}_customers`)
+          .to(`${hotelId.toString()}_kds`)
+          .to(`${hotelId.toString()}_waiters`)
+          .to(`${hotelId.toString()}_admin`)
+          .emit('menu:catalog_updated', { type: 'ITEM_UPDATED', item: updatedItem });
       }
     } catch (_) {}
 
@@ -708,6 +794,7 @@ export const deleteMenuItem = async (req: Request, res: Response): Promise<void>
     }
 
     try {
+      invalidateMenuCache();
       if (io) {
         io.emit('menu:item_deleted', { id, name: item.name });
         io.emit('menu:catalog_updated', { type: 'ITEM_DELETED', itemId: id });
@@ -745,9 +832,16 @@ export const toggleItem86 = async (req: Request, res: Response): Promise<void> =
     await item.save();
 
     try {
+      invalidateMenuCache();
       if (io) {
-        io.emit('menu:item_86_toggled', { itemId: id, isAvailable: item.isAvailable, name: item.name });
-        io.emit('menu:catalog_updated', { type: 'ITEM_86_TOGGLED', itemId: id, isAvailable: item.isAvailable });
+        const payload = { itemId: id, isAvailable: item.isAvailable, name: item.name, hotelId: hotelId.toString() };
+        io.emit('menu:item_86_toggled', payload);
+        io.emit('menu:catalog_updated', { type: 'ITEM_86_TOGGLED', itemId: id, isAvailable: item.isAvailable, hotelId: hotelId.toString() });
+        io.to(`${hotelId.toString()}_customers`)
+          .to(`${hotelId.toString()}_kds`)
+          .to(`${hotelId.toString()}_waiters`)
+          .to(`${hotelId.toString()}_admin`)
+          .emit('menu:item_86_toggled', payload);
       }
     } catch (_) {}
 

@@ -447,6 +447,8 @@ export const updateRestaurantInfo = async (req: Request, res: Response) => {
           logoUrl: updatedTenant.logoUrl,
           coverImageUrl: updatedTenant.coverImageUrl,
           tagline: updatedTenant.tagline,
+          wifiSsid: (updatedTenant as any).wifiSsid,
+          wifiPassword: (updatedTenant as any).wifiPassword,
           photos: updatedTenant.photos,
         });
       }

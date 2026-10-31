@@ -85,7 +85,7 @@ export const GuestConciergeGrid: React.FC<GuestConciergeGridProps> = ({
             key={service.id}
             data-testid={`concierge-card-${service.requestType}`}
             onClick={() => handleOpenPrompt(service)}
-            className="p-5 rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 hover:border-amber-500/50 hover:shadow-xl hover:shadow-amber-950/20 transition cursor-pointer select-none active:scale-[0.98] group flex flex-col justify-between h-44"
+            className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition cursor-pointer select-none active:scale-[0.98] group flex flex-col justify-between h-44 shadow-xs"
           >
             <div>
               <div className="flex items-center justify-between">
@@ -160,7 +160,7 @@ export const GuestConciergeGrid: React.FC<GuestConciergeGridProps> = ({
                     <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
                       <span>{new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       {req.assignedStaffName && (
-                        <span className="text-purple-300 font-semibold">• Attendant: {req.assignedStaffName}</span>
+                        <span className="text-slate-700 dark:text-slate-300 font-semibold">• Attendant: {req.assignedStaffName}</span>
                       )}
                       {req.notes && <span className="text-slate-500 italic">• "{req.notes}"</span>}
                     </div>
@@ -174,7 +174,7 @@ export const GuestConciergeGrid: React.FC<GuestConciergeGridProps> = ({
                       : req.status === 'IN_PROGRESS'
                       ? 'bg-blue-500/20 text-blue-300 border-blue-500/30 animate-pulse'
                       : req.status === 'ASSIGNED'
-                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                       : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                   }`}
                 >
@@ -195,7 +195,7 @@ export const GuestConciergeGrid: React.FC<GuestConciergeGridProps> = ({
       {/* Request Confirmation Modal */}
       {selectedService && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 text-white space-y-4">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-sm dark:shadow-none p-6 text-white space-y-4">
             <div className="flex items-center space-x-3">
               <span className="text-3xl">{selectedService.icon}</span>
               <div>
@@ -245,7 +245,7 @@ export const GuestConciergeGrid: React.FC<GuestConciergeGridProps> = ({
                     data-testid="confirm-concierge-request-btn"
                     onClick={handleConfirmSubmit}
                     disabled={isSubmitting}
-                    className="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-amber-950/40 transition active:scale-95 disabled:opacity-50"
+                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition active:scale-95 disabled:opacity-50"
                   >
                     {isSubmitting
                       ? 'Sending...'

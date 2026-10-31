@@ -88,9 +88,9 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-[#121721] border border-amber-500/30 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden text-xs text-zinc-300">
+      <div className="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden text-xs text-zinc-300">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-[#0b0e14]">
+        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-slate-950">
           <div className="flex items-center gap-3">
             <span className="h-3 w-3 rounded-full bg-amber-400" />
             <h2 className="text-xl font-bold text-white">Book Banquet Hall & Event</h2>
@@ -119,7 +119,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   placeholder="e.g. Singhania Royal Wedding"
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-medium"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-medium"
                 />
               </div>
 
@@ -128,7 +128,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                 <select
                   value={eventType}
                   onChange={(e) => setEventType(e.target.value as BanquetEventType)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 >
                   <option value={BanquetEventType.WEDDING_RECEPTION}>💍 Wedding & Reception</option>
                   <option value={BanquetEventType.CORPORATE_CONFERENCE}>💼 Corporate Conference</option>
@@ -144,7 +144,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                 <select
                   value={venueName}
                   onChange={(e) => setVenueName(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-semibold"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-semibold"
                 >
                   <option value="Royal Kohinoor Ballroom">Royal Kohinoor Ballroom (Capacity: 500 Pax)</option>
                   <option value="Crystal Lawn & Poolside">Crystal Lawn & Poolside (Capacity: 800 Pax)</option>
@@ -160,7 +160,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   required
                   value={eventDate}
                   onChange={(e) => setEventDate(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -169,7 +169,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                 <select
                   value={timeSlot}
                   onChange={(e) => setTimeSlot(e.target.value as BanquetTimeSlot)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 >
                   <option value={BanquetTimeSlot.MORNING}>Morning (09:00 AM – 03:00 PM)</option>
                   <option value={BanquetTimeSlot.EVENING}>Evening (06:00 PM – 12:00 AM)</option>
@@ -182,7 +182,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                 <select
                   value={seatingLayout}
                   onChange={(e) => setSeatingLayout(e.target.value as SeatingLayoutType)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 >
                   <option value={SeatingLayoutType.ROUND_TABLE_CLUSTERS}>Round Table Clusters</option>
                   <option value={SeatingLayoutType.THEATER}>Theater Style (Auditorium)</option>
@@ -205,7 +205,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                 <select
                   value={pricingType}
                   onChange={(e) => setPricingType(e.target.value as any)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 >
                   <option value="PER_PLATE">Per-Plate Catering + Hall</option>
                   <option value="HALL_RENT_ONLY">Venue Hall Rent Only</option>
@@ -221,7 +221,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   required
                   value={guaranteedPax}
                   onChange={(e) => setGuaranteedPax(Number(e.target.value))}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
                 />
               </div>
 
@@ -232,7 +232,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   min="10"
                   value={expectedPax}
                   onChange={(e) => setExpectedPax(Number(e.target.value))}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
                 />
               </div>
 
@@ -244,7 +244,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   disabled={pricingType === 'HALL_RENT_ONLY'}
                   value={perPlateRate}
                   onChange={(e) => setPerPlateRate(Number(e.target.value))}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono disabled:opacity-30"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono disabled:opacity-30"
                 />
               </div>
 
@@ -255,7 +255,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   min="0"
                   value={hallRentAmount}
                   onChange={(e) => setHallRentAmount(Number(e.target.value))}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
                 />
               </div>
 
@@ -266,7 +266,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   min="0"
                   value={decorAndAudioVisualAmount}
                   onChange={(e) => setDecorAndAudioVisualAmount(Number(e.target.value))}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
                 />
               </div>
 
@@ -277,7 +277,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   min="0"
                   value={advanceDepositPaid}
                   onChange={(e) => setAdvanceDepositPaid(Number(e.target.value))}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
                 />
               </div>
             </div>
@@ -297,7 +297,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   placeholder="e.g. Vikramaditya Kapoor"
                   value={organizerName}
                   onChange={(e) => setOrganizerName(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -309,7 +309,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   placeholder="e.g. 9819922334"
                   value={organizerPhone}
                   onChange={(e) => setOrganizerPhone(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
                 />
               </div>
 
@@ -320,7 +320,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   placeholder="vikram@kapoor.example.com"
                   value={organizerEmail}
                   onChange={(e) => setOrganizerEmail(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -331,7 +331,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   placeholder="e.g. Reliance Retail Ltd"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -342,7 +342,7 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   placeholder="e.g. 27AAACR1234F1Z9"
                   value={companyGst}
                   onChange={(e) => setCompanyGst(e.target.value.toUpperCase())}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -353,14 +353,14 @@ export const NewBanquetBookingModal: React.FC<NewBanquetBookingModalProps> = ({
                   placeholder="e.g. Nariman Point, Mumbai"
                   value={billingAddress}
                   onChange={(e) => setBillingAddress(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
             </div>
           </div>
 
           {/* Section 4: Live Estimated Financials */}
-          <div className="bg-[#0b0e14] p-4 rounded-xl border border-amber-500/20 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-slate-950 p-4 rounded-xl border border-amber-500/20 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <div className="text-zinc-500 text-[11px] uppercase font-bold">Catering Subtotal</div>
               <div className="text-base font-bold text-zinc-200 mt-0.5 font-mono">

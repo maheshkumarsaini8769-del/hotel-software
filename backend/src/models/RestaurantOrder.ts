@@ -186,6 +186,8 @@ const RestaurantOrderSchema = new Schema<IRestaurantOrder>(
 // Compound index to guarantee idempotency per hotel tenant
 RestaurantOrderSchema.index({ hotelId: 1, idempotencyKey: 1 }, { unique: true });
 RestaurantOrderSchema.index({ hotelId: 1, orderNumber: 1 }, { unique: true });
+RestaurantOrderSchema.index({ hotelId: 1, createdAt: -1 });
+RestaurantOrderSchema.index({ hotelId: 1, orderStatus: 1, placedAt: 1 });
 // Guarantees a token number can never be handed out twice on the same day for the
 // same hotel, even when multiple cashier terminals punch orders concurrently.
 RestaurantOrderSchema.index(

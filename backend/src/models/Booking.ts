@@ -32,7 +32,16 @@ export interface IBooking extends Document {
   idProofType?: string;
   idProofNumber?: string;
   idProofDocumentUrl?: string;
-  bookingLocation?: 'HOTEL_RADIUS' | 'REMOTE_HOME';
+  aadhaarFrontUrl?: string;
+  aadhaarBackUrl?: string;
+  nights?: number;
+  estimatedArrivalTime?: string;
+  guestPhoneVerified?: boolean;
+  secondaryGuestName?: string;
+  secondaryGuestPhone?: string;
+  secondaryGuestRelationship?: string;
+  distanceFromHotelKm?: number;
+  bookingLocation?: 'HOTEL_RADIUS' | 'IN_HOTEL' | 'REMOTE_HOME';
   receptionApprovedAt?: Date;
   receptionApprovedBy?: string;
   checkInDate: Date;
@@ -49,6 +58,11 @@ export interface IBooking extends Document {
   advancePaymentAmount: number;
   paymentStatus: 'UNPAID' | 'PARTIAL' | 'PAID';
   bookingStatus: BookingStatus;
+  dpdpConsent?: {
+    accepted: boolean;
+    timestamp: Date;
+    ipAddress?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -68,7 +82,16 @@ const BookingSchema = new Schema<IBooking>(
     idProofType: { type: String },
     idProofNumber: { type: String },
     idProofDocumentUrl: { type: String },
-    bookingLocation: { type: String, enum: ['HOTEL_RADIUS', 'REMOTE_HOME'], default: 'HOTEL_RADIUS' },
+    aadhaarFrontUrl: { type: String },
+    aadhaarBackUrl: { type: String },
+    nights: { type: Number, default: 1, min: 1 },
+    estimatedArrivalTime: { type: String },
+    guestPhoneVerified: { type: Boolean, default: false },
+    secondaryGuestName: { type: String, trim: true },
+    secondaryGuestPhone: { type: String, trim: true },
+    secondaryGuestRelationship: { type: String, trim: true },
+    distanceFromHotelKm: { type: Number },
+    bookingLocation: { type: String, enum: ['HOTEL_RADIUS', 'IN_HOTEL', 'REMOTE_HOME'], default: 'HOTEL_RADIUS' },
     receptionApprovedAt: { type: Date },
     receptionApprovedBy: { type: String },
     checkInDate: { type: Date, required: true, index: true },
@@ -97,6 +120,11 @@ const BookingSchema = new Schema<IBooking>(
       enum: Object.values(BookingStatus),
       default: BookingStatus.CONFIRMED,
       index: true,
+    },
+    dpdpConsent: {
+      accepted: { type: Boolean, default: false },
+      timestamp: { type: Date },
+      ipAddress: { type: String, trim: true },
     },
   },
   { timestamps: true }

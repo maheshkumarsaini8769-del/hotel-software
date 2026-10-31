@@ -47,7 +47,7 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
   const isUnderpaid = paymentMethod === 'CASH' && tenderAmount < financials.grandTotal && tenderAmount > 0;
 
   return (
-    <div className="bg-[#0f131a] rounded-2xl border border-zinc-800 p-5 flex flex-col justify-between shadow-2xl h-full">
+    <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 flex flex-col justify-between shadow-sm dark:shadow-none h-full">
       {/* Header */}
       <div>
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
@@ -173,7 +173,7 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
               onClick={() => onSetPaymentMethod(method)}
               className={`py-2 rounded-xl text-xs font-bold transition-all border ${
                 paymentMethod === method
-                  ? 'bg-amber-500 text-black border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.3)]'
+                  ? 'bg-amber-500 text-black border-amber-400 shadow-sm dark:shadow-none'
                   : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
               }`}
             >
@@ -233,7 +233,7 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
             className={`p-3 rounded-xl border flex items-center justify-between font-mono ${
               isUnderpaid
                 ? 'bg-red-950/40 border-red-500/50 text-red-300'
-                : 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 shadow-[0_0_15px_rgba(52,211,153,0.15)]'
+                : 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 shadow-sm dark:shadow-none'
             }`}
           >
             <span className="text-xs uppercase font-bold tracking-wider font-sans">
@@ -252,7 +252,7 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
           type="button"
           onClick={onSubmitOrder}
           disabled={cart.length === 0 || loading || (paymentMethod === 'CASH' && tenderAmount < financials.grandTotal)}
-          className="w-full py-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 disabled:from-zinc-800 disabled:to-zinc-800 text-black disabled:text-zinc-600 font-black text-base uppercase tracking-wider transition-all shadow-[0_0_25px_rgba(245,158,11,0.35)] disabled:shadow-none flex items-center justify-center gap-2 active:scale-[0.98]"
+          className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-800 text-white disabled:text-zinc-600 font-bold text-base uppercase tracking-wider transition-all shadow-sm disabled:shadow-none flex items-center justify-center gap-2 active:scale-[0.98]"
         >
           {loading ? (
             <span>Punching Order...</span>

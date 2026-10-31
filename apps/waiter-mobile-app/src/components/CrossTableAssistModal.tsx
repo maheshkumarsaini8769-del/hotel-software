@@ -151,12 +151,12 @@ export const CrossTableAssistModal: React.FC<CrossTableAssistModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className={`max-w-lg w-full rounded-3xl border shadow-2xl overflow-hidden flex flex-col transition-all ${
-        isDark ? 'bg-[#121522] border-slate-700/80 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+      <div className={`max-w-lg w-full rounded-3xl border shadow-sm dark:shadow-none overflow-hidden flex flex-col transition-all ${
+        isDark ? 'bg-slate-900 border-slate-700/80 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
       }`}>
         {/* Modal Header */}
         <div className={`p-4 border-b flex items-center justify-between ${
-          isDark ? 'border-slate-800 bg-[#161a2b]' : 'border-slate-200 bg-slate-50'
+          isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-slate-50'
         }`}>
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-orange-500/20 text-orange-500 flex items-center justify-center font-bold">
@@ -213,7 +213,7 @@ export const CrossTableAssistModal: React.FC<CrossTableAssistModalProps> = ({
               value={selectedTableNumber}
               onChange={(e) => setSelectedTableNumber(Number(e.target.value))}
               className={`w-full p-2.5 rounded-xl border text-xs font-bold focus:outline-none transition ${
-                isDark ? 'bg-[#181c2e] border-slate-700 text-slate-100' : 'bg-slate-100 border-slate-300 text-slate-900'
+                isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-slate-100 border-slate-300 text-slate-900'
               }`}
             >
               {tablesList.map((t) => {
@@ -256,7 +256,7 @@ export const CrossTableAssistModal: React.FC<CrossTableAssistModalProps> = ({
 
           {/* Action Choice 1: Take Order Directly in Person */}
           <div className={`p-3.5 rounded-2xl border space-y-2.5 transition ${
-            isDark ? 'bg-[#181c2e] border-slate-700/70 hover:border-blue-500/60' : 'bg-blue-50/70 border-blue-200'
+            isDark ? 'bg-slate-900 border-slate-700/70 hover:border-blue-500/60' : 'bg-blue-50/70 border-blue-200'
           }`}>
             <div className="flex items-center justify-between">
               <div className={`flex items-center gap-2 font-black text-xs ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
@@ -274,7 +274,7 @@ export const CrossTableAssistModal: React.FC<CrossTableAssistModalProps> = ({
             </p>
             <button
               onClick={handleTakeOrder}
-              className="w-full py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-950/40 transition"
+              className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition"
             >
               <UtensilsCrossed className="w-3.5 h-3.5" />
               <span>Punch Order for Table {selectedTableNumber} Now</span>
@@ -285,7 +285,7 @@ export const CrossTableAssistModal: React.FC<CrossTableAssistModalProps> = ({
           {/* Action Choice 2: Page Assigned Waiter */}
           {!isMyTable && (
             <div className={`p-3.5 rounded-2xl border space-y-2.5 transition ${
-              isDark ? 'bg-[#181c2e] border-slate-700/70 hover:border-amber-500/60' : 'bg-amber-50/70 border-amber-200'
+              isDark ? 'bg-slate-900 border-slate-700/70 hover:border-amber-500/60' : 'bg-amber-50/70 border-amber-200'
             }`}>
               <div className="flex items-center justify-between">
                 <div className={`flex items-center gap-2 font-black text-xs ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
@@ -329,7 +329,7 @@ export const CrossTableAssistModal: React.FC<CrossTableAssistModalProps> = ({
 
               <button
                 onClick={handlePageWaiter}
-                className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-orange-950/40 transition"
+                className="w-full py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition"
               >
                 <PhoneCall className="w-3.5 h-3.5" />
                 <span>Page {assignedCaptain.name}: "Guest Calling for {selectedQuickReason}"</span>
@@ -337,14 +337,14 @@ export const CrossTableAssistModal: React.FC<CrossTableAssistModalProps> = ({
             </div>
           )}
 
-          {/* Action Choice 3: Emergency / Courtesy Bill & Payment (बिल दें / पेमेंट लें) */}
+          {/* Action Choice 3: Emergency / Courtesy Bill & Payment */}
           <div className={`p-3.5 rounded-2xl border space-y-2.5 transition ${
-            isDark ? 'bg-[#181c2e] border-slate-700/70 hover:border-emerald-500/60' : 'bg-emerald-50/70 border-emerald-200'
+            isDark ? 'bg-slate-900 border-slate-700/70 hover:border-emerald-500/60' : 'bg-emerald-50/70 border-emerald-200'
           }`}>
             <div className="flex items-center justify-between">
               <div className={`flex items-center gap-2 font-black text-xs ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                 <CreditCard className="w-4 h-4 text-emerald-500" />
-                <span>OPTION 3: Settle Bill & Collect Payment (बिल दें / पेमेंट लें)</span>
+                <span>OPTION 3: Settle Bill & Collect Payment</span>
               </div>
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-black ${
                 isDark ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
@@ -377,7 +377,7 @@ export const CrossTableAssistModal: React.FC<CrossTableAssistModalProps> = ({
               <button
                 type="button"
                 onClick={handlePayUpi}
-                className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-950/40 transition active:scale-95"
+                className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-95"
               >
                 <QrCode className="w-4 h-4" />
                 <span>Dynamic UPI QR (₹{currentTableBill})</span>
@@ -385,7 +385,7 @@ export const CrossTableAssistModal: React.FC<CrossTableAssistModalProps> = ({
               <button
                 type="button"
                 onClick={handleSettleCash}
-                className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-950/40 transition active:scale-95"
+                className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-95"
               >
                 <Banknote className="w-4 h-4" />
                 <span>Settle Cash / Card (₹{currentTableBill})</span>

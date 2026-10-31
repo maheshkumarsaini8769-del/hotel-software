@@ -109,7 +109,7 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden flex justify-end bg-black/70 backdrop-blur-sm transition-opacity">
-      <div className="w-full max-w-lg bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col h-full text-white animate-in slide-in-from-right duration-200">
+      <div className="w-full max-w-lg bg-slate-900 border-l border-slate-800 shadow-sm dark:shadow-none flex flex-col h-full text-white animate-in slide-in-from-right duration-200">
         {/* Drawer Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
           <div className="flex items-center space-x-2">
@@ -130,7 +130,7 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
           {validationError && (
-            <div className="p-3 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-semibold flex items-center space-x-2">
+            <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-semibold flex items-center space-x-2">
               <span>⚠️</span>
               <span>{validationError}</span>
             </div>

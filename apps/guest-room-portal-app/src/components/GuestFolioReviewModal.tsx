@@ -93,7 +93,7 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
 
       {/* Post-Departure Completed Voucher (If Checked Out) */}
       {isSettled && (
-        <div data-testid="departure-settled-voucher" className="p-6 rounded-3xl bg-gradient-to-r from-emerald-950/80 via-slate-900 to-emerald-950/80 border border-emerald-500/50 shadow-2xl text-white space-y-4">
+        <div data-testid="departure-settled-voucher" className="p-6 rounded-3xl bg-slate-900 border border-emerald-500/50 shadow-sm text-white space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <span className="text-3xl">🌟</span>
@@ -143,17 +143,17 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
 
       {/* In-Flight Departure Request Notification Banner */}
       {checkoutActive && !isSettled && (
-        <div data-testid="departure-requested-banner" className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/70 via-slate-900 to-purple-950/70 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center justify-between shadow-xl">
+        <div data-testid="departure-requested-banner" className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-bold flex items-center justify-between shadow-sm">
           <div className="flex items-center space-x-3">
             <span className="text-xl animate-pulse">🚀</span>
             <div>
               <div className="font-extrabold text-white">1-Tap Express Departure Initiated</div>
-              <div className="text-[11px] text-purple-300 font-normal mt-0.5">
+              <div className="text-[11px] text-slate-700 dark:text-slate-300 font-normal mt-0.5">
                 Front desk has been alerted. Your consolidated tax invoice is ready at the reception counter.
               </div>
             </div>
           </div>
-          <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-purple-500/20 border border-purple-500/40 animate-pulse">
+          <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 animate-pulse">
             Reception Alerted
           </span>
         </div>
@@ -161,7 +161,7 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
 
       {/* Active In-Room Dining Dispatch Tracker Banner (if order active) */}
       {activeOrder && (
-        <div data-testid="folio-active-order-tracker" className="bg-gradient-to-r from-amber-950/70 via-slate-900 to-amber-950/70 border border-amber-500/40 rounded-2xl p-4 shadow-xl">
+        <div data-testid="folio-active-order-tracker" className="bg-slate-900 border border-amber-500/40 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
               <span className="text-sm">⏱️</span>
@@ -178,7 +178,7 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
           <div className="relative flex items-center justify-between px-2 pt-1 pb-1">
             <div className="absolute top-1/2 left-4 right-4 h-1 bg-slate-800 -translate-y-1/2 z-0" />
             <div
-              className="absolute top-1/2 left-4 h-1 bg-gradient-to-r from-amber-500 to-amber-400 -translate-y-1/2 z-0 transition-all duration-500"
+              className="absolute top-1/2 left-4 h-1 bg-amber-500 -translate-y-1/2 z-0 transition-all duration-500"
               style={{
                 width: `${((GuestPortalHelper.getOrderStatusProgress(activeOrder.orderStatus).step - 1) / 3) * 92}%`,
               }}
@@ -222,7 +222,7 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
           className={`p-4 rounded-xl border text-xs font-bold flex items-center space-x-2 ${
             checkoutResult.success
               ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-              : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+              : 'bg-red-500/20 border-red-500/40 text-red-300'
           }`}
         >
           <span>{checkoutResult.success ? '✅' : '⚠️'}</span>
@@ -317,7 +317,7 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
             id="btn-open-express-checkout"
             onClick={() => setShowDepartureModal(true)}
             disabled={isSubmitting}
-            className="py-3 px-6 rounded-xl font-extrabold text-xs shadow-lg transition active:scale-95 flex items-center justify-center space-x-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-950/40"
+            className="py-3 px-6 rounded-xl font-bold text-xs shadow-sm transition active:scale-95 flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white"
           >
             <span>🔑</span>
             <span>{checkoutActive ? 'Update Departure Details' : 'Request Express Check-Out'}</span>
@@ -328,7 +328,7 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
       {/* Departure Review Modal */}
       {showDepartureModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-150">
-          <div data-testid="departure-review-modal" className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 text-white space-y-5 max-h-[90vh] overflow-y-auto">
+          <div data-testid="departure-review-modal" className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-sm dark:shadow-none p-6 text-white space-y-5 max-h-[90vh] overflow-y-auto">
             {/* Modal Title */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center space-x-3">
@@ -448,7 +448,7 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
                 id="confirm-departure-btn"
                 onClick={handleConfirmDeparture}
                 disabled={isSubmitting}
-                className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-amber-950/40 transition active:scale-95 disabled:opacity-50"
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition active:scale-95 disabled:opacity-50"
               >
                 {isSubmitting ? 'Notifying Desk...' : 'Confirm Express Departure'}
               </button>

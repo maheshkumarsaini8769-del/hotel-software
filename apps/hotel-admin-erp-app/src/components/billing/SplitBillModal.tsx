@@ -67,7 +67,7 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full shadow-2xl p-6 space-y-5">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full shadow-sm dark:shadow-none p-6 space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
           <div>
@@ -153,7 +153,7 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
                   {customShares.length > 2 && (
                     <button
                       onClick={() => removeCustomPerson(s.personNumber)}
-                      className="p-1.5 text-rose-500 hover:bg-rose-50 rounded"
+                      className="p-1.5 text-red-500 hover:bg-red-50 rounded"
                     >
                       ✕
                     </button>
@@ -173,7 +173,7 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
             <div className={`p-3 rounded-xl text-xs font-medium flex items-center justify-between ${
               customValidation.isValid
                 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+                : 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
             }`}>
               <span>Total Allocated: {formatCurrency(customValidation.sum)}</span>
               <span>{customValidation.isValid ? '✅ Balanced' : `Difference: ${formatCurrency(customValidation.difference)}`}</span>

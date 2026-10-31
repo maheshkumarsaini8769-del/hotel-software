@@ -52,7 +52,7 @@ export const ActiveOrdersView: React.FC<ActiveOrdersViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-5 gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-500 flex items-center justify-center font-bold">
@@ -97,7 +97,7 @@ export const ActiveOrdersView: React.FC<ActiveOrdersViewProps> = ({
       <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
         {filteredOrders.length === 0 ? (
           <div className={`h-64 flex flex-col items-center justify-center rounded-2xl border text-center p-6 ${
-            isDark ? 'bg-[#121520] border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'
+            isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'
           }`}>
             <Clock className="w-12 h-12 text-slate-600 mb-2 opacity-50" />
             <h3 className="font-bold text-sm">No Active Orders</h3>
@@ -117,7 +117,7 @@ export const ActiveOrdersView: React.FC<ActiveOrdersViewProps> = ({
                         ? 'bg-emerald-950/20 border-emerald-500/50 shadow-emerald-950/20'
                         : 'bg-emerald-50/60 border-emerald-300'
                       : isDark
-                      ? 'bg-[#181c2b] border-slate-800'
+                      ? 'bg-slate-900 border-slate-800'
                       : 'bg-white border-slate-200'
                   }`}
                 >

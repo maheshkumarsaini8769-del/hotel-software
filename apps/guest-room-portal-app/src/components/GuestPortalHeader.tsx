@@ -19,7 +19,7 @@ export const GuestPortalHeader: React.FC<GuestPortalHeaderProps> = ({
       {/* Luxury Golden Greeting Hero */}
       <div className="max-w-4xl mx-auto px-5 py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 text-2xl font-black shadow-lg shadow-amber-950/40">
+          <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white text-2xl font-bold shadow-sm">
             👑
           </div>
           <div>
@@ -42,7 +42,7 @@ export const GuestPortalHeader: React.FC<GuestPortalHeaderProps> = ({
           {/* Wi-Fi Credentials Badge */}
           <div
             data-testid="inroom-wifi-badge"
-            className="bg-gradient-to-r from-amber-500/15 to-amber-500/5 border border-amber-500/30 rounded-xl px-3 py-1.5 flex items-center gap-2"
+            className="bg-slate-900 border border-amber-500/30 rounded-xl px-3 py-1.5 flex items-center gap-2"
           >
             <span className="text-amber-400 text-sm">📶</span>
             <div>

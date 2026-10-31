@@ -27,7 +27,7 @@ export const FoodWasteAuditTable: React.FC<FoodWasteAuditTableProps> = ({
   ];
 
   return (
-    <div className="bg-[#0f131a] rounded-2xl border border-zinc-800 p-5 space-y-4 shadow-xl">
+    <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 space-y-4 shadow-xl">
       {/* Table Header & Category Tabs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-zinc-800">
         <div>
@@ -48,7 +48,7 @@ export const FoodWasteAuditTable: React.FC<FoodWasteAuditTableProps> = ({
               onClick={() => onFilterChange(tab.key)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
                 selectedFilter === tab.key
-                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                  ? 'bg-red-500/20 text-red-300 border-red-500/40'
                   : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
               }`}
             >
@@ -61,7 +61,7 @@ export const FoodWasteAuditTable: React.FC<FoodWasteAuditTableProps> = ({
       {/* Main Table */}
       <div className="overflow-x-auto rounded-xl border border-zinc-800">
         <table className="w-full text-left text-xs text-zinc-300">
-          <thead className="bg-[#121620] text-zinc-400 uppercase font-semibold text-[11px] border-b border-zinc-800">
+          <thead className="bg-slate-900 text-zinc-400 uppercase font-semibold text-[11px] border-b border-zinc-800">
             <tr>
               <th className="px-4 py-3">Waste #</th>
               <th className="px-4 py-3">Item / Prep</th>
@@ -103,7 +103,7 @@ export const FoodWasteAuditTable: React.FC<FoodWasteAuditTableProps> = ({
                     <td className="px-4 py-3 text-right font-mono font-bold text-zinc-200">
                       {log.quantity} {log.unit}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono font-black text-rose-400">
+                    <td className="px-4 py-3 text-right font-mono font-black text-red-400">
                       {RecipeCostingHelper.formatCurrency(log.totalLossAmount)}
                     </td>
                     <td className="px-4 py-3 max-w-[200px] truncate text-zinc-300" title={log.reason}>

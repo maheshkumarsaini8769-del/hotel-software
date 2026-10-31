@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { App as CapApp } from '@capacitor/app';
 import { registerPlugin } from '@capacitor/core';
 import jsQR from 'jsqr';
+import { useTranslation, LanguageToggle } from '@spicehub/ui';
 
 export interface ActiveHotel {
   id: string;
@@ -53,6 +54,7 @@ export interface ActiveReservation {
   roomTypeName: string;
   guestName: string;
   guestPhone: string;
+  guestEmail?: string;
   checkInDate: string;
   checkOutDate: string;
   nights: number;
@@ -74,6 +76,11 @@ export interface PendingApprovalBooking {
   guestCount: number;
   checkInDate: string;
   checkOutDate: string;
+  checkInTime?: string;
+  checkOutTime?: string;
+  bookingOrigin?: 'HOTEL_PREMISES' | 'REMOTE_HOME';
+  originBadge?: string;
+  distanceKm?: number;
   nights: number;
   grandTotal: number;
   idType: string;
@@ -83,7 +90,100 @@ export interface PendingApprovalBooking {
   sessionToken?: string;
   wifiPassword?: string;
   hotelId: string;
+  aadhaarFrontUrl?: string;
+  aadhaarBackUrl?: string;
+  secondaryGuestName?: string;
+  secondaryGuestRelationship?: string;
 }
+
+const compressImageToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_DIM = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_DIM) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          }
+        } else {
+          if (height > MAX_DIM) {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/jpeg', 0.72);
+        resolve(compressed);
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+};
+
+const generateSampleAadhaarImage = (side: 'FRONT' | 'BACK', name: string, phone: string): string => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 600;
+  canvas.height = 380;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = side === 'FRONT' ? '#f8fafc' : '#f1f5f9';
+    ctx.fillRect(0, 0, 600, 380);
+    ctx.fillStyle = '#ea580c';
+    ctx.fillRect(0, 0, 600, 28);
+    ctx.fillStyle = '#16a34a';
+    ctx.fillRect(0, 352, 600, 28);
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillText(
+      side === 'FRONT' ? 'GOVERNMENT OF INDIA - AADHAAR CARD' : 'UNIQUE IDENTIFICATION AUTHORITY OF INDIA',
+      24,
+      64
+    );
+    ctx.font = '14px sans-serif';
+    if (side === 'FRONT') {
+      ctx.fillText(`Name: ${name || 'Resident Guest'}`, 170, 115);
+      ctx.fillText(`DOB: 15/08/1990`, 170, 145);
+      ctx.fillText(`Gender: MALE`, 170, 175);
+      ctx.font = 'bold 22px monospace';
+      ctx.fillText(`XXXX XXXX ${phone.slice(-4) || '9012'}`, 170, 230);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(24, 90, 120, 150);
+      ctx.fillStyle = '#475569';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('ID PHOTO', 55, 170);
+    } else {
+      ctx.fillText(`Address: H-44, Civil Lines, Jaipur, Rajasthan - 302006`, 24, 115);
+      ctx.fillText(`Guardian: K. S. Oberoi`, 24, 145);
+      ctx.fillText(`UIDAI Official Helpline: 1947`, 24, 195);
+      ctx.font = 'bold 22px monospace';
+      ctx.fillText(`XXXX XXXX ${phone.slice(-4) || '9012'}`, 24, 250);
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(440, 95, 130, 130);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '11px monospace';
+      ctx.fillText('VERIFIED QR', 460, 165);
+    }
+  }
+  return canvas.toDataURL('image/jpeg', 0.8);
+};
 
 // Resilient Offline-Safe SVG Fallbacks
 const FALLBACK_HOTEL_COVER = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
@@ -151,6 +251,28 @@ const FALLBACK_ROOM_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
   <text x="300" y="375" fill="#f8fafc" font-family="system-ui, sans-serif" font-size="16" font-weight="800" text-anchor="middle" letter-spacing="1">PREMIUM EXECUTIVE SUITE</text>
 </svg>
 `);
+
+const CURATED_ROOM_IMAGES = [
+  'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=900&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=900&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=900&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=900&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1591088398332-8a7791972843?w=900&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=900&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=900&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?w=900&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?w=900&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=900&auto=format&fit=crop&q=80',
+];
+
+const getRoomDisplayPhoto = (room: CatalogRoom): string => {
+  const custom = room.photos?.[0] || room.roomType?.photos?.[0];
+  if (custom && typeof custom === 'string' && !custom.startsWith('data:image/svg') && custom.trim() !== '') {
+    return custom;
+  }
+  const cleanNum = parseInt((room.roomNumber || '101').replace(/[^0-9]/g, '') || '101', 10);
+  return CURATED_ROOM_IMAGES[Math.abs(cleanNum) % CURATED_ROOM_IMAGES.length];
+};
 
 // ============================================================================
 // CRAFTED SVG ICON SYSTEM (Consistent 24x24 luxury vector icons)
@@ -356,64 +478,109 @@ const Icons = {
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   ),
+  Wind: ({ className = 'w-4 h-4' }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2" />
+      <path d="M9.6 4.6A2 2 0 1 1 11 8H2" />
+      <path d="M12.6 19.4A2 2 0 1 0 14 16H2" />
+    </svg>
+  ),
+  Filter: ({ className = 'w-4 h-4' }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+    </svg>
+  ),
 };
 
-const DEV_LAN_HOST = '10.208.156.216';
+const PROD_API_BASE = 'https://spicehub-backend.vercel.app';
+const PROD_TABLE_PORTAL_BASE = 'https://spicehub-customer-table.vercel.app';
+const PROD_ROOM_PORTAL_BASE = 'https://spicehub-guest-portal.vercel.app';
+const PROD_SOCKET_URL = 'https://spicehub-socket-server.onrender.com';
+const DEV_LAN_HOST = '127.0.0.1';
 
 const resolveInitialServerHost = (): string => {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('spicehub_server_host');
-    if (saved && saved !== '10.163.112.94') return saved;
-    if (window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      return window.location.hostname;
+    if (saved && saved !== '127.0.0.1' && saved !== 'localhost' && !saved.startsWith('192.168.') && !saved.startsWith('10.')) {
+      return saved;
     }
   }
-  return DEV_LAN_HOST;
+  return PROD_API_BASE;
 };
 
 export const App: React.FC = () => {
-  // Configurable Host: Local Wi-Fi LAN IP (Standalone APK) vs USB Direct (adb reverse)
+  // Standalone Global Cloud APK: Automatically bind to Live Production Backend
+  useEffect(() => {
+    try {
+      const current = localStorage.getItem('spicehub_server_host');
+      if (!current || current === '127.0.0.1' || current === 'localhost' || current.startsWith('192.168.') || current.startsWith('10.')) {
+        localStorage.setItem('spicehub_server_host', PROD_API_BASE);
+        setServerHost(PROD_API_BASE);
+      }
+    } catch {}
+  }, []);
+
+  // Configurable Host: Connected Live Production Backend Engine Host
   const [serverHost, setServerHost] = useState<string>(resolveInitialServerHost);
-  const DEFAULT_API_BASE = `http://${serverHost}:5000`;
-  const TABLE_PORTAL_BASE = `http://${serverHost}:3001`;
-  const ROOM_PORTAL_BASE = `http://${serverHost}:3004`;
 
-  // Theme state: Clean light theme by default as explicitly requested!
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('spicehub_customer_theme');
-      if (saved === 'light' || saved === 'dark') return saved;
-    }
-    return 'light';
-  });
+  const isProductionHost =
+    serverHost.includes('vercel.app') ||
+    serverHost.includes('onrender.com') ||
+    (serverHost.startsWith('https://') && !serverHost.includes('localhost') && !serverHost.includes('127.0.0.1'));
 
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('spicehub_customer_theme', next);
-    }
-  };
+  const BASE = serverHost.startsWith('http://') || serverHost.startsWith('https://')
+    ? serverHost.replace(/\/+$/, '')
+    : `http://${serverHost}`;
 
-  const isDark = theme === 'dark';
+  const DEFAULT_API_BASE = isProductionHost
+    ? serverHost.replace(/\/+$/, '')
+    : `${BASE.includes(':5000') ? BASE : BASE + ':5000'}`;
+
+  const TABLE_PORTAL_BASE = isProductionHost
+    ? PROD_TABLE_PORTAL_BASE
+    : `${BASE.includes(':3001') ? BASE : BASE + ':3001'}`;
+
+  const ROOM_PORTAL_BASE = isProductionHost
+    ? PROD_ROOM_PORTAL_BASE
+    : `${BASE.includes(':3004') ? BASE : BASE + ':3004'}`;
+
+  const SOCKET_URL = isProductionHost
+    ? PROD_SOCKET_URL
+    : `${BASE.includes(':5000') ? BASE : BASE + ':5000'}`;
+
+  // Theme state: Strictly Bright Mode (Light Theme) per global standard
+  const [theme] = useState<'light'>('light');
+  const toggleTheme = () => {};
+  const isDark = false;
+  const { t, locale } = useTranslation();
 
   // Synchronize HTML element & body background with active theme
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      if (isDark) {
-        document.documentElement.classList.add('dark');
-        document.body.style.backgroundColor = '#070b12';
-        document.body.style.color = '#f1f5f9';
-      } else {
-        document.documentElement.classList.remove('dark');
-        document.body.style.backgroundColor = '#f8fafc';
-        document.body.style.color = '#0f172a';
-      }
+      document.documentElement.classList.remove('dark');
+      document.body.style.backgroundColor = '#f8fafc';
+      document.body.style.color = '#0f172a';
     }
-  }, [isDark]);
+  }, []);
 
-  // Navigation state: 'home' is the clean landing page with Hotel Selection & exactly 2 big cards!
-  const [customerView, setCustomerView] = useState<'home' | 'rooms' | 'table_scan' | 'resident_verify' | 'profile'>('home');
+  // Navigation state: 'hotel_select' (Step 1) -> 'home' (Step 2: Service Choice) -> 'rooms' (Step 3: Room Catalog) -> 'waiting_approval' (Step 5)
+  const [customerView, setCustomerView] = useState<'hotel_select' | 'home' | 'rooms' | 'waiting_approval' | 'table_scan' | 'resident_verify' | 'profile'>(() => {
+    if (typeof window !== 'undefined') {
+      const pending = localStorage.getItem('spicehub_pending_approval_booking');
+      if (pending) return 'waiting_approval';
+      const active = localStorage.getItem('spicehub_active_guest_reservation');
+      if (active) return 'home';
+      const chosen = localStorage.getItem('spicehub_customer_hotel_chosen');
+      if (chosen === 'true') return 'home';
+    }
+    return 'hotel_select';
+  });
+
+  // Room Catalog Filter & Search States (Step 3)
+  const [roomSearchQuery, setRoomSearchQuery] = useState('');
+  const [roomAcFilter, setRoomAcFilter] = useState<'ALL' | 'AC' | 'NON_AC'>('ALL');
+  const [roomPriceSort, setRoomPriceSort] = useState<'DEFAULT' | 'LOW_TO_HIGH' | 'HIGH_TO_LOW'>('DEFAULT');
+  const [roomMaxBudget, setRoomMaxBudget] = useState<'ALL' | '2500' | '4000' | 'LUXURY'>('ALL');
 
   // Hotels State
   const [hotels, setHotels] = useState<ActiveHotel[]>([]);
@@ -429,6 +596,7 @@ export const App: React.FC = () => {
 
   // Scanner & Camera state for Table Standee QR
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [isPermanentDenied, setIsPermanentDenied] = useState(false);
   const [isTorchSupported, setIsTorchSupported] = useState(false);
@@ -440,6 +608,53 @@ export const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  const barcodeDetectorRef = useRef<any>(null);
+  const isScanningRef = useRef<boolean>(false);
+  const lastScanTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+      try {
+        barcodeDetectorRef.current = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+      } catch (_) {
+        barcodeDetectorRef.current = null;
+      }
+    }
+  }, []);
+
+  // Proactive Permission Request on App Launch (Notification & Geolocation)
+  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [notificationPermission, setNotificationPermission] = useState<string>('default');
+
+  useEffect(() => {
+    // 1. Proactively request Web / Native Notification Permission on app launch
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission()
+          .then((perm) => {
+            setNotificationPermission(perm);
+          })
+          .catch(() => {});
+      } else {
+        setNotificationPermission(Notification.permission);
+      }
+    }
+
+    // 2. Proactively trigger GPS Geolocation permission prompt on app launch
+    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setUserCoords({ latitude: lat, longitude: lng });
+        },
+        (err) => {
+          console.warn('App launch GPS prompt status:', err?.message);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    }
+  }, []);
 
   // Room Booking & Radius Check
   const [selectedRoomForBooking, setSelectedRoomForBooking] = useState<CatalogRoom | null>(null);
@@ -457,6 +672,38 @@ export const App: React.FC = () => {
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
 
+  // Mandatory Aadhaar Front & Back Photos
+  const [aadhaarFront, setAadhaarFront] = useState<string | null>(null);
+  const [aadhaarBack, setAadhaarBack] = useState<string | null>(null);
+  const [aadhaarCompressing, setAadhaarCompressing] = useState<'FRONT' | 'BACK' | null>(null);
+
+  // Phone OTP Verification (Mandatory for Hotel on-site bookings)
+  const [phoneOtp, setPhoneOtp] = useState('9999');
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [phoneOtpVerified, setPhoneOtpVerified] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpSuccessMsg, setOtpSuccessMsg] = useState<string | null>(null);
+
+  // Multi-room Quota & Secondary Guest State
+  const [isSecondRoom, setIsSecondRoom] = useState(false);
+  const [secondaryGuestName, setSecondaryGuestName] = useState('');
+  const [secondaryGuestPhone, setSecondaryGuestPhone] = useState('');
+  const [secondaryGuestRelationship, setSecondaryGuestRelationship] = useState('Spouse / Family Member');
+
+  // Dates & Arrival Timing for Home Bookings
+  const [checkInDateInput, setCheckInDateInput] = useState(() => new Date().toISOString().split('T')[0]);
+  const [estimatedArrivalTime, setEstimatedArrivalTime] = useState('10:00');
+  const [checkOutDateInput, setCheckOutDateInput] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [estimatedDepartureTime, setEstimatedDepartureTime] = useState('11:00');
+  const [gpsDistKm, setGpsDistKm] = useState<number | null>(null);
+  const [gpsChecking, setGpsChecking] = useState(false);
+  const [gpsStatus, setGpsStatus] = useState<string>('Location not verified');
+
   // Reception Document Approval Gating State
   const [pendingApprovalBooking, setPendingApprovalBooking] = useState<PendingApprovalBooking | null>(() => {
     if (typeof window !== 'undefined') {
@@ -467,11 +714,44 @@ export const App: React.FC = () => {
     }
     return null;
   });
-  const [isApprovingAtReception, setIsApprovingAtReception] = useState(false);
+  const [isCheckingApproval, setIsCheckingApproval] = useState(false);
 
   // Active Reservation & Digital Booking Voucher
-  const [activeReservation, setActiveReservation] = useState<ActiveReservation | null>(null);
+  const [activeReservation, setActiveReservation] = useState<ActiveReservation | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('spicehub_active_guest_reservation');
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return null;
+  });
   const [bookingConfirmation, setBookingConfirmation] = useState<ActiveReservation | null>(null);
+
+  // Room entry gating state: In-room food is hidden until guest taps digital keycard to enter room
+  const [isRoomEntered, setIsRoomEntered] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('spicehub_active_guest_reservation');
+        if (saved) {
+          const res = JSON.parse(saved);
+          if (res?.bookingNumber) {
+            return localStorage.getItem(`spicehub_room_entered_${res.bookingNumber}`) === 'true';
+          }
+        }
+      } catch {}
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && activeReservation?.bookingNumber) {
+      const entered = localStorage.getItem(`spicehub_room_entered_${activeReservation.bookingNumber}`) === 'true';
+      setIsRoomEntered(entered);
+    } else {
+      setIsRoomEntered(false);
+    }
+  }, [activeReservation?.bookingNumber]);
 
   // Resident Room Verification
   const [roomNumberInput, setRoomNumberInput] = useState('');
@@ -482,6 +762,7 @@ export const App: React.FC = () => {
   // Active embedded portal iframe
   const [activePortalUrl, setActivePortalUrl] = useState<string | null>(null);
   const [activeSessionLabel, setActiveSessionLabel] = useState<string>('');
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Real-time Socket Connection for Reception Approval Events
   const socketRef = useRef<Socket | null>(null);
@@ -489,32 +770,38 @@ export const App: React.FC = () => {
   // 0. Capacitor Physical Android Back Button Event Handling
   const backStackRef = useRef({
     activePortalUrl,
+    isSettingsModalOpen,
+    isHotelModalOpen,
     bookingConfirmation,
     isBookingModalOpen,
     showLocationRadiusCheck,
-    isHotelModalOpen,
     isCameraActive,
     customerView,
+    isSubmittingBooking,
   });
 
   useEffect(() => {
     backStackRef.current = {
       activePortalUrl,
+      isSettingsModalOpen,
+      isHotelModalOpen,
       bookingConfirmation,
       isBookingModalOpen,
       showLocationRadiusCheck,
-      isHotelModalOpen,
       isCameraActive,
       customerView,
+      isSubmittingBooking,
     };
   }, [
     activePortalUrl,
+    isSettingsModalOpen,
+    isHotelModalOpen,
     bookingConfirmation,
     isBookingModalOpen,
     showLocationRadiusCheck,
-    isHotelModalOpen,
     isCameraActive,
     customerView,
+    isSubmittingBooking,
   ]);
 
   useEffect(() => {
@@ -523,12 +810,31 @@ export const App: React.FC = () => {
       try {
         backHandle = await CapApp.addListener('backButton', () => {
           const s = backStackRef.current;
+
+          // 0. Prevent back navigation during in-flight booking submission
+          if (s.isSubmittingBooking) {
+            return;
+          }
+
+          // 1. If inside an active embedded portal (Room Portal or Table Ordering iframe), close it and return safely to Customer Home screen
           if (s.activePortalUrl) {
             setActivePortalUrl(null);
+            setCustomerView('home');
+            return;
+          }
+
+          // 2. Close active modals/drawers in strict top-down z-index order
+          if (s.isSettingsModalOpen) {
+            setIsSettingsModalOpen(false);
+            return;
+          }
+          if (s.isHotelModalOpen) {
+            setIsHotelModalOpen(false);
             return;
           }
           if (s.bookingConfirmation) {
             setBookingConfirmation(null);
+            setCustomerView('home');
             return;
           }
           if (s.isBookingModalOpen) {
@@ -539,19 +845,27 @@ export const App: React.FC = () => {
             setShowLocationRadiusCheck(false);
             return;
           }
-          if (s.isHotelModalOpen) {
-            setIsHotelModalOpen(false);
-            return;
-          }
-          if (s.isCameraActive) {
+
+          // 3. Close camera scanner and navigate back to home in one atomic action
+          if (s.customerView === 'table_scan') {
             stopCamera();
-            return;
-          }
-          if (s.customerView !== 'home') {
             setCustomerView('home');
             return;
           }
-          // On Home view with no active layer -> exit app cleanly
+
+          // 4. Safely navigate sub-views back to Home screen
+          if (s.customerView !== 'home' && s.customerView !== 'hotel_select') {
+            setCustomerView('home');
+            return;
+          }
+
+          // 5. On Home / Root screens, safely exit app
+          if (s.customerView === 'home') {
+            CapApp.exitApp().catch(() => {});
+            return;
+          }
+
+          // On hotel_select root view -> exit app cleanly
           CapApp.exitApp().catch(() => {});
         });
       } catch (e) {
@@ -566,57 +880,62 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // 1. Fetch Active Hotels on Mount
+  // 1. Fetch Active Hotels on Mount (Instant Parallel Host Resolution)
   useEffect(() => {
     let isMounted = true;
     async function fetchHotels() {
-      try {
-        setLoadingHotels(true);
-        const res = await fetch(`${DEFAULT_API_BASE}/api/v1/auth/active-hotels`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-            if (!isMounted) return;
-            setHotels(json.data);
-            setSelectedHotel(json.data[0]);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn('⚠️ [CustomerAndroid] Primary host failed, probing fallback candidates:', err);
-      }
+      setLoadingHotels(true);
 
-      // Fallback candidate probe
-      try {
-        const candidates = [DEV_LAN_HOST, 'localhost'].filter((c) => c !== serverHost);
-        for (const alt of candidates) {
-          const res = await fetch(`http://${alt}:5000/api/v1/auth/active-hotels`);
+      const probe = async (host: string): Promise<{ host: string; hotels: ActiveHotel[] } | null> => {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 2500);
+          const url = host.startsWith('http://') || host.startsWith('https://')
+            ? `${host.replace(/\/+$/, '')}/api/v1/auth/active-hotels`
+            : `http://${host}:5000/api/v1/auth/active-hotels`;
+          const res = await fetch(url, { signal: controller.signal });
+          clearTimeout(timer);
           if (res.ok) {
             const json = await res.json();
             if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-              if (!isMounted) return;
-              setServerHost(alt);
-              localStorage.setItem('spicehub_server_host', alt);
-              setHotels(json.data);
-              setSelectedHotel(json.data[0]);
-              return;
+              return { host, hotels: json.data };
             }
           }
+        } catch {
+          // Probe failed or timed out
         }
-      } catch (e) {
-        console.warn('⚠️ [CustomerAndroid] Candidate probe note:', e);
+        return null;
+      };
+
+      const candidates = Array.from(
+        new Set([PROD_API_BASE, serverHost, DEV_LAN_HOST, '127.0.0.1'].filter(Boolean))
+      );
+      try {
+        const results = await Promise.all(candidates.map(probe));
+        const winner = results.find(Boolean);
+        if (winner && isMounted) {
+          setServerHost(winner.host);
+          localStorage.setItem('spicehub_server_host', winner.host);
+          setHotels(winner.hotels);
+          const savedHotelId = localStorage.getItem('spicehub_customer_hotel_id');
+          const matched = winner.hotels.find((h) => h.id === savedHotelId);
+          setSelectedHotel(matched || winner.hotels[0]);
+          return;
+        }
+      } catch (err) {
+        console.warn('⚠️ [CustomerAndroid] Fast probe note:', err);
       } finally {
         if (isMounted) setLoadingHotels(false);
       }
 
       if (isMounted) {
         const fallbackHotel: ActiveHotel = {
-          id: '6adddfc18d0109b3382bbc2b',
-          name: 'The Royal Palm Resort & Suites',
-          slug: 'royal-palm-suites',
-          city: 'Jaipur',
+          id: '6ae06d00ddbafddfbb0a8013',
+          name: 'Mahesh Hotel',
+          slug: 'mahesh-hotel-4119',
+          city: 'Jodhpur',
           state: 'Rajasthan',
-          tagline: 'Luxury Heritage Hotel & Fine Dining Resort',
+          tagline: 'Luxury Stays & Fine Hospitality',
           coverImageUrl: FALLBACK_HOTEL_COVER,
           logoUrl: FALLBACK_HOTEL_LOGO,
           stayImageUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80',
@@ -661,7 +980,7 @@ export const App: React.FC = () => {
     if (!selectedHotel?.id) return;
 
     try {
-      const s = io(DEFAULT_API_BASE, {
+      const s = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
         query: { hotelId: selectedHotel.id },
       });
@@ -672,9 +991,14 @@ export const App: React.FC = () => {
         s.emit('join:room', { room: `${selectedHotel.id}_global` });
       });
 
-      // PMS Booking Approval Broadcast (Unlocks Keycard and In-Room Dining!)
-      s.on('pms:booking_approved', (data: any) => {
-        if (pendingApprovalBooking && (data.bookingNumber === pendingApprovalBooking.bookingNumber || data.roomNumber === pendingApprovalBooking.roomNumber)) {
+      const handleApprovedData = (data: any) => {
+        if (
+          pendingApprovalBooking &&
+          (data.bookingNumber === pendingApprovalBooking.bookingNumber ||
+            data.roomNumber === pendingApprovalBooking.roomNumber ||
+            (data.roomNumber === pendingApprovalBooking.roomNumber &&
+              data.guestPhone === pendingApprovalBooking.guestPhone))
+        ) {
           const approvedReservation: ActiveReservation = {
             bookingNumber: data.bookingNumber || pendingApprovalBooking.bookingNumber,
             roomNumber: data.roomNumber || pendingApprovalBooking.roomNumber,
@@ -687,7 +1011,10 @@ export const App: React.FC = () => {
             grandTotal: pendingApprovalBooking.grandTotal,
             sessionToken: data.sessionToken,
             wifiSsid: data.wifiSsid || selectedHotel?.wifiSsid || 'TajGateway_HighSpeed',
-            wifiPassword: data.wifiPassword || selectedHotel?.wifiPassword || `TajGuest@${data.roomNumber || pendingApprovalBooking.roomNumber}`,
+            wifiPassword:
+              data.wifiPassword ||
+              selectedHotel?.wifiPassword ||
+              `TajGuest@${data.roomNumber || pendingApprovalBooking.roomNumber}`,
             bookingStatus: 'CHECKED_IN',
             receptionApprovedAt: new Date().toISOString(),
           };
@@ -701,9 +1028,30 @@ export const App: React.FC = () => {
           setBookingConfirmation(approvedReservation);
           refreshRoomsCatalog(selectedHotel);
         }
-      });
+      };
+
+      // PMS Booking Approval Broadcast (Unlocks Keycard and In-Room Dining!)
+      s.on('pms:booking_approved', handleApprovedData);
+
+      // Fallback Poller every 3s to guarantee immediate unlock if socket misses
+      let pollInterval: any = null;
+      if (pendingApprovalBooking?.bookingNumber) {
+        pollInterval = setInterval(async () => {
+          try {
+            const res = await fetch(
+              `${DEFAULT_API_BASE}/api/v1/guest-portal/rooms/booking-status/${pendingApprovalBooking.bookingNumber}`
+            );
+            if (!res.ok) return;
+            const statusJson = await res.json();
+            if (statusJson.success && statusJson.data?.isApproved) {
+              handleApprovedData(statusJson.data);
+            }
+          } catch {}
+        }, 3000);
+      }
 
       return () => {
+        if (pollInterval) clearInterval(pollInterval);
         s.disconnect();
       };
     } catch (e) {
@@ -809,30 +1157,70 @@ export const App: React.FC = () => {
     }
   };
 
-  const scanVideoFrame = () => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (video && video.readyState >= 2 && canvas) {
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: 'dontInvert',
-          });
+  const scanVideoFrame = async () => {
+    if (!isCameraActive) return;
 
-          if (code && code.data) {
-            const success = handleQrDetected(code.data);
-            if (success) {
-              return;
+    const now = performance.now();
+    // Throttle frame processing to max 25 fps (~40ms) to eliminate frame lag and GC spikes
+    if (now - lastScanTimeRef.current < 40 || isScanningRef.current) {
+      animFrameRef.current = requestAnimationFrame(scanVideoFrame);
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+      animFrameRef.current = requestAnimationFrame(scanVideoFrame);
+      return;
+    }
+
+    lastScanTimeRef.current = now;
+    isScanningRef.current = true;
+
+    try {
+      // 1. Fast Path: Native Hardware-Accelerated BarcodeDetector (<15ms)
+      if (barcodeDetectorRef.current) {
+        const barcodes = await barcodeDetectorRef.current.detect(video);
+        if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+          const success = handleQrDetected(barcodes[0].rawValue);
+          if (success) {
+            isScanningRef.current = false;
+            return;
+          }
+        }
+      } else {
+        // 2. Fallback Path: ROI Center-Crop (380x380 px) with jsQR (<35ms)
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const vw = video.videoWidth;
+          const vh = video.videoHeight;
+          const targetDim = Math.min(380, vw, vh);
+          canvas.width = targetDim;
+          canvas.height = targetDim;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          if (ctx) {
+            const sx = Math.floor((vw - targetDim) / 2);
+            const sy = Math.floor((vh - targetDim) / 2);
+            ctx.drawImage(video, sx, sy, targetDim, targetDim, 0, 0, targetDim, targetDim);
+            const imageData = ctx.getImageData(0, 0, targetDim, targetDim);
+            const code = jsQR(imageData.data, targetDim, targetDim, {
+              inversionAttempts: 'dontInvert',
+            });
+            if (code && code.data) {
+              const success = handleQrDetected(code.data);
+              if (success) {
+                isScanningRef.current = false;
+                return;
+              }
             }
           }
         }
       }
+    } catch (_) {
+      // Ignore transient decode hiccups
+    } finally {
+      isScanningRef.current = false;
     }
+
     if (isCameraActive) {
       animFrameRef.current = requestAnimationFrame(scanVideoFrame);
     }
@@ -888,6 +1276,7 @@ export const App: React.FC = () => {
 
   const startCamera = async () => {
     setIsCameraActive(true);
+    setIsCameraReady(false);
     setCameraError('');
     setIsPermanentDenied(false);
     setIsTorchOn(false);
@@ -905,7 +1294,18 @@ export const App: React.FC = () => {
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
+          videoRef.current.onloadedmetadata = () => {
+            setIsCameraReady(true);
+            videoRef.current?.play().catch((e) => console.log(e));
+          };
+          videoRef.current
+            .play()
+            .then(() => {
+              setIsCameraReady(true);
+            })
+            .catch((e) => {
+              console.log(e);
+            });
         }
 
         // Safely probe torch support on rear camera track
@@ -955,7 +1355,12 @@ export const App: React.FC = () => {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+      videoRef.current.onloadedmetadata = null;
+    }
     setIsCameraActive(false);
+    setIsCameraReady(false);
     setIsTorchOn(false);
     setIsTorchSupported(false);
     setCameraError('');
@@ -988,9 +1393,15 @@ export const App: React.FC = () => {
     url.searchParams.set('hotelId', hotel.id);
     url.searchParams.set('table', formatted);
     url.searchParams.set('theme', theme);
+    url.searchParams.set('apiBase', DEFAULT_API_BASE);
+    url.searchParams.set('socketUrl', SOCKET_URL);
     if (token) {
       url.searchParams.set('token', token);
       url.searchParams.set('qrToken', token);
+    }
+    const existingClientToken = localStorage.getItem('spicehub_customer_session_token');
+    if (existingClientToken) {
+      url.searchParams.set('sessionToken', existingClientToken);
     }
 
     try {
@@ -1000,6 +1411,7 @@ export const App: React.FC = () => {
     } catch {}
 
     setActiveSessionLabel(`${hotel.name} • Table ${formatted}`);
+    setCustomerView('home');
     setActivePortalUrl(url.toString());
   };
 
@@ -1023,6 +1435,8 @@ export const App: React.FC = () => {
     url.searchParams.set('room', formatted);
     url.searchParams.set('tab', tab);
     url.searchParams.set('theme', theme);
+    url.searchParams.set('apiBase', DEFAULT_API_BASE);
+    url.searchParams.set('socketUrl', SOCKET_URL);
     if (token) {
       url.searchParams.set('token', token);
       url.searchParams.set('sessionToken', token);
@@ -1030,7 +1444,149 @@ export const App: React.FC = () => {
 
     const labelSuffix = tab === 'DINING' ? `Room ${formatted} • In-Room Food Menu` : `Room ${formatted} • Guest Services`;
     setActiveSessionLabel(`${hotel.name} • ${labelSuffix}`);
+    setCustomerView('home');
     setActivePortalUrl(url.toString());
+  };
+
+  useEffect(() => {
+    (window as any).__spicehub = {
+      launchTable,
+      launchResidentPortal,
+      handleQrDetected,
+      setActivePortalUrl,
+      setCustomerView,
+    };
+  }, [selectedHotel, theme, activeReservation]);
+
+  // Haversine Distance Calculation for Geofencing
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c * 10) / 10;
+  };
+
+  const handleCheckGpsLocation = () => {
+    if (!navigator.geolocation) {
+      setGpsStatus('Geolocation not supported by device');
+      return;
+    }
+    setGpsChecking(true);
+    setGpsStatus('Requesting GPS device coordinates...');
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const uLat = pos.coords.latitude;
+        const uLng = pos.coords.longitude;
+        const hLat = (selectedHotel as any)?.latitude || 26.9124; // Jaipur coordinates
+        const hLng = (selectedHotel as any)?.longitude || 75.7873;
+
+        const dist = calculateDistance(uLat, uLng, hLat, hLng);
+        setGpsDistKm(dist);
+
+        if (dist <= 0.5) {
+          setGpsStatus(`Verified on-site: within hotel premises (${Math.round(dist * 1000)}m)`);
+          setBookingLocationType('HOTEL_RADIUS');
+        } else {
+          setGpsStatus(`Remote location: ${dist} km away. Auto-switched to Home Booking.`);
+          setBookingLocationType('REMOTE_HOME');
+        }
+        setGpsChecking(false);
+      },
+      (err) => {
+        setGpsChecking(false);
+        setGpsStatus('GPS permission skipped/denied. You may proceed manually.');
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
+  // Handlers for Phone OTP Verification
+  const handleSendPhoneOtp = async () => {
+    if (!guestPhone || guestPhone.trim().length < 8) {
+      setBookingError('Please enter a valid mobile number first.');
+      return;
+    }
+    setOtpSending(true);
+    setBookingError(null);
+    try {
+      const res = await fetch(`${DEFAULT_API_BASE}/api/v1/guest-portal/rooms/send-phone-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hotelId: selectedHotel?.id, phone: guestPhone.trim() }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setPhoneOtpSent(true);
+        if (json.data?.devOtp) setPhoneOtp(json.data.devOtp);
+        setOtpSuccessMsg(json.message || 'OTP sent successfully to your mobile number.');
+      } else {
+        setBookingError(json.message || 'Failed to send OTP.');
+      }
+    } catch (e: any) {
+      setBookingError(e.message || 'Network error sending OTP.');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    if (!phoneOtp || phoneOtp.trim().length < 4) {
+      setBookingError('Please enter the 4-digit OTP code.');
+      return;
+    }
+    setOtpVerifying(true);
+    setBookingError(null);
+    try {
+      const res = await fetch(`${DEFAULT_API_BASE}/api/v1/guest-portal/rooms/verify-phone-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hotelId: selectedHotel?.id, phone: guestPhone.trim(), otp: phoneOtp.trim() }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setPhoneOtpVerified(true);
+        setOtpSuccessMsg('✓ Mobile number successfully verified!');
+      } else {
+        setBookingError(json.message || 'Invalid or expired OTP.');
+      }
+    } catch (e: any) {
+      setBookingError(e.message || 'Network error verifying OTP.');
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
+  // Handlers for Aadhaar Photo Upload & Compression
+  const handleUploadAadhaar = async (e: React.ChangeEvent<HTMLInputElement>, side: 'FRONT' | 'BACK') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAadhaarCompressing(side);
+    try {
+      const base64 = await compressImageToBase64(file);
+      if (side === 'FRONT') {
+        setAadhaarFront(base64);
+      } else {
+        setAadhaarBack(base64);
+      }
+    } catch (err: any) {
+      setBookingError('Error processing Aadhaar image: ' + err.message);
+    } finally {
+      setAadhaarCompressing(null);
+    }
+  };
+
+  const handleAttachSampleAadhaar = (side: 'FRONT' | 'BACK') => {
+    const uri = generateSampleAadhaarImage(side, guestName || 'Resident Guest', guestPhone || '9820011223');
+    if (side === 'FRONT') setAadhaarFront(uri);
+    else setAadhaarBack(uri);
   };
 
   // Step 1 of Booking: User clicks an available room -> Location & Radius Check Dialog
@@ -1048,10 +1604,23 @@ export const App: React.FC = () => {
     setIsBookingModalOpen(true);
   };
 
-  // Step 3 of Booking: Submit Guest Details and Reception Documents for Approval Gate
+  // Step 3 of Booking: Submit Guest Details and Aadhaar Photos for Reception Approval
   const handleSubmitBookingForApproval = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedHotel || !selectedRoomForBooking) return;
+    console.log('[BOOKING_SUBMIT]', {
+      selectedHotel: selectedHotel?.id,
+      selectedRoom: selectedRoomForBooking?.roomNumber,
+      guestName,
+      guestPhone,
+      bookingLocationType,
+      phoneOtpVerified,
+      hasFront: !!aadhaarFront,
+      hasBack: !!aadhaarBack,
+    });
+    if (!selectedHotel || !selectedRoomForBooking) {
+      console.warn('[BOOKING_SUBMIT] Missing hotel or room:', { selectedHotel, selectedRoomForBooking });
+      return;
+    }
 
     if (!guestName.trim()) {
       setBookingError('Please enter the primary guest full name.');
@@ -1061,8 +1630,16 @@ export const App: React.FC = () => {
       setBookingError('Please enter a valid mobile number for booking confirmation.');
       return;
     }
-    if (!documentNumber.trim()) {
-      setBookingError('Please enter your government ID number for reception document approval.');
+    if (!phoneOtpVerified) {
+      setBookingError('Please verify your mobile number with OTP before submitting your reservation.');
+      return;
+    }
+    if (bookingLocationType === 'HOTEL_RADIUS' && (!aadhaarFront || !aadhaarBack)) {
+      setBookingError('On-premises check-in requires uploading Aadhaar card photos or desk inspection.');
+      return;
+    }
+    if (isSecondRoom && !secondaryGuestName.trim()) {
+      setBookingError('Please enter the secondary guest full name for the 2nd room booking.');
       return;
     }
 
@@ -1070,8 +1647,15 @@ export const App: React.FC = () => {
       setIsSubmittingBooking(true);
       setBookingError(null);
 
-      const checkInDate = new Date();
-      const checkOutDate = new Date(checkInDate.getTime() + bookingNights * 24 * 60 * 60 * 1000);
+      const checkInDate = bookingLocationType === 'REMOTE_HOME' && checkInDateInput
+        ? new Date(checkInDateInput)
+        : new Date();
+      const checkOutDate = bookingLocationType === 'REMOTE_HOME' && checkOutDateInput
+        ? new Date(checkOutDateInput)
+        : new Date(checkInDate.getTime() + bookingNights * 24 * 60 * 60 * 1000);
+      if (bookingLocationType !== 'REMOTE_HOME') {
+        checkOutDate.setHours(11, 0, 0, 0); // 11:00 AM check-out standard
+      }
 
       const basePrice = selectedRoomForBooking.roomType.basePriceOvernight || 2500;
       const gstRate = basePrice > 7500 ? 18 : 12;
@@ -1081,22 +1665,36 @@ export const App: React.FC = () => {
 
       const maskedId = documentNumber.length > 4
         ? `${'X'.repeat(documentNumber.length - 4)}${documentNumber.slice(-4)}`
-        : documentNumber;
+        : (aadhaarFront ? 'AADHAAR-VERIFIED' : 'PENDING_DESK_VERIFICATION');
 
       const payload = {
         hotelId: selectedHotel.id,
         roomId: selectedRoomForBooking.id,
         checkInDate: checkInDate.toISOString(),
         checkOutDate: checkOutDate.toISOString(),
+        checkInTime: bookingLocationType === 'REMOTE_HOME' ? estimatedArrivalTime : '12:00',
+        checkOutTime: bookingLocationType === 'REMOTE_HOME' ? estimatedDepartureTime : '11:00',
+        nights: bookingNights,
+        estimatedArrivalTime: bookingLocationType === 'REMOTE_HOME' ? estimatedArrivalTime : undefined,
         guestName: guestName.trim(),
         guestPhone: guestPhone.trim(),
+        guestPhoneVerified: true,
         guestEmail: guestEmail.trim() || `${guestPhone.trim()}@guest.spicehub.com`,
         isCouple: guestCount === 2,
-        idType: documentType,
-        idNumber: documentNumber.trim(),
+        idType: 'AADHAAR',
+        idNumber: maskedId,
         advancePaid: grandTotal,
         bookingLocation: bookingLocationType,
         requiresReceptionApproval: true,
+        aadhaarFrontUrl: aadhaarFront || undefined,
+        aadhaarBackUrl: aadhaarBack || undefined,
+        secondaryGuestName: isSecondRoom ? secondaryGuestName.trim() : undefined,
+        secondaryGuestPhone: isSecondRoom ? secondaryGuestPhone.trim() : undefined,
+        secondaryGuestRelationship: isSecondRoom ? secondaryGuestRelationship : undefined,
+        deviceLocation: gpsDistKm !== null ? {
+          distanceKm: gpsDistKm,
+          isRemote: gpsDistKm > 0.5,
+        } : undefined,
       };
 
       const res = await fetch(`${DEFAULT_API_BASE}/api/v1/guest-portal/rooms/book-and-checkin`, {
@@ -1122,13 +1720,22 @@ export const App: React.FC = () => {
           guestCount,
           checkInDate: checkInDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
           checkOutDate: checkOutDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+          checkInTime: bookingLocationType === 'REMOTE_HOME' ? estimatedArrivalTime : '12:00 PM',
+          checkOutTime: bookingLocationType === 'REMOTE_HOME' ? estimatedDepartureTime : '11:00 AM',
+          bookingOrigin: bookingLocationType === 'HOTEL_RADIUS' ? 'HOTEL_PREMISES' : 'REMOTE_HOME',
+          originBadge: bookingLocationType === 'HOTEL_RADIUS' ? '🏨 Hotel Premises (होटल से)' : '🏠 Remote / Home Booking (घर से)',
+          distanceKm: gpsDistKm !== null ? gpsDistKm : undefined,
           nights: bookingNights,
           grandTotal,
-          idType: documentType,
+          idType: 'AADHAAR',
           idNumberMasked: maskedId,
           bookingLocation: bookingLocationType === 'HOTEL_RADIUS' ? 'Hotel Premises (On-Site Radius)' : 'Remote / Home Booking',
           status: 'PENDING_APPROVAL',
           hotelId: selectedHotel.id,
+          aadhaarFrontUrl: aadhaarFront || undefined,
+          aadhaarBackUrl: aadhaarBack || undefined,
+          secondaryGuestName: isSecondRoom ? secondaryGuestName : undefined,
+          secondaryGuestRelationship: isSecondRoom ? secondaryGuestRelationship : undefined,
         };
 
         try {
@@ -1137,9 +1744,17 @@ export const App: React.FC = () => {
 
         setPendingApprovalBooking(pendingData);
         setIsBookingModalOpen(false);
+        setCustomerView('waiting_approval');
         refreshRoomsCatalog(selectedHotel);
       } else {
-        setBookingError(json.message || 'Failed to submit room reservation documents. Please try again.');
+        if (json.errorCode === 'BOOKING_LIMIT_EXCEEDED') {
+          setBookingError(`🚫 ${json.message}`);
+        } else if (json.errorCode === 'SECONDARY_GUEST_REQUIRED') {
+          setIsSecondRoom(true);
+          setBookingError(`⚠️ ${json.message}`);
+        } else {
+          setBookingError(json.message || 'Failed to submit room reservation documents. Please try again.');
+        }
       }
     } catch (err: any) {
       setBookingError(err.message || 'Network error while submitting documents to reception.');
@@ -1148,30 +1763,26 @@ export const App: React.FC = () => {
     }
   };
 
-  // Front Desk Instant Document Approval Action (Approve Keycard)
-  const handleApproveByReception = async () => {
+  // Check Reception Approval Status (Polled or Checked by Guest)
+  const handleCheckApprovalStatus = async () => {
     if (!pendingApprovalBooking || !selectedHotel) return;
     try {
-      setIsApprovingAtReception(true);
-      const res = await fetch(`${DEFAULT_API_BASE}/api/v1/guest-portal/rooms/approve-checkin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-hotel-id': selectedHotel.id,
-        },
-        body: JSON.stringify({
-          hotelId: selectedHotel.id,
-          bookingNumber: pendingApprovalBooking.bookingNumber,
-        }),
-      });
-
+      setIsCheckingApproval(true);
+      const res = await fetch(
+        `${DEFAULT_API_BASE}/api/v1/guest-portal/rooms/booking-status/${pendingApprovalBooking.bookingNumber}`
+      );
+      if (!res.ok) {
+        setStayVerifyError('Reception Front Desk verification still in progress.');
+        setTimeout(() => setStayVerifyError(null), 3500);
+        return;
+      }
       const json = await res.json();
-      if (res.ok && json.success && json.data) {
+      if (json.success && json.data?.isApproved) {
         const activeRes: ActiveReservation = {
           bookingNumber: pendingApprovalBooking.bookingNumber,
-          roomNumber: pendingApprovalBooking.roomNumber,
+          roomNumber: json.data.roomNumber || pendingApprovalBooking.roomNumber,
           roomTypeName: pendingApprovalBooking.roomTypeName,
-          guestName: pendingApprovalBooking.guestName,
+          guestName: json.data.guestName || pendingApprovalBooking.guestName,
           guestPhone: pendingApprovalBooking.guestPhone,
           checkInDate: pendingApprovalBooking.checkInDate,
           checkOutDate: pendingApprovalBooking.checkOutDate,
@@ -1195,12 +1806,13 @@ export const App: React.FC = () => {
         setCustomerView('home');
         refreshRoomsCatalog(selectedHotel);
       } else {
-        alert(json.message || 'Reception approval failed');
+        setStayVerifyError('Reception Front Desk verification still in progress.');
+        setTimeout(() => setStayVerifyError(null), 3500);
       }
     } catch (err: any) {
-      alert(err.message || 'Reception approval network error');
+      console.error('Error checking approval status:', err);
     } finally {
-      setIsApprovingAtReception(false);
+      setIsCheckingApproval(false);
     }
   };
 
@@ -1260,58 +1872,105 @@ export const App: React.FC = () => {
       (h.city && h.city.toLowerCase().includes(hotelSearch.toLowerCase()))
   );
 
-  // If a portal is active (e.g. In-Room Dining or Dine-In Table Menu), render embedded portal
+  // Filtered available rooms list based on search, AC/Non-AC, budget and price sorting (Step 3)
+  const filteredRooms = useMemo(() => {
+    let list = catalogRooms.filter((r) => r.displayStatus === 'AVAILABLE');
+
+    // 1. Text Search (Room number, Room Type Name, Wing)
+    if (roomSearchQuery.trim()) {
+      const q = roomSearchQuery.toLowerCase().trim();
+      list = list.filter(
+        (r) =>
+          r.roomNumber.toLowerCase().includes(q) ||
+          (r.roomType?.name && r.roomType.name.toLowerCase().includes(q)) ||
+          (r.wing && r.wing.toLowerCase().includes(q))
+      );
+    }
+
+    // 2. AC / Non-AC 2-Option Filter
+    const isClimateAc = (r: CatalogRoom): boolean => {
+      if ((r as any).isAc === false) return false;
+      if ((r.roomType as any)?.isAc === false) return false;
+      const typeName = (r.roomType?.name || '').toLowerCase();
+      if (/non[-\s]?ac/i.test(typeName)) return false;
+      return true;
+    };
+
+    if (roomAcFilter === 'AC') {
+      list = list.filter((r) => isClimateAc(r));
+    } else if (roomAcFilter === 'NON_AC') {
+      list = list.filter((r) => !isClimateAc(r));
+    }
+
+    // 3. Quick Budget Filter
+    if (roomMaxBudget === '2500') {
+      list = list.filter((r) => (r.roomType.basePriceOvernight || 0) <= 2500);
+    } else if (roomMaxBudget === '4000') {
+      list = list.filter((r) => (r.roomType.basePriceOvernight || 0) <= 4000);
+    } else if (roomMaxBudget === 'LUXURY') {
+      list = list.filter((r) => (r.roomType.basePriceOvernight || 0) > 4000);
+    }
+
+    // 4. Price Sorting
+    if (roomPriceSort === 'LOW_TO_HIGH') {
+      list = [...list].sort(
+        (a, b) => (a.roomType.basePriceOvernight || 0) - (b.roomType.basePriceOvernight || 0)
+      );
+    } else if (roomPriceSort === 'HIGH_TO_LOW') {
+      list = [...list].sort(
+        (a, b) => (b.roomType.basePriceOvernight || 0) - (a.roomType.basePriceOvernight || 0)
+      );
+    }
+
+    return list;
+  }, [catalogRooms, roomSearchQuery, roomAcFilter, roomMaxBudget, roomPriceSort]);
+
+  // Precomputed exact counts for AC and Non-AC
+  const isClimateAc = (r: CatalogRoom): boolean => {
+    if ((r as any).isAc === false) return false;
+    if ((r.roomType as any)?.isAc === false) return false;
+    const typeName = (r.roomType?.name || '').toLowerCase();
+    if (/non[-\s]?ac/i.test(typeName)) return false;
+    return true;
+  };
+  const totalAvailableRoomsCount = catalogRooms.filter((r) => r.displayStatus === 'AVAILABLE').length;
+  const acRoomsCount = catalogRooms.filter((r) => r.displayStatus === 'AVAILABLE' && isClimateAc(r)).length;
+  const nonAcRoomsCount = catalogRooms.filter((r) => r.displayStatus === 'AVAILABLE' && !isClimateAc(r)).length;
+  const availableRoomsList = filteredRooms;
+
+  // If a portal is active (e.g. In-Room Dining or Dine-In Table Menu), render embedded portal with single clean navbar
   if (activePortalUrl) {
     return (
-      <div className={`w-full h-full flex flex-col ${isDark ? 'bg-[#070b12] text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+      <div className={`w-full h-full flex flex-col ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} relative`}>
+        {/* Dedicated Slim Portal Control Bar - never overlaps web content */}
         <div
-          className={`border-b px-3.5 py-2.5 flex items-center justify-between text-xs z-20 shadow-sm ${
-            isDark ? 'bg-[#0c1322] border-slate-800' : 'bg-white border-slate-200'
-          }`}
+          className="w-full shrink-0 z-40 px-3 py-2 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shadow-md"
+          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 8px)' }}
         >
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-            <span className={`font-black truncate max-w-[180px] sm:max-w-md ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {activeSessionLabel}
-            </span>
+          <button
+            type="button"
+            data-testid="portal-floating-home-btn"
+            onClick={() => setActivePortalUrl(null)}
+            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition"
+          >
+            <Icons.ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
+            <span>{t('← Exit to App', '← Exit to App')}</span>
+          </button>
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>{selectedHotel?.name || 'SpiceHub'} • Room Portal</span>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className={`p-2 rounded-xl border text-xs font-bold transition flex items-center justify-center ${
-                isDark ? 'bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-              }`}
-              title={`Switch to ${isDark ? 'Light' : 'Dark'} Mode`}
-            >
-              {isDark ? <Icons.Sun className="w-4 h-4 text-amber-400" /> : <Icons.Moon className="w-4 h-4 text-slate-700" />}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const ifr = document.getElementById('portal-frame') as HTMLIFrameElement;
-                if (ifr) ifr.src = activePortalUrl;
-              }}
-              className={`px-3 py-1.5 rounded-xl font-bold border flex items-center gap-1.5 transition ${
-                isDark
-                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-              }`}
-            >
-              <Icons.Refresh className="w-3.5 h-3.5" />
-              <span>Refresh</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActivePortalUrl(null)}
-              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold flex items-center gap-1.5 transition shadow-sm active:scale-95"
-            >
-              <Icons.Home className="w-3.5 h-3.5" />
-              <span>Home</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setActivePortalUrl(null)}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition text-xs font-bold"
+            title={t('Close', 'Close')}
+          >
+            ✕
+          </button>
         </div>
-        <div className="flex-1 w-full relative">
+
+        <div className="flex-1 w-full h-full relative">
           <iframe
             id="portal-frame"
             src={activePortalUrl}
@@ -1324,18 +1983,24 @@ export const App: React.FC = () => {
     );
   }
 
-  const availableRoomsList = catalogRooms.filter((r) => r.displayStatus === 'AVAILABLE');
-
   return (
-    <div className={`min-h-full flex flex-col ${isDark ? 'bg-[#070b12] text-slate-100' : 'bg-slate-50 text-slate-900'} overflow-y-auto transition-colors duration-200`}>
-      {/* Top Header with Property Identity & Theme Switcher */}
+    <div className="h-[100dvh] w-full overflow-hidden flex justify-center bg-slate-50">
+      <div className="max-w-md w-full h-[100dvh] flex flex-col bg-slate-50 text-slate-900 border-x border-slate-200 overflow-hidden relative shadow-2xl">
+      {/* Brand Navbar: w-full flex justify-between items-center px-4 py-3 pt-[env(safe-area-inset-top)] */}
       <header
-        className={`sticky top-0 z-30 backdrop-blur-md px-4 py-2.5 flex items-center justify-between transition-colors border-b ${
-          isDark ? 'bg-[#0d1424]/90 border-slate-800/80 text-white' : 'bg-white/95 border-slate-200/90 text-slate-900 shadow-sm'
-        }`}
+        className="w-full flex justify-between items-center px-4 py-3 bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-30 shrink-0"
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)',
+        }}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-xl overflow-hidden border border-amber-500/30 shadow-sm bg-slate-900 shrink-0">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setCustomerView('hotel_select')}
+          className="flex items-center gap-2.5 min-w-0 cursor-pointer active:opacity-80 transition"
+          title="Switch Hotel Property"
+        >
+          <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 shadow-xs bg-slate-100 shrink-0">
             <img
               src={selectedHotel?.logoUrl || FALLBACK_HOTEL_LOGO}
               alt={selectedHotel?.name || 'Hotel Logo'}
@@ -1346,143 +2011,497 @@ export const App: React.FC = () => {
             />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-sm font-black tracking-tight truncate">
-                {selectedHotel?.name || 'SpiceHub Luxury Guest'}
+            <div className="flex items-center gap-1">
+              <h1 className="text-xs font-bold tracking-tight truncate text-slate-900">
+                {selectedHotel?.name || 'SpiceHub Guest'}
               </h1>
-              <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-500">
-                <Icons.Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-              </span>
             </div>
-            <p className={`text-[11px] truncate font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {selectedHotel?.city ? `${selectedHotel.city}, ${selectedHotel.state || 'India'}` : 'Heritage Hospitality & Suites'}
+            <p className="text-[10px] truncate font-medium text-slate-500">
+              {selectedHotel?.city ? `${selectedHotel.city}, ${selectedHotel.state || 'India'}` : 'Guest Stay & Dining'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* Host Toggle (USB vs Wi-Fi) */}
+          {/* Profile Button */}
           <button
             type="button"
-            data-testid="customer-network-host-btn"
-            onClick={() => {
-              const next = serverHost === 'localhost' ? DEV_LAN_HOST : 'localhost';
-              setServerHost(next);
-              localStorage.setItem('spicehub_server_host', next);
-            }}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition active:scale-95 ${
-              isDark
-                ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 shadow-sm'
-            }`}
-            title="Toggle between Wi-Fi LAN IP and USB Direct"
-          >
-            <span>{serverHost === 'localhost' ? '⚡' : '📶'}</span>
-            <span>{serverHost === 'localhost' ? 'USB' : 'Wi-Fi'}</span>
-          </button>
-
-          {/* Theme Toggle Button */}
-          <button
-            type="button"
-            data-testid="customer-theme-toggle"
-            onClick={toggleTheme}
+            data-testid="customer-header-profile-btn"
+            onClick={() => setCustomerView('profile')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition active:scale-95 ${
-              isDark
-                ? 'bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700'
-                : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 shadow-sm'
+              customerView === 'profile'
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-xs'
             }`}
-            title={`Switch to ${isDark ? 'Light' : 'Dark'} Mode`}
+            title={t('Profile')}
           >
-            {isDark ? (
-              <>
-                <Icons.Sun className="w-3.5 h-3.5 text-amber-400" />
-                <span>Light</span>
-              </>
-            ) : (
-              <>
-                <Icons.Moon className="w-3.5 h-3.5 text-slate-700" />
-                <span>Dark</span>
-              </>
-            )}
+            <Icons.User className="w-3.5 h-3.5 text-blue-600" />
+            <span className="hidden xs:inline">{t('Profile')}</span>
           </button>
         </div>
       </header>
 
       {/* Main Content Viewport */}
-      <main className="flex-1 max-w-lg w-full mx-auto p-4 flex flex-col gap-4 pb-28">
+      <main className="flex-1 overflow-y-auto overscroll-contain max-w-lg w-full mx-auto p-4 flex flex-col gap-4 pb-28">
 
         {/* ======================================================== */}
-        {/* RECEPTION APPROVAL GATE BANNER (IF BOOKING PENDING)      */}
+        {/* STEP 1: DEDICATED HOTEL SELECTION SCREEN ('hotel_select')*/}
         {/* ======================================================== */}
-        {pendingApprovalBooking && (
-          <div
-            data-testid="reception-approval-gate-banner"
-            className={`rounded-2xl border p-4 shadow-md flex flex-col gap-3 relative overflow-hidden animate-in fade-in ${
-              isDark ? 'bg-amber-950/40 border-amber-500/50 text-white' : 'bg-amber-50/90 border-amber-300 text-slate-900'
-            }`}
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-xl shadow-md animate-pulse shrink-0">
-                  <Icons.Clock className="w-6 h-6 text-slate-950" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                      Front Desk Verification
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40">
-                      Pending Approval
-                    </span>
+        {customerView === 'hotel_select' && (
+          <div className="flex flex-col gap-4 animate-in fade-in">
+            {/* Hotel Search Bar */}
+            <div className="relative">
+              <input
+                type="text"
+                data-testid="hotel-search-input"
+                value={hotelSearch}
+                onChange={(e) => setHotelSearch(e.target.value)}
+                placeholder="Search hotel name, city (e.g. Jaipur, Rajasthan)..."
+                className={`w-full min-h-[42px] rounded-xl border pl-9 pr-9 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                  isDark
+                    ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500'
+                    : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 shadow-xs'
+                }`}
+              />
+              <Icons.Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+              {hotelSearch && (
+                <button
+                  type="button"
+                  onClick={() => setHotelSearch('')}
+                  className="absolute right-3 top-3 text-slate-400 hover:text-white"
+                >
+                  <Icons.X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between px-1">
+              <span className={`text-[11px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                {filteredHotels.length} Verified Properties Ready
+              </span>
+              {selectedHotel && (
+                <button
+                  type="button"
+                  onClick={() => setCustomerView('home')}
+                  className="text-xs font-black text-amber-500 hover:underline flex items-center gap-1"
+                >
+                  <span>Continue with {selectedHotel.name.split(' ')[0]}</span>
+                  <Icons.ArrowRight className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Hotel Cards List */}
+            <div className="flex flex-col gap-3">
+              {filteredHotels.map((h) => {
+                const isSelected = selectedHotel?.id === h.id;
+                const cover = h.coverImageUrl || FALLBACK_HOTEL_COVER;
+                const logo = h.logoUrl || FALLBACK_HOTEL_LOGO;
+
+                return (
+                  <div
+                    key={h.id}
+                    data-testid={`hotel-card-${h.id}`}
+                    onClick={() => {
+                      setSelectedHotel(h);
+                      try {
+                        localStorage.setItem('spicehub_customer_hotel_chosen', 'true');
+                      } catch {}
+                      setCustomerView('home');
+                      setStayVerifyError(null);
+                    }}
+                    className={`rounded-2xl border cursor-pointer transition-all duration-200 overflow-hidden shadow-md flex flex-col group active:scale-98 ${
+                      isSelected
+                        ? 'border-2 border-amber-500 ring-2 ring-amber-500/20'
+                        : isDark
+                        ? 'border-slate-800 bg-slate-900/80 hover:border-slate-700'
+                        : 'border-slate-200 bg-white hover:border-amber-400'
+                    }`}
+                  >
+                    <div className="h-28 w-full relative overflow-hidden bg-slate-950">
+                      <img
+                        src={cover}
+                        alt={h.name}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = FALLBACK_HOTEL_COVER;
+                        }}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20" />
+
+                      <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-black/60 text-white border border-white/20 backdrop-blur-md flex items-center gap-1">
+                          <Icons.Location className="w-3 h-3 text-amber-400" />
+                          <span>{h.city || 'India'}{h.state ? `, ${h.state}` : ''}</span>
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/80 text-white backdrop-blur-md flex items-center gap-1">
+                          <Icons.Check className="w-3 h-3" />
+                          <span>Verified</span>
+                        </span>
+                      </div>
+
+                      <div className="absolute bottom-2 left-3 right-3 flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-white shadow bg-white shrink-0">
+                          <img
+                            src={logo}
+                            alt=""
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = FALLBACK_HOTEL_LOGO;
+                            }}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm font-black text-white truncate drop-shadow">
+                            {h.name}
+                          </h3>
+                          <p className="text-[11px] text-amber-200/90 truncate font-semibold">
+                            {h.tagline || 'Experience luxury hospitality & fine dining'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-1 text-amber-400 text-xs">
+                        <Icons.Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        <Icons.Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        <Icons.Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        <Icons.Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        <Icons.Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        <span className="text-[10px] font-bold text-slate-400 ml-1">5-Star Luxury</span>
+                      </div>
+
+                      <div className="flex items-center gap-1 text-xs font-black text-amber-500 group-hover:translate-x-1 transition-transform">
+                        <span>{isSelected ? 'Selected' : 'Select Hotel'}</span>
+                        <Icons.ArrowRight className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="text-sm font-black mt-0.5">
-                    Room {pendingApprovalBooking.roomNumber} • {pendingApprovalBooking.roomTypeName}
-                  </h3>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-300">
-                    Guest: {pendingApprovalBooking.guestName} • Ref: {pendingApprovalBooking.bookingNumber}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Document Verification Notice */}
-            <div className={`p-3 rounded-xl border text-xs space-y-1 ${isDark ? 'bg-black/30 border-amber-500/20' : 'bg-white/80 border-amber-200'}`}>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 dark:text-slate-400 font-medium">Document ID:</span>
-                <span className="font-bold uppercase text-amber-600 dark:text-amber-400">
-                  {pendingApprovalBooking.idType} ({pendingApprovalBooking.idNumberMasked})
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 dark:text-slate-400 font-medium">Check-In Location:</span>
-                <span className="font-bold">{pendingApprovalBooking.bookingLocation}</span>
-              </div>
-              <p className="text-[11px] text-amber-700 dark:text-amber-300/90 pt-1 leading-snug">
-                Digital Keycard & In-Room Dining unlock automatically once Front Desk approves your ID.
-              </p>
-            </div>
-
-            {/* Front Desk Reception Instant Keycard Action Button */}
-            <div className="pt-0.5 flex flex-col gap-2">
-              <button
-                type="button"
-                data-testid="approve-by-reception-btn"
-                disabled={isApprovingAtReception}
-                onClick={handleApproveByReception}
-                className="min-h-[44px] rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition active:scale-98 disabled:opacity-50"
-              >
-                <Icons.Check className="w-4 h-4" />
-                <span>{isApprovingAtReception ? 'Approving at Front Desk...' : 'Approve by Reception Desk (Instant Keycard)'}</span>
-              </button>
+                );
+              })}
             </div>
           </div>
         )}
 
         {/* ======================================================== */}
-        {/* VIEW 1: CLEAN HOME LANDING PAGE WITH EXACTLY 2 BIG CARDS */}
+        {/* VIEW 5: WAITING FOR APPROVAL & RECEPTION DIGITAL PASS    */}
+        {/* ======================================================== */}
+        {customerView === 'waiting_approval' && (
+          <div className="flex flex-col gap-4 animate-in fade-in">
+            {/* Top Back Action Bar */}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                data-testid="approval-back-home-btn"
+                onClick={() => setCustomerView('home')}
+                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
+                  isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700 shadow-sm'
+                }`}
+              >
+                <Icons.ArrowLeft className="w-3.5 h-3.5" />
+                <span>{t('Back to Home')}</span>
+              </button>
+              <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border flex items-center gap-1.5 ${
+                isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-amber-100 text-amber-900 border-amber-300'
+              }`}>
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                <span>{pendingApprovalBooking?.bookingOrigin === 'REMOTE_HOME' ? 'Advance Booking Pass' : 'Instant Approval Mode'}</span>
+              </span>
+            </div>
+
+            {/* Glowing Status Radar Centerpiece */}
+            <div className={`p-5 rounded-3xl border text-center relative overflow-hidden flex flex-col items-center justify-center gap-3 ${
+              isDark
+                ? 'bg-slate-900 border-slate-800 shadow-sm'
+                : 'bg-white border-slate-200 shadow-sm'
+            }`}>
+              {/* Radar Rings Effect */}
+              <div className="relative w-28 h-28 flex items-center justify-center my-1">
+                <div className="absolute inset-0 rounded-full bg-blue-500/10 animate-ping opacity-60" style={{ animationDuration: '2.5s' }} />
+                <div className="absolute -inset-2 rounded-full border-2 border-dashed border-blue-400/30 animate-spin" style={{ animationDuration: '14s' }} />
+                <div className="absolute -inset-4 rounded-full border border-blue-400/20" />
+                
+                {/* Core Shield */}
+                <div className="relative z-10 w-20 h-20 rounded-2xl bg-blue-600 p-0.5 shadow-md flex items-center justify-center">
+                  <div className="w-full h-full rounded-[14px] bg-slate-950 flex flex-col items-center justify-center gap-0.5 p-2">
+                    <Icons.Shield className="w-7 h-7 text-blue-400" />
+                    <span className="text-[8px] font-black text-blue-300 uppercase tracking-widest text-center">
+                      PMS DESK
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className={`text-base sm:text-lg font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-950'}`}>
+                  {pendingApprovalBooking?.bookingOrigin === 'REMOTE_HOME'
+                    ? 'Advance Reservation Confirmed • Present Pass at Reception'
+                    : 'Awaiting Reception ID Verification'}
+                </h3>
+                <p className={`text-xs mt-1 max-w-sm mx-auto leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  {pendingApprovalBooking?.bookingOrigin === 'REMOTE_HOME'
+                    ? 'Your advance reservation is active! Present this digital pass to the Reception desk when you arrive to complete quick physical ID verification and collect your room keycard.'
+                    : 'Your booking details and Aadhaar card photos have been forwarded to Front Desk Reception for guest verification.'}
+                </p>
+              </div>
+
+              {/* Real-time Socket Indicator */}
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 dark:text-emerald-400 text-[10px] font-bold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Live PMS Socket Sync Active • Auto-unlocks when Reception approves check-in</span>
+              </div>
+            </div>
+
+            {/* Scannable Reception Digital Booking Pass / Voucher */}
+            {pendingApprovalBooking ? (
+              <div className={`p-5 rounded-3xl border-2 space-y-4 shadow-md relative overflow-hidden ${
+                isDark ? 'bg-slate-900 border-amber-500/40 text-white' : 'bg-white border-amber-300 text-slate-900'
+              }`}>
+                {/* Voucher Top Ribbon */}
+                <div className="flex items-center justify-between pb-3 border-b border-dashed border-amber-400/40">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold text-sm shadow">
+                      🏨
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 block">
+                        Official Digital Booking Pass
+                      </span>
+                      <h4 className="text-sm font-black">
+                        Room {pendingApprovalBooking.roomNumber} • {pendingApprovalBooking.roomTypeName}
+                      </h4>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[9px] uppercase font-bold text-slate-400 block">Booking No</span>
+                    <span className="text-xs font-mono font-black text-amber-600 dark:text-amber-400">
+                      {pendingApprovalBooking.bookingNumber}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Scannable Visual Barcode / QR Simulation for Reception Scanner */}
+                <div className={`p-3 rounded-2xl border text-center space-y-1.5 ${
+                  isDark ? 'bg-black/50 border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className="flex justify-center items-center gap-1 font-mono tracking-widest text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>||||| ||| |||| || ||||| |||| ||| |||||</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-mono px-2 text-slate-500">
+                    <span>HOTEL ID: {pendingApprovalBooking.hotelId ? pendingApprovalBooking.hotelId.slice(0, 8) : 'SPICEHUB'}</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{pendingApprovalBooking.bookingNumber}</span>
+                    <span>ROOM #{pendingApprovalBooking.roomNumber}</span>
+                  </div>
+                  <p className="text-[9px] text-slate-500 font-medium">
+                    Show this screen to Front Desk Receptionist for instant lookup upon arrival
+                  </p>
+                </div>
+
+                {/* Guest & Reservation Dates Matrix */}
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className={`p-2.5 rounded-xl border ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
+                    <span className={`text-[10px] font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Primary Guest
+                    </span>
+                    <span className="font-bold text-sm block truncate">{pendingApprovalBooking.guestName}</span>
+                    <span className="text-[11px] text-slate-400 block">{pendingApprovalBooking.guestPhone}</span>
+                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-0.5 mt-0.5">
+                      <Icons.Check className="w-2.5 h-2.5" /> Mobile OTP Verified
+                    </span>
+                  </div>
+
+                  <div className={`p-2.5 rounded-xl border ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
+                    <span className={`text-[10px] font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Reservation Stay
+                    </span>
+                    <span className="font-bold text-xs block">
+                      {pendingApprovalBooking.nights} Night{pendingApprovalBooking.nights > 1 ? 's' : ''} • ₹{pendingApprovalBooking.grandTotal?.toLocaleString('en-IN') || '—'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      {pendingApprovalBooking.checkInDate
+                        ? new Date(pendingApprovalBooking.checkInDate).toLocaleDateString([], { day: '2-digit', month: 'short' })
+                        : 'Today'}
+                      {' ➔ '}
+                      {pendingApprovalBooking.checkOutDate
+                        ? new Date(pendingApprovalBooking.checkOutDate).toLocaleDateString([], { day: '2-digit', month: 'short' })
+                        : 'Tomorrow'}
+                    </span>
+                    <span className="text-[9px] font-bold text-blue-500 mt-0.5 block">
+                      {pendingApprovalBooking.bookingOrigin === 'REMOTE_HOME' ? 'Advance Scheduled' : 'Instant Check-in'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Document Verification Notice Banner */}
+                <div className={`p-3 rounded-2xl border flex items-start gap-2.5 ${
+                  pendingApprovalBooking.bookingOrigin === 'REMOTE_HOME'
+                    ? isDark ? 'border-blue-500/30 bg-blue-950/30 text-blue-200' : 'border-blue-200 bg-blue-50 text-blue-900'
+                    : isDark ? 'border-amber-500/30 bg-amber-950/30 text-amber-200' : 'border-amber-200 bg-amber-50 text-amber-900'
+                }`}>
+                  <Icons.Shield className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                  <div className="text-[11px] leading-snug">
+                    <strong className="block font-bold">
+                      {pendingApprovalBooking.bookingOrigin === 'REMOTE_HOME'
+                        ? 'Government ID Verification at Front Desk'
+                        : 'Aadhaar Verification in Progress'}
+                    </strong>
+                    <span>
+                      {pendingApprovalBooking.bookingOrigin === 'REMOTE_HOME'
+                        ? 'When you arrive at the property on your check-in date, show this digital pass and your physical ID card to the receptionist. Once verified, your digital keycard and in-room services will activate immediately.'
+                        : 'Front Desk is reviewing your uploaded documents. Keycard unlocks automatically as soon as verified.'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Aadhaar Photos Preview (If uploaded) */}
+                {(pendingApprovalBooking.aadhaarFrontUrl || pendingApprovalBooking.aadhaarBackUrl) && (
+                  <div className={`p-3 rounded-xl border space-y-2 ${isDark ? 'bg-black/40 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span className="flex items-center gap-1 text-amber-500">
+                        <Icons.Shield className="w-3.5 h-3.5" />
+                        <span>Uploaded Aadhaar Verification Photos</span>
+                      </span>
+                      <span className="text-emerald-500 flex items-center gap-0.5 text-[10px]">
+                        <Icons.Check className="w-3 h-3" />
+                        <span>Attached</span>
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-lg border p-1 text-center bg-black/50 border-slate-800">
+                        <span className="text-[9px] font-bold block text-slate-400 mb-1">Aadhaar Front</span>
+                        {pendingApprovalBooking.aadhaarFrontUrl ? (
+                          <img
+                            src={pendingApprovalBooking.aadhaarFrontUrl}
+                            alt="Front"
+                            className="h-16 w-full object-contain rounded border border-slate-700 bg-black"
+                          />
+                        ) : (
+                          <div className="h-16 flex items-center justify-center text-[10px] text-slate-500">Attached</div>
+                        )}
+                      </div>
+                      <div className="rounded-lg border p-1 text-center bg-black/50 border-slate-800">
+                        <span className="text-[9px] font-bold block text-slate-400 mb-1">Aadhaar Back</span>
+                        {pendingApprovalBooking.aadhaarBackUrl ? (
+                          <img
+                            src={pendingApprovalBooking.aadhaarBackUrl}
+                            alt="Back"
+                            className="h-16 w-full object-contain rounded border border-slate-700 bg-black"
+                          />
+                        ) : (
+                          <div className="h-16 flex items-center justify-center text-[10px] text-slate-500">Attached</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Verification Actions */}
+                <div className="pt-2 flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      data-testid="btn-check-approval-status"
+                      onClick={handleCheckApprovalStatus}
+                      disabled={isCheckingApproval}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98 disabled:opacity-50"
+                    >
+                      <Icons.Refresh className={`w-3.5 h-3.5 ${isCheckingApproval ? 'animate-spin' : ''}`} />
+                      <span>{isCheckingApproval ? t('Checking...') : t('Check Approval Status')}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      data-testid="btn-cancel-pending-approval"
+                      onClick={() => {
+                        if (confirm('Are you sure you want to cancel this pending reservation request?')) {
+                          localStorage.removeItem('spicehub_pending_approval_booking');
+                          setPendingApprovalBooking(null);
+                          setCustomerView('rooms');
+                        }
+                      }}
+                      className={`py-2.5 px-3 rounded-xl border font-bold text-xs transition ${
+                        isDark ? 'border-slate-800 text-slate-400 hover:text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {t('Cancel Request')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 rounded-2xl border text-center space-y-2 border-slate-800 bg-slate-900/40">
+                <p className="text-xs text-slate-400">No pending booking verification active.</p>
+                <button
+                  type="button"
+                  onClick={() => setCustomerView('rooms')}
+                  className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-black text-xs"
+                >
+                  Browse Available Rooms
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* STEP 2: SERVICE CHOICE SCREEN ('home')                   */}
         {/* ======================================================== */}
         {customerView === 'home' && (
           <div className="flex flex-col gap-4">
+            {/* If pending approval booking AND no active checked-in reservation, show sleek notification banner linking to Step 5 */}
+            {!activeReservation && pendingApprovalBooking && (
+              <div
+                data-testid="approval-waiting-card"
+                className={`p-3.5 rounded-2xl border-2 shadow-lg flex items-center justify-between gap-3 transition ${
+                  isDark
+                    ? 'border-amber-500/80 bg-slate-900 text-white'
+                    : 'border-amber-400 bg-amber-50/90 text-slate-900'
+                }`}
+              >
+                <div
+                  onClick={() => setCustomerView('waiting_approval')}
+                  className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0">
+                    <Icons.Clock className="w-4 h-4 animate-spin" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-500 block truncate">
+                      ⏳ {t('Waiting for Approval')} • Room {pendingApprovalBooking.roomNumber}
+                    </span>
+                    <span className="text-xs font-bold block truncate">
+                      Identity verification in progress at reception
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setCustomerView('waiting_approval')}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1 shadow-sm transition active:scale-95"
+                  >
+                    <span>View</span>
+                    <Icons.ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="dismiss-approval-card-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPendingApprovalBooking(null);
+                      try {
+                        localStorage.removeItem('spicehub_pending_approval_booking');
+                      } catch {}
+                    }}
+                    title="Dismiss notification"
+                    className="w-7 h-7 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 flex items-center justify-center text-xs font-bold transition active:scale-95"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
             {/* Authoritative Property Showcase Hero Card */}
             <div
               className="rounded-2xl border border-amber-500/30 shadow-lg relative overflow-hidden min-h-[175px] flex flex-col justify-end p-4 group"
@@ -1515,7 +2534,7 @@ export const App: React.FC = () => {
                   <button
                     type="button"
                     data-testid="select-hotel-pill-btn"
-                    onClick={() => setIsHotelModalOpen(true)}
+                    onClick={() => setCustomerView('hotel_select')}
                     className="text-[11px] font-black uppercase tracking-wider px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold border border-amber-300 shadow-md transition active:scale-95 flex items-center gap-1.5 shrink-0"
                   >
                     <Icons.Switch className="w-3.5 h-3.5 text-slate-950" />
@@ -1551,183 +2570,299 @@ export const App: React.FC = () => {
               <div className="flex items-center justify-between px-1">
                 <div>
                   <h2 className={`text-sm font-black uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
-                    Guest Experiences
+                    {activeReservation ? `Resident Suite • Room ${activeReservation.roomNumber}` : 'Guest Experiences'}
                   </h2>
                   <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Choose your personalized hospitality service
+                    {activeReservation ? 'Active Stay Verified & Digital Keycard Ready' : 'Choose your personalized hospitality service'}
                   </p>
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                  2 Options
+                  {activeReservation ? 'Resident Guest' : '2 Options'}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 gap-3.5">
-                {/* OPTION 1: BOOK A ROOM (STAY) WITH ROOM PHOTO */}
-                <button
-                  type="button"
-                  data-testid="home-book-room-card"
-                  onClick={() => setCustomerView('rooms')}
-                  className="rounded-2xl border border-blue-500/40 relative overflow-hidden min-h-[175px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
-                >
-                  <img
-                    src={selectedHotel?.stayImageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80'}
-                    alt="Book a Room"
-                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
+              {/* CASE A: GUEST HAS AN ACTIVE APPROVED STAY (SHOW MY STAY FIRST, HIDE ROOMS PROMO) */}
+              {activeReservation && !pendingApprovalBooking ? (
+                <div className="flex flex-col gap-3.5">
+                  {/* 1. PRIMARY HERO CARD: ACTIVE STAY & DIGITAL KEYCARD */}
+                  <div
+                    data-testid="active-stay-card"
+                    className={`p-5 rounded-3xl border shadow-sm space-y-4 relative overflow-hidden ${
+                      isDark
+                        ? 'bg-slate-900 border-slate-800 text-white'
+                        : 'bg-white border-slate-200 text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                        <span className={`text-xs font-black uppercase tracking-wider ${
+                          isDark ? 'text-emerald-400' : 'text-emerald-800'
+                        }`}>
+                          {t('My Stay')} • {t('Room')} {activeReservation.roomNumber}
+                        </span>
+                      </div>
+                      <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
+                        {activeReservation.bookingNumber}
+                      </span>
+                    </div>
 
-                  {/* Card Header Badges */}
-                  <div className="relative z-10 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white shadow-md flex items-center gap-1">
-                        <Icons.Bed className="w-3.5 h-3.5" />
-                        <span>Stay & Suites</span>
-                      </span>
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 backdrop-blur-md">
-                        {availableRoomCount !== null ? `${availableRoomCount} Available Rooms` : 'Verified Rooms'}
-                      </span>
+                    <div>
+                      <h3 className="text-xl font-black">{activeReservation.roomTypeName}</h3>
+                      <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                        {t('Guest', 'Guest')}: <strong className="font-bold">{activeReservation.guestName}</strong> ({activeReservation.guestPhone})
+                      </p>
+                      <p className={`text-[11px] mt-0.5 flex items-center gap-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <span>WiFi: <strong>{activeReservation.wifiSsid || 'TajGateway_HighSpeed'}</strong></span>
+                        <span>•</span>
+                        <span>Pass: <strong className="font-mono">{activeReservation.wifiPassword || `TajGuest@${activeReservation.roomNumber}`}</strong></span>
+                      </p>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-blue-600/90 text-white flex items-center justify-center text-sm font-black shadow-md group-hover:translate-x-1 transition-transform">
-                      <Icons.ArrowRight className="w-4 h-4 text-white" />
-                    </div>
+
+                    {!isRoomEntered ? (
+                      <button
+                        type="button"
+                        data-testid="enter-active-room-btn"
+                        onClick={() => {
+                          if (activeReservation) {
+                            localStorage.setItem(`spicehub_room_entered_${activeReservation.bookingNumber}`, 'true');
+                            setIsRoomEntered(true);
+                            launchResidentPortal(
+                              activeReservation.roomNumber,
+                              selectedHotel,
+                              activeReservation.sessionToken,
+                              'HOME'
+                            );
+                          }
+                        }}
+                        className="w-full py-3 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/20 transition active:scale-98"
+                      >
+                        <Icons.Key className="w-4 h-4 text-white" />
+                        <span>{t('Digital Keycard')}</span>
+                      </button>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2.5 pt-1">
+                        <button
+                          type="button"
+                          data-testid="enter-active-room-btn"
+                          onClick={() =>
+                            launchResidentPortal(
+                              activeReservation.roomNumber,
+                              selectedHotel,
+                              activeReservation.sessionToken,
+                              'HOME'
+                            )
+                          }
+                          className="py-3 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/20 transition active:scale-98"
+                        >
+                          <Icons.Key className="w-4 h-4 text-white" />
+                          <span>{t('Digital Keycard')}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          data-testid="room-in-room-dining-btn"
+                          onClick={() =>
+                            launchResidentPortal(
+                              activeReservation.roomNumber,
+                              selectedHotel,
+                              activeReservation.sessionToken,
+                              'DINING'
+                            )
+                          }
+                          className={`py-3 px-3 rounded-2xl border text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition active:scale-98 shadow-sm ${
+                            isDark
+                              ? 'border-slate-700 bg-slate-800/90 hover:bg-slate-700 text-slate-200'
+                              : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-800'
+                          }`}
+                        >
+                          <Icons.Utensils className="w-4 h-4 text-amber-500" />
+                          <span>{t('In-Room Food')}</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Card Content */}
-                  <div className="relative z-10 space-y-1">
-                    <h3 className="text-lg font-black text-white drop-shadow-md flex items-center gap-2">
-                      <Icons.Bed className="w-5 h-5 text-blue-400" />
-                      <span>Book a Room</span>
-                    </h3>
-                    <p className="text-xs text-slate-200 line-clamp-2 drop-shadow font-normal">
-                      Browse verified available rooms, hotel radius check & instant Front Desk check-in
-                    </p>
-                    <div className="pt-1.5 flex items-center gap-3 text-[11px] font-bold text-blue-300">
-                      <span className="flex items-center gap-1">
-                        <Icons.Check className="w-3.5 h-3.5 text-blue-400" />
-                        <span>Instant ID Check-in</span>
-                      </span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1">
-                        <Icons.Key className="w-3.5 h-3.5 text-blue-400" />
-                        <span>Digital Keycard</span>
-                      </span>
+                  {/* 2. DINE-IN OPTIONS: IN-ROOM FOOD MENU & RESTAURANT TABLE SCAN */}
+                  <button
+                    type="button"
+                    data-testid="home-table-scan-card"
+                    onClick={() =>
+                      launchResidentPortal(
+                        activeReservation.roomNumber,
+                        selectedHotel,
+                        activeReservation.sessionToken,
+                        'DINING'
+                      )
+                    }
+                    className="rounded-2xl border border-amber-500/40 relative overflow-hidden min-h-[150px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
+                  >
+                    <img
+                      src={selectedHotel?.diningImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80'}
+                      alt="In-Room Dining Menu"
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
+
+                    <div className="relative z-10 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 shadow-md flex items-center gap-1">
+                          <Icons.Utensils className="w-3.5 h-3.5 text-slate-950" />
+                          <span>{t('In-Room Dining')}</span>
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 backdrop-blur-md">
+                          {t('Room')} {activeReservation.roomNumber}
+                        </span>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-sm font-black shadow-md group-hover:translate-x-1 transition-transform">
+                        <Icons.ArrowRight className="w-4 h-4 text-slate-950" />
+                      </div>
                     </div>
-                  </div>
-                </button>
 
-                {/* OPTION 2: DINE-IN / TABLE SCAN (DINING) WITH RESTAURANT PHOTO */}
-                <button
-                  type="button"
-                  data-testid="home-table-scan-card"
-                  onClick={() => setCustomerView('table_scan')}
-                  className="rounded-2xl border border-amber-500/40 relative overflow-hidden min-h-[175px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
-                >
-                  <img
-                    src={selectedHotel?.diningImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80'}
-                    alt="Dine-In Table Scan"
-                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
-
-                  {/* Card Header Badges */}
-                  <div className="relative z-10 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 shadow-md flex items-center gap-1">
-                        <Icons.Utensils className="w-3.5 h-3.5 text-slate-950" />
-                        <span>Dining</span>
-                      </span>
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/30 text-amber-300 border border-amber-500/40 backdrop-blur-md">
-                        Table QR Standee
-                      </span>
+                    <div className="relative z-10 space-y-1">
+                      <h3 className="text-base font-black text-white drop-shadow-md flex items-center gap-2">
+                        <Icons.Utensils className="w-4 h-4 text-amber-400" />
+                        <span>{t('In-Room Food')}</span>
+                      </h3>
+                      <p className="text-xs text-slate-200 line-clamp-2 drop-shadow font-normal">
+                        {t('In-Room Dining Menu')} • {t('Room')} {activeReservation.roomNumber}
+                      </p>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-sm font-black shadow-md group-hover:translate-x-1 transition-transform">
-                      <Icons.ArrowRight className="w-4 h-4 text-slate-950" />
-                    </div>
-                  </div>
+                  </button>
 
-                  {/* Card Content */}
-                  <div className="relative z-10 space-y-1">
-                    <h3 className="text-lg font-black text-white drop-shadow-md flex items-center gap-2">
-                      <Icons.Utensils className="w-5 h-5 text-amber-400" />
-                      <span>Dine-In / Table Scan</span>
-                    </h3>
-                    <p className="text-xs text-slate-200 line-clamp-2 drop-shadow font-normal">
-                      Scan your dining table standee QR to unlock the digital food menu & live waiter service
-                    </p>
-                    <div className="pt-1.5 flex items-center gap-3 text-[11px] font-bold text-amber-300">
-                      <span className="flex items-center gap-1">
-                        <Icons.QrCode className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Camera QR Scan</span>
-                      </span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1">
-                        <Icons.Check className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Live Kitchen KDS</span>
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              </div>
-
-              {/* Active Stay Card (Only shown if guest has an active approved reservation) */}
-              {activeReservation && !pendingApprovalBooking && (
-                <div
-                  data-testid="active-stay-card"
-                  className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/80 via-slate-900 to-slate-950 border border-emerald-500/40 shadow-lg space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
-                        Active Stay Verified • Room {activeReservation.roomNumber}
-                      </span>
-                    </div>
-                    <span className="text-xs font-mono font-bold text-slate-300">
-                      {activeReservation.bookingNumber}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-300 font-bold">{activeReservation.guestName}</span>
-                    <span className="text-slate-400">{activeReservation.roomTypeName}</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-1">
+                  {/* 3. RESTAURANT TABLE SCAN (OPTIONAL FOR RESIDENTS DINING AT COURTYARD) */}
+                  <div className="flex items-center justify-between px-1 pt-1">
                     <button
                       type="button"
-                      data-testid="enter-active-room-btn"
-                      onClick={() =>
-                        launchResidentPortal(
-                          activeReservation.roomNumber,
-                          selectedHotel,
-                          activeReservation.sessionToken,
-                          'HOME'
-                        )
-                      }
-                      className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md transition active:scale-98"
+                      onClick={() => setCustomerView('table_scan')}
+                      className={`text-xs font-semibold hover:underline flex items-center gap-1.5 ${
+                        isDark ? 'text-amber-400 hover:text-amber-300' : 'text-amber-700 hover:text-amber-800'
+                      }`}
                     >
-                      <Icons.Key className="w-4 h-4 text-white" />
-                      <span>Digital Keycard</span>
+                      <Icons.QrCode className="w-3.5 h-3.5" />
+                      <span>{t('Scan Table QR', 'Scan Table QR')}</span>
                     </button>
 
                     <button
                       type="button"
-                      data-testid="room-in-room-dining-btn"
-                      onClick={() =>
-                        launchResidentPortal(
-                          activeReservation.roomNumber,
-                          selectedHotel,
-                          activeReservation.sessionToken,
-                          'DINING'
-                        )
-                      }
-                      className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md transition active:scale-98"
+                      onClick={() => setCustomerView('rooms')}
+                      className={`text-xs font-medium hover:underline flex items-center gap-1 ${
+                        isDark ? 'text-slate-400 hover:text-slate-300' : 'text-slate-600 hover:text-slate-800'
+                      }`}
                     >
-                      <Icons.Utensils className="w-4 h-4 text-slate-950" />
-                      <span>Order Food</span>
+                      <span>{t('Browse Rooms')}</span>
+                      <Icons.ArrowRight className="w-3 h-3" />
                     </button>
                   </div>
+                </div>
+              ) : (
+                /* CASE B: NEW / PROSPECTIVE GUEST (SHOW FULL BOOK A ROOM & DINE-IN CARDS) */
+                <div className="grid grid-cols-1 gap-3.5">
+                  {/* OPTION 1: BOOK A ROOM (STAY) WITH ROOM PHOTO */}
+                  <button
+                    type="button"
+                    data-testid="home-book-room-card"
+                    onClick={() => setCustomerView('rooms')}
+                    className="rounded-2xl border border-blue-500/40 relative overflow-hidden min-h-[175px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
+                  >
+                    <img
+                      src={selectedHotel?.stayImageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80'}
+                      alt="Book a Room"
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
+
+                    {/* Card Header Badges */}
+                    <div className="relative z-10 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white shadow-md flex items-center gap-1">
+                          <Icons.Bed className="w-3.5 h-3.5" />
+                          <span>{t('Stay & Suites')}</span>
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 backdrop-blur-md">
+                          {availableRoomCount !== null ? `${availableRoomCount} ${t('Available Rooms')}` : t('Available Rooms')}
+                        </span>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-blue-600/90 text-white flex items-center justify-center text-sm font-black shadow-md group-hover:translate-x-1 transition-transform">
+                        <Icons.ArrowRight className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+
+                    {/* Card Content */}
+                    <div className="relative z-10 space-y-1">
+                      <h3 className="text-lg font-black text-white drop-shadow-md flex items-center gap-2">
+                        <Icons.Bed className="w-5 h-5 text-blue-400" />
+                        <span>{t('Book a Room')}</span>
+                      </h3>
+                      <p className="text-xs text-slate-200 line-clamp-2 drop-shadow font-normal">
+                        {t('Available Rooms')} • {t('Digital Keycard')} & {t('Instant ID Check-in')}
+                      </p>
+                      <div className="pt-1.5 flex items-center gap-3 text-[11px] font-bold text-blue-300">
+                        <span className="flex items-center gap-1">
+                          <Icons.Check className="w-3.5 h-3.5 text-blue-400" />
+                          <span>{t('Instant ID Check-in')}</span>
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Icons.Key className="w-3.5 h-3.5 text-blue-400" />
+                          <span>{t('Digital Keycard')}</span>
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* OPTION 2: DINE-IN / TABLE SCAN (DINING) WITH RESTAURANT PHOTO */}
+                  <button
+                    type="button"
+                    data-testid="home-table-scan-card"
+                    onClick={() => setCustomerView('table_scan')}
+                    className="rounded-2xl border border-amber-500/40 relative overflow-hidden min-h-[175px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
+                  >
+                    <img
+                      src={selectedHotel?.diningImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80'}
+                      alt="Dine-In Table Scan"
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
+
+                    {/* Card Header Badges */}
+                    <div className="relative z-10 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 shadow-md flex items-center gap-1">
+                          <Icons.Utensils className="w-3.5 h-3.5 text-slate-950" />
+                          <span>{t('Dine-In')}</span>
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/30 text-amber-300 border border-amber-500/40 backdrop-blur-md">
+                          {t('Scan Table QR', 'Scan Table QR')}
+                        </span>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-sm font-black shadow-md group-hover:translate-x-1 transition-transform">
+                        <Icons.ArrowRight className="w-4 h-4 text-slate-950" />
+                      </div>
+                    </div>
+
+                    {/* Card Content */}
+                    <div className="relative z-10 space-y-1">
+                      <h3 className="text-lg font-black text-white drop-shadow-md flex items-center gap-2">
+                        <Icons.Utensils className="w-5 h-5 text-amber-400" />
+                        <span>{t('Dine-In')}</span>
+                      </h3>
+                      <p className="text-xs text-slate-200 line-clamp-2 drop-shadow font-normal">
+                        {t('Dining')} • {t('In-Room Dining Menu')}
+                      </p>
+                      <div className="pt-1.5 flex items-center gap-3 text-[11px] font-bold text-amber-300">
+                        <span className="flex items-center gap-1">
+                          <Icons.QrCode className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{t('Camera QR Scan', 'Camera QR Scan')}</span>
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Icons.Check className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{t('Live Kitchen KDS', 'Live Kitchen KDS')}</span>
+                        </span>
+                      </div>
+                    </div>
+                  </button>
                 </div>
               )}
             </div>
@@ -1753,45 +2888,258 @@ export const App: React.FC = () => {
         {/* VIEW 2: AVAILABLE ROOMS CATALOG                          */}
         {/* ======================================================== */}
         {customerView === 'rooms' && (
-          <div className="flex flex-col gap-3.5">
-            {/* Header & Back Button */}
-            <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 animate-in fade-in">
+            {/* Top Navigation & Status Bar */}
+            <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
                 data-testid="rooms-back-home-btn"
                 onClick={() => setCustomerView('home')}
-                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
-                  isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700 shadow-sm'
+                className={`flex items-center gap-2 text-xs font-bold px-3.5 py-2 rounded-xl border transition active:scale-95 ${
+                  isDark
+                    ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
+                    : 'bg-white border-slate-200 text-slate-700 shadow-xs hover:bg-slate-50'
                 }`}
               >
-                <Icons.ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Home</span>
+                <Icons.ArrowLeft className="w-4 h-4 text-amber-500" />
+                <span>{t('Back to Home')}</span>
               </button>
+
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
-                  <span>{availableRoomsList.length} Rooms Ready</span>
+                <span className={`text-[11px] font-black px-3 py-1.5 rounded-full border flex items-center gap-1.5 ${
+                  isDark
+                    ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
+                    : 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
+                }`}>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>{availableRoomsList.length} {t('Rooms Ready')}</span>
                 </span>
                 <button
                   type="button"
                   onClick={() => refreshRoomsCatalog()}
-                  className={`text-[10px] font-bold px-2 py-1 rounded-lg border flex items-center gap-1 transition ${
-                    isDark ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-700 shadow-sm'
+                  title={t('Refresh')}
+                  className={`p-2 rounded-xl border transition active:scale-95 ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
+                      : 'bg-white border-slate-200 text-slate-600 shadow-xs hover:text-slate-900'
                   }`}
                 >
-                  <Icons.Refresh className="w-3 h-3" />
-                  <span>Refresh</span>
+                  <Icons.Refresh className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            <div>
-              <h2 className="text-base font-black">
-                Available Rooms at {selectedHotel?.name}
-              </h2>
+            {/* Title Section */}
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-500">
+                  {selectedHotel?.name || 'Luxury Stay'}
+                </span>
+                <span className="text-slate-400 text-xs">•</span>
+                <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {selectedHotel?.city || 'Instant Check-In'}
+                </span>
+              </div>
+              <h1 className={`text-lg font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {t('Available Rooms & Suites')}
+              </h1>
               <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Select an available room below to check booking radius and proceed to check-in.
+                {t('Verified live rooms with digital keycard, AC & instant room service.')}
               </p>
+            </div>
+
+            {/* Step 3 Controls: Live Search Bar, AC / Non-AC Tabs, Price Sorting & Budget */}
+            <div className="space-y-3">
+              {/* Search Bar */}
+              <div className="relative">
+                <input
+                  type="text"
+                  data-testid="room-catalog-search-input"
+                  value={roomSearchQuery}
+                  onChange={(e) => setRoomSearchQuery(e.target.value)}
+                  placeholder={t('Search room number, suite type, king bed...')}
+                  className={`w-full min-h-[42px] pl-9 pr-9 py-2 rounded-xl border text-xs font-semibold outline-none transition ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400'
+                      : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-xs'
+                  }`}
+                />
+                <Icons.Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
+                {roomSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setRoomSearchQuery('')}
+                    className="absolute right-3 top-3 p-0.5 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                  >
+                    <Icons.X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* 2-Option AC & Non-AC Climate Filter */}
+              <div className={`p-1.5 rounded-2xl border transition-all ${
+                isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-100 border-slate-200'
+              }`}>
+                <div className="flex items-center justify-between px-1 pb-1.5">
+                  <span className={`text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                    isDark ? 'text-slate-300' : 'text-slate-700'
+                  }`}>
+                    <span>❄️ AC & Non-AC Filter</span>
+                  </span>
+                  <span className={`text-[10px] font-semibold ${
+                    roomAcFilter === 'AC' ? 'text-sky-400' : roomAcFilter === 'NON_AC' ? 'text-amber-400' : isDark ? 'text-slate-400' : 'text-slate-500'
+                  }`}>
+                    {roomAcFilter === 'AC' ? 'AC Rooms Only' : roomAcFilter === 'NON_AC' ? 'Non-AC Rooms Only' : `${totalAvailableRoomsCount} Rooms Available`}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    data-testid="room-filter-ac"
+                    onClick={() => setRoomAcFilter((prev) => (prev === 'AC' ? 'ALL' : 'AC'))}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 active:scale-95 border ${
+                      roomAcFilter === 'AC'
+                        ? 'bg-sky-600 border-sky-400 text-white font-black shadow-md ring-2 ring-sky-400/40'
+                        : isDark
+                        ? 'bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-sky-500/50'
+                        : 'bg-white border-slate-300 text-slate-700 hover:text-slate-950 hover:border-sky-400 shadow-xs'
+                    }`}
+                  >
+                    <Icons.Wind className="w-3.5 h-3.5 text-sky-400" />
+                    <span>❄️ {t('AC Rooms')}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                      roomAcFilter === 'AC'
+                        ? 'bg-sky-950/80 text-sky-200 border border-sky-400/40'
+                        : isDark
+                        ? 'bg-slate-800 text-slate-300'
+                        : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {acRoomsCount}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="room-filter-non-ac"
+                    onClick={() => setRoomAcFilter((prev) => (prev === 'NON_AC' ? 'ALL' : 'NON_AC'))}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 active:scale-95 border ${
+                      roomAcFilter === 'NON_AC'
+                        ? 'bg-amber-600 border-amber-400 text-white font-black shadow-md ring-2 ring-amber-400/40'
+                        : isDark
+                        ? 'bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-amber-500/50'
+                        : 'bg-white border-slate-300 text-slate-700 hover:text-slate-950 hover:border-amber-400 shadow-xs'
+                    }`}
+                  >
+                    <Icons.Sun className="w-3.5 h-3.5 text-amber-400" />
+                    <span>🌀 {t('Non-AC Rooms')}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                      roomAcFilter === 'NON_AC'
+                        ? 'bg-amber-950/80 text-amber-200 border border-amber-400/40'
+                        : isDark
+                        ? 'bg-slate-800 text-slate-300'
+                        : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {nonAcRoomsCount}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Price Sort & Quick Budget Filters (Cohesive Strip) */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                <button
+                  type="button"
+                  data-testid="room-sort-low-high"
+                  onClick={() =>
+                    setRoomPriceSort((prev) => (prev === 'LOW_TO_HIGH' ? 'DEFAULT' : 'LOW_TO_HIGH'))
+                  }
+                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition flex items-center gap-1 shrink-0 active:scale-95 ${
+                    roomPriceSort === 'LOW_TO_HIGH'
+                      ? 'bg-amber-500 border-amber-400 text-slate-950 font-black shadow-xs'
+                      : isDark
+                      ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                      : 'bg-white border-slate-200 text-slate-700 shadow-xs hover:bg-slate-50'
+                  }`}
+                >
+                  <span>Price ↑ Low to High</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="room-sort-high-low"
+                  onClick={() =>
+                    setRoomPriceSort((prev) => (prev === 'HIGH_TO_LOW' ? 'DEFAULT' : 'HIGH_TO_LOW'))
+                  }
+                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition flex items-center gap-1 shrink-0 active:scale-95 ${
+                    roomPriceSort === 'HIGH_TO_LOW'
+                      ? 'bg-amber-500 border-amber-400 text-slate-950 font-black shadow-xs'
+                      : isDark
+                      ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                      : 'bg-white border-slate-200 text-slate-700 shadow-xs hover:bg-slate-50'
+                  }`}
+                >
+                  <span>Price ↓ High to Low</span>
+                </button>
+
+                <div className={`w-px h-5 mx-0.5 shrink-0 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
+
+                {(['ALL', '2500', '4000', 'LUXURY'] as const).map((budget) => {
+                  const label =
+                    budget === 'ALL'
+                      ? t('All Budgets')
+                      : budget === '2500'
+                      ? t('Under ₹2,500')
+                      : budget === '4000'
+                      ? t('Under ₹4,000')
+                      : t('Luxury ₹4,000+');
+                  const isSelected = roomMaxBudget === budget;
+                  return (
+                    <button
+                      key={budget}
+                      type="button"
+                      data-testid={`budget-chip-${budget.toLowerCase()}`}
+                      onClick={() => setRoomMaxBudget(budget)}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition shrink-0 active:scale-95 ${
+                        isSelected
+                          ? isDark
+                            ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-black shadow-xs'
+                            : 'bg-emerald-600 border-emerald-600 text-white font-black shadow-xs'
+                          : isDark
+                          ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 shadow-xs'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Active Filter Indicator & Count */}
+              <div className="flex items-center justify-between text-xs px-1">
+                <span className={`font-semibold flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  <span>
+                    {t('Showing')} <strong className={isDark ? 'text-white' : 'text-slate-900'}>{availableRoomsList.length}</strong> {t('rooms available')}
+                  </span>
+                </span>
+                {(roomSearchQuery || roomAcFilter !== 'ALL' || roomPriceSort !== 'DEFAULT' || roomMaxBudget !== 'ALL') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRoomSearchQuery('');
+                      setRoomAcFilter('ALL');
+                      setRoomPriceSort('DEFAULT');
+                      setRoomMaxBudget('ALL');
+                    }}
+                    className="text-xs font-bold text-amber-500 hover:underline flex items-center gap-1"
+                  >
+                    <Icons.X className="w-3.5 h-3.5" />
+                    <span>{t('Reset Filters')}</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {loadingRooms && (
@@ -1819,10 +3167,7 @@ export const App: React.FC = () => {
             {/* Room Cards Grid */}
             {!loadingRooms &&
               availableRoomsList.map((room) => {
-                const photo =
-                  room.photos?.[0] ||
-                  room.roomType?.photos?.[0] ||
-                  FALLBACK_ROOM_IMAGE;
+                const photo = getRoomDisplayPhoto(room);
                 const basePrice = room.roomType.basePriceOvernight || 2500;
                 const gstRate = basePrice > 7500 ? 18 : 12;
                 const gstAmt = Math.round((basePrice * gstRate) / 100);
@@ -1831,53 +3176,68 @@ export const App: React.FC = () => {
                   <div
                     key={room.id}
                     data-testid={`room-card-${room.roomNumber}`}
-                    className={`rounded-2xl border overflow-hidden transition shadow-sm flex flex-col ${
+                    className={`rounded-2xl border overflow-hidden transition duration-200 flex flex-col ${
                       isDark
-                        ? 'bg-slate-900/80 border-slate-800 text-white'
-                        : 'bg-white border-slate-200 text-slate-900'
+                        ? 'bg-slate-950 border-slate-800/90 shadow-lg shadow-black/20'
+                        : 'bg-white border-slate-200/90 shadow-md'
                     }`}
                   >
-                    {/* Room Photo */}
-                    <div className="h-44 w-full relative overflow-hidden bg-slate-950">
+                    {/* Hero Room Photograph */}
+                    <div className="h-48 w-full relative overflow-hidden bg-slate-950">
                       <img
                         src={photo}
                         alt={room.roomType.name}
+                        loading="lazy"
                         onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = FALLBACK_ROOM_IMAGE;
+                          (e.currentTarget as HTMLImageElement).src = CURATED_ROOM_IMAGES[0];
                         }}
                         className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
+                      {/* Premium Dark Gradient Overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20 pointer-events-none" />
 
-                      {/* Room Number Pill & Live Status */}
+                      {/* Top Badges Row */}
                       <div className="absolute top-3 inset-x-3 flex items-center justify-between">
-                        <div className="px-3 py-1 rounded-xl bg-black/60 backdrop-blur-md border border-white/20 text-white font-black text-xs flex items-center gap-1.5 shadow-md">
+                        <div className="px-3 py-1 rounded-xl bg-black/65 backdrop-blur-md border border-white/20 text-white font-black text-xs flex items-center gap-1.5 shadow-md">
                           <Icons.Bed className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Room {room.roomNumber}</span>
+                          <span>{t('Room')} {room.roomNumber}</span>
                         </div>
 
-                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-600/95 text-white border border-emerald-400 shadow-md">
-                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                          <span>Ready for Check-In</span>
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {isClimateAc(room) ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-0.5 rounded-full bg-sky-950/80 text-sky-200 border border-sky-400/60 backdrop-blur-md shadow-md">
+                              <span>❄️ AC</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-0.5 rounded-full bg-amber-950/80 text-amber-200 border border-amber-400/60 backdrop-blur-md shadow-md">
+                              <span>🌀 Non-AC</span>
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-black px-2.5 py-0.5 rounded-full bg-emerald-600/90 text-white backdrop-blur-md border border-emerald-400/50 shadow-md">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                            <span>{t('Ready')}</span>
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Title on Image */}
-                      <div className="absolute bottom-2.5 left-3 right-3">
-                        <h3 className="text-white font-black text-base drop-shadow-md leading-tight">
+                      {/* Bottom Title on Image */}
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <h3 className="text-white font-black text-base sm:text-lg drop-shadow-md leading-tight">
                           {room.roomType.name}
                         </h3>
-                        <p className="text-amber-300 text-[11px] font-semibold drop-shadow flex items-center gap-2 mt-0.5">
-                          <span>Floor {room.floorNumber}</span>
-                          <span>• Wing {room.wing || 'Main'}</span>
-                          <span>• Max {room.roomType.maxCapacity || 2} Guests</span>
-                        </p>
+                        <div className="text-amber-200 text-xs font-semibold drop-shadow flex items-center gap-2 mt-1">
+                          <span>{t('Floor')} {room.floorNumber}</span>
+                          <span>•</span>
+                          <span>{t('Wing')} {room.wing || 'Main'}</span>
+                          <span>•</span>
+                          <span>{t('Max')} {room.roomType.maxCapacity || 2} {t('Guests')}</span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Room Amenities & Pricing Details */}
-                    <div className="p-4 flex flex-col gap-3">
-                      {/* Amenities Tags */}
+                    {/* Card Content & Details */}
+                    <div className="p-4 flex flex-col gap-3.5">
+                      {/* Amenities Pills */}
                       <div className="flex flex-wrap gap-1.5">
                         {(room.roomType.amenities?.length > 0
                           ? room.roomType.amenities
@@ -1887,52 +3247,55 @@ export const App: React.FC = () => {
                           .map((amenity, idx) => (
                             <span
                               key={idx}
-                              className={`text-[10px] px-2.5 py-0.5 rounded-lg font-medium border flex items-center gap-1 ${
+                              className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${
                                 isDark
-                                  ? 'bg-slate-800/80 border-slate-700 text-slate-300'
-                                  : 'bg-slate-100 border-slate-200 text-slate-700'
+                                  ? 'bg-slate-900 border-slate-800 text-slate-300'
+                                  : 'bg-slate-100/80 border-slate-200 text-slate-700'
                               }`}
                             >
-                              <Icons.Sparkles className="w-3 h-3 text-amber-400" />
-                              <span>{amenity}</span>
+                              <Icons.Sparkles className="w-3 h-3 text-amber-500" />
+                              <span>{t(amenity, amenity)}</span>
                             </span>
                           ))}
                       </div>
 
-                      {/* Pricing Row */}
+                      {/* Pricing Box */}
                       <div
-                        className={`p-3 rounded-xl border flex items-center justify-between ${
-                          isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+                        className={`p-3.5 rounded-xl border flex items-center justify-between ${
+                          isDark
+                            ? 'bg-slate-950/70 border-slate-800'
+                            : 'bg-slate-50 border-slate-200 shadow-xs'
                         }`}
                       >
                         <div>
-                          <div className={`text-[10px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Overnight Rate
+                          <div className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {t('Overnight Stay')}
                           </div>
-                          <div className={`text-base font-black ${isDark ? 'text-amber-400' : 'text-slate-900'}`}>
+                          <div className={`text-lg font-black ${isDark ? 'text-amber-400' : 'text-slate-900'}`}>
                             ₹{basePrice.toLocaleString('en-IN')}{' '}
-                            <span className="text-[11px] font-normal text-slate-500">/ night</span>
+                            <span className="text-xs font-medium text-slate-500">/ {t('night')}</span>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                            Digital Keycard Included
+                          <div className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 flex items-center justify-end gap-1">
+                            <Icons.Key className="w-3 h-3 text-emerald-500" />
+                            <span>{t('Digital Keycard Included')}</span>
                           </div>
-                          <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            + {gstRate}% GST (₹{gstAmt})
+                          <p className={`text-[10px] font-medium mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            + {gstRate}% GST (₹{gstAmt.toLocaleString('en-IN')})
                           </p>
                         </div>
                       </div>
 
-                      {/* Action Button: Opens Location Radius Check Dialog */}
+                      {/* Primary Booking Button */}
                       <button
                         type="button"
                         data-testid={`book-room-btn-${room.roomNumber}`}
                         onClick={() => handleSelectRoomForBooking(room)}
-                        className="min-h-[44px] rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 active:scale-98 transition"
+                        className="min-h-[46px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition cursor-pointer"
                       >
                         <Icons.Bed className="w-4 h-4 text-white" />
-                        <span>Book Room {room.roomNumber}</span>
+                        <span>{t('Book Room')} {room.roomNumber}</span>
                         <Icons.ArrowRight className="w-3.5 h-3.5 text-white" />
                       </button>
                     </div>
@@ -1973,7 +3336,7 @@ export const App: React.FC = () => {
             {invalidQrToast && (
               <div
                 role="alert"
-                className="rounded-2xl bg-rose-600/95 border-2 border-rose-400 text-white p-3.5 shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-top duration-200"
+                className="rounded-2xl bg-red-600/95 border-2 border-red-400 text-white p-3.5 shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-top duration-200"
               >
                 <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
                   <Icons.AlertCircle className="w-5 h-5 text-white" />
@@ -2012,11 +3375,11 @@ export const App: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                {isCameraActive && (
+                {isCameraActive && isCameraReady && (
                   <button
                     type="button"
                     onClick={stopCamera}
-                    className="text-xs font-bold text-rose-500 px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 hover:bg-rose-100"
+                    className="text-xs font-bold text-red-500 px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 hover:bg-red-100"
                   >
                     Pause Camera
                   </button>
@@ -2024,67 +3387,83 @@ export const App: React.FC = () => {
               </div>
 
               {isCameraActive ? (
-                <div className="relative rounded-2xl overflow-hidden bg-black aspect-[3/4] sm:aspect-video flex items-center justify-center border-2 border-amber-500/40 shadow-2xl">
+                <div className="relative rounded-2xl overflow-hidden bg-black aspect-[3/4] sm:aspect-video flex items-center justify-center border-2 border-amber-500/40 shadow-sm dark:shadow-none">
+                  {/* Clean Loading Spinner while camera initializes */}
+                  {!isCameraReady && (
+                    <div className="absolute inset-0 z-20 bg-slate-950 flex flex-col items-center justify-center gap-3">
+                      <div className="w-10 h-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
+                      <p className="text-xs font-bold text-amber-400 tracking-wide animate-pulse">
+                        Initializing Camera...
+                      </p>
+                    </div>
+                  )}
+
                   <video
-                    ref={videoRef}
-                    className="w-full h-full object-cover"
                     autoPlay
                     playsInline
                     muted
+                    ref={videoRef}
+                    className="w-full h-full object-cover"
                   />
                   <canvas ref={canvasRef} className="hidden" />
 
                   {/* Viewfinder Target Framing with 4 corner brackets & Laser Crosshair */}
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    <div className="relative w-64 h-64 sm:w-72 sm:h-72">
-                      {/* 4 Corner Markers */}
-                      <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-amber-400 rounded-tl-xl shadow-sm" />
-                      <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-amber-400 rounded-tr-xl shadow-sm" />
-                      <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-amber-400 rounded-bl-xl shadow-sm" />
-                      <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-amber-400 rounded-br-xl shadow-sm" />
+                  {isCameraReady && (
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                      <div className="relative w-64 h-64 sm:w-72 sm:h-72">
+                        {/* 4 Corner Markers */}
+                        <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-xl" />
+                        <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-xl" />
+                        <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500 rounded-bl-xl" />
+                        <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500 rounded-br-xl" />
 
-                      {/* Animated Laser Scanning Line */}
-                      <div
-                        className="absolute inset-x-2 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_16px_rgba(251,191,36,1)]"
-                        style={{
-                          animation: 'laserScanSweep 2.4s ease-in-out infinite alternate',
-                        }}
-                      />
+                        {/* Animated Laser Scanning Line */}
+                        <div
+                          className="absolute inset-x-2 h-0.5 bg-blue-500"
+                          style={{
+                            animation: 'laserScanSweep 2.4s ease-in-out infinite alternate',
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Top Status & Controls Bar */}
-                  <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none">
-                    <div className="bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                      <span className="text-[10px] font-black text-white uppercase tracking-wider">
-                        Live Scanner Active
-                      </span>
-                    </div>
+                  {isCameraReady && (
+                    <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none">
+                      <div className="bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                        <span className="text-[10px] font-black text-white uppercase tracking-wider">
+                          Live Scanner Active
+                        </span>
+                      </div>
 
-                    {/* Torch Toggle Button (pointer-events-auto) */}
-                    {isTorchSupported && (
-                      <button
-                        type="button"
-                        onClick={toggleTorch}
-                        className={`pointer-events-auto p-2.5 rounded-full border shadow-lg transition active:scale-95 ${
-                          isTorchOn
-                            ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-400/40'
-                            : 'bg-black/75 backdrop-blur-md text-white border-white/20 hover:bg-black/90'
-                        }`}
-                        title={isTorchOn ? 'Turn Flashlight Off' : 'Turn Flashlight On'}
-                      >
-                        <Icons.Zap className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
+                      {/* Torch Toggle Button (pointer-events-auto) */}
+                      {isTorchSupported && (
+                        <button
+                          type="button"
+                          onClick={toggleTorch}
+                          className={`pointer-events-auto p-2.5 rounded-full border shadow-lg transition active:scale-95 ${
+                            isTorchOn
+                              ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-400/40'
+                              : 'bg-black/75 backdrop-blur-md text-white border-white/20 hover:bg-black/90'
+                          }`}
+                          title={isTorchOn ? 'Turn Flashlight Off' : 'Turn Flashlight On'}
+                        >
+                          <Icons.Zap className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {/* Bottom Instructions Badge */}
-                  <div className="absolute bottom-3 inset-x-3 flex justify-center pointer-events-none">
-                    <p className="text-[10px] font-bold text-white/95 bg-black/80 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 shadow text-center">
-                      Align the table QR standee within the frame to order
-                    </p>
-                  </div>
+                  {isCameraReady && (
+                    <div className="absolute bottom-3 inset-x-3 flex justify-center pointer-events-none">
+                      <p className="text-[10px] font-bold text-white/95 bg-black/80 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 shadow text-center">
+                        Align the table QR standee within the frame to order
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <button
@@ -2107,12 +3486,12 @@ export const App: React.FC = () => {
 
               {/* Camera Error & Permission Denied Card */}
               {cameraError && (
-                <div className="rounded-2xl bg-rose-500/10 border border-rose-500/30 p-4 text-center space-y-3">
-                  <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-500 flex items-center justify-center mx-auto">
+                <div className="rounded-2xl bg-red-500/10 border border-red-500/30 p-4 text-center space-y-3">
+                  <div className="w-10 h-10 rounded-2xl bg-red-500/20 text-red-500 flex items-center justify-center mx-auto">
                     <Icons.AlertCircle className="w-6 h-6" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black text-rose-500 uppercase tracking-wider">
+                    <h4 className="text-xs font-black text-red-500 uppercase tracking-wider">
                       Camera Access Required
                     </h4>
                     <p className="text-[11px] text-slate-400 mt-1">
@@ -2150,6 +3529,19 @@ export const App: React.FC = () => {
                   100% { top: 4px; opacity: 0.7; }
                 }
               `}</style>
+
+              {/* Optional Quick Table Entry */}
+              <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2">
+                <span className="text-[11px] text-slate-500 font-medium">Can't scan QR code?</span>
+                <button
+                  type="button"
+                  data-testid="manual-table-entry-btn"
+                  onClick={() => launchTable('T-01')}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 transition shadow-xs"
+                >
+                  Select Table (T-01) ➔
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -2191,7 +3583,7 @@ export const App: React.FC = () => {
               </div>
 
               {stayVerifyError && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex flex-col gap-1.5">
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex flex-col gap-1.5">
                   <span className="font-semibold">⚠️ {stayVerifyError}</span>
                   <button
                     type="button"
@@ -2269,10 +3661,10 @@ export const App: React.FC = () => {
           <div className="flex flex-col gap-4 animate-in fade-in">
             {/* Profile Identity Card */}
             <div className={`p-5 rounded-2xl border shadow-sm relative overflow-hidden flex flex-col gap-3.5 ${
-              isDark ? 'bg-gradient-to-br from-slate-900 via-slate-900 to-[#0d1424] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               <div className="flex items-center gap-3.5">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 font-black text-xl flex items-center justify-center shadow-md border-2 border-amber-400 shrink-0">
+                <div className="w-14 h-14 rounded-2xl bg-amber-600 text-white font-bold text-xl flex items-center justify-center shadow-sm shrink-0">
                   {activeReservation?.guestName ? activeReservation.guestName.slice(0, 2).toUpperCase() : <Icons.User className="w-7 h-7 text-slate-950" />}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -2311,6 +3703,45 @@ export const App: React.FC = () => {
                   ACTIVE
                 </span>
               </div>
+
+              {/* SpiceHub Loyalty & VIP Member Card */}
+              <div className={`p-4 rounded-2xl border flex items-center justify-between shadow-xs ${
+                isDark
+                  ? 'bg-slate-900 border-slate-800'
+                  : 'bg-slate-50 border-slate-200'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm shadow-md">
+                    👑
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`font-black text-xs uppercase tracking-wider ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
+                        Gold Privilege Club
+                      </span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold border ${
+                        isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-amber-200 text-amber-900 border-amber-300'
+                      }`}>
+                        VIP
+                      </span>
+                    </div>
+                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      450 Reward Points • 10% Off In-Room Dining
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => alert('Loyalty Points: 450. Points can be redeemed for room upgrades or complimentary dining courses at checkout!')}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition ${
+                    isDark
+                      ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border-amber-500/40'
+                      : 'bg-amber-200/60 hover:bg-amber-200 text-amber-900 border-amber-300'
+                  }`}
+                >
+                  View Perks
+                </button>
+              </div>
             </div>
 
             {/* Active Stay Details (If staying at hotel) */}
@@ -2344,37 +3775,41 @@ export const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Dynamic Hotel Wi-Fi Credentials */}
-                <div className="flex justify-between items-center bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20 text-[11px]">
-                  <span className="font-bold flex items-center gap-1.5 text-emerald-400">
-                    <Icons.Wifi className="w-3.5 h-3.5" />
-                    <span>In-Room Wi-Fi:</span>
-                  </span>
-                  <div className="text-right">
-                    <span className="block font-bold">{activeReservation.wifiSsid || selectedHotel?.wifiSsid || 'TajGateway_HighSpeed'}</span>
-                    <span className="block font-mono text-[10px] text-amber-400">
-                      Pass: {activeReservation.wifiPassword || selectedHotel?.wifiPassword || 'SpiceGuest@2026'}
-                    </span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 pt-1">
+                {!isRoomEntered ? (
                   <button
                     type="button"
-                    onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'HOME')}
-                    className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow"
+                    onClick={() => {
+                      if (activeReservation) {
+                        localStorage.setItem(`spicehub_room_entered_${activeReservation.bookingNumber}`, 'true');
+                        setIsRoomEntered(true);
+                        launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'HOME');
+                      }
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow"
                   >
                     <Icons.Key className="w-3.5 h-3.5 text-white" />
-                    <span>Digital Key</span>
+                    <span>{t('Tap Digital Keycard to Unlock Room')}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'DINING')}
-                    className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 shadow"
-                  >
-                    <Icons.Utensils className="w-3.5 h-3.5 text-slate-950" />
-                    <span>Order Food</span>
-                  </button>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'HOME')}
+                      className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow"
+                    >
+                      <Icons.Key className="w-3.5 h-3.5 text-white" />
+                      <span>{t('Digital Keycard')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'DINING')}
+                      className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 shadow"
+                    >
+                      <Icons.Utensils className="w-3.5 h-3.5 text-slate-950" />
+                      <span>{t('In-Room Food')}</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2417,6 +3852,20 @@ export const App: React.FC = () => {
                 </span>
               </div>
 
+              {/* Cloud Sync Status */}
+              <div className="flex items-center justify-between py-1 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <div>
+                    <span className="text-xs font-semibold block">Cloud Services</span>
+                    <span className="text-[10px] text-slate-400">Secure Live Synchronization</span>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-200">
+                  CONNECTED
+                </span>
+              </div>
+
               {/* Front Desk Phone */}
               <div className="flex items-center justify-between py-1">
                 <div className="flex items-center gap-2">
@@ -2453,9 +3902,9 @@ export const App: React.FC = () => {
                     alert('Local session cache cleared successfully.');
                   }
                 }}
-                className="w-full py-2.5 rounded-xl border border-rose-500/30 text-rose-500 hover:bg-rose-500/10 font-bold text-xs transition flex items-center justify-center gap-1.5"
+                className="w-full py-2.5 rounded-xl border border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold text-xs transition flex items-center justify-center gap-1.5"
               >
-                <Icons.Trash className="w-4 h-4 text-rose-500" />
+                <Icons.Trash className="w-4 h-4 text-red-500" />
                 <span>Clear App Cache & Active Stay Session</span>
               </button>
             </div>
@@ -2468,86 +3917,114 @@ export const App: React.FC = () => {
       {/* ======================================================== */}
       <nav
         data-testid="customer-bottom-nav"
-        className={`fixed bottom-0 left-0 right-0 z-40 max-w-lg mx-auto border-t backdrop-blur-lg px-2 py-1.5 flex items-center justify-around transition-colors ${
-          isDark ? 'bg-[#0d1424]/95 border-slate-800 text-slate-400' : 'bg-white/95 border-slate-200 text-slate-600 shadow-lg'
+        className={`fixed bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:max-w-md z-40 border-t backdrop-blur-md px-3 flex items-center justify-around transition-colors ${
+          isDark ? 'bg-slate-950/95 border-slate-800 text-slate-400' : 'bg-white/95 border-slate-200 text-slate-600 shadow-lg'
         }`}
+        style={{
+          paddingTop: '6px',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)',
+        }}
       >
         {/* 1. Home */}
         <button
           type="button"
           data-testid="nav-tab-home"
           onClick={() => setCustomerView('home')}
-          className={`flex flex-col items-center py-1.5 px-3 rounded-xl transition font-bold text-[10px] gap-0.5 ${
+          className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center py-1 px-3 rounded-xl transition font-medium text-[11px] gap-1 ${
             customerView === 'home'
-              ? isDark ? 'text-amber-400 bg-amber-500/15' : 'text-amber-600 bg-amber-50'
+              ? isDark ? 'text-blue-400 bg-blue-500/15 font-semibold' : 'text-blue-600 bg-blue-50 font-semibold'
               : 'hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
           <Icons.Home className="w-5 h-5" />
-          <span>Home</span>
+          <span>{t('Home')}</span>
         </button>
 
-        {/* 2. Rooms / Stay */}
-        <button
-          type="button"
-          data-testid="nav-tab-rooms"
-          onClick={() => setCustomerView('rooms')}
-          className={`flex flex-col items-center py-1.5 px-3 rounded-xl transition font-bold text-[10px] gap-0.5 ${
-            customerView === 'rooms'
-              ? isDark ? 'text-blue-400 bg-blue-500/15' : 'text-blue-600 bg-blue-50'
-              : 'hover:text-slate-900 dark:hover:text-slate-200'
-          }`}
-        >
-          <Icons.Bed className="w-5 h-5" />
-          <span>Stay</span>
-        </button>
+        {/* 2. Rooms / Stay (Only shown when no active resident booking, unhighlighted) */}
+        {!activeReservation && (
+          <button
+            type="button"
+            data-testid="nav-tab-rooms"
+            onClick={() => setCustomerView('rooms')}
+            className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center py-1 px-3 rounded-xl transition font-medium text-[11px] gap-1 ${
+              customerView === 'rooms'
+                ? isDark ? 'text-blue-400 bg-blue-500/15 font-semibold' : 'text-blue-600 bg-blue-50 font-semibold'
+                : 'hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <Icons.Bed className="w-5 h-5" />
+            <span>{t('Stay')}</span>
+          </button>
+        )}
 
-        {/* 3. Dine-In / Scan */}
+        {/* 3. Dine-In / In-Room Food */}
         <button
           type="button"
           data-testid="nav-tab-dining"
-          onClick={() => setCustomerView('table_scan')}
-          className={`flex flex-col items-center py-1.5 px-3 rounded-xl transition font-bold text-[10px] gap-0.5 ${
+          onClick={() => {
+            if (activeReservation) {
+              launchResidentPortal(
+                activeReservation.roomNumber,
+                selectedHotel,
+                activeReservation.sessionToken,
+                'DINING'
+              );
+            } else {
+              setCustomerView('table_scan');
+            }
+          }}
+          className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center py-1 px-3 rounded-xl transition font-medium text-[11px] gap-1 ${
             customerView === 'table_scan'
-              ? isDark ? 'text-amber-400 bg-amber-500/15' : 'text-amber-600 bg-amber-50'
+              ? isDark ? 'text-blue-400 bg-blue-500/15 font-semibold' : 'text-blue-600 bg-blue-50 font-semibold'
               : 'hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
           <Icons.Utensils className="w-5 h-5" />
-          <span>Dine-In</span>
+          <span>{activeReservation ? t('In-Room Food') : t('Dine-In')}</span>
         </button>
 
         {/* 4. My Stay / Keycard */}
         <button
           type="button"
           data-testid="nav-tab-mystay"
-          onClick={() => setCustomerView('resident_verify')}
-          className={`flex flex-col items-center py-1.5 px-3 rounded-xl transition font-bold text-[10px] gap-0.5 relative ${
+          onClick={() => {
+            if (activeReservation) {
+              launchResidentPortal(
+                activeReservation.roomNumber,
+                selectedHotel,
+                activeReservation.sessionToken,
+                'HOME'
+              );
+            } else {
+              setCustomerView('resident_verify');
+            }
+          }}
+          className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center py-1 px-3 rounded-xl transition font-medium text-[11px] gap-1 relative ${
             customerView === 'resident_verify'
-              ? isDark ? 'text-emerald-400 bg-emerald-500/15' : 'text-emerald-600 bg-emerald-50'
+              ? isDark ? 'text-emerald-400 bg-emerald-500/15 font-semibold' : 'text-emerald-700 bg-emerald-50 font-semibold'
               : 'hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
           {activeReservation && (
-            <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           )}
           <Icons.Key className="w-5 h-5" />
-          <span>My Room</span>
+          <span>{activeReservation ? `${t('Room')} ${activeReservation.roomNumber}` : t('My Room')}</span>
         </button>
 
-        {/* 5. Profile */}
+        {/* 5. Settings */}
         <button
           type="button"
-          data-testid="nav-tab-profile"
-          onClick={() => setCustomerView('profile')}
-          className={`flex flex-col items-center py-1.5 px-3 rounded-xl transition font-bold text-[10px] gap-0.5 ${
-            customerView === 'profile'
-              ? isDark ? 'text-amber-400 bg-amber-500/15' : 'text-amber-600 bg-amber-50'
+          data-testid="nav-tab-settings"
+          onClick={() => setIsSettingsModalOpen(true)}
+          className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center py-1 px-3 rounded-xl transition font-medium text-[11px] gap-1 ${
+            isSettingsModalOpen
+              ? isDark ? 'text-slate-200 bg-slate-800 font-semibold' : 'text-slate-900 bg-slate-100 font-semibold'
               : 'hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
-          <Icons.User className="w-5 h-5" />
-          <span>Profile</span>
+          <Icons.Settings className="w-5 h-5 text-slate-500" />
+          <span>{t('Settings')}</span>
         </button>
       </nav>
 
@@ -2561,22 +4038,24 @@ export const App: React.FC = () => {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in"
         >
           <div
-            className={`w-full max-w-sm rounded-2xl border p-5 shadow-2xl flex flex-col gap-4 text-center ${
-              isDark ? 'border-amber-500/40 bg-[#0d1424] text-white' : 'border-amber-300 bg-white text-slate-900'
+            className={`w-full max-w-sm rounded-2xl border p-5 shadow-sm dark:shadow-none flex flex-col gap-4 text-center ${
+              isDark ? 'border-amber-500/40 bg-slate-950 text-white' : 'border-2 border-slate-200 bg-white text-slate-900'
             }`}
           >
-            <div className="w-12 h-12 rounded-2xl bg-blue-500/20 border-2 border-blue-500 text-blue-400 flex items-center justify-center mx-auto shadow-md">
-              <Icons.Location className="w-6 h-6 text-blue-400" />
+            <div className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center mx-auto shadow-md ${
+              isDark ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-blue-100 border-blue-600 text-blue-600'
+            }`}>
+              <Icons.Location className="w-6 h-6" />
             </div>
 
             <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">
+              <span className={`text-[10px] font-black uppercase tracking-wider ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
                 Location & Radius Verification
               </span>
-              <h3 className="text-base font-black mt-1">
+              <h3 className={`text-base font-black mt-1 ${isDark ? 'text-white' : 'text-slate-950'}`}>
                 Booking Room {selectedRoomForBooking.roomNumber}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600 font-medium'}`}>
                 Are you currently within hotel premises or booking remotely from home?
               </p>
             </div>
@@ -2587,25 +4066,29 @@ export const App: React.FC = () => {
                 type="button"
                 data-testid="radius-option-hotel-premises"
                 onClick={() => handleProceedToBookingForm('HOTEL_RADIUS')}
-                className={`p-3.5 rounded-xl border text-left transition flex items-start gap-3 active:scale-98 ${
+                className={`p-3.5 rounded-xl border-2 text-left transition flex items-start gap-3 active:scale-98 ${
                   isDark
                     ? 'border-emerald-500/50 bg-emerald-950/30 hover:bg-emerald-950/50'
-                    : 'border-emerald-400 bg-emerald-50 hover:bg-emerald-100/70 shadow-sm'
+                    : 'border-emerald-500 bg-emerald-50/90 hover:bg-emerald-100 shadow-sm'
                 }`}
               >
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0 mt-0.5">
-                  <Icons.Building className="w-4 h-4 text-emerald-500" />
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                  isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-600 text-white shadow-xs'
+                }`}>
+                  <Icons.Building className="w-4 h-4" />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <h4 className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                    <h4 className={`text-xs font-black ${isDark ? 'text-emerald-400' : 'text-emerald-950'}`}>
                       At Hotel (Within Hotel Radius)
                     </h4>
-                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-300">
+                    <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
+                      isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-600 text-white'
+                    }`}>
                       On-Site
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700 font-medium'}`}>
                     In the hotel lobby, lounge or grounds. Submit ID documents to reception for instant approval & keycard.
                   </p>
                 </div>
@@ -2616,25 +4099,29 @@ export const App: React.FC = () => {
                 type="button"
                 data-testid="radius-option-remote-home"
                 onClick={() => handleProceedToBookingForm('REMOTE_HOME')}
-                className={`p-3.5 rounded-xl border text-left transition flex items-start gap-3 active:scale-98 ${
+                className={`p-3.5 rounded-xl border-2 text-left transition flex items-start gap-3 active:scale-98 ${
                   isDark
                     ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-800'
-                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100 shadow-sm'
+                    : 'border-slate-300 bg-slate-50 hover:bg-slate-100 shadow-sm'
                 }`}
               >
-                <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-500 shrink-0 mt-0.5">
-                  <Icons.Home className="w-4 h-4 text-blue-500" />
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                  isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-600 text-white shadow-xs'
+                }`}>
+                  <Icons.Home className="w-4 h-4" />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <h4 className="text-xs font-black text-slate-900 dark:text-slate-200">
+                    <h4 className={`text-xs font-black ${isDark ? 'text-slate-200' : 'text-slate-950'}`}>
                       Booking from Home / Remote
                     </h4>
-                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-600 dark:text-blue-300">
+                    <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
+                      isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-600 text-white'
+                    }`}>
                       Advance
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600 font-medium'}`}>
                     Pre-reserve room from home. Documents will be validated at reception upon arrival.
                   </p>
                 </div>
@@ -2644,8 +4131,8 @@ export const App: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowLocationRadiusCheck(false)}
-              className={`w-full py-2.5 rounded-xl border text-xs font-semibold transition ${
-                isDark ? 'border-slate-800 text-slate-400 hover:text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-100'
+              className={`w-full py-2.5 rounded-xl border text-xs font-bold transition ${
+                isDark ? 'border-slate-800 text-slate-400 hover:text-white' : 'border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100'
               }`}
             >
               Cancel
@@ -2664,8 +4151,8 @@ export const App: React.FC = () => {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in"
         >
           <div
-            className={`w-full max-w-md rounded-2xl border p-5 sm:p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto ${
-              isDark ? 'border-slate-800 bg-[#0d1424] text-white' : 'border-slate-200 bg-white text-slate-900'
+            className={`w-full max-w-md rounded-2xl border p-5 sm:p-6 shadow-sm dark:shadow-none flex flex-col gap-4 max-h-[90vh] overflow-y-auto ${
+              isDark ? 'border-slate-800 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
             }`}
           >
             {/* Modal Header */}
@@ -2692,7 +4179,7 @@ export const App: React.FC = () => {
 
             {/* Error Banner */}
             {bookingError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium">
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-medium">
                 ⚠️ {bookingError}
               </div>
             )}
@@ -2781,43 +4268,236 @@ export const App: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className={`block text-[11px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                    Mobile Number *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    data-testid="input-guest-phone"
-                    value={guestPhone}
-                    onChange={(e) => setGuestPhone(e.target.value)}
-                    placeholder="e.g. 9820011223"
-                    className={`w-full min-h-[42px] rounded-xl border px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                      isDark
-                        ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500'
-                        : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-[11px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                    Guests Count
-                  </label>
-                  <select
-                    value={guestCount}
-                    onChange={(e) => setGuestCount(Number(e.target.value))}
-                    className={`w-full min-h-[42px] rounded-xl border px-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                      isDark
-                        ? 'bg-slate-950 border-slate-700 text-white'
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
-                    }`}
+              {/* GPS Geofence Check & Location Guard */}
+              <div className={`p-3 rounded-xl border flex flex-col gap-2 ${
+                isDark ? 'border-blue-500/30 bg-blue-500/10' : 'border-blue-200 bg-blue-50/70'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Icons.Location className="w-4 h-4 text-blue-500" />
+                    <span className="text-[11px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                      GPS Geofence Location Guard
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCheckGpsLocation}
+                    disabled={gpsChecking}
+                    className="px-2 py-1 rounded-lg text-[10px] font-bold bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-50 shadow-xs"
                   >
-                    <option value={1}>1 Guest</option>
-                    <option value={2}>2 Guests</option>
-                    <option value={3}>3 Guests</option>
-                    <option value={4}>4 Guests</option>
-                  </select>
+                    {gpsChecking ? 'Checking GPS...' : 'Check Device GPS'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{gpsStatus}</span>
+                  {gpsDistKm !== null && (
+                    <span className={`font-mono font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                      {gpsDistKm > 0.5 ? `${gpsDistKm} km (Remote)` : `${Math.round(gpsDistKm * 1000)}m (On-Site)`}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Advance Booking Timing for Remote/Home Reservations */}
+              {bookingLocationType === 'REMOTE_HOME' && (
+                <div className={`p-3.5 rounded-2xl border space-y-3 ${
+                  isDark ? 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800' : 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base">🏠</span>
+                      <div>
+                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 dark:text-slate-700 dark:text-slate-300 block">
+                          Book from Home • Time Slot Selection (घर से बुकिंग)
+                        </span>
+                        <span className="text-[9px] text-slate-400">
+                          Real-time date & time interval overlap collision protection
+                        </span>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
+                      Time-Slot Mode
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className={`block text-[10px] font-bold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                        Check-In Date *
+                      </label>
+                      <input
+                        type="date"
+                        data-testid="input-checkin-date"
+                        value={checkInDateInput}
+                        onChange={(e) => setCheckInDateInput(e.target.value)}
+                        className={`w-full min-h-[38px] rounded-xl border px-2 text-xs font-medium ${
+                          isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-[10px] font-bold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                        Check-In Time *
+                      </label>
+                      <input
+                        type="time"
+                        data-testid="input-checkin-time"
+                        value={estimatedArrivalTime}
+                        onChange={(e) => setEstimatedArrivalTime(e.target.value)}
+                        className={`w-full min-h-[38px] rounded-xl border px-2 text-xs font-medium ${
+                          isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-[10px] font-bold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                        Check-Out Date *
+                      </label>
+                      <input
+                        type="date"
+                        data-testid="input-checkout-date"
+                        value={checkOutDateInput}
+                        onChange={(e) => setCheckOutDateInput(e.target.value)}
+                        className={`w-full min-h-[38px] rounded-xl border px-2 text-xs font-medium ${
+                          isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-[10px] font-bold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                        Check-Out Time *
+                      </label>
+                      <input
+                        type="time"
+                        data-testid="input-checkout-time"
+                        value={estimatedDepartureTime}
+                        onChange={(e) => setEstimatedDepartureTime(e.target.value)}
+                        className={`w-full min-h-[38px] rounded-xl border px-2 text-xs font-medium ${
+                          isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={`p-2 rounded-xl text-[10px] font-medium flex items-center justify-between ${
+                    isDark ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
+                  }`}>
+                    <span>🕒 Requested Window:</span>
+                    <span className="font-mono font-bold">
+                      {checkInDateInput} ({estimatedArrivalTime}) ➔ {checkOutDateInput} ({estimatedDepartureTime})
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Mobile Number & Phone OTP Verification */}
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={`block text-[11px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      Mobile Number *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      data-testid="input-guest-phone"
+                      value={guestPhone}
+                      onChange={(e) => {
+                        setGuestPhone(e.target.value);
+                        setPhoneOtpVerified(false);
+                      }}
+                      placeholder="e.g. 9820011223"
+                      className={`w-full min-h-[42px] rounded-xl border px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                        isDark
+                          ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500'
+                          : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-[11px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      Guests Count
+                    </label>
+                    <select
+                      value={guestCount}
+                      onChange={(e) => setGuestCount(Number(e.target.value))}
+                      className={`w-full min-h-[42px] rounded-xl border px-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                        isDark
+                          ? 'bg-slate-950 border-slate-700 text-white'
+                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
+                      }`}
+                    >
+                      <option value={1}>1 Guest</option>
+                      <option value={2}>2 Guests</option>
+                      <option value={3}>3 Guests</option>
+                      <option value={4}>4 Guests</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Phone OTP Verification Row (Required for All Reservations) */}
+                <div
+                  className={`p-3 rounded-xl border space-y-2 ${
+                    isDark
+                      ? 'border-slate-800 bg-slate-950/70 text-slate-300'
+                      : 'border-amber-200 bg-amber-50/70 text-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className={`text-[10px] font-black uppercase tracking-wider block ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
+                        Mobile OTP Verification (Mandatory)
+                      </span>
+                      <span className="text-[9px] text-slate-500">
+                        Verifies reservation so you can present digital confirmation pass at Reception
+                      </span>
+                    </div>
+                    {phoneOtpVerified ? (
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-300">
+                        <Icons.Check className="w-3 h-3" />
+                        <span>OTP Verified</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleSendPhoneOtp}
+                        disabled={otpSending || !guestPhone.trim()}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition disabled:opacity-50 shadow-xs"
+                      >
+                        {otpSending ? 'Sending OTP...' : phoneOtpSent ? 'Resend OTP' : 'Send Mobile OTP'}
+                      </button>
+                    )}
+                  </div>
+
+                  {!phoneOtpVerified && phoneOtpSent && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="4-digit OTP"
+                        value={phoneOtp}
+                        onChange={(e) => setPhoneOtp(e.target.value)}
+                        className={`w-1/2 rounded-lg px-2.5 py-1.5 text-xs font-mono text-center tracking-widest border ${
+                          isDark
+                            ? 'bg-black border-slate-700 text-white'
+                            : 'bg-white border-slate-300 text-slate-900 focus:bg-white shadow-xs'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVerifyPhoneOtp}
+                        disabled={otpVerifying}
+                        className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow disabled:opacity-50"
+                      >
+                        {otpVerifying ? 'Verifying...' : 'Verify OTP'}
+                      </button>
+                      <span className="text-[10px] font-mono text-slate-500">Dev: 9999</span>
+                    </div>
+                  )}
+
+                  {otpSuccessMsg && (
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">{otpSuccessMsg}</p>
+                  )}
                 </div>
               </div>
 
@@ -2839,55 +4519,231 @@ export const App: React.FC = () => {
                 />
               </div>
 
-              {/* ID Document Details for Reception Desk Approval */}
-              <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Icons.Shield className="w-4 h-4 text-amber-500" />
-                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                    ID Document for Reception Verification *
+              {/* AADHAAR CARD PHOTO UPLOAD (OPTIONAL FOR ADVANCE / MANDATORY FOR ON-PREMISES) */}
+              <div
+                className={`p-3.5 rounded-2xl border space-y-3 ${
+                  isDark
+                    ? 'border-amber-500/40 bg-amber-950/20'
+                    : 'border-amber-200 bg-amber-50/50 shadow-xs'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Icons.Shield className="w-4 h-4 text-amber-500" />
+                    <span className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
+                      {bookingLocationType === 'REMOTE_HOME'
+                        ? 'Government ID Verification (Optional Now)'
+                        : 'Aadhaar Card Photo Upload (Mandatory)'}
+                    </span>
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      bookingLocationType === 'REMOTE_HOME'
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                        : isDark
+                        ? 'bg-amber-500/20 text-amber-300'
+                        : 'bg-amber-100 text-amber-800 border border-amber-200'
+                    }`}
+                  >
+                    {bookingLocationType === 'REMOTE_HOME' ? 'Verify at Reception on Arrival' : 'Front & Back Required'}
                   </span>
                 </div>
+                <p className={`text-[11px] leading-tight ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {bookingLocationType === 'REMOTE_HOME'
+                    ? 'Documents will be verified physically at Front Desk Reception when you arrive. You can optionally upload photos now, or simply show your ID to the receptionist.'
+                    : 'Upload clear photos of your Aadhaar card. Front Desk reception will verify them before unlocking your digital keycard.'}
+                </p>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className={`block text-[10px] font-bold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                      Document Type
-                    </label>
-                    <select
-                      data-testid="select-doc-type"
-                      value={documentType}
-                      onChange={(e) => setDocumentType(e.target.value)}
-                      className={`w-full min-h-[40px] rounded-xl border px-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                        isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    >
-                      <option value="AADHAAR">Aadhaar Card</option>
-                      <option value="PASSPORT">Passport</option>
-                      <option value="DRIVING_LICENSE">Driving License</option>
-                      <option value="VOTER_ID">Voter ID</option>
-                    </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Front Side Upload */}
+                  <div
+                    className={`rounded-xl p-2.5 border space-y-2 ${
+                      isDark ? 'border-slate-700/80 bg-slate-900/60' : 'border-slate-200 bg-white shadow-xs'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[11px] font-bold flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
+                        <span>🪪</span> Front Side (Photo & Name)
+                      </span>
+                      {aadhaarFront && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">✓ Attached</span>}
+                    </div>
+
+                    {aadhaarFront ? (
+                      <div className={`relative rounded-lg overflow-hidden border h-24 flex items-center justify-center ${
+                        isDark ? 'border-emerald-500/40 bg-black' : 'border-emerald-300 bg-slate-50'
+                      }`}>
+                        <img src={aadhaarFront} alt="Aadhaar Front" className="h-full w-full object-contain" />
+                        <button
+                          type="button"
+                          onClick={() => setAadhaarFront(null)}
+                          className="absolute top-1 right-1 bg-black/70 hover:bg-red-600 text-white p-1 rounded-md text-[10px]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1.5">
+                        <label className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border text-xs font-bold cursor-pointer transition ${
+                          isDark
+                            ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-300'
+                            : 'bg-amber-100/70 hover:bg-amber-100 border-amber-300 text-amber-900 shadow-xs'
+                        }`}>
+                          <Icons.Camera className="w-3.5 h-3.5" />
+                          <span>{aadhaarCompressing === 'FRONT' ? 'Compressing...' : 'Upload Front Side'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={(e) => handleUploadAadhaar(e, 'FRONT')}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleAttachSampleAadhaar('FRONT')}
+                          className={`text-[10px] underline transition text-center ${
+                            isDark ? 'text-slate-400 hover:text-amber-400' : 'text-slate-500 hover:text-amber-700'
+                          }`}
+                        >
+                          Use Sample Front ID
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className={`block text-[10px] font-bold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                      Document / ID Number *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      data-testid="input-doc-number"
-                      value={documentNumber}
-                      onChange={(e) => setDocumentNumber(e.target.value)}
-                      placeholder="e.g. 5432-8765-1234"
-                      className={`w-full min-h-[40px] rounded-xl border px-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                        isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
+
+                  {/* Back Side Upload */}
+                  <div
+                    className={`rounded-xl p-2.5 border space-y-2 ${
+                      isDark ? 'border-slate-700/80 bg-slate-900/60' : 'border-slate-200 bg-white shadow-xs'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[11px] font-bold flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
+                        <span>🪪</span> Back Side (Address & QR)
+                      </span>
+                      {aadhaarBack && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">✓ Attached</span>}
+                    </div>
+
+                    {aadhaarBack ? (
+                      <div className={`relative rounded-lg overflow-hidden border h-24 flex items-center justify-center ${
+                        isDark ? 'border-emerald-500/40 bg-black' : 'border-emerald-300 bg-slate-50'
+                      }`}>
+                        <img src={aadhaarBack} alt="Aadhaar Back" className="h-full w-full object-contain" />
+                        <button
+                          type="button"
+                          onClick={() => setAadhaarBack(null)}
+                          className="absolute top-1 right-1 bg-black/70 hover:bg-red-600 text-white p-1 rounded-md text-[10px]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1.5">
+                        <label className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border text-xs font-bold cursor-pointer transition ${
+                          isDark
+                            ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-300'
+                            : 'bg-amber-100/70 hover:bg-amber-100 border-amber-300 text-amber-900 shadow-xs'
+                        }`}>
+                          <Icons.Camera className="w-3.5 h-3.5" />
+                          <span>{aadhaarCompressing === 'BACK' ? 'Compressing...' : 'Upload Back Side'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={(e) => handleUploadAadhaar(e, 'BACK')}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleAttachSampleAadhaar('BACK')}
+                          className={`text-[10px] underline transition text-center ${
+                            isDark ? 'text-slate-400 hover:text-amber-400' : 'text-slate-500 hover:text-amber-700'
+                          }`}
+                        >
+                          Use Sample Back ID
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
+              </div>
 
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                  Front Desk reception will review your document to approve room check-in and issue the digital keycard.
-                </p>
+              {/* 2-ROOM QUOTA & SECONDARY GUEST DISCLOSURE */}
+              <div
+                className={`p-3.5 rounded-2xl border space-y-2.5 ${
+                  isDark ? 'border-slate-700 bg-slate-900/50' : 'border-slate-200 bg-slate-50/80 shadow-xs'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className={`text-xs font-bold block ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      2nd Room Booking / Accompanying Guest
+                    </span>
+                    <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Strict ceiling: Maximum 2 rooms per mobile number
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsSecondRoom(!isSecondRoom)}
+                    className={`w-12 h-6 rounded-full transition-colors relative p-0.5 ${
+                      isSecondRoom ? 'bg-slate-800 dark:bg-slate-200' : isDark ? 'bg-slate-700' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`block w-5 h-5 rounded-full bg-white transition-transform shadow-sm ${
+                        isSecondRoom ? 'translate-x-6' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {isSecondRoom && (
+                  <div className={`pt-2 border-t space-y-2 ${isDark ? 'border-slate-700/60' : 'border-slate-200'}`}>
+                    <p className={`text-[11px] ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-slate-700 dark:text-slate-300 font-medium'}`}>
+                      Who is this 2nd room for? Please provide the secondary guest's name and relationship.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className={`text-[10px] font-bold block mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                          Secondary Guest Full Name *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Radhika Sharma"
+                          value={secondaryGuestName}
+                          onChange={(e) => setSecondaryGuestName(e.target.value)}
+                          className={`w-full rounded-xl px-2.5 py-1.5 text-xs border ${
+                            isDark
+                              ? 'bg-slate-950 border-slate-700 text-white'
+                              : 'bg-white border-slate-300 text-slate-900 focus:bg-white'
+                          }`}
+                        />
+                      </div>
+                      <div>
+                        <label className={`text-[10px] font-bold block mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                          Relationship to Primary Guest
+                        </label>
+                        <select
+                          value={secondaryGuestRelationship}
+                          onChange={(e) => setSecondaryGuestRelationship(e.target.value)}
+                          className={`w-full rounded-xl px-2.5 py-1.5 text-xs border ${
+                            isDark
+                              ? 'bg-slate-950 border-slate-700 text-white'
+                              : 'bg-white border-slate-300 text-slate-900 focus:bg-white'
+                          }`}
+                        >
+                          <option value="Spouse">Spouse</option>
+                          <option value="Child / Dependent">Child / Dependent</option>
+                          <option value="Parents / Family">Parents / Family</option>
+                          <option value="Colleague / Business Partner">Colleague / Business Partner</option>
+                          <option value="Friend">Friend</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Submit CTA */}
@@ -2895,14 +4751,14 @@ export const App: React.FC = () => {
                 type="submit"
                 disabled={isSubmittingBooking}
                 data-testid="submit-reception-docs-btn"
-                className="min-h-[46px] rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-md shadow-emerald-600/25 flex items-center justify-center gap-2 transition active:scale-98 disabled:opacity-50 mt-1"
+                className="min-h-[46px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 transition active:scale-98 disabled:opacity-50 mt-1"
               >
                 {isSubmittingBooking ? (
-                  <span>Submitting Documents to Reception...</span>
+                  <span>Submitting Aadhaar & Booking to Reception...</span>
                 ) : (
                   <>
                     <Icons.Check className="w-4 h-4 text-white" />
-                    <span>Submit Documents to Reception</span>
+                    <span>Submit Aadhaar & Booking to Reception</span>
                   </>
                 )}
               </button>
@@ -2921,8 +4777,8 @@ export const App: React.FC = () => {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in"
         >
           <div
-            className={`w-full max-w-sm rounded-2xl border p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-center ${
-              isDark ? 'border-amber-500/40 bg-[#0d1424] text-white' : 'border-amber-300 bg-white text-slate-900'
+            className={`w-full max-w-sm rounded-2xl border p-5 sm:p-6 shadow-sm dark:shadow-none flex flex-col gap-4 text-center ${
+              isDark ? 'border-amber-500/40 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
             }`}
           >
             <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border-2 border-emerald-500 text-emerald-500 flex items-center justify-center mx-auto shadow-md">
@@ -2930,78 +4786,52 @@ export const App: React.FC = () => {
             </div>
 
             <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
                 Reception Verified & Keycard Active
               </span>
-              <h3 className="text-lg font-black mt-0.5">Room {bookingConfirmation.roomNumber}</h3>
-              <p className="text-xs text-slate-500 font-semibold">{bookingConfirmation.roomTypeName}</p>
+              <h3 className={`text-lg font-black mt-0.5 ${isDark ? 'text-white' : 'text-slate-950'}`}>Room {bookingConfirmation.roomNumber}</h3>
+              <p className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>{bookingConfirmation.roomTypeName}</p>
             </div>
 
             {/* Voucher Reference Box */}
             <div
-              className={`p-3.5 rounded-xl border text-left space-y-2 text-xs ${
-                isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+              className={`p-3.5 rounded-xl border-2 text-left space-y-2 text-xs shadow-sm ${
+                isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-300'
               }`}
             >
               <div className="flex justify-between items-center">
-                <span className="text-slate-500 text-[10px] uppercase font-bold">Booking Ref:</span>
-                <span className="font-mono font-black text-amber-600 dark:text-amber-400">
+                <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Booking Ref:</span>
+                <span className="font-mono font-black text-amber-700 dark:text-amber-400">
                   {bookingConfirmation.bookingNumber}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-500 text-[10px] uppercase font-bold">Primary Guest:</span>
-                <span className="font-bold">{bookingConfirmation.guestName}</span>
+                <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Primary Guest:</span>
+                <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-950'}`}>{bookingConfirmation.guestName}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-500 text-[10px] uppercase font-bold">Stay Dates:</span>
-                <span className="font-medium text-[11px]">
+                <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Stay Dates:</span>
+                <span className={`font-medium text-[11px] ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
                   {bookingConfirmation.checkInDate} ➔ {bookingConfirmation.checkOutDate} ({bookingConfirmation.nights} nt)
                 </span>
               </div>
-              <div className="flex justify-between items-center border-t border-slate-200 dark:border-slate-800 pt-1.5">
-                <span className="text-slate-500 text-[10px] uppercase font-bold">Total Tariff:</span>
-                <span className="font-black text-emerald-600 dark:text-emerald-400">
+              <div className={`flex justify-between items-center border-t pt-1.5 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Total Tariff:</span>
+                <span className="font-black text-emerald-800 dark:text-emerald-400">
                   ₹{bookingConfirmation.grandTotal.toLocaleString('en-IN')}
                 </span>
-              </div>
-              <div className="flex justify-between items-center bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20 text-[11px]">
-                <span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                  <Icons.Wifi className="w-3.5 h-3.5" />
-                  <span>Hotel Wi-Fi:</span>
-                </span>
-                <div className="text-right">
-                  <span className="block font-bold">{bookingConfirmation.wifiSsid || selectedHotel?.wifiSsid || 'TajGateway_HighSpeed'}</span>
-                  <span className="block font-mono text-[10px] text-amber-700 dark:text-amber-300">
-                    Pass: {bookingConfirmation.wifiPassword || selectedHotel?.wifiPassword || 'SpiceGuest@2026'}
-                  </span>
-                </div>
               </div>
             </div>
 
             <div className="flex flex-col gap-2">
               <button
                 type="button"
-                data-testid="voucher-order-food-btn"
-                onClick={() => {
-                  setBookingConfirmation(null);
-                  launchResidentPortal(
-                    bookingConfirmation.roomNumber,
-                    selectedHotel,
-                    bookingConfirmation.sessionToken,
-                    'DINING'
-                  );
-                }}
-                className="min-h-[44px] rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98"
-              >
-                <Icons.Utensils className="w-4 h-4 text-slate-950" />
-                <span>Order Food to Room {bookingConfirmation.roomNumber}</span>
-              </button>
-
-              <button
-                type="button"
                 data-testid="voucher-open-resident-btn"
                 onClick={() => {
+                  if (bookingConfirmation) {
+                    localStorage.setItem(`spicehub_room_entered_${bookingConfirmation.bookingNumber}`, 'true');
+                    setIsRoomEntered(true);
+                  }
                   setBookingConfirmation(null);
                   launchResidentPortal(
                     bookingConfirmation.roomNumber,
@@ -3010,15 +4840,35 @@ export const App: React.FC = () => {
                     'HOME'
                   );
                 }}
-                className={`min-h-[42px] rounded-xl border font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition ${
-                  isDark
-                    ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
-                    : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
-                }`}
+                className="min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98"
               >
-                <Icons.Key className="w-4 h-4" />
-                <span>Room Services & Digital Key</span>
+                <Icons.Key className="w-4 h-4 text-white" />
+                <span>{t('Tap Digital Keycard to Unlock Room')}</span>
               </button>
+
+              {isRoomEntered && (
+                <button
+                  type="button"
+                  data-testid="voucher-order-food-btn"
+                  onClick={() => {
+                    setBookingConfirmation(null);
+                    launchResidentPortal(
+                      bookingConfirmation.roomNumber,
+                      selectedHotel,
+                      bookingConfirmation.sessionToken,
+                      'DINING'
+                    );
+                  }}
+                  className={`min-h-[42px] rounded-xl border font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition ${
+                    isDark
+                      ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
+                      : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                  }`}
+                >
+                  <Icons.Utensils className="w-4 h-4 text-amber-500" />
+                  <span>{t('Order Food to Room')} {bookingConfirmation.roomNumber}</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -3045,8 +4895,8 @@ export const App: React.FC = () => {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in"
         >
           <div
-            className={`w-full max-w-sm rounded-2xl border p-5 shadow-2xl flex flex-col gap-3.5 max-h-[80vh] ${
-              isDark ? 'border-slate-800 bg-[#0d1424] text-white' : 'border-slate-200 bg-white text-slate-900'
+            className={`w-full max-w-sm rounded-2xl border p-5 shadow-sm dark:shadow-none flex flex-col gap-3.5 max-h-[80vh] ${
+              isDark ? 'border-slate-800 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
             }`}
           >
             <div className={`flex items-center justify-between pb-2 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
@@ -3091,7 +4941,6 @@ export const App: React.FC = () => {
                     onClick={() => {
                       setSelectedHotel(h);
                       setIsHotelModalOpen(false);
-                      setValidationError(null);
                       setStayVerifyError(null);
                     }}
                     className={`rounded-xl border text-left transition overflow-hidden flex flex-col ${
@@ -3155,6 +5004,154 @@ export const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ======================================================== */}
+      {/* APP & STAY SETTINGS MODAL                                */}
+      {/* ======================================================== */}
+      {isSettingsModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-testid="settings-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in"
+        >
+          <div
+            className={`w-full max-w-sm rounded-3xl border p-5 shadow-sm dark:shadow-none flex flex-col gap-4 max-h-[85vh] overflow-y-auto ${
+              isDark ? 'border-slate-800 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
+            }`}
+          >
+            {/* Modal Header */}
+            <div className={`flex items-center justify-between pb-3 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500">
+                  <Icons.Settings className="w-4 h-4 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black tracking-tight">{t('Settings')}</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">{selectedHotel?.name || 'SpiceHub'}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                data-testid="close-settings-modal"
+                onClick={() => setIsSettingsModalOpen(false)}
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition ${
+                  isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Appearance & Language */}
+            <div className={`p-3.5 rounded-2xl border space-y-3 ${
+              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-500 block">
+                {t('Display & Language')}
+              </span>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold">{t('Language')} / भाषा</span>
+                <LanguageToggle isDark={isDark} />
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
+                <span className="text-xs font-semibold">{t('Theme')}</span>
+                <button
+                  type="button"
+                  data-testid="settings-theme-toggle"
+                  onClick={toggleTheme}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
+                    isDark ? 'bg-slate-800 border-slate-700 text-amber-400' : 'bg-white border-slate-200 text-slate-700 shadow-sm'
+                  }`}
+                >
+                  {isDark ? <Icons.Sun className="w-3.5 h-3.5 text-amber-400" /> : <Icons.Moon className="w-3.5 h-3.5 text-slate-700" />}
+                  <span>{isDark ? t('Dark') : t('Light')}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Stay & Checkout Policy */}
+            <div className={`p-3.5 rounded-2xl border space-y-2.5 ${
+              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-500 block">
+                {t('Stay & Check-out Policy')}
+              </span>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Standard Check-out:</span>
+                <span className="font-bold text-amber-500">11:00 AM Departure</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Late Check-out:</span>
+                <span className="font-semibold text-slate-300">Pro-Rata Tariff (+1.2x)</span>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-relaxed">
+                Stay duration can be extended directly from the in-room folio portal without closing your room access.
+              </p>
+            </div>
+
+            {/* Device & Geofence Permissions */}
+            <div className={`p-3.5 rounded-2xl border space-y-2.5 ${
+              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-500 block">
+                {t('Device & Permissions')}
+              </span>
+              <div className="flex items-center justify-between text-xs">
+                <span>Camera (QR Scanner)</span>
+                <button
+                  type="button"
+                  onClick={openAppSettings}
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                >
+                  System Settings
+                </button>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span>GPS Geofence Guard</span>
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                  {gpsStatus}
+                </span>
+              </div>
+            </div>
+
+            {/* Cloud Sync Status */}
+            <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="font-semibold text-slate-900">Cloud Sync Network</span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Connected</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500">App Version</span>
+                <span className="text-[10px] font-medium text-slate-500">v2.6.0 (Production)</span>
+              </div>
+            </div>
+
+            {/* Clear Session / Reset */}
+            <button
+              type="button"
+              data-testid="reset-guest-session-btn"
+              onClick={() => {
+                localStorage.removeItem('spicehub_active_guest_reservation');
+                localStorage.removeItem('spicehub_pending_approval_booking');
+                setActiveReservation(null);
+                setPendingApprovalBooking(null);
+                setIsSettingsModalOpen(false);
+                alert('Guest session reset successfully! You can now book rooms or scan dine-in tables.');
+              }}
+              className="w-full py-2.5 rounded-xl border border-red-500/40 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-black transition active:scale-95"
+            >
+              Reset Current Stay Session
+            </button>
+          </div>
+        </div>
+      )}
+      </div>
     </div>
   );
 };

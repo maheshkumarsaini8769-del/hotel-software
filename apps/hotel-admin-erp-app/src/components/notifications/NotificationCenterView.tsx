@@ -249,7 +249,7 @@ export const NotificationCenterView: React.FC<NotificationCenterViewProps> = ({
       case 'BILLING':
         return { label: 'POS Billing', icon: Zap, color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' };
       case 'HOUSEKEEPING':
-        return { label: 'Housekeeping', icon: Sparkles, color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' };
+        return { label: 'Housekeeping', icon: Sparkles, color: 'text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800' };
       default:
         return { label: 'System Alert', icon: AlertTriangle, color: 'text-slate-400 bg-slate-500/10 border-slate-500/30' };
     }
@@ -308,11 +308,11 @@ export const NotificationCenterView: React.FC<NotificationCenterViewProps> = ({
               onClick={clearAllNotifications}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition ${
                 isDark
-                  ? 'bg-rose-950/20 border-rose-900/40 text-rose-300 hover:bg-rose-950/40'
-                  : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'
+                  ? 'bg-red-950/20 border-red-900/40 text-red-300 hover:bg-red-950/40'
+                  : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
               }`}
             >
-              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <Trash2 className="w-3.5 h-3.5 text-red-400" />
               <span>Clear All</span>
             </button>
           )}
@@ -360,13 +360,13 @@ export const NotificationCenterView: React.FC<NotificationCenterViewProps> = ({
       ) : loadError ? (
         <div
           className={`p-12 text-center rounded-2xl border ${
-            isDark ? 'bg-rose-950/30 border-rose-800/60' : 'bg-rose-50 border-rose-200'
+            isDark ? 'bg-red-950/30 border-red-800/60' : 'bg-red-50 border-red-200'
           }`}
         >
-          <div className="text-sm font-bold text-rose-300">{loadError}</div>
+          <div className="text-sm font-bold text-red-300">{loadError}</div>
           <button
             onClick={() => void loadNotifications()}
-            className="mt-3 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold"
+            className="mt-3 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold"
           >
             Retry
           </button>
@@ -462,8 +462,8 @@ export const NotificationCenterView: React.FC<NotificationCenterViewProps> = ({
                     onClick={() => deleteNotification(notif.id)}
                     className={`p-2 rounded-xl border transition ${
                       isDark
-                        ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-rose-400 hover:bg-slate-700'
-                        : 'bg-white border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-slate-100'
+                        ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-red-400 hover:bg-slate-700'
+                        : 'bg-white border-slate-200 text-slate-400 hover:text-red-600 hover:bg-slate-100'
                     }`}
                     title="Dismiss Notification"
                   >

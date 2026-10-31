@@ -108,10 +108,10 @@ export const SplitBillView: React.FC<SplitBillViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-5 gap-3 sm:gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-500 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold">
             <Scissors className="w-5 h-5" />
           </div>
           <div>
@@ -154,7 +154,7 @@ export const SplitBillView: React.FC<SplitBillViewProps> = ({
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 overflow-y-auto pr-1 custom-scrollbar pb-24 lg:pb-6">
         {/* Left Column: Split Controls & Calculation (5 cols) */}
         <div className={`lg:col-span-5 p-4 sm:p-5 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
         }`}>
           {/* Split Mode Selector */}
           <div className="space-y-1.5">
@@ -166,7 +166,7 @@ export const SplitBillView: React.FC<SplitBillViewProps> = ({
                   onClick={() => setSplitMode(m)}
                   className={`py-2 rounded-xl text-xs font-bold transition ${
                     splitMode === m
-                      ? 'bg-purple-600 text-white shadow-sm'
+                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white shadow-sm'
                       : isDark
                       ? 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
@@ -220,7 +220,7 @@ export const SplitBillView: React.FC<SplitBillViewProps> = ({
               <span className={`font-black text-sm ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>₹{totalAmount.toFixed(2)}</span>
             </div>
             <div className={`flex items-center justify-between border-t pt-2 font-bold ${
-              isDark ? 'border-slate-700/40 text-purple-400' : 'border-slate-200 text-purple-900'
+              isDark ? 'border-slate-700/40 text-slate-700 dark:text-slate-300' : 'border-slate-200 text-slate-700 dark:text-slate-300'
             }`}>
               <span>Each Guest Pays ({guestsCount} way split):</span>
               <span className="text-base font-black">₹{sharePerGuest}</span>
@@ -266,7 +266,7 @@ export const SplitBillView: React.FC<SplitBillViewProps> = ({
                         ? 'bg-emerald-950/20 border-emerald-500/40 opacity-80'
                         : 'bg-emerald-50/70 border-emerald-300 opacity-90'
                       : isDark
-                      ? 'bg-[#181c2b] border-slate-800'
+                      ? 'bg-slate-900 border-slate-800'
                       : 'bg-white border-slate-200 shadow-2xs'
                   }`}
                 >
@@ -274,7 +274,7 @@ export const SplitBillView: React.FC<SplitBillViewProps> = ({
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${
                       isPaid
                         ? 'bg-emerald-500 text-white'
-                        : isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-800'
+                        : isDark ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300' : 'bg-slate-800 text-slate-700 dark:text-slate-300'
                     }`}>
                       {isPaid ? '✓' : `G${idx + 1}`}
                     </div>
@@ -290,7 +290,7 @@ export const SplitBillView: React.FC<SplitBillViewProps> = ({
                         )}
                       </div>
                       <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                        Share: <span className={`font-bold ${isDark ? 'text-purple-400' : 'text-purple-800'}`}>₹{sharePerGuest}</span>
+                        Share: <span className={`font-bold ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>₹{sharePerGuest}</span>
                       </div>
                     </div>
                   </div>
@@ -301,7 +301,7 @@ export const SplitBillView: React.FC<SplitBillViewProps> = ({
                       <>
                         <button
                           onClick={() => onOpenUpiModal(selectedTable, sharePerGuest)}
-                          className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
+                          className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
                         >
                           <QrCode className="w-3.5 h-3.5" />
                           <span>Dynamic UPI QR</span>

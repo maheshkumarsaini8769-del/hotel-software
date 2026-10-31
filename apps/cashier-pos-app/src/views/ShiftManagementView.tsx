@@ -44,7 +44,7 @@ export const ShiftManagementView: React.FC<ShiftManagementViewProps> = ({
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
       }`}>
         <div>
           <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -75,7 +75,7 @@ export const ShiftManagementView: React.FC<ShiftManagementViewProps> = ({
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className={`p-4 rounded-2xl border space-y-2 ${isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'}`}>
+        <div className={`p-4 rounded-2xl border space-y-2 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
           <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
             <User className="w-4 h-4 text-blue-500" />
             <span>Active Cashier</span>
@@ -89,7 +89,7 @@ export const ShiftManagementView: React.FC<ShiftManagementViewProps> = ({
           </div>
         </div>
 
-        <div className={`p-4 rounded-2xl border space-y-2 ${isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'}`}>
+        <div className={`p-4 rounded-2xl border space-y-2 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
           <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
             <Receipt className="w-4 h-4 text-amber-500" />
             <span>Shift Sales Volume</span>
@@ -107,7 +107,7 @@ export const ShiftManagementView: React.FC<ShiftManagementViewProps> = ({
           </div>
         </div>
 
-        <div className={`p-4 rounded-2xl border space-y-2 ${isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'}`}>
+        <div className={`p-4 rounded-2xl border space-y-2 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
           <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
             <DollarSign className="w-4 h-4 text-emerald-500" />
             <span>Drawer Position</span>
@@ -121,7 +121,7 @@ export const ShiftManagementView: React.FC<ShiftManagementViewProps> = ({
             </div>
             <div className="flex justify-between text-slate-300">
               <span>Petty Cash:</span>
-              <span className="font-bold font-mono text-rose-400">
+              <span className="font-bold font-mono text-red-400">
                 -₹{Number(drawerBalance.pettyCash || 0).toLocaleString('en-IN')}
               </span>
             </div>
@@ -135,7 +135,7 @@ export const ShiftManagementView: React.FC<ShiftManagementViewProps> = ({
         </div>
       </div>
 
-      <div className={`p-5 rounded-2xl border space-y-3 ${isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'}`}>
+      <div className={`p-5 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
         <h3 className="font-black text-sm text-white">Shift Handover & End-of-Day Checklist</h3>
         <div className="space-y-2 text-xs">
           {[

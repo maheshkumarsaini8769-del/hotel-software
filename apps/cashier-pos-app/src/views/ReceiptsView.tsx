@@ -139,7 +139,7 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ isDark = true, onToa
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
       }`}>
         <div>
           <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -174,7 +174,7 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ isDark = true, onToa
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
           <span className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
             {error}
@@ -186,7 +186,7 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ isDark = true, onToa
       )}
 
       <div className={`rounded-2xl border overflow-hidden ${
-        isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">

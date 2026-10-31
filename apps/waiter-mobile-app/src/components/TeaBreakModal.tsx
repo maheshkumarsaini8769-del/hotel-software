@@ -51,21 +51,21 @@ export const TeaBreakModal: React.FC<TeaBreakModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-fadeIn">
       <div
-        className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden transition-all duration-200 transform scale-100 ${
+        className={`w-full max-w-md rounded-2xl border shadow-sm dark:shadow-none overflow-hidden transition-all duration-200 transform scale-100 ${
           isDark
-            ? 'bg-[#121520] border-amber-500/40 text-slate-100'
+            ? 'bg-slate-900 border-amber-500/40 text-slate-100'
             : 'bg-white border-amber-300 text-slate-800'
         }`}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 p-4 text-white flex items-center justify-between">
+        <div className="bg-amber-600 p-4 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center font-black text-xl shadow-inner">
               ☕
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black tracking-tight">
-                Take a Tea Break (चाय ब्रेक)
+                Take a Tea Break
               </h2>
               <p className="text-xs text-amber-100">
                 Pause floor duty with automatic team cover & timer
@@ -111,7 +111,7 @@ export const TeaBreakModal: React.FC<TeaBreakModalProps> = ({
                     onClick={() => setSelectedMinutes(opt.minutes)}
                     className={`p-3 rounded-xl border text-center transition flex flex-col items-center justify-between gap-1 relative ${
                       isSelected
-                        ? 'bg-gradient-to-b from-amber-500/20 to-orange-500/30 border-orange-500 text-orange-400 shadow-sm'
+                        ? 'bg-amber-100 border-amber-500 text-amber-900 shadow-xs'
                         : isDark
                         ? 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
                         : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -161,7 +161,7 @@ export const TeaBreakModal: React.FC<TeaBreakModalProps> = ({
         {/* Footer Actions */}
         <div
           className={`p-4 border-t flex items-center justify-end gap-2.5 ${
-            isDark ? 'bg-[#0f121b] border-slate-800' : 'bg-slate-50 border-slate-200'
+            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}
         >
           <button
@@ -178,7 +178,7 @@ export const TeaBreakModal: React.FC<TeaBreakModalProps> = ({
           <button
             type="button"
             onClick={() => onStartBreak(selectedMinutes, notes)}
-            className="px-5 py-2 rounded-xl font-black text-xs text-white bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-500 shadow-md shadow-orange-950/40 flex items-center gap-1.5 transition transform hover:scale-102"
+            className="px-5 py-2 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-700 shadow-xs flex items-center gap-1.5 transition"
           >
             <Coffee className="w-4 h-4" />
             <span>Start {selectedMinutes}m Tea Break</span>

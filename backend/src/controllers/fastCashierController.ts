@@ -13,6 +13,7 @@ import { Tenant } from '../models/Tenant';
 import { TaxRule, TaxApplicability } from '../models/TaxRule';
 import { CashierShiftFloat, CashierShiftStatus } from '../models/CashierShiftFloat';
 import { PettyCashVoucher, PettyCashCategory } from '../models/PettyCashVoucher';
+import { TableSession, SessionStatus } from '../models/TableSession';
 import { TenantRequest } from '../types';
 import { io } from '../index';
 import { escapeRegex } from '../utils/security';
@@ -83,6 +84,14 @@ export const getCashierSnapshot = async (req: TenantRequest, res: Response): Pro
         (sum: number, order: any) => sum + (Array.isArray(order.items) ? order.items.length : 0),
         0
       );
+      const orderItems = billOrders.flatMap((order: any) =>
+        (order.items || []).map((it: any) => ({
+          id: String(it.menuItemId || it._id),
+          name: it.name,
+          qty: it.quantity,
+          price: it.unitPrice,
+        }))
+      );
       const primaryOrder: any = billOrders[0];
       const tableNumber = bill.tableId?.tableNumber;
       const roomNumber = primaryOrder?.roomId?.roomNumber;
@@ -104,6 +113,7 @@ export const getCashierSnapshot = async (req: TenantRequest, res: Response): Pro
               : 'Unassigned',
         items: `${itemCount} item${itemCount === 1 ? '' : 's'}`,
         itemCount,
+        orderItems,
         amount: Number(bill.grandTotal || bill.dueAmount || 0),
         dueAmount: Number(bill.dueAmount || 0),
         time: bill.createdAt,
@@ -111,6 +121,85 @@ export const getCashierSnapshot = async (req: TenantRequest, res: Response): Pro
         type,
       };
     });
+
+    // Also include active dine-in table sessions that have placed orders but have no generated bill yet
+    const activeSessions = await TableSession.find({
+      hotelId,
+      status: { $in: [SessionStatus.ACTIVE, SessionStatus.BILLING] },
+    })
+      .populate('tableId', 'tableNumber')
+      .lean();
+
+    const billedTableSessionIds = new Set(
+      bills.map((b: any) => String(b.tableSessionId || ''))
+    );
+    const unbilledSessions = activeSessions.filter(
+      (s: any) => !billedTableSessionIds.has(String(s._id))
+    );
+
+    let unbilledOpenBills: any[] = [];
+    if (unbilledSessions.length > 0) {
+      const sessionIds = unbilledSessions.map((s: any) => s._id);
+      const sessionOrders = await RestaurantOrder.find({
+        hotelId,
+        tableSessionId: { $in: sessionIds },
+        status: { $ne: OverallOrderStatus.CANCELLED },
+      }).lean();
+
+      const ordersBySession = new Map<string, any[]>();
+      for (const ord of sessionOrders) {
+        const sid = String(ord.tableSessionId || '');
+        if (!ordersBySession.has(sid)) ordersBySession.set(sid, []);
+        ordersBySession.get(sid)!.push(ord);
+      }
+
+      unbilledOpenBills = unbilledSessions
+        .map((sess: any) => {
+          const sOrders = ordersBySession.get(String(sess._id)) || [];
+          if (sOrders.length === 0) return null;
+          const itemCount = sOrders.reduce(
+            (sum: number, ord: any) => sum + (Array.isArray(ord.items) ? ord.items.length : 0),
+            0
+          );
+          const totalAmount = sOrders.reduce(
+            (sum: number, ord: any) =>
+              sum +
+              (Array.isArray(ord.items)
+                ? ord.items.reduce(
+                    (iSum: number, item: any) =>
+                      iSum + Number(item.subtotal || item.unitPrice * item.quantity || 0),
+                    0
+                  )
+                : 0),
+            0
+          );
+          const orderItems = sOrders.flatMap((ord: any) =>
+            (ord.items || []).map((it: any) => ({
+              id: String(it.menuItemId || it._id),
+              name: it.name,
+              qty: it.quantity,
+              price: it.unitPrice,
+            }))
+          );
+          const tableNum = (sess.tableId as any)?.tableNumber;
+          return {
+            id: String(sess._id),
+            billNo: `SES-${String(sess._id).slice(-4).toUpperCase()}`,
+            table: tableNum ? `Table ${tableNum}` : 'Table',
+            items: `${itemCount} item${itemCount === 1 ? '' : 's'}`,
+            itemCount,
+            orderItems,
+            amount: totalAmount,
+            dueAmount: totalAmount,
+            time: sess.openedAt || new Date(),
+            status: 'Pending',
+            type: 'dine-in',
+          };
+        })
+        .filter(Boolean);
+    }
+
+    const allOpenBills = [...openBills, ...unbilledOpenBills];
 
     const recentPayments = recentPaymentRows.map((payment: any) => ({
       id: String(payment._id),
@@ -143,7 +232,7 @@ export const getCashierSnapshot = async (req: TenantRequest, res: Response): Pro
     res.status(200).json({
       success: true,
       data: {
-        openBills,
+        openBills: allOpenBills,
         recentPayments,
         shift: {
           id: openShift?._id ? String(openShift._id) : null,

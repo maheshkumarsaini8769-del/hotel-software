@@ -115,7 +115,7 @@ export const PaymentHistoryView: React.FC<PaymentHistoryViewProps> = ({ isDark =
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div
         className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
         }`}
       >
         <div>
@@ -160,7 +160,7 @@ export const PaymentHistoryView: React.FC<PaymentHistoryViewProps> = ({ isDark =
                 filterMode === mode
                   ? 'bg-amber-600 text-white shadow-md'
                   : isDark
-                    ? 'bg-[#141620] border border-slate-800 text-slate-400 hover:text-white'
+                    ? 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
                     : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
               }`}
             >
@@ -182,7 +182,7 @@ export const PaymentHistoryView: React.FC<PaymentHistoryViewProps> = ({ isDark =
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
           <span className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
             {error}
@@ -195,7 +195,7 @@ export const PaymentHistoryView: React.FC<PaymentHistoryViewProps> = ({ isDark =
 
       <div
         className={`rounded-2xl border overflow-hidden ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
         }`}
       >
         <div className="overflow-x-auto">
@@ -244,7 +244,7 @@ export const PaymentHistoryView: React.FC<PaymentHistoryViewProps> = ({ isDark =
                               ? 'bg-amber-500/10 text-amber-300 border-amber-500/25'
                               : inv.paymentMode === 'CARD'
                                 ? 'bg-blue-500/10 text-blue-300 border-blue-500/25'
-                                : 'bg-purple-500/10 text-purple-300 border-purple-500/25'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                         }`}
                       >
                         {inv.paymentMode.replace(/_/g, ' ')}

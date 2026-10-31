@@ -21,13 +21,13 @@ export class PmsCheckoutHelper {
       case 'CASH':
         return { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30', label: 'Cash Tender' };
       case 'UPI':
-        return { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/30', label: 'Instant UPI' };
+        return { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-200 dark:border-slate-800', label: 'Instant UPI' };
       case 'CARD':
         return { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/30', label: 'Credit/Debit Card' };
       case 'CITY_LEDGER':
         return { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30', label: 'Corporate City Ledger' };
       case 'COMPLIMENTARY':
-        return { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/30', label: 'Complimentary / Waiver' };
+        return { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-200 dark:border-slate-800', label: 'Complimentary / Waiver' };
       default:
         return { bg: 'bg-zinc-700/10', text: 'text-zinc-400', border: 'border-zinc-500/30', label: mode };
     }
@@ -55,13 +55,13 @@ export class PmsCheckoutHelper {
       case KeycardVoidReason.CHECKOUT:
         return { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/30', label: 'Check-out' };
       case KeycardVoidReason.LOST:
-        return { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/30', label: 'Lost Card' };
+        return { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/30', label: 'Lost Card' };
       case KeycardVoidReason.DAMAGED:
         return { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30', label: 'Damaged' };
       case KeycardVoidReason.EXPIRED:
         return { bg: 'bg-zinc-500/10', text: 'text-zinc-400', border: 'border-zinc-500/30', label: 'Expired' };
       default:
-        return { bg: 'bg-indigo-500/10', text: 'text-indigo-400', border: 'border-indigo-500/30', label: 'Revoked' };
+        return { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-200 dark:border-slate-800', label: 'Revoked' };
     }
   }
 

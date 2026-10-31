@@ -36,17 +36,17 @@ export const MaintenanceEscalationModal: React.FC<MaintenanceEscalationModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-slate-950 border border-rose-500/30 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+      <div className="bg-slate-950 border border-red-500/30 rounded-2xl w-full max-w-lg shadow-sm dark:shadow-none overflow-hidden flex flex-col">
         {/* Header */}
         <div className="p-4 px-6 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-lg text-rose-400">
+            <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-lg text-red-400">
               🛠️
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-white">Escalate Maintenance - Room {room.roomNumber}</h3>
-                <span className="text-[10px] bg-rose-950/60 text-rose-300 border border-rose-800/60 px-2 py-0.5 rounded-full font-semibold">
+                <span className="text-[10px] bg-red-950/60 text-red-300 border border-red-800/60 px-2 py-0.5 rounded-full font-semibold">
                   Engineering Alert
                 </span>
               </div>
@@ -61,10 +61,10 @@ export const MaintenanceEscalationModal: React.FC<MaintenanceEscalationModalProp
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-slate-200">
           {/* Warning Banner */}
-          <div className="p-3 rounded-xl bg-rose-950/30 border border-rose-500/30 flex items-start gap-2.5 text-xs text-rose-300">
+          <div className="p-3 rounded-xl bg-red-950/30 border border-red-500/30 flex items-start gap-2.5 text-xs text-red-300">
             <span className="text-base">⚠️</span>
             <div>
-              <span className="font-bold text-rose-200">Room Status Lock: </span>
+              <span className="font-bold text-red-200">Room Status Lock: </span>
               Submitting this escalation will immediately lock Room {room.roomNumber} as{' '}
               <strong>OUT OF SERVICE</strong> on the PMS matrix until resolved by engineering.
             </div>
@@ -83,7 +83,7 @@ export const MaintenanceEscalationModal: React.FC<MaintenanceEscalationModalProp
                   onClick={() => onUpdateDraft({ category: cat })}
                   className={`py-1.5 px-2 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
                     draft.category === cat
-                      ? 'bg-rose-500/20 border-rose-500 text-rose-200 font-bold'
+                      ? 'bg-red-500/20 border-red-500 text-red-200 font-bold'
                       : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
@@ -107,7 +107,7 @@ export const MaintenanceEscalationModal: React.FC<MaintenanceEscalationModalProp
                   className={`py-1 px-2 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
                     draft.priority === pri
                       ? pri === 'EMERGENCY'
-                        ? 'bg-rose-600 text-white font-bold border-rose-500 animate-pulse'
+                        ? 'bg-red-600 text-white font-bold border-red-500 animate-pulse'
                         : 'bg-amber-500/20 border-amber-500 text-amber-200 font-bold'
                       : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
                   }`}
@@ -128,7 +128,7 @@ export const MaintenanceEscalationModal: React.FC<MaintenanceEscalationModalProp
               value={draft.title}
               onChange={(e) => onUpdateDraft({ title: e.target.value })}
               placeholder="e.g. Master bathroom shower mixer leaking, AC thermostat unresponsive..."
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500/60"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500/60"
             />
           </div>
 
@@ -142,11 +142,11 @@ export const MaintenanceEscalationModal: React.FC<MaintenanceEscalationModalProp
               value={draft.description}
               onChange={(e) => onUpdateDraft({ description: e.target.value })}
               placeholder="Describe exact location, leak severity, odor or safety hazard..."
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500/60"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500/60"
             />
           </div>
 
-          {errorMsg && <p className="text-xs text-rose-400 font-medium">{errorMsg}</p>}
+          {errorMsg && <p className="text-xs text-red-400 font-medium">{errorMsg}</p>}
 
           {/* Actions */}
           <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-3">
@@ -160,7 +160,7 @@ export const MaintenanceEscalationModal: React.FC<MaintenanceEscalationModalProp
             <button
               type="submit"
               disabled={isLoading}
-              className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 shadow-md shadow-rose-950/50 cursor-pointer disabled:opacity-50 active:scale-95 transition-all"
+              className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 shadow-md shadow-sm cursor-pointer disabled:opacity-50 active:scale-95 transition-all"
             >
               {isLoading ? 'Dispatching...' : 'Dispatch Maintenance Work Order'}
             </button>

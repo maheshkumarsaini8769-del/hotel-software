@@ -204,20 +204,29 @@ export const getWaiterRequests = async (req: TenantRequest, res: Response): Prom
       ];
     }
 
-    const requests = await ServiceRequest.find(query).sort({ createdAt: -1 }).populate('tableId', 'tableNumber section');
+    const requests = await ServiceRequest.find(query)
+      .sort({ createdAt: -1 })
+      .populate('tableId', 'tableNumber section')
+      .populate('roomId', 'roomNumber floorLevel');
 
-    const formatted = requests.map((r: any) => ({
-      id: r._id.toString(),
-      requestType: r.requestType,
-      status: r.status,
-      priority: r.priority,
-      tableId: r.tableId?._id?.toString() || r.tableId?.toString(),
-      tableNumber: r.tableId?.tableNumber,
-      section: r.tableId?.section,
-      assignedUserId: r.assignedUserId?.toString(),
-      notes: r.notes,
-      createdAt: r.createdAt.toISOString(),
-    }));
+    const formatted = requests.map((r: any) => {
+      const roomNum = r.roomId?.roomNumber || (r.notes?.match(/Room\s*(\d+)/i)?.[1]);
+      const destination = r.tableId?.tableNumber || (roomNum ? `Room ${roomNum}` : undefined);
+
+      return {
+        id: r._id.toString(),
+        requestType: r.requestType,
+        status: r.status,
+        priority: r.priority,
+        tableId: r.tableId?._id?.toString() || r.tableId?.toString(),
+        tableNumber: destination,
+        roomNumber: roomNum,
+        section: r.tableId?.section || (roomNum ? 'Guest Rooms' : undefined),
+        assignedUserId: r.assignedUserId?.toString(),
+        notes: r.notes,
+        createdAt: r.createdAt.toISOString(),
+      };
+    });
 
     res.status(200).json({
       success: true,

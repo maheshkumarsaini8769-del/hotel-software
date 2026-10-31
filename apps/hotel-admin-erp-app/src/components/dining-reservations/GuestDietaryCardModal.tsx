@@ -26,7 +26,7 @@ export const GuestDietaryCardModal: React.FC<GuestDietaryCardModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="bg-[#0f131a] border border-rose-500/30 w-full max-w-lg rounded-2xl p-6 shadow-2xl text-zinc-100 max-h-[90vh] flex flex-col">
+      <div className="bg-slate-900 border border-red-500/30 w-full max-w-lg rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-start justify-between pb-4 border-b border-zinc-800">
           <div>
@@ -60,7 +60,7 @@ export const GuestDietaryCardModal: React.FC<GuestDietaryCardModalProps> = ({
         <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
           {loading ? (
             <div className="flex flex-col items-center justify-center gap-3 py-16 text-zinc-400">
-              <span className="h-8 w-8 animate-spin rounded-full border-2 border-rose-400 border-t-transparent" />
+              <span className="h-8 w-8 animate-spin rounded-full border-2 border-red-400 border-t-transparent" />
               <span className="text-xs font-semibold">Loading guest preferences & dietary history…</span>
             </div>
           ) : error || !guestProfile ? (
@@ -86,8 +86,8 @@ export const GuestDietaryCardModal: React.FC<GuestDietaryCardModalProps> = ({
 
           {/* Critical Allergies Banner */}
           {guestProfile.allergies && guestProfile.allergies.length > 0 && (
-            <div className="bg-rose-950/20 border border-rose-500/40 p-3.5 rounded-xl space-y-2">
-              <span className="text-xs font-bold text-rose-300 uppercase tracking-wider block">
+            <div className="bg-red-950/20 border border-red-500/40 p-3.5 rounded-xl space-y-2">
+              <span className="text-xs font-bold text-red-300 uppercase tracking-wider block">
                 🚨 Registered Medical Allergens:
               </span>
               <div className="flex flex-wrap gap-1.5">

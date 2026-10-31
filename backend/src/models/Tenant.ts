@@ -12,6 +12,8 @@ export interface ITenant extends Document {
     latitude?: number;
     longitude?: number;
   };
+  googleMapUrl?: string;
+  locationNotes?: string;
   photos?: string[];
   tagline?: string;
   address?: {
@@ -23,6 +25,13 @@ export interface ITenant extends Document {
   };
   gstin?: string;
   fssai?: string;
+  primaryColor?: string;
+  branding?: {
+    primaryColor?: string;
+    secondaryColor?: string;
+    logoUrl?: string;
+    tagline?: string;
+  };
   wifiSsid?: string;
   wifiPassword?: string;
   contactEmail: string;
@@ -35,6 +44,11 @@ export interface ITenant extends Document {
   subscriptionMonthlyINR?: number;
   billingCycle?: 'MONTHLY' | 'ANNUAL';
   customPricingAdjustmentINR?: number;
+  subscriptionStartDate?: Date;
+  subscriptionEndDate?: Date;
+  subscriptionDurationMonths?: number;
+  maxRooms?: number;
+  maxTables?: number;
   subscription?: {
     billingCycle: 'MONTHLY' | 'ANNUAL';
     monthlyRateINR: number;
@@ -43,6 +57,9 @@ export interface ITenant extends Document {
     customPricingAdjustmentINR: number;
     cycleStartDate?: Date;
     nextBillingDate?: Date;
+    subscriptionStartDate?: Date;
+    subscriptionEndDate?: Date;
+    durationMonths?: number;
     lastPaymentDate?: Date;
     paymentStatus?: 'PAID' | 'PENDING' | 'OVERDUE';
   };
@@ -76,6 +93,8 @@ const TenantSchema = new Schema<ITenant>(
       latitude: { type: Number, default: 26.9124 },
       longitude: { type: Number, default: 75.7873 },
     },
+    googleMapUrl: { type: String, trim: true },
+    locationNotes: { type: String, trim: true },
     photos: { type: [String], default: [] },
     tagline: { type: String, trim: true },
     address: {
@@ -87,6 +106,13 @@ const TenantSchema = new Schema<ITenant>(
     },
     gstin: { type: String, uppercase: true, trim: true },
     fssai: { type: String, trim: true },
+    primaryColor: { type: String, trim: true, default: '#f97316' },
+    branding: {
+      primaryColor: { type: String, trim: true },
+      secondaryColor: { type: String, trim: true },
+      logoUrl: { type: String },
+      tagline: { type: String },
+    },
     wifiSsid: { type: String, trim: true, default: 'TajGateway_HighSpeed' },
     wifiPassword: { type: String, trim: true, default: 'SpiceGuest@2026' },
     contactEmail: { type: String, required: true, lowercase: true, trim: true },
@@ -104,6 +130,11 @@ const TenantSchema = new Schema<ITenant>(
     subscriptionMonthlyINR: { type: Number, default: 0, min: 0 },
     billingCycle: { type: String, enum: ['MONTHLY', 'ANNUAL'], default: 'MONTHLY' },
     customPricingAdjustmentINR: { type: Number, default: 0 },
+    subscriptionStartDate: { type: Date },
+    subscriptionEndDate: { type: Date },
+    subscriptionDurationMonths: { type: Number, default: 1 },
+    maxRooms: { type: Number, default: 30, min: 1 },
+    maxTables: { type: Number, default: 20, min: 1 },
     enabledPortals: {
       type: [String],
       default: ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'],
@@ -129,6 +160,9 @@ const TenantSchema = new Schema<ITenant>(
       customPricingAdjustmentINR: { type: Number, default: 0 },
       cycleStartDate: { type: Date, default: Date.now },
       nextBillingDate: { type: Date },
+      subscriptionStartDate: { type: Date },
+      subscriptionEndDate: { type: Date },
+      durationMonths: { type: Number, default: 1 },
       lastPaymentDate: { type: Date },
       paymentStatus: { type: String, enum: ['PAID', 'PENDING', 'OVERDUE'], default: 'PAID' },
     },
@@ -169,8 +203,20 @@ TenantSchema.pre('save', function (next) {
   const annual = monthly * 10;
   const effective = cycle === 'ANNUAL' ? annual : monthly;
 
-  const cycleDays = cycle === 'ANNUAL' ? 365 : 30;
   const existingSub = this.subscription || ({} as any);
+  const start = this.subscriptionStartDate || existingSub.subscriptionStartDate || existingSub.cycleStartDate || (this as any).createdAt || new Date();
+  
+  const durationMonths = this.subscriptionDurationMonths || existingSub.durationMonths || (cycle === 'ANNUAL' ? 12 : 1);
+  let end = this.subscriptionEndDate || existingSub.subscriptionEndDate || existingSub.nextBillingDate;
+  if (!end) {
+    const d = new Date(start);
+    d.setMonth(d.getMonth() + durationMonths);
+    end = d;
+  }
+
+  this.subscriptionStartDate = start;
+  this.subscriptionEndDate = end;
+  this.subscriptionDurationMonths = durationMonths;
 
   this.subscription = {
     billingCycle: cycle,
@@ -178,8 +224,11 @@ TenantSchema.pre('save', function (next) {
     annualRateINR: annual,
     effectiveRateINR: effective,
     customPricingAdjustmentINR: adj,
-    cycleStartDate: existingSub.cycleStartDate || new Date(),
-    nextBillingDate: existingSub.nextBillingDate || new Date(Date.now() + cycleDays * 86400000),
+    cycleStartDate: start,
+    nextBillingDate: end,
+    subscriptionStartDate: start,
+    subscriptionEndDate: end,
+    durationMonths,
     paymentStatus: existingSub.paymentStatus || 'PAID',
     lastPaymentDate: existingSub.lastPaymentDate || new Date(),
   };
@@ -229,5 +278,8 @@ TenantSchema.pre('findOneAndUpdate', function (next) {
   }
   next();
 });
+
+TenantSchema.index({ contactEmail: 1 });
+TenantSchema.index({ createdAt: -1 });
 
 export const Tenant = mongoose.model<ITenant>('Tenant', TenantSchema);

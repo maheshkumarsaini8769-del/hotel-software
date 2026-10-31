@@ -32,14 +32,14 @@ export const AttendanceAuditTable: React.FC<AttendanceAuditTableProps> = ({ logs
             placeholder="Search staff or department..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-slate-200 dark:border-slate-800"
           />
         </div>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="bg-[#0e121a] text-zinc-400 font-semibold border-b border-zinc-800 uppercase tracking-wider text-[11px]">
+          <thead className="bg-slate-900 text-zinc-400 font-semibold border-b border-zinc-800 uppercase tracking-wider text-[11px]">
             <tr>
               <th className="px-4 py-3">Staff Member</th>
               <th className="px-4 py-3">Department</th>
@@ -88,13 +88,13 @@ export const AttendanceAuditTable: React.FC<AttendanceAuditTableProps> = ({ logs
                       )}
                     </td>
 
-                    <td className="px-4 py-3 text-right font-mono font-bold text-cyan-400">
+                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-700 dark:text-slate-300">
                       {log.totalHoursWorked ? `${log.totalHoursWorked}h` : '--'}
                     </td>
 
                     <td className="px-4 py-3 text-right font-mono">
                       {log.lateMinutes > 0 ? (
-                        <span className="text-rose-400 font-bold">+{log.lateMinutes} min</span>
+                        <span className="text-red-400 font-bold">+{log.lateMinutes} min</span>
                       ) : (
                         <span className="text-emerald-400">On Time</span>
                       )}

@@ -23,7 +23,7 @@ export const HelpAndSupportView: React.FC<HelpAndSupportViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-5 gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold">
@@ -54,7 +54,7 @@ export const HelpAndSupportView: React.FC<HelpAndSupportViewProps> = ({
         {/* SOP Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className={`p-5 rounded-2xl border space-y-2 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <div className="flex items-center gap-2 text-orange-600 font-bold text-xs uppercase tracking-wider">
               <FileText className="w-4 h-4" />
@@ -69,7 +69,7 @@ export const HelpAndSupportView: React.FC<HelpAndSupportViewProps> = ({
           </div>
 
           <div className={`p-5 rounded-2xl border space-y-2 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <div className="flex items-center gap-2 text-blue-600 font-bold text-xs uppercase tracking-wider">
               <FileText className="w-4 h-4" />
@@ -84,9 +84,9 @@ export const HelpAndSupportView: React.FC<HelpAndSupportViewProps> = ({
           </div>
 
           <div className={`p-5 rounded-2xl border space-y-2 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
-            <div className="flex items-center gap-2 text-purple-600 font-bold text-xs uppercase tracking-wider">
+            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider">
               <FileText className="w-4 h-4" />
               <span>SOP #3: Table Transfer & Merging</span>
             </div>
@@ -99,7 +99,7 @@ export const HelpAndSupportView: React.FC<HelpAndSupportViewProps> = ({
           </div>
 
           <div className={`p-5 rounded-2xl border space-y-2 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs uppercase tracking-wider">
               <FileText className="w-4 h-4" />
@@ -118,7 +118,7 @@ export const HelpAndSupportView: React.FC<HelpAndSupportViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Emergency Hotlines */}
           <div className={`p-5 rounded-2xl border space-y-3 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
               <Phone className="w-4 h-4 text-orange-500" />
@@ -161,7 +161,7 @@ export const HelpAndSupportView: React.FC<HelpAndSupportViewProps> = ({
 
           {/* System Diagnostics */}
           <div className={`p-5 rounded-2xl border space-y-3 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
               <ShieldCheck className="w-4 h-4 text-emerald-500" />

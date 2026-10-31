@@ -58,7 +58,7 @@ export const KdsHeader: React.FC<KdsHeaderProps> = ({
       <div className="flex items-center space-x-5">
         <div className="flex items-center space-x-2">
           <span className="text-xs text-slate-400 font-medium">Pending Orders:</span>
-          <span className="bg-rose-500 text-white font-bold text-xs px-2.5 py-0.5 rounded-full shadow-sm">
+          <span className="bg-red-500 text-white font-bold text-xs px-2.5 py-0.5 rounded-full shadow-sm">
             {activeOrdersCount}
           </span>
         </div>
@@ -89,14 +89,14 @@ export const KdsHeader: React.FC<KdsHeaderProps> = ({
             onClick={onOpen86Modal}
             className={`px-3 py-1 text-xs font-bold rounded-lg border transition flex items-center space-x-1.5 min-h-[32px] ${
               active86Count > 0
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 hover:bg-rose-500/30 animate-pulse'
+                ? 'bg-red-500/20 text-red-300 border-red-500/50 hover:bg-red-500/30 animate-pulse'
                 : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
             }`}
             title="Open 1-Tap 86 (Out of Stock) Manager"
           >
             <span>🚫 86 Manager</span>
             {active86Count > 0 && (
-              <span className="bg-rose-600 text-white px-1.5 py-0.2 rounded-full text-[10px] font-black">
+              <span className="bg-red-600 text-white px-1.5 py-0.2 rounded-full text-[10px] font-black">
                 {active86Count}
               </span>
             )}

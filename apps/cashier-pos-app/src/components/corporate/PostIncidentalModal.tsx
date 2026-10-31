@@ -58,9 +58,9 @@ export const PostIncidentalModal: React.FC<PostIncidentalModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-[#121721] border border-amber-500/30 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-xs text-zinc-300">
+      <div className="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden text-xs text-zinc-300">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-[#0b0e14]">
+        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-slate-950">
           <div>
             <h2 className="text-base font-bold text-white">Post Incidental / Extra Charge</h2>
             <p className="text-[11px] text-zinc-400 mt-0.5">
@@ -83,7 +83,7 @@ export const PostIncidentalModal: React.FC<PostIncidentalModalProps> = ({
               required
               value={selectedRoomNumber}
               onChange={(e) => setSelectedRoomNumber(e.target.value)}
-              className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-semibold"
+              className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-semibold"
             >
               <option value="">-- Select Room --</option>
               {inHouseRooms.map((r, idx) => {
@@ -113,7 +113,7 @@ export const PostIncidentalModal: React.FC<PostIncidentalModalProps> = ({
                     setTaxRate(0.05);
                   }
                 }}
-                className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
               >
                 <option value="ROOM_SERVICE">Room Service (F&B)</option>
                 <option value="RESTAURANT_DINE">Restaurant Dine-In</option>
@@ -129,7 +129,7 @@ export const PostIncidentalModal: React.FC<PostIncidentalModalProps> = ({
               <select
                 value={taxRate}
                 onChange={(e) => setTaxRate(Number(e.target.value))}
-                className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
               >
                 <option value={0.05}>5% GST (Restaurant & F&B)</option>
                 <option value={0.12}>12% GST (Standard Services)</option>
@@ -147,7 +147,7 @@ export const PostIncidentalModal: React.FC<PostIncidentalModalProps> = ({
               placeholder="e.g. Executive Buffet Dinner / 2x Laundry Suits"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
             />
           </div>
 
@@ -160,7 +160,7 @@ export const PostIncidentalModal: React.FC<PostIncidentalModalProps> = ({
                 required
                 value={rate}
                 onChange={(e) => setRate(Number(e.target.value))}
-                className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
               />
             </div>
             <div>
@@ -171,7 +171,7 @@ export const PostIncidentalModal: React.FC<PostIncidentalModalProps> = ({
                 required
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
-                className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
               />
             </div>
           </div>
@@ -194,7 +194,7 @@ export const PostIncidentalModal: React.FC<PostIncidentalModalProps> = ({
           </div>
 
           {/* Amount Calculation Box */}
-          <div className="bg-[#0b0e14] p-3 rounded-xl border border-zinc-800 flex items-center justify-between text-xs">
+          <div className="bg-slate-950 p-3 rounded-xl border border-zinc-800 flex items-center justify-between text-xs">
             <div>
               <span className="text-zinc-500">Subtotal: </span>
               <span className="text-zinc-300 font-mono">₹{subtotal.toLocaleString('en-IN')}</span>

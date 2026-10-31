@@ -2,7 +2,7 @@ import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { GuestRoomPortalApp } from './GuestRoomPortalApp';
-import { ErrorBoundary, GuestPortalStore, LiveRoomOrder, CustomerLocationSelectorModal, CustomerPortalSwitcherBar } from '@spicehub/ui';
+import { ErrorBoundary, GuestPortalStore, LiveRoomOrder, CustomerLocationSelectorModal, CustomerPortalSwitcherBar, I18nProvider } from '@spicehub/ui';
 import { SpiceHubSocket } from '@spicehub/api-client';
 import { API_ORIGIN, SOCKET_URL } from './config/api';
 import { getPortalUrl } from './config/env';
@@ -31,6 +31,9 @@ const sessionTokenFromUrl = urlParams.get('token') || urlParams.get('sessionToke
 const permanentQrTokenFromUrl = urlParams.get('qrToken') || '';
 let resolvedHotelId =
   urlParams.get('hotelId') ||
+  (typeof window !== 'undefined'
+    ? localStorage.getItem('spicehub_hotel_id') || localStorage.getItem('hotelId')
+    : null) ||
   (import.meta as any).env?.VITE_HOTEL_ID ||
   '';
 let resolvedWaiterEnabled = true;
@@ -382,12 +385,16 @@ const GuestRoomPortalRoot: React.FC = () => {
     try {
       socket.on('pms:checkout_requested', (data: any) => {
         if (data.roomNumber === targetRoom) {
+          if (!data.hotelId || (resolvedHotelId && String(data.hotelId) !== String(resolvedHotelId))) return;
           setIsCheckoutRequested(true);
         }
       });
 
       socket.on('pms:stay_checked_out', (data: any) => {
         if (data.roomNumber === targetRoom) {
+          if (!data.hotelId || (resolvedHotelId && String(data.hotelId) !== String(resolvedHotelId))) return;
+          const curSession = store.getSession() as any;
+          if (curSession?.stayId && data.stayId && String(data.stayId) !== String(curSession.stayId)) return;
           setIsStayCheckedOut(true);
           setCheckoutInvoice(data);
           hydrateLiveRoomStay();
@@ -396,8 +403,7 @@ const GuestRoomPortalRoot: React.FC = () => {
 
       socket.on('pms:folio_settled', (data: any) => {
         if (data.roomNumber === targetRoom) {
-          setIsStayCheckedOut(true);
-          setCheckoutInvoice(data);
+          if (!data.hotelId || (resolvedHotelId && String(data.hotelId) !== String(resolvedHotelId))) return;
           hydrateLiveRoomStay();
         }
       });
@@ -421,8 +427,14 @@ const GuestRoomPortalRoot: React.FC = () => {
                 totalPaid: folio?.paidAmount || folio?.netAmountPayable || 0,
                 roomNumber: targetRoom,
               });
-            } else if (stay.checkoutRequested) {
-              setIsCheckoutRequested(true);
+            } else {
+              setIsStayCheckedOut(false);
+              setCheckoutInvoice(null);
+              if (stay.checkoutRequested) {
+                setIsCheckoutRequested(true);
+              } else {
+                setIsCheckoutRequested(false);
+              }
             }
           }
         } catch {}
@@ -450,7 +462,7 @@ const GuestRoomPortalRoot: React.FC = () => {
       />
       {crossPortalToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-bounce">
-          <div className="px-4 py-3 rounded-2xl shadow-2xl border text-sm font-bold flex items-center justify-between gap-2 bg-blue-950 text-blue-200 border-blue-600">
+          <div className="px-4 py-3 rounded-2xl shadow-sm dark:shadow-none border text-sm font-bold flex items-center justify-between gap-2 bg-blue-950 text-blue-200 border-blue-600">
             <span>{crossPortalToast}</span>
             <button onClick={() => setCrossPortalToast(null)} className="text-white/60 hover:text-white">✕</button>
           </div>
@@ -474,6 +486,7 @@ const GuestRoomPortalRoot: React.FC = () => {
           }
           store.setStayDetails({ roomNumber: r });
           setShowLocationModal(false);
+          window.dispatchEvent(new CustomEvent('guest:set_tab', { detail: 'HOME' }));
           void resolveGuestSession(r).then(() => {
             void hydrateLiveRoomStay();
             void hydrateInRoomOrders();
@@ -639,6 +652,10 @@ const GuestRoomPortalRoot: React.FC = () => {
             return false;
           }
           setIsCheckoutRequested(true);
+          setIsStayCheckedOut(true);
+          if (json?.data) {
+            setCheckoutInvoice(json.data);
+          }
           await hydrateLiveRoomStay();
           return true;
         } catch (e) {
@@ -681,7 +698,9 @@ if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <ErrorBoundary>
-        <GuestRoomPortalRoot />
+        <I18nProvider>
+          <GuestRoomPortalRoot />
+        </I18nProvider>
       </ErrorBoundary>
     </React.StrictMode>
   );

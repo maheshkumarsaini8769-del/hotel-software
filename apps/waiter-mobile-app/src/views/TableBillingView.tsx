@@ -171,7 +171,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
       {/* Header */}
       <div
         className={`p-4 rounded-2xl border flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4 transition-colors ${
-          isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}
       >
         <div className="flex items-center gap-3">
@@ -192,6 +192,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Billing Table:</span>
           <select
+            data-testid="select-billing-table"
             value={selectedTable}
             onChange={(e) => setSelectedTable(e.target.value)}
             className={`p-2 rounded-xl border text-xs font-bold focus:outline-none ${
@@ -224,7 +225,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
               onClick={onOpenOtherTablesPage}
               className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-400 font-bold text-xs flex items-center gap-1.5 transition shrink-0"
             >
-              <span>Other Tables Page (दूसरी टेबल)</span>
+              <span>Other Tables Page</span>
             </button>
           )}
         </div>
@@ -248,6 +249,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
       {/* Mobile View Tab Switcher */}
       <div className="flex md:hidden border rounded-xl p-1 bg-slate-100 dark:bg-slate-800 shrink-0">
         <button
+          data-testid="btn-billing-tab-invoice"
           onClick={() => setMobileBillingTab('invoice')}
           className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
             mobileBillingTab === 'invoice'
@@ -258,6 +260,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
           📄 Invoice Items
         </button>
         <button
+          data-testid="btn-billing-tab-payment"
           onClick={() => setMobileBillingTab('payment')}
           className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
             mobileBillingTab === 'payment'
@@ -277,7 +280,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
           className={`md:col-span-6 lg:col-span-7 p-4 sm:p-6 rounded-2xl border space-y-4 ${
             mobileBillingTab === 'invoice' ? 'block' : 'hidden md:block'
           } ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}
         >
           <div
@@ -362,7 +365,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                   ))}
                 </div>
               </div>
-              <span className={`font-semibold ${isDark ? 'text-rose-400' : 'text-rose-700'}`}>
+              <span className={`font-semibold ${isDark ? 'text-red-400' : 'text-red-700'}`}>
                 -₹{discountAmount.toFixed(2)}
               </span>
             </div>
@@ -378,7 +381,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                       onClick={() => setServiceChargePercent(sc)}
                       className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
                         serviceChargePercent === sc
-                          ? 'bg-purple-600 text-white'
+                          ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white'
                           : isDark
                           ? 'bg-slate-800 text-slate-400 hover:text-white'
                           : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
@@ -442,7 +445,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
           </div>
           <div
             className={`p-4 sm:p-5 rounded-2xl border space-y-4 ${
-              isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
             }`}
           >
             <h3 className={`font-black text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -452,9 +455,9 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
             {/* 5 Multi-Tender Payment Methods */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {[
-                { id: 'UPI', label: 'Dynamic UPI QR', icon: QrCode, color: 'text-purple-500' },
+                { id: 'UPI', label: 'Dynamic UPI QR', icon: QrCode, color: 'text-slate-700 dark:text-slate-300' },
                 { id: 'CASH', label: 'Cash Tender', icon: Banknote, color: 'text-emerald-600' },
-                { id: 'SPLIT', label: 'Split (Cash + UPI)', icon: Scissors, color: 'text-indigo-600' },
+                { id: 'SPLIT', label: 'Split (Cash + UPI)', icon: Scissors, color: 'text-slate-700 dark:text-slate-300' },
                 { id: 'CARD', label: 'Card POS Swipe', icon: CreditCard, color: 'text-blue-600' },
                 { id: 'ROOM', label: 'Charge Room Folio', icon: Hotel, color: 'text-amber-600' },
               ].map((m) => {
@@ -463,6 +466,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                 return (
                   <button
                     key={m.id}
+                    data-testid={`btn-paymode-${m.id.toLowerCase()}`}
                     onClick={() => {
                       setSelectedPaymentMode(m.id as any);
                       if (m.id === 'UPI') onOpenUpiModal(selectedTable, grandTotal);
@@ -486,7 +490,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
             {/* Payment Method Details Panel */}
             {selectedPaymentMode === 'SPLIT' && (
               <div className={`p-3.5 rounded-xl border space-y-2.5 text-xs ${
-                isDark ? 'bg-indigo-950/40 border-indigo-800/60 text-indigo-300' : 'bg-indigo-50 border-indigo-200 text-indigo-900'
+                isDark ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300' : 'bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
               }`}>
                 <div className="font-bold flex items-center justify-between">
                   <span className="flex items-center gap-1.5 font-black">
@@ -500,7 +504,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsSplitModalOpen(true)}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm"
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm"
                 >
                   <span>⚡ Open Split Cash + Dynamic UPI Terminal</span>
                 </button>
@@ -544,10 +548,10 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
 
             {selectedPaymentMode === 'UPI' && (
               <div className={`p-3 rounded-xl border flex items-center justify-between gap-2 text-xs ${
-                isDark ? 'bg-purple-950/30 border-purple-900/50 text-purple-300' : 'bg-purple-50 border-purple-200 text-purple-700'
+                isDark ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300' : 'bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
               }`}>
                 <div className="flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-purple-400" />
+                  <QrCode className="w-5 h-5 text-slate-700 dark:text-slate-300" />
                   <div>
                     <div className="font-bold">Dynamic NPCI QR Generated</div>
                     <div className="text-[10px] opacity-80">GPay • PhonePe • Paytm Soundbox Sync</div>
@@ -555,7 +559,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                 </div>
                 <button
                   onClick={() => onOpenUpiModal(selectedTable, grandTotal)}
-                  className="px-2.5 py-1 rounded-lg bg-purple-600 text-white font-bold text-[11px] hover:bg-purple-500 transition shadow-xs"
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white font-bold text-[11px] hover:bg-slate-800 dark:bg-slate-200 transition shadow-xs"
                 >
                   Show QR
                 </button>
@@ -614,11 +618,11 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                   onClick={onSplitBill}
                   className={`w-full py-2.5 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition ${
                     isDark
-                      ? 'bg-purple-950/30 border-purple-800/60 text-purple-300 hover:bg-purple-900/50'
-                      : 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
+                      ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800'
+                      : 'bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-800'
                   }`}
                 >
-                  <Scissors className="w-4 h-4 text-purple-400" />
+                  <Scissors className="w-4 h-4 text-slate-700 dark:text-slate-300" />
                   <span>Split Bill Between Guests (Equal / By Item)</span>
                 </button>
               )}
@@ -650,7 +654,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
       {/* Realistic Thermal Receipt Modal */}
       {isReceiptModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
-          <div className="bg-white text-slate-900 w-full max-w-sm max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl p-4 sm:p-6 font-mono text-xs space-y-3 border border-slate-300 custom-scrollbar">
+          <div className="bg-white text-slate-900 w-full max-w-sm max-h-[92vh] overflow-y-auto rounded-2xl shadow-sm dark:shadow-none p-4 sm:p-6 font-mono text-xs space-y-3 border border-slate-300 custom-scrollbar">
             <div className="flex items-center justify-between pb-2 border-b border-dashed border-slate-300">
               <span className="font-bold text-xs uppercase tracking-wider text-slate-500">Thermal Guest Check</span>
               <button
@@ -710,7 +714,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                 <span>₹{subtotal.toFixed(2)}</span>
               </div>
               {discountPercent > 0 && (
-                <div className="flex justify-between text-rose-600">
+                <div className="flex justify-between text-red-600">
                   <span>Discount ({discountPercent}%):</span>
                   <span>-₹{discountAmount.toFixed(2)}</span>
                 </div>

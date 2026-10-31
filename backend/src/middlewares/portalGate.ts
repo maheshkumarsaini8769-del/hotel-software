@@ -5,8 +5,9 @@ import crypto from 'crypto';
 import { TenantRequest, UserRole } from '../types';
 import { Tenant } from '../models/Tenant';
 import { GuestSession } from '../models/GuestSession';
+import { Booking } from '../models/Booking';
 import { getJwtSecret } from '../config/security';
-import { PortalKey } from '@spicehub/shared-types';
+import { PortalKey } from '../types/sharedTypes';
 
 /**
  * Extracts hotelId / tenant identity from any supported request context:
@@ -113,6 +114,25 @@ export const requirePortal = (portalKey: PortalKey) => {
           }
         }
 
+        // Fallback for public booking reservation queries (e.g. /rooms/booking-status/:bookingNumber)
+        if (!hotelIdStr) {
+          const bookingNum =
+            req.params?.bookingNumber ||
+            req.query?.bookingNumber ||
+            req.body?.bookingNumber ||
+            (typeof req.originalUrl === 'string'
+              ? req.originalUrl.match(/\/booking-status\/([A-Za-z0-9_-]+)/)?.[1]
+              : null);
+          if (bookingNum && typeof bookingNum === 'string') {
+            try {
+              const bDoc = await Booking.findOne({ bookingNumber: String(bookingNum).trim() }).select('hotelId');
+              if (bDoc?.hotelId) {
+                hotelIdStr = String(bDoc.hotelId);
+              }
+            } catch {}
+          }
+        }
+
         if (!hotelIdStr || !Types.ObjectId.isValid(hotelIdStr)) {
           res.status(403).json({
             success: false,
@@ -150,7 +170,10 @@ export const requirePortal = (portalKey: PortalKey) => {
       // 5. Check enabledPortals subscription allocation (Single Source of Truth)
       const portals: string[] = Array.isArray(tenant.enabledPortals) ? tenant.enabledPortals : [];
 
-      let isAllowed = portals.includes(portalKey);
+      let isAllowed =
+        portals.includes(portalKey) ||
+        (portalKey === 'guest' && portals.includes('customer')) ||
+        (portalKey === 'customer' && portals.includes('guest'));
 
       // Backwards-compatibility fallback: if enabledPortals is not initialized, check featureFlags
       if (portals.length === 0 && tenant.featureFlags) {

@@ -1,4 +1,7 @@
-const rawEnvBase = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
+const rawEnvBase = (
+  (import.meta as any).env?.VITE_API_BASE_URL ||
+  (import.meta as any).env?.VITE_API_URL
+) as string | undefined;
 
 function normalizeApiOrigin(value?: string): string {
   if (value && value.trim()) {
@@ -7,10 +10,12 @@ function normalizeApiOrigin(value?: string): string {
   }
 
   // Local preview/static servers (the emulator suite) do not proxy /api.
-  // Only fall back to the local backend for loopback hostnames; deployed
-  // domains continue to use their same-origin reverse proxy.
+  // When running on Vercel, route directly to the cloud backend.
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
+    if (host.endsWith('.vercel.app') || host.includes('vercel.app')) {
+      return 'https://spicehub-backend.vercel.app';
+    }
     if ((host === 'localhost' || host === '127.0.0.1') && window.location.port !== '5000') {
       return 'http://localhost:5000';
     }
@@ -25,7 +30,11 @@ export const API_ORIGIN = normalizeApiOrigin(rawEnvBase);
 export const API_BASE_URL = `${API_ORIGIN}/api/v1`;
 
 export function apiUrl(path: string): string {
-  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (cleanPath.startsWith('/api/v1/')) {
+    return `${API_ORIGIN}${cleanPath}`;
+  }
+  return `${API_BASE_URL}${cleanPath}`;
 }
 
 export function getStoredToken(): string {

@@ -49,6 +49,11 @@ function isLoopbackHost(hostname: string): boolean {
 
 const browserHost = typeof window !== 'undefined' ? window.location.hostname : '';
 const browserOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+const queryParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+const queryApiBase = queryParams?.get('apiBase') || queryParams?.get('backendUrl');
+const querySocketUrl = queryParams?.get('socketUrl');
+
+const isVercelHost = browserHost.endsWith('.vercel.app') || browserHost.includes('vercel.app');
 
 function normalizeApiOrigin(value?: string): string {
   if (!value || !value.trim()) return '';
@@ -56,16 +61,22 @@ function normalizeApiOrigin(value?: string): string {
   return trimmed.endsWith('/api/v1') ? trimmed.slice(0, -'/api/v1'.length) : trimmed;
 }
 
-const configuredApiOrigin = normalizeApiOrigin(readString('VITE_API_BASE_URL'));
-// On LAN IP (e.g. 10.208.156.216 or 192.168.x.x), fallback to port 5000 on that same host so API calls don't collapse to ''
-const fallbackApiOrigin = isLoopbackHost(browserHost)
-  ? 'http://localhost:5000'
-  : (browserHost ? `http://${browserHost}:5000` : 'http://localhost:5000');
+const configuredApiOrigin = normalizeApiOrigin(readString('VITE_API_BASE_URL') || readString('VITE_API_URL'));
+// On Vercel cloud hosting, fallback to production backend domain. On LAN IP, fallback to port 5000.
+const fallbackApiOrigin = isVercelHost
+  ? 'https://spicehub-backend.vercel.app'
+  : (isLoopbackHost(browserHost)
+      ? 'http://localhost:5000'
+      : (browserHost ? `http://${browserHost}:5000` : 'http://localhost:5000'));
 
-const apiOrigin = configuredApiOrigin || fallbackApiOrigin;
+const apiOrigin = normalizeApiOrigin(queryApiBase || '') || configuredApiOrigin || fallbackApiOrigin;
 
-const configuredSocketUrl = trimTrailingSlash(readString('VITE_SOCKET_URL'));
-const socketUrl = configuredSocketUrl || fallbackApiOrigin;
+const configuredSocketUrl = trimTrailingSlash(readString('VITE_SOCKET_URL') || readString('VITE_SOCKET_SERVER_URL'));
+const fallbackSocketUrl = isVercelHost
+  ? 'https://spicehub-socket-server.onrender.com'
+  : fallbackApiOrigin;
+
+const socketUrl = trimTrailingSlash(querySocketUrl || '') || configuredSocketUrl || fallbackSocketUrl;
 
 function resolvePortalUrl(portal: PortalKey): string {
   const upper = portal.toUpperCase();

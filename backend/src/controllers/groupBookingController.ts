@@ -168,7 +168,7 @@ export const bulkCheckInGroup = async (req: TenantRequest, res: Response): Promi
         stayId: stay._id,
         bookingId: groupBooking._id,
         roomId: physicalRoom._id,
-        folioNumber: `MF-ROOM-${physicalRoom.roomNumber}-${Date.now().toString().slice(-4)}`,
+        folioNumber: `MF-ROOM-${physicalRoom.roomNumber}-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`,
         totalRoomTariff: groupBooking.splitBillingPolicy === SplitBillingPolicy.INDIVIDUAL_SETTLEMENT ? roomEntry.tariffPerNight : 0,
         folioStatus: 'OPEN',
       });

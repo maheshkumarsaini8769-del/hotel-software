@@ -105,11 +105,11 @@ export const ReservationHeader: React.FC<ReservationHeaderProps> = ({
             <div className="text-xl font-bold text-amber-300 mt-0.5">{diningSummary.totalCovers} Guests</div>
           </div>
           <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-            <div className="text-[11px] font-medium text-cyan-400 flex items-center justify-between">
+            <div className="text-[11px] font-medium text-slate-700 dark:text-slate-300 flex items-center justify-between">
               <span>Confirmed Upcoming</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-800"></span>
             </div>
-            <div className="text-xl font-bold text-cyan-300 mt-0.5">{diningSummary.confirmed}</div>
+            <div className="text-xl font-bold text-slate-700 dark:text-slate-300 mt-0.5">{diningSummary.confirmed}</div>
           </div>
           <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
             <div className="text-[11px] font-medium text-emerald-400 flex items-center justify-between">
@@ -119,11 +119,11 @@ export const ReservationHeader: React.FC<ReservationHeaderProps> = ({
             <div className="text-xl font-bold text-emerald-300 mt-0.5">{diningSummary.seated}</div>
           </div>
           <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-            <div className="text-[11px] font-medium text-rose-400 flex items-center justify-between">
+            <div className="text-[11px] font-medium text-red-400 flex items-center justify-between">
               <span>No-Show / Cancel</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
             </div>
-            <div className="text-xl font-bold text-rose-300 mt-0.5">
+            <div className="text-xl font-bold text-red-300 mt-0.5">
               {diningSummary.noShow + diningSummary.cancelled}
             </div>
           </div>
@@ -135,20 +135,20 @@ export const ReservationHeader: React.FC<ReservationHeaderProps> = ({
             <div className="text-xl font-bold text-amber-300 mt-0.5">{roomsSummary.totalArrivals}</div>
           </div>
           <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-            <div className="text-[11px] font-medium text-cyan-400 flex items-center justify-between">
+            <div className="text-[11px] font-medium text-slate-700 dark:text-slate-300 flex items-center justify-between">
               <span>Pending Arrival</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-800"></span>
             </div>
-            <div className="text-xl font-bold text-cyan-300 mt-0.5">{roomsSummary.pendingArrivals}</div>
+            <div className="text-xl font-bold text-slate-700 dark:text-slate-300 mt-0.5">{roomsSummary.pendingArrivals}</div>
           </div>
           <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-            <div className="text-[11px] font-medium text-rose-400 flex items-center justify-between">
+            <div className="text-[11px] font-medium text-red-400 flex items-center justify-between">
               <span>Unassigned Rooms</span>
               {roomsSummary.unassignedCount > 0 && (
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
               )}
             </div>
-            <div className="text-xl font-bold text-rose-400 mt-0.5">{roomsSummary.unassignedCount}</div>
+            <div className="text-xl font-bold text-red-400 mt-0.5">{roomsSummary.unassignedCount}</div>
           </div>
           <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
             <div className="text-[11px] font-medium text-emerald-400 flex items-center justify-between">

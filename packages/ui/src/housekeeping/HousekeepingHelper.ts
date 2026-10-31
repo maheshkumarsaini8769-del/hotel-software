@@ -22,8 +22,8 @@ export class HousekeepingHelper {
     if (ratio >= 1.0) {
       return {
         severity: 'BREACHED',
-        badgeClass: 'bg-rose-500/10 text-rose-400 border border-rose-500/30',
-        dotColor: 'bg-rose-500 animate-pulse',
+        badgeClass: 'bg-red-500/10 text-red-400 border border-red-500/30',
+        dotColor: 'bg-red-500 animate-pulse',
         label: `Breached (+${elapsedMinutes - targetMinutes}m)`,
       };
     }

@@ -84,6 +84,8 @@ export interface IStay extends Document {
   hotelId: Types.ObjectId;
   bookingId: Types.ObjectId;
   guestId?: Types.ObjectId;
+  guestName?: string;
+  guestPhone?: string;
   roomId: Types.ObjectId;
   checkInTimestamp: Date;
   expectedCheckOutTimestamp: Date;
@@ -94,6 +96,12 @@ export interface IStay extends Document {
   isCouple?: boolean;
   verificationMode?: 'NONE' | 'AADHAAR' | 'PASSPORT' | 'DRIVING_LICENSE' | 'OTHER' | 'PHYSICAL_AT_RECEPTION';
   idNumberMasked?: string;
+  aadhaarFrontUrl?: string;
+  aadhaarBackUrl?: string;
+  nights?: number;
+  secondaryGuestName?: string;
+  secondaryGuestPhone?: string;
+  secondaryGuestRelationship?: string;
   verifiedByReceptionist?: boolean;
   receptionistNotes?: string;
   documentAttachmentUrl?: string;
@@ -117,6 +125,11 @@ export interface IStay extends Document {
   rateOverrideHistory?: IRateOverrideRecord[];
   keycardExpiresAt?: Date;
   delayedDepartureTime?: Date;
+  dpdpConsent?: {
+    accepted: boolean;
+    timestamp: Date;
+    ipAddress?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -126,6 +139,8 @@ const StaySchema = new Schema<IStay>(
     hotelId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
     bookingId: { type: Schema.Types.ObjectId, ref: 'Booking', required: true, index: true },
     guestId: { type: Schema.Types.ObjectId, ref: 'GuestProfile' },
+    guestName: { type: String, trim: true },
+    guestPhone: { type: String, trim: true },
     roomId: { type: Schema.Types.ObjectId, ref: 'Room', required: true, index: true },
     checkInTimestamp: { type: Date, default: Date.now },
     expectedCheckOutTimestamp: { type: Date, required: true },
@@ -145,6 +160,12 @@ const StaySchema = new Schema<IStay>(
       default: 'NONE',
     },
     idNumberMasked: { type: String, trim: true },
+    aadhaarFrontUrl: { type: String, trim: true },
+    aadhaarBackUrl: { type: String, trim: true },
+    nights: { type: Number, default: 1, min: 1 },
+    secondaryGuestName: { type: String, trim: true },
+    secondaryGuestPhone: { type: String, trim: true },
+    secondaryGuestRelationship: { type: String, trim: true },
     verifiedByReceptionist: { type: Boolean, default: false },
     receptionistNotes: { type: String, trim: true },
     documentAttachmentUrl: { type: String, trim: true },
@@ -210,6 +231,11 @@ const StaySchema = new Schema<IStay>(
     },
     keycardExpiresAt: { type: Date },
     delayedDepartureTime: { type: Date },
+    dpdpConsent: {
+      accepted: { type: Boolean, default: false },
+      timestamp: { type: Date },
+      ipAddress: { type: String, trim: true },
+    },
     baseRatePerNight: { type: Number },
     effectiveRatePerNight: { type: Number },
     isComplimentaryWaiver: { type: Boolean, default: false },

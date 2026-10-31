@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 import { DiningTable, TableStatus } from '../models/DiningTable';
 import { TableSession } from '../models/TableSession';
 import { RestaurantOrder, OverallOrderStatus } from '../models/RestaurantOrder';
+import { Tenant } from '../models/Tenant';
 import { io } from '../index';
 
 export interface HallDTO {
@@ -239,7 +240,11 @@ function getTablesForHotel(req: Request): TableDTO[] {
   const key = getHotelKey(req);
   let values = tablesByHotel.get(key);
   if (!values) {
-    values = JSON.parse(JSON.stringify(DEFAULT_TABLES)) as TableDTO[];
+    if (Types.ObjectId.isValid(key)) {
+      values = [];
+    } else {
+      values = JSON.parse(JSON.stringify(DEFAULT_TABLES)) as TableDTO[];
+    }
     tablesByHotel.set(key, values);
   }
   return values;
@@ -268,6 +273,35 @@ export const getTableManagementOverview = async (req: Request, res: Response): P
   try {
     const floors = getFloorsForHotel(req);
     const tables = getTablesForHotel(req);
+
+    const hotelIdStr = getHotelKey(req);
+    let maxTables = 20;
+    if (Types.ObjectId.isValid(hotelIdStr)) {
+      const tenant = await Tenant.findById(hotelIdStr).select('maxTables maxRooms name');
+      if (tenant?.maxTables) {
+        maxTables = tenant.maxTables;
+      }
+      if (tables.length === 0) {
+        const dbTables = await DiningTable.find({ hotelId: new Types.ObjectId(hotelIdStr) }).lean();
+        for (const dt of dbTables) {
+          tables.push({
+            id: dt._id.toString(),
+            tableNumber: dt.tableNumber,
+            floorNumber: parseInt(dt.floorLevel?.replace(/\D/g, '') || '1') || 1,
+            floorLevel: dt.floorLevel || '1st Floor',
+            hallId: 'hall-1-1',
+            section: dt.section || 'Grand AC Dining Hall',
+            capacity: dt.capacity || 4,
+            shape: 'SQUARE',
+            currentStatus: (dt.currentStatus as any) || TableStatus.AVAILABLE,
+            assignedWaiter: 'Floor Staff',
+            activeOrderTotal: 0,
+            activeItemsCount: 0,
+            createdAt: (dt as any).createdAt ? (dt as any).createdAt.toISOString() : new Date().toISOString(),
+          });
+        }
+      }
+    }
     recalculateStats(floors, tables);
 
     const totalTables = tables.length;
@@ -282,12 +316,15 @@ export const getTableManagementOverview = async (req: Request, res: Response): P
       const floorTables = tables.filter((t) => t.floorNumber === fl.floorNumber);
       const occ = floorTables.filter((t) => t.currentStatus === TableStatus.OCCUPIED).length;
       return {
+        id: fl.id,
         floorId: fl.id,
         floorNumber: fl.floorNumber,
+        name: fl.name,
         floorName: fl.name,
         shortName: fl.shortName,
         totalHalls: fl.halls.length,
         halls: fl.halls,
+        tablesCount: floorTables.length,
         totalTables: floorTables.length,
         totalCapacity: floorTables.reduce((sum, t) => sum + (t.capacity || 4), 0),
         occupiedTables: occ,
@@ -304,6 +341,7 @@ export const getTableManagementOverview = async (req: Request, res: Response): P
           totalFloors: floors.length,
           totalHalls,
           totalTables,
+          maxTables,
           totalCapacity,
           occupiedCount,
           availableCount,
@@ -342,6 +380,24 @@ export const createFloor = async (req: Request, res: Response): Promise<void> =>
     const { floorNumber, name, shortName } = req.body;
     if (!floorNumber || !name) {
       res.status(400).json({ success: false, message: 'Floor number and name are required' });
+      return;
+    }
+
+    const existingFloor = floors.find((f) => f.floorNumber === Number(floorNumber));
+    if (existingFloor) {
+      existingFloor.name = String(name).trim();
+      if (shortName) existingFloor.shortName = String(shortName).trim();
+      recalculateStats(floors, tables);
+      try {
+        if (io) {
+          io.emit('table:floor_updated', existingFloor);
+        }
+      } catch (_) {}
+      res.status(200).json({
+        success: true,
+        data: existingFloor,
+        message: `Floor ${floorNumber} updated successfully!`,
+      });
       return;
     }
 
@@ -426,6 +482,27 @@ export const createHall = async (req: Request, res: Response): Promise<void> => 
 export const getTables = async (req: Request, res: Response): Promise<void> => {
   try {
     const tables = getTablesForHotel(req);
+    const hotelIdStr = getHotelKey(req);
+    if (Types.ObjectId.isValid(hotelIdStr) && tables.length === 0) {
+      const dbTables = await DiningTable.find({ hotelId: new Types.ObjectId(hotelIdStr) }).lean();
+      for (const dt of dbTables) {
+        tables.push({
+          id: dt._id.toString(),
+          tableNumber: dt.tableNumber,
+          floorNumber: parseInt(dt.floorLevel?.replace(/\D/g, '') || '1') || 1,
+          floorLevel: dt.floorLevel || '1st Floor',
+          hallId: 'hall-1-1',
+          section: dt.section || 'Grand AC Dining Hall',
+          capacity: dt.capacity || 4,
+          shape: 'SQUARE',
+          currentStatus: (dt.currentStatus as any) || TableStatus.AVAILABLE,
+          assignedWaiter: 'Floor Staff',
+          activeOrderTotal: 0,
+          activeItemsCount: 0,
+          createdAt: (dt as any).createdAt ? (dt as any).createdAt.toISOString() : new Date().toISOString(),
+        });
+      }
+    }
     const { floorNumber, floorLevel, hallId, section, status, search } = req.query;
 
     let results = [...tables];
@@ -469,11 +546,34 @@ export const getTables = async (req: Request, res: Response): Promise<void> => {
 // 6. POST /api/v1/table-management/tables
 export const createTable = async (req: Request, res: Response): Promise<void> => {
   try {
+    const hotelId = getHotelKey(req);
+    if (!Types.ObjectId.isValid(hotelId)) {
+      res.status(400).json({ success: false, message: 'Hotel context is required' });
+      return;
+    }
+
     const tables = getTablesForHotel(req);
     const floors = getFloorsForHotel(req);
     const { tableNumber, floorNumber, floorLevel, hallId, section, capacity, shape, assignedWaiter, notes } = req.body;
     if (!tableNumber) {
       res.status(400).json({ success: false, message: 'Table Number is required' });
+      return;
+    }
+
+    // Enforce SuperAdmin capacity ceiling
+    const tenant = await Tenant.findById(hotelId).select('maxTables name');
+    const maxAllowedTables = Number(tenant?.maxTables || 20);
+    const currentDbCount = await DiningTable.countDocuments({ hotelId: new Types.ObjectId(hotelId) });
+    const currentCount = Math.max(tables.length, currentDbCount);
+
+    if (currentCount >= maxAllowedTables) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'TABLE_LIMIT_EXCEEDED',
+        message: `Table limit reached: SuperAdmin has allocated a maximum of ${maxAllowedTables} tables for ${tenant?.name || 'this hotel'}. You currently have ${currentCount} tables and cannot create more. Please contact SuperAdmin to upgrade capacity.`,
+        maxAllowed: maxAllowedTables,
+        currentCount,
+      });
       return;
     }
 
@@ -510,12 +610,6 @@ export const createTable = async (req: Request, res: Response): Promise<void> =>
     recalculateStats(floors, tables);
 
     // Also persist into MongoDB DiningTable if connected, scoped to the authenticated tenant
-    const hotelId = getHotelKey(req);
-    if (!Types.ObjectId.isValid(hotelId)) {
-      res.status(400).json({ success: false, message: 'Hotel context is required' });
-      return;
-    }
-
     try {
       await DiningTable.create({
         hotelId: new Types.ObjectId(hotelId),

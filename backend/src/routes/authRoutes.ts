@@ -10,13 +10,14 @@ import {
   verifyPinOtp,
 } from '../controllers/authController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
+import { authLoginLimiter } from '../middlewares/rateLimiter';
 
 const router = Router();
 
 // Public auth routes
 router.get('/active-hotels', getActiveHotels);
 router.post('/register', registerTenantAndAdmin);
-router.post('/login', login);
+router.post('/login', authLoginLimiter, login);
 router.post('/waiter-login', waiterLogin);
 router.post('/staff-pin-login', waiterLogin);
 router.post('/request-pin', requestPin);

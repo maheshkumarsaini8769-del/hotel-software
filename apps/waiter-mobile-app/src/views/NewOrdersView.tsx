@@ -48,10 +48,10 @@ export const NewOrdersView: React.FC<NewOrdersViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-5 gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-500 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-500 flex items-center justify-center font-bold">
             <Flame className="w-5 h-5" />
           </div>
           <div>
@@ -59,7 +59,7 @@ export const NewOrdersView: React.FC<NewOrdersViewProps> = ({
               <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>
                 Incoming Orders Queue
               </h2>
-              <span className="px-2 py-0.5 rounded-full text-xs font-black bg-rose-500 text-white">
+              <span className="px-2 py-0.5 rounded-full text-xs font-black bg-red-500 text-white">
                 {orders.length} Pending
               </span>
             </div>
@@ -77,7 +77,7 @@ export const NewOrdersView: React.FC<NewOrdersViewProps> = ({
               onClick={() => setFilterType(f)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
                 filterType === f
-                  ? 'bg-rose-500 text-white shadow-sm'
+                  ? 'bg-red-500 text-white shadow-sm'
                   : isDark
                   ? 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
@@ -93,7 +93,7 @@ export const NewOrdersView: React.FC<NewOrdersViewProps> = ({
       <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
         {filteredOrders.length === 0 ? (
           <div className={`h-64 flex flex-col items-center justify-center rounded-2xl border text-center p-6 ${
-            isDark ? 'bg-[#121520] border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'
+            isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'
           }`}>
             <Flame className="w-12 h-12 text-slate-600 mb-2 opacity-50" />
             <h3 className="font-bold text-sm">No Pending Orders in Queue</h3>
@@ -105,7 +105,7 @@ export const NewOrdersView: React.FC<NewOrdersViewProps> = ({
               <div
                 key={order.id}
                 className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 transition-all hover:shadow-lg ${
-                  isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200'
+                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
                 }`}
               >
                 <div>
@@ -114,7 +114,7 @@ export const NewOrdersView: React.FC<NewOrdersViewProps> = ({
                       <span className={`font-black text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
                         {order.orderNumber}
                       </span>
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-500/20 text-rose-500">
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-red-500/20 text-red-500">
                         NEW ORDER
                       </span>
                     </div>
@@ -181,10 +181,10 @@ export const NewOrdersView: React.FC<NewOrdersViewProps> = ({
                     <button
                       onClick={() => triggerToast(`Order ${order.orderNumber} declined (Out of stock)`)}
                       className={`py-1.5 rounded-xl font-bold text-xs border flex items-center justify-center gap-1 transition ${
-                        isDark ? 'bg-rose-950/30 border-rose-800 text-rose-300 hover:bg-rose-900/50' : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'
+                        isDark ? 'bg-red-950/30 border-red-800 text-red-300 hover:bg-red-900/50' : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
                       }`}
                     >
-                      <XCircle className="w-3.5 h-3.5 text-rose-500" />
+                      <XCircle className="w-3.5 h-3.5 text-red-500" />
                       <span>Decline</span>
                     </button>
                   </div>

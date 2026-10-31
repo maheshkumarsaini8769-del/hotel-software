@@ -54,7 +54,7 @@ export const KdsStationTabs: React.FC<KdsStationTabsProps> = ({
           >
             <span className="flex items-center space-x-1.5">
               <span
-                className={`w-2 h-2 rounded-full ${st.isOnline ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                className={`w-2 h-2 rounded-full ${st.isOnline ? 'bg-emerald-400' : 'bg-red-400'}`}
                 title={st.isOnline ? 'Station Online' : 'Station Offline'}
               />
               <span>{st.stationName}</span>

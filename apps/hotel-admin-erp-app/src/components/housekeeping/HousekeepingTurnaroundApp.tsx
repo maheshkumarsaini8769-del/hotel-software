@@ -182,11 +182,11 @@ export const HousekeepingTurnaroundApp: React.FC<HousekeepingTurnaroundAppProps>
       {/* Main Board Container */}
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
         {store.getError() && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center justify-between">
+          <div className="mb-6 p-4 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs flex items-center justify-between">
             <span>{store.getError()}</span>
             <button
               onClick={loadBoard}
-              className="px-3 py-1 rounded-lg bg-rose-900/60 hover:bg-rose-800 text-white font-medium cursor-pointer"
+              className="px-3 py-1 rounded-lg bg-red-900/60 hover:bg-red-800 text-white font-medium cursor-pointer"
             >
               Retry
             </button>

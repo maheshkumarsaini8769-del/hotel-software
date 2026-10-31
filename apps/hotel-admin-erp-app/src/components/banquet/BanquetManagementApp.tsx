@@ -219,7 +219,7 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#080b10] text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans">
       <BanquetHeader
         metrics={metrics}
         filterStatus={filterStatus}
@@ -240,7 +240,7 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
             <div className="text-zinc-500 text-xs mt-3">Loading banquet functions...</div>
           </div>
         ) : bookings.length === 0 ? (
-          <div className="py-20 text-center bg-[#0e131d] rounded-2xl border border-zinc-800 p-8 max-w-xl mx-auto">
+          <div className="py-20 text-center bg-slate-950 rounded-2xl border border-zinc-800 p-8 max-w-xl mx-auto">
             <span className="text-4xl">🏛️</span>
             <h3 className="text-lg font-bold text-white mt-3">No Banquet Bookings Found</h3>
             <p className="text-zinc-400 text-xs mt-1 mb-5">
@@ -317,7 +317,7 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
 
       {pendingComplete && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-amber-500/30 bg-[#0f131a] p-6 text-zinc-100 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-amber-500/30 bg-slate-900 p-6 text-zinc-100 shadow-sm dark:shadow-none">
             <h3 className="text-lg font-black text-white">Release banquet venue?</h3>
             <p className="mt-2 text-xs leading-relaxed text-zinc-400">
               Mark <span className="font-semibold text-amber-300">{pendingComplete.eventName}</span> as
@@ -346,10 +346,10 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
 
       {toast && (
         <div
-          className={`fixed bottom-5 right-5 z-[80] max-w-sm rounded-xl border px-4 py-3 text-xs font-semibold shadow-2xl ${
+          className={`fixed bottom-5 right-5 z-[80] max-w-sm rounded-xl border px-4 py-3 text-xs font-semibold shadow-sm dark:shadow-none ${
             toast.tone === 'success'
               ? 'border-emerald-500/40 bg-emerald-950 text-emerald-200'
-              : 'border-rose-500/40 bg-rose-950 text-rose-200'
+              : 'border-red-500/40 bg-red-950 text-red-200'
           }`}
           role="status"
         >

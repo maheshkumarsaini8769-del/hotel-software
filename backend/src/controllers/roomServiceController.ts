@@ -8,6 +8,7 @@ import { Stay, StayStatus } from '../models/Stay';
 import { Booking, BookingStatus } from '../models/Booking';
 import { GuestSession } from '../models/GuestSession';
 import { MenuItem } from '../models/MenuItem';
+import { KitchenStation } from '../models/KitchenStation';
 import { RestaurantOrder, OrderType, OverallOrderStatus, ItemProductionStatus } from '../models/RestaurantOrder';
 import { MasterFolio } from '../models/MasterFolio';
 import { FolioLineItem, DepartmentType } from '../models/FolioLineItem';
@@ -15,6 +16,7 @@ import { ServiceRequest, ServiceRequestType, ServiceRequestPriority, ServiceRequ
 import { Tenant } from '../models/Tenant';
 import { GuestProfile } from '../models/GuestProfile';
 import { RoomType } from '../models/RoomType';
+import { HousekeepingTask, HousekeepingTaskType, HousekeepingTaskStatus } from '../models/HousekeepingTask';
 import { io } from '../index';
 import { TenantRequest } from '../types';
 import { generateReferenceNumber } from '../utils/referenceNumber';
@@ -213,18 +215,30 @@ export const resolvePermanentRoomQR = async (req: Request, res: Response): Promi
 // 1b. Verify Resident Guest Stay by Room Number + Registered Mobile Number
 export const verifyResidentStay = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { hotelId, roomNumber, guestPhone } = req.body;
+    const { hotelId, roomNumber, guestPhone, lastName, guestName, name, otp, whatsappOtp } = req.body;
 
     if (!hotelId || !Types.ObjectId.isValid(hotelId)) {
       res.status(400).json({ success: false, errorCode: 'INVALID_HOTEL', message: 'Valid hotelId is required' });
       return;
     }
 
-    if (!roomNumber || !guestPhone) {
+    const effectiveName = String(lastName || guestName || name || '').trim().toLowerCase();
+    if (!roomNumber || (!guestPhone && !effectiveName)) {
       res.status(400).json({
         success: false,
         errorCode: 'MISSING_FIELDS',
-        message: 'Room number and registered phone number are required',
+        message: 'Room number and registered phone or guest last name are required',
+      });
+      return;
+    }
+
+    // WhatsApp OTP Verification (Fixed to '9999' for testing, ready for WhatsApp Business Webhook)
+    const submittedOtp = String(otp || whatsappOtp || '').trim();
+    if (submittedOtp && submittedOtp !== '9999') {
+      res.status(401).json({
+        success: false,
+        errorCode: 'INVALID_OTP',
+        message: 'Invalid WhatsApp OTP code. Please enter the 4-digit code sent to your registered WhatsApp (Test OTP: 9999).',
       });
       return;
     }
@@ -264,6 +278,26 @@ export const verifyResidentStay = async (req: Request, res: Response): Promise<v
     }
 
     if (!stay) {
+      // Check if a previous stay for this room is checked out (Strict Post-Checkout Lockout)
+      const checkedOutStay = await Stay.findOne({
+        hotelId: room.hotelId,
+        roomId: room._id,
+        stayStatus: StayStatus.CHECKED_OUT,
+      })
+        .sort({ checkOutTimestamp: -1, updatedAt: -1 })
+        .populate('guestId');
+
+      if (checkedOutStay) {
+        res.status(403).json({
+          success: false,
+          errorCode: 'STAY_CHECKED_OUT',
+          isLockedOut: true,
+          message: `Access Denied: Room ${roomNumber} has already been checked out. Post-checkout re-entry is prohibited. For invoice copies or extensions, please contact the front desk.`,
+          redirectAction: 'CHECKOUT_LOCKOUT',
+        });
+        return;
+      }
+
       res.status(404).json({
         success: false,
         errorCode: 'NO_ACTIVE_STAY',
@@ -273,23 +307,42 @@ export const verifyResidentStay = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    // Match guest phone
-    const booking = await Booking.findById(stay.bookingId);
-    const cleanInputPhone = String(guestPhone).replace(/[^0-9]/g, '').slice(-10);
-    const guestObj = stay.guestId as any;
-    const stayPhone = String(guestObj?.phone || '').replace(/[^0-9]/g, '').slice(-10);
-    const bookingPhone = String(booking?.guestPhone || '').replace(/[^0-9]/g, '').slice(-10);
+    // Revalidate stay is not checked out
+    if (stay.stayStatus === StayStatus.CHECKED_OUT) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'STAY_CHECKED_OUT',
+        isLockedOut: true,
+        message: `Access Denied: Room ${roomNumber} has already been checked out. Post-checkout re-entry is prohibited.`,
+      });
+      return;
+    }
 
-    const isMatch =
+    // Match guest phone or last name
+    const booking = await Booking.findById(stay.bookingId);
+    const cleanInputPhone = guestPhone ? String(guestPhone).replace(/[^0-9]/g, '').slice(-10) : '';
+    const guestObj = stay.guestId as any;
+    const stayPhone = String(guestObj?.phone || (stay as any)?.guestPhone || '').replace(/[^0-9]/g, '').slice(-10);
+    const bookingPhone = String(booking?.guestPhone || '').replace(/[^0-9]/g, '').slice(-10);
+    const registeredName = String(guestObj?.name || booking?.guestName || (stay as any)?.guestName || '').toLowerCase();
+
+    const phoneMatch = cleanInputPhone && (
       (stayPhone && cleanInputPhone.endsWith(stayPhone)) ||
       (bookingPhone && cleanInputPhone.endsWith(bookingPhone)) ||
-      (cleanInputPhone && (stayPhone.endsWith(cleanInputPhone) || bookingPhone.endsWith(cleanInputPhone)));
+      (cleanInputPhone && (stayPhone.endsWith(cleanInputPhone) || bookingPhone.endsWith(cleanInputPhone)))
+    );
+    const nameMatch = effectiveName && (
+      registeredName.includes(effectiveName) ||
+      effectiveName.includes(registeredName)
+    );
+
+    const isMatch = Boolean(phoneMatch || nameMatch);
 
     if (!isMatch) {
       res.status(401).json({
         success: false,
-        errorCode: 'PHONE_MISMATCH',
-        message: `The mobile number entered does not match the active guest registration for Room ${roomNumber}. Please contact the front desk.`,
+        errorCode: 'CREDENTIAL_MISMATCH',
+        message: `The credentials entered do not match the active guest registration for Room ${roomNumber}. Please contact the front desk.`,
       });
       return;
     }
@@ -564,9 +617,15 @@ export const placeRoomServiceOrder = async (req: Request, res: Response): Promis
       const itemTotal = dbDish.basePrice * qty;
       orderSubtotal += itemTotal;
 
+      let stationId: Types.ObjectId = dbDish.kitchenStationId as Types.ObjectId;
+      if (!stationId) {
+        const defaultStation = await KitchenStation.findOne({ hotelId: new Types.ObjectId(hotelId) });
+        stationId = (defaultStation ? defaultStation._id : new Types.ObjectId()) as Types.ObjectId;
+      }
+
       validatedItems.push({
         menuItemId: dbDish._id,
-        kitchenStationId: dbDish.kitchenStationId,
+        kitchenStationId: stationId,
         name: dbDish.name,
         unitPrice: dbDish.basePrice,
         quantity: qty,
@@ -853,11 +912,12 @@ export const createGuestConciergeRequest = async (req: Request, res: Response): 
     } = req.body;
 
     let mappedType = ServiceRequestType.ASSISTANCE;
-    if (['TOWEL_REPLENISH', 'ROOM_CLEANING', 'HOUSEKEEPING', 'EXTRA_TOILETRIES'].includes(requestType)) {
+    const norm = String(requestType || '').toUpperCase().replace(/[\s_-]+/g, '_');
+    if (norm.includes('TOWEL') || norm.includes('CLEAN') || norm.includes('HOUSEKEEPING') || norm.includes('TOILETRIES') || norm.includes('PILLOW') || norm.includes('BLANKET')) {
       mappedType = ServiceRequestType.HOUSEKEEPING;
-    } else if (['WATER', 'WATER_BOTTLES'].includes(requestType)) {
+    } else if (norm.includes('WATER')) {
       mappedType = ServiceRequestType.WATER;
-    } else if (requestType === 'LAUNDRY') {
+    } else if (norm.includes('LAUNDRY')) {
       mappedType = ServiceRequestType.LAUNDRY;
     }
 
@@ -930,16 +990,35 @@ export const createGuestConciergeRequest = async (req: Request, res: Response): 
       folioLineItemId: lineItem ? lineItem._id : undefined,
     });
 
-    // Real-time notification to Housekeeping & Front Desk
+    // Real-time notification to Front Desk PMS & Housekeeping
     const room = await Room.findById(session.roomId);
-    io.to(`${session.hotelId}_admin`).to(`${session.hotelId}_housekeeping`).emit('request:new', {
-      requestId: serviceRequest._id,
-      roomNumber: room?.roomNumber,
+    let guestName = 'In-House Guest';
+    if (stay.guestId) {
+      const gp = await GuestProfile.findById(stay.guestId);
+      if (gp?.name) guestName = gp.name;
+    }
+
+    const conciergePayload = {
+      requestId: serviceRequest._id.toString(),
+      roomNumber: room?.roomNumber || 'Unknown',
+      guestName,
       requestType: serviceRequest.requestType,
       priority: serviceRequest.priority,
+      status: serviceRequest.status,
       notes: serviceRequest.notes,
+      isBillable: serviceRequest.isBillable,
+      billableAmount: serviceRequest.billableAmount,
       createdAt: serviceRequest.createdAt,
-    });
+    };
+
+    io.to(`${session.hotelId}_pms`)
+      .to(`${session.hotelId}_frontdesk`)
+      .to(`${session.hotelId}_admin`)
+      .to(`${session.hotelId}_housekeeping`)
+      .to(`${session.hotelId}_global`)
+      .emit('pms:concierge_request_created', conciergePayload);
+
+    io.to(`${session.hotelId}_admin`).to(`${session.hotelId}_housekeeping`).emit('request:new', conciergePayload);
 
     res.status(201).json({
       success: true,
@@ -1237,7 +1316,7 @@ export const settleGuestFolio = async (req: Request, res: Response): Promise<voi
 
     const invoiceNumber =
       finalFolio.folioStatus === 'SETTLED'
-        ? `INV-${new Date().getFullYear()}-${room?.roomNumber || String(stay.roomId)}-${Date.now().toString().slice(-4)}`
+        ? `INV-${new Date().getFullYear()}-${room?.roomNumber || String(stay.roomId)}-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`
         : null;
     if (invoiceNumber) {
       stay.taxInvoiceNumber = invoiceNumber;
@@ -1254,7 +1333,7 @@ export const settleGuestFolio = async (req: Request, res: Response): Promise<voi
       settledAt: finalFolio.settledAt || new Date(),
     };
     io.to(`${session.hotelId}_global`).emit('pms:folio_settled', settlementPayload);
-    io.to(`guest_room_${settlementPayload.roomNumber}`).emit('pms:folio_settled', settlementPayload);
+    io.to(`${session.hotelId}_guest_room_${settlementPayload.roomNumber}`).emit('pms:folio_settled', settlementPayload);
     io.to(`${session.hotelId}_global`).emit('pms:folio_updated', {
       roomNumber: settlementPayload.roomNumber,
       folioNumber: finalFolio.folioNumber,
@@ -1312,7 +1391,34 @@ export const requestExpressCheckout = async (req: Request, res: Response): Promi
     const room = await Room.findById(session.roomId);
     stay.checkoutRequested = true;
     if (notes) stay.checkoutRequestedNotes = String(notes);
+    stay.stayStatus = StayStatus.CHECKED_OUT;
+    stay.actualCheckOutTimestamp = new Date();
+    stay.keyCardVoided = true;
+    if (!stay.taxInvoiceNumber) {
+      stay.taxInvoiceNumber = `INV-${new Date().getFullYear()}-${room?.roomNumber || '101'}-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
+    }
     await stay.save();
+
+    if (stay.bookingId) {
+      await Booking.findByIdAndUpdate(stay.bookingId, {
+        bookingStatus: BookingStatus.CHECKED_OUT,
+        checkOutDate: new Date(),
+      });
+    }
+
+    if (room) {
+      room.status = RoomStatus.DIRTY;
+      await room.save();
+      try {
+        await HousekeepingTask.create({
+          hotelId: session.hotelId,
+          roomId: room._id,
+          taskType: HousekeepingTaskType.CHECKOUT_CLEAN,
+          status: HousekeepingTaskStatus.PENDING,
+          notes: notes || 'Guest express checkout turnaround',
+        });
+      } catch {}
+    }
 
     // Notify Front Desk & Housekeeping for express departure
     io.to(`${session.hotelId}_admin`).to(`${session.hotelId}_pms`).to(`${session.hotelId}_housekeeping`).emit('checkout:requested', {
@@ -1323,6 +1429,23 @@ export const requestExpressCheckout = async (req: Request, res: Response): Promi
       requestedAt: new Date(),
     });
 
+    io.to(`${session.hotelId}_global`).to(`${session.hotelId}_pms`).emit('pms:stay_checked_out', {
+      hotelId: session.hotelId.toString(),
+      stayId: stay._id.toString(),
+      roomNumber: room?.roomNumber,
+      invoiceNumber: stay.taxInvoiceNumber,
+      totalPaid: folio.paidAmount,
+      stayStatus: 'CHECKED_OUT',
+    });
+    io.to(`${session.hotelId}_guest_room_${room?.roomNumber}`).emit('pms:stay_checked_out', {
+      hotelId: session.hotelId.toString(),
+      stayId: stay._id.toString(),
+      roomNumber: room?.roomNumber,
+      invoiceNumber: stay.taxInvoiceNumber,
+      totalPaid: folio.paidAmount,
+      stayStatus: 'CHECKED_OUT',
+    });
+
     res.status(200).json({
       success: true,
       message: 'Express checkout requested successfully! Front desk and housekeeping have been notified.',
@@ -1330,6 +1453,7 @@ export const requestExpressCheckout = async (req: Request, res: Response): Promi
         stayId: stay._id,
         roomNumber: room?.roomNumber,
         status: 'EXPRESS_CHECKOUT_SUBMITTED',
+        invoiceNumber: stay.taxInvoiceNumber,
       },
     });
   } catch (error: any) {
@@ -1383,6 +1507,33 @@ export const rotateRoomGuestQr = async (req: TenantRequest, res: Response): Prom
   }
 };
 
+// Helper: Combine Date and Time into a single standardized Date object
+export function combineDateTime(
+  dateInput?: string | Date,
+  timeInput?: string,
+  defaultHour = 11,
+  defaultMinute = 0
+): Date {
+  const d = dateInput ? new Date(dateInput) : new Date();
+  if (isNaN(d.getTime())) return new Date();
+
+  if (timeInput && typeof timeInput === 'string' && timeInput.trim()) {
+    const raw = timeInput.trim();
+    const match12 = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    if (match12) {
+      let hours = parseInt(match12[1], 10);
+      const minutes = parseInt(match12[2], 10);
+      const mer = (match12[3] || '').toUpperCase();
+      if (mer === 'PM' && hours < 12) hours += 12;
+      if (mer === 'AM' && hours === 12) hours = 0;
+      d.setHours(hours, minutes, 0, 0);
+      return d;
+    }
+  }
+  d.setHours(defaultHour, defaultMinute, 0, 0);
+  return d;
+}
+
 // 9. Public Guest Room Catalog with Live Availability Matrix & Real-time Room Statuses
 export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -1404,6 +1555,63 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
     if (!tenant) {
       res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Hotel not found' });
       return;
+    }
+
+    const reqCheckInDate = req.query.checkInDate as string;
+    const reqCheckInTime = (req.query.checkInTime || req.query.estimatedArrivalTime) as string;
+    const reqCheckOutDate = req.query.checkOutDate as string;
+    const reqCheckOutTime = req.query.checkOutTime as string;
+
+    let filterStart: Date | null = null;
+    let filterEnd: Date | null = null;
+
+    if (reqCheckInDate) {
+      filterStart = combineDateTime(reqCheckInDate, reqCheckInTime, 12, 0);
+      filterEnd = reqCheckOutDate
+        ? combineDateTime(reqCheckOutDate, reqCheckOutTime, 11, 0)
+        : new Date(filterStart.getTime() + 86400000);
+      if (filterEnd <= filterStart) {
+        filterEnd = new Date(filterStart.getTime() + 86400000);
+      }
+    }
+
+    const conflictingRoomIds = new Map<string, string>();
+    if (filterStart && filterEnd) {
+      const activeBookings = await Booking.find({
+        hotelId: new Types.ObjectId(hotelId),
+        bookingStatus: {
+          $in: [
+            BookingStatus.CONFIRMED,
+            BookingStatus.PENDING_APPROVAL,
+            BookingStatus.CHECKED_IN,
+          ],
+        },
+        checkInDate: { $lt: filterEnd },
+        checkOutDate: { $gt: filterStart },
+      }).select('allocatedRoomId checkInDate checkOutDate guestName');
+
+      for (const b of activeBookings) {
+        if (b.allocatedRoomId) {
+          const sTime = new Date(b.checkInDate).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+          const eTime = new Date(b.checkOutDate).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+          conflictingRoomIds.set(String(b.allocatedRoomId), `${sTime} - ${eTime}`);
+        }
+      }
+
+      const activeStays = await Stay.find({
+        hotelId: new Types.ObjectId(hotelId),
+        stayStatus: { $in: [StayStatus.ACTIVE, StayStatus.EXTENDED] },
+        checkInTimestamp: { $lt: filterEnd },
+        expectedCheckOutTimestamp: { $gt: filterStart },
+      }).select('roomId checkInTimestamp expectedCheckOutTimestamp');
+
+      for (const s of activeStays) {
+        if (s.roomId) {
+          const sTime = new Date(s.checkInTimestamp).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+          const eTime = new Date(s.expectedCheckOutTimestamp).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+          conflictingRoomIds.set(String(s.roomId), `${sTime} - ${eTime}`);
+        }
+      }
     }
 
     const rooms = await Room.find({ hotelId: new Types.ObjectId(hotelId) })
@@ -1428,12 +1636,22 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
     let maintenanceCount = 0;
     let occupiedCount = 0;
 
+    const hasNonAcRooms = rooms.some((rm: any) => {
+      const rt = rm.roomTypeId || {};
+      return rm.isAc === false || rt.isAc === false || /non[-\s]?ac/i.test(rt.name || '');
+    });
+
     const mappedRooms = rooms.map((r: any) => {
       const rawStatus = r.status || RoomStatus.AVAILABLE;
+      const conflictSlot = conflictingRoomIds.get(String(r._id));
       let displayStatus = 'OCCUPIED';
-      let statusBadge = 'Occupied (In-Use)';
+      let statusBadge = 'Not available at this time (Occupied)';
 
-      if (rawStatus === RoomStatus.AVAILABLE) {
+      if (conflictSlot) {
+        displayStatus = 'RESERVED';
+        statusBadge = `Already booked for slot (${conflictSlot})`;
+        occupiedCount += 1;
+      } else if (rawStatus === RoomStatus.AVAILABLE) {
         displayStatus = 'AVAILABLE';
         statusBadge = 'Ready for Booking';
         availableCount += 1;
@@ -1443,12 +1661,16 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
         rawStatus === RoomStatus.INSPECTION
       ) {
         displayStatus = 'CLEANING';
-        statusBadge = 'Housekeeping Turnaround';
+        statusBadge = 'Not available at this time (Cleaning)';
         cleaningCount += 1;
       } else if (rawStatus === RoomStatus.OUT_OF_SERVICE) {
         displayStatus = 'MAINTENANCE';
-        statusBadge = 'Under Maintenance';
+        statusBadge = 'Not available at this time (Maintenance)';
         maintenanceCount += 1;
+      } else if (rawStatus === RoomStatus.RESERVED) {
+        displayStatus = 'RESERVED';
+        statusBadge = 'Not available at this time (Booked)';
+        occupiedCount += 1;
       } else {
         occupiedCount += 1;
       }
@@ -1456,6 +1678,12 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
       const roomType = r.roomTypeId || {};
       const basePrice = Number(roomType.basePriceOvernight) || 2500;
       const gstRate = basePrice > 7500 ? 18 : 12;
+      const roomPhotos = Array.isArray(r.photos) && r.photos.length > 0
+        ? r.photos
+        : (Array.isArray(roomType.images) && roomType.images.length > 0
+            ? roomType.images
+            : (Array.isArray(roomType.photos) && roomType.photos.length > 0 ? roomType.photos : []));
+      const isAc = r.isAc !== false && roomType.isAc !== false && !/non[-\s]?ac/i.test(roomType.name || '');
 
       return {
         id: r._id,
@@ -1465,7 +1693,9 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
         rawStatus,
         displayStatus,
         statusBadge,
-        isBookable: rawStatus === RoomStatus.AVAILABLE,
+        isBookable: rawStatus === RoomStatus.AVAILABLE && !conflictSlot,
+        photos: roomPhotos,
+        isAc,
         roomType: {
           id: roomType._id,
           name: roomType.name || 'Deluxe Room',
@@ -1474,8 +1704,11 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
           gstRate,
           amenities: roomType.amenities && roomType.amenities.length > 0
             ? roomType.amenities
-            : ['King Size Bed', 'Climate Control AC', 'High-Speed Wi-Fi', 'Smart HD TV', 'Attached Luxury Bath'],
+            : [isAc ? 'Climate Control AC' : 'Ceiling Fan & Air Cooler', 'King Size Bed', 'High-Speed Wi-Fi', 'Smart HD TV', 'Attached Luxury Bath'],
           maxCapacity: roomType.maxCapacity || roomType.baseCapacityAdults || 2,
+          isAc,
+          photos: roomPhotos,
+          images: roomPhotos,
         },
       };
     });
@@ -1493,6 +1726,10 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
           longitude: defaultCoords.lng,
           phone: tenant.contactPhone || '+91 98200 11223',
           waiterEnabled: tenant.enabledPortals?.includes('waiter') ?? true,
+          wifiSsid: tenant.wifiSsid || 'TajGateway_HighSpeed',
+          wifiPassword: tenant.wifiPassword || 'SpiceGuest@2026',
+          allRoomsAcOnly: !hasNonAcRooms,
+          hasNonAcRooms,
         },
         counts: {
           total: rooms.length,
@@ -1509,6 +1746,166 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
   }
 };
 
+// Store for customer phone OTP verification (in-hotel bookings)
+const guestPhoneOtpStore = new Map<string, { otp: string; expiresAt: number; phone: string }>();
+
+// 9b. Public Phone OTP Sender (In-Hotel Booking Verification)
+export const sendGuestPhoneOtp = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      res.status(400).json({ success: false, errorCode: 'PHONE_REQUIRED', message: 'Valid mobile number is required' });
+      return;
+    }
+    const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
+    if (cleanPhone.length !== 10) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PHONE', message: 'Please enter a valid 10-digit mobile number' });
+      return;
+    }
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    guestPhoneOtpStore.set(cleanPhone, {
+      otp,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      phone: cleanPhone,
+    });
+    console.log(`[GuestPortal] 📱 Phone verification OTP generated for ${cleanPhone}: ${otp}`);
+
+    res.status(200).json({
+      success: true,
+      message: `Verification OTP sent to +91 ${cleanPhone}. Please enter the 4-digit code.`,
+      data: {
+        phone: cleanPhone,
+        expiresInSeconds: 600,
+        devOtpHint: otp,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: err.message });
+  }
+};
+
+// 9c. Public Phone OTP Verification
+export const verifyGuestPhoneOtp = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) {
+      res.status(400).json({ success: false, errorCode: 'MISSING_FIELDS', message: 'Phone and 4-digit OTP are required' });
+      return;
+    }
+    const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
+    const cleanOtp = String(otp).trim();
+    const stored = guestPhoneOtpStore.get(cleanPhone);
+
+    // SECURITY: master OTPs are a local-development convenience only and must never
+    // be honored in production. Production guests must present the OTP we issued.
+    const isMasterOtp =
+      process.env.NODE_ENV !== 'production' &&
+      (cleanOtp === '9999' || cleanOtp === '1234');
+    if (!isMasterOtp) {
+      if (!stored || Date.now() > stored.expiresAt) {
+        guestPhoneOtpStore.delete(cleanPhone);
+        res.status(400).json({ success: false, errorCode: 'OTP_EXPIRED', message: 'Verification OTP expired. Please request a new one.' });
+        return;
+      }
+      if (stored.otp !== cleanOtp) {
+        res.status(400).json({ success: false, errorCode: 'INVALID_OTP', message: 'Incorrect OTP. Please check and try again.' });
+        return;
+      }
+    }
+    guestPhoneOtpStore.delete(cleanPhone);
+    res.status(200).json({
+      success: true,
+      message: `Phone number +91 ${cleanPhone} verified successfully!`,
+      data: { phone: cleanPhone, verified: true },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: err.message });
+  }
+};
+
+// 9d. Live Booking Status Poller (Approval Waiting Screen)
+export const getBookingStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { bookingNumber } = req.params;
+    if (!bookingNumber) {
+      res.status(400).json({ success: false, errorCode: 'BOOKING_NUMBER_REQUIRED', message: 'Booking number is required' });
+      return;
+    }
+
+    const booking = await Booking.findOne({ bookingNumber: String(bookingNumber).trim() })
+      .populate('roomTypeId')
+      .populate('allocatedRoomId');
+
+    if (!booking) {
+      res.status(404).json({ success: false, errorCode: 'BOOKING_NOT_FOUND', message: 'Booking reservation not found' });
+      return;
+    }
+
+    const room = (booking.allocatedRoomId as any) || (await Room.findById(booking.allocatedRoomId));
+
+    if (booking.bookingStatus === BookingStatus.CHECKED_IN) {
+      const stay = await Stay.findOne({ bookingId: booking._id, stayStatus: StayStatus.ACTIVE });
+      let rawSessionToken = '';
+      if (stay && room) {
+        rawSessionToken = signGuestSessionToken({
+          hotelId: String(room.hotelId),
+          stayId: String(stay._id),
+          roomId: String(room._id),
+          roomNumber: String(room.roomNumber),
+        });
+      }
+
+      const tenantDoc = await Tenant.findById(booking.hotelId).select('wifiSsid wifiPassword name');
+      res.status(200).json({
+        success: true,
+        data: {
+          isApproved: true,
+          bookingStatus: 'CHECKED_IN',
+          approvalStatus: 'APPROVED',
+          bookingNumber: booking.bookingNumber,
+          roomNumber: room?.roomNumber,
+          roomId: room?._id,
+          stayId: stay?._id,
+          sessionToken: rawSessionToken,
+          guestName: booking.guestName,
+          guestPhone: booking.guestPhone,
+          nights: booking.nights || 1,
+          checkInDate: booking.checkInDate,
+          checkOutDate: booking.checkOutDate,
+          grandTotal: booking.grandTotal,
+          wifiSsid: tenantDoc?.wifiSsid || 'SpiceHub_HighSpeed',
+          wifiPassword: tenantDoc?.wifiPassword || `Guest@${room?.roomNumber || '101'}`,
+          hotelName: tenantDoc?.name || 'SpiceHub Hospitality',
+        },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        isApproved: false,
+        bookingStatus: booking.bookingStatus,
+        approvalStatus: 'PENDING_RECEPTION_APPROVAL',
+        bookingNumber: booking.bookingNumber,
+        roomNumber: room?.roomNumber,
+        guestName: booking.guestName,
+        guestPhone: booking.guestPhone,
+        nights: booking.nights || 1,
+        checkInDate: booking.checkInDate,
+        checkOutDate: booking.checkOutDate,
+        grandTotal: booking.grandTotal,
+        aadhaarFrontUrl: booking.aadhaarFrontUrl,
+        aadhaarBackUrl: booking.aadhaarBackUrl,
+        secondaryGuestName: booking.secondaryGuestName,
+        secondaryGuestRelationship: booking.secondaryGuestRelationship,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: err.message });
+  }
+};
+
 // 10. Public Guest Instant Booking & Check-In with KYC Verification & Dynamic Stay Tariff
 export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -1517,14 +1914,26 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       roomId,
       checkInDate,
       checkOutDate,
+      nights: reqNights,
+      estimatedArrivalTime,
       guestName,
       guestPhone,
       guestEmail,
       isCouple = false,
       idType = 'AADHAAR',
       idNumber,
+      aadhaarFrontUrl,
+      aadhaarBackUrl,
+      aadhaarFrontImage,
+      aadhaarBackImage,
       advancePaid = 0,
       deviceLocation,
+      bookingLocation,
+      guestPhoneVerified,
+      secondaryGuestName,
+      secondaryGuestPhone,
+      secondaryGuestRelationship,
+      distanceFromHotelKm,
     } = req.body;
 
     if (!hotelId || !Types.ObjectId.isValid(hotelId)) {
@@ -1532,22 +1941,140 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       return;
     }
 
-    if (!roomId || !Types.ObjectId.isValid(roomId)) {
-      res.status(400).json({ success: false, errorCode: 'INVALID_ROOM', message: 'Valid roomId is required' });
+    let targetRoomId = roomId;
+    if ((!targetRoomId || !Types.ObjectId.isValid(targetRoomId)) && req.body.roomNumber) {
+      const foundByNumber = await Room.findOne({
+        hotelId: new Types.ObjectId(hotelId),
+        roomNumber: String(req.body.roomNumber).trim(),
+      });
+      if (foundByNumber) {
+        targetRoomId = String(foundByNumber._id);
+      }
+    }
+
+    if (!targetRoomId || !Types.ObjectId.isValid(targetRoomId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ROOM', message: 'Valid roomId or roomNumber is required' });
       return;
     }
 
-    const room = await Room.findOne({ _id: new Types.ObjectId(roomId), hotelId: new Types.ObjectId(hotelId) }).populate('roomTypeId');
+    const room = await Room.findOne({ _id: new Types.ObjectId(targetRoomId), hotelId: new Types.ObjectId(hotelId) }).populate('roomTypeId');
     if (!room) {
       res.status(404).json({ success: false, errorCode: 'ROOM_NOT_FOUND', message: 'Room not found' });
       return;
     }
 
-    if (room.status !== RoomStatus.AVAILABLE) {
+    const effectiveArrivalTime = (req.body.checkInTime || estimatedArrivalTime || '').trim();
+    const effectiveDepartureTime = (req.body.checkOutTime || '').trim();
+    const targetCheckIn = combineDateTime(checkInDate, effectiveArrivalTime, 12, 0);
+    const numNights = Math.max(1, Number(reqNights) || (checkOutDate ? Math.ceil((new Date(checkOutDate).getTime() - targetCheckIn.getTime()) / (1000 * 3600 * 24)) : 1));
+    let targetCheckOut = checkOutDate
+      ? combineDateTime(checkOutDate, effectiveDepartureTime, 11, 0)
+      : new Date(targetCheckIn.getTime() + numNights * 86400000);
+
+    if (targetCheckOut <= targetCheckIn) {
+      if (checkOutDate && effectiveDepartureTime) {
+        res.status(400).json({
+          success: false,
+          errorCode: 'INVALID_TIME_INTERVAL',
+          message: 'Check-out date and time must be later than check-in date and time.',
+        });
+        return;
+      }
+      targetCheckOut = new Date(targetCheckIn.getTime() + numNights * 86400000);
+      targetCheckOut.setHours(11, 0, 0, 0);
+    }
+
+    // Date & Time Collision Detection against Bookings
+    const conflictingBooking = await Booking.findOne({
+      hotelId: room.hotelId,
+      allocatedRoomId: room._id,
+      bookingStatus: {
+        $in: [
+          BookingStatus.CONFIRMED,
+          BookingStatus.PENDING_APPROVAL,
+          BookingStatus.CHECKED_IN,
+        ],
+      },
+      checkInDate: { $lt: targetCheckOut },
+      checkOutDate: { $gt: targetCheckIn },
+    });
+
+    if (conflictingBooking) {
+      const confStart = new Date(conflictingBooking.checkInDate).toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+      const confEnd = new Date(conflictingBooking.checkOutDate).toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+      res.status(409).json({
+        success: false,
+        errorCode: 'ROOM_ALREADY_BOOKED',
+        message: `Room ${room.roomNumber} is already booked for this time slot (${confStart} ➔ ${confEnd}). Please select a different time or choose another available room.`,
+        conflictingBooking: {
+          bookingNumber: conflictingBooking.bookingNumber,
+          guestName: conflictingBooking.guestName,
+          checkInDate: conflictingBooking.checkInDate,
+          checkOutDate: conflictingBooking.checkOutDate,
+        },
+      });
+      return;
+    }
+
+    // Date & Time Collision Detection against active Stays
+    const conflictingStay = await Stay.findOne({
+      hotelId: room.hotelId,
+      roomId: room._id,
+      stayStatus: { $in: [StayStatus.ACTIVE, StayStatus.EXTENDED] },
+      checkInTimestamp: { $lt: targetCheckOut },
+      expectedCheckOutTimestamp: { $gt: targetCheckIn },
+    });
+
+    if (conflictingStay) {
+      const stayStart = new Date(conflictingStay.checkInTimestamp).toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+      const stayEnd = new Date(conflictingStay.expectedCheckOutTimestamp).toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+      res.status(409).json({
+        success: false,
+        errorCode: 'ROOM_ALREADY_OCCUPIED',
+        message: `Room ${room.roomNumber} is currently occupied by an active guest stay (${stayStart} ➔ ${stayEnd}). Please select another time or room.`,
+      });
+      return;
+    }
+
+    if (room.status === RoomStatus.OUT_OF_SERVICE) {
+      res.status(409).json({
+        success: false,
+        errorCode: 'ROOM_OUT_OF_SERVICE',
+        message: `Room ${room.roomNumber} is currently under maintenance / out of service.`,
+      });
+      return;
+    }
+
+    const isImmediateCheckIn = targetCheckIn.getTime() <= Date.now() + 6 * 3600 * 1000;
+    if (isImmediateCheckIn && room.status !== RoomStatus.AVAILABLE) {
       res.status(409).json({
         success: false,
         errorCode: 'ROOM_NOT_AVAILABLE',
-        message: `Room ${room.roomNumber} is currently ${room.status}. Only available rooms can be booked.`,
+        message: `Room ${room.roomNumber} is currently ${room.status}. Only available rooms can be booked for immediate check-in.`,
       });
       return;
     }
@@ -1556,29 +2083,105 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
     const effectivePhone = (guestPhone || '9820011223').trim();
     const effectiveEmail = (guestEmail || `${effectivePhone}@guest.spicehub.com`).trim();
 
-    // Date & Tariff Calculation
-    const checkIn = checkInDate ? new Date(checkInDate) : new Date();
-    const checkOut = checkOutDate ? new Date(checkOutDate) : new Date(checkIn.getTime() + 86400000);
-    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 3600 * 24)));
+    // Check maximum 2 rooms limit per customer mobile number
+    const activeCustomerBookings = await Booking.find({
+      hotelId: room.hotelId,
+      guestPhone: effectivePhone,
+      bookingStatus: { $in: [BookingStatus.CONFIRMED, BookingStatus.PENDING_APPROVAL, BookingStatus.CHECKED_IN] },
+    });
+
+    if (activeCustomerBookings.length >= 2) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'BOOKING_LIMIT_EXCEEDED',
+        message: `Booking ceiling reached: You can book a maximum of 2 rooms per mobile number (${effectivePhone}). You already have ${activeCustomerBookings.length} active or pending rooms. Please contact Reception for group bookings.`,
+        currentCount: activeCustomerBookings.length,
+        maxAllowed: 2,
+      });
+      return;
+    }
+
+    // If booking a 2nd room, secondary guest info is mandatory
+    if (activeCustomerBookings.length === 1 && !secondaryGuestName) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'SECONDARY_GUEST_REQUIRED',
+        message: 'This is your 2nd room booking. Please specify who this room is for (Secondary Guest Name and Relationship).',
+      });
+      return;
+    }
+
+    // Location & Geofence Verification (Hotel vs Remote Home)
+    const isHotelClaimed = bookingLocation === 'IN_HOTEL' || bookingLocation === 'HOTEL_RADIUS';
+    let computedDistanceKm: number | undefined = typeof distanceFromHotelKm === 'number' ? distanceFromHotelKm : undefined;
+
+    const tenant = await Tenant.findById(hotelId).select('coordinates latitude longitude name');
+    const hotelLat = tenant?.coordinates?.latitude ?? (tenant as any)?.latitude ?? 26.9124;
+    const hotelLng = tenant?.coordinates?.longitude ?? (tenant as any)?.longitude ?? 75.7873;
+    const uLat = typeof req.body.userLat === 'number' ? req.body.userLat : deviceLocation?.latitude;
+    const uLng = typeof req.body.userLng === 'number' ? req.body.userLng : deviceLocation?.longitude;
+
+    if (hotelLat && hotelLng && typeof uLat === 'number' && typeof uLng === 'number') {
+      const R = 6371;
+      const dLat = ((hotelLat - uLat) * Math.PI) / 180;
+      const dLon = ((hotelLng - uLng) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((uLat * Math.PI) / 180) *
+          Math.cos((hotelLat * Math.PI) / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      computedDistanceKm = Math.round(R * c * 100) / 100;
+    }
+
+    if (isHotelClaimed && computedDistanceKm !== undefined && computedDistanceKm > 0.5) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'GEOFENCE_OUT_OF_BOUNDS',
+        message: `You are approximately ${computedDistanceKm} km away from ${tenant?.name || 'the hotel'}. Please switch to 'Remote / Book from Home' to reserve your room in advance.`,
+        distanceKm: computedDistanceKm,
+      });
+      return;
+    }
+
+    // On-site hotel bookings require phone OTP verification
+    if (isHotelClaimed && !guestPhoneVerified) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'PHONE_OTP_REQUIRED',
+        message: 'On-site hotel check-in requires a verified phone number via OTP.',
+      });
+      return;
+    }
+
+    // Date & Tariff Calculation (Nights & Check-out schedule)
+    const checkIn = targetCheckIn;
+    const checkOut = targetCheckOut;
 
     const roomType = (room.roomTypeId as any) || {};
     const basePrice = Number(roomType.basePriceOvernight) || 2500;
     const gstRate = basePrice > 7500 ? 18 : 12;
-    const totalTariff = basePrice * nights;
+    const totalTariff = basePrice * numNights;
     const taxAmount = Math.round((totalTariff * (gstRate / 100)) * 100) / 100;
     const grandTotal = totalTariff + taxAmount;
     const advance = Number(advancePaid) || 0;
     const dueAmount = Math.max(0, grandTotal - advance);
 
-    // Mask ID Number for compliance & privacy
-    let maskedId = 'None (Self-Verified)';
+    // Aadhaar Document Handling
+    const effectiveAadhaarFront = (aadhaarFrontUrl || aadhaarFrontImage || '').trim();
+    const effectiveAadhaarBack = (aadhaarBackUrl || aadhaarBackImage || '').trim();
+
+    let maskedId = 'AADHAAR_PHOTO_VERIFIED';
     if (idNumber) {
       const clean = String(idNumber).replace(/[^0-9a-zA-Z]/g, '');
       const last4 = clean.slice(-4);
       maskedId = clean.length > 4 ? `XXXX-XXXX-${last4}` : `XXXX-${clean}`;
+    } else if (effectiveAadhaarFront) {
+      maskedId = 'AADHAAR_CARD_UPLOADED';
     }
 
-    const ts = Date.now().toString().slice(-4);
+    const ts = `${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
     const bookingNumber = `BK-PORTAL-${new Date().getFullYear()}-${ts}`;
     const folioNumber = `FOLIO-${room.roomNumber}-${ts}`;
 
@@ -1593,9 +2196,19 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       guestName: effectiveName,
       guestPhone: effectivePhone,
       guestEmail: effectiveEmail,
-      idProofType: idType,
+      idProofType: 'AADHAAR',
       idProofNumber: maskedId,
-      bookingLocation: (req.body.bookingLocation || 'HOTEL_RADIUS') as any,
+      idProofDocumentUrl: effectiveAadhaarFront || undefined,
+      aadhaarFrontUrl: effectiveAadhaarFront || undefined,
+      aadhaarBackUrl: effectiveAadhaarBack || undefined,
+      nights: numNights,
+      estimatedArrivalTime: effectiveArrivalTime,
+      guestPhoneVerified: Boolean(guestPhoneVerified),
+      secondaryGuestName: (secondaryGuestName || '').trim(),
+      secondaryGuestPhone: (secondaryGuestPhone || '').trim(),
+      secondaryGuestRelationship: (secondaryGuestRelationship || '').trim(),
+      distanceFromHotelKm: typeof computedDistanceKm === 'number' ? computedDistanceKm : (typeof distanceFromHotelKm === 'number' ? distanceFromHotelKm : undefined),
+      bookingLocation: (bookingLocation || 'HOTEL_RADIUS') as any,
       checkInDate: checkIn,
       checkOutDate: checkOut,
       totalTariff,
@@ -1603,195 +2216,90 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       grandTotal,
       advancePaymentAmount: advance,
       paymentStatus: advance >= grandTotal ? 'PAID' : (advance > 0 ? 'PARTIAL' : 'UNPAID'),
-      bookingStatus: req.body.requiresReceptionApproval ? BookingStatus.PENDING_APPROVAL : ('CHECKED_IN' as any),
+      bookingStatus: BookingStatus.PENDING_APPROVAL,
     });
 
-    // If booking requires Reception approval, return pending status and broadcast to reception
-    if (req.body.requiresReceptionApproval) {
-      io.to(`${room.hotelId}_admin`).to(`${room.hotelId}_pms`).to(`${room.hotelId}_frontdesk`).emit('reception:new_checkin_request', {
-        bookingId: booking._id,
-        bookingNumber: booking.bookingNumber,
-        roomNumber: room.roomNumber,
-        guestName: effectiveName,
-        guestPhone: effectivePhone,
-        idType,
-        idNumber: maskedId,
-        bookingLocation: booking.bookingLocation,
-        submittedAt: new Date(),
-        grandTotal,
-      });
-
-      res.status(201).json({
-        success: true,
-        message: `Documents for Room ${room.roomNumber} submitted to Reception Desk for approval!`,
-        data: {
-          bookingId: booking._id,
-          bookingNumber: booking.bookingNumber,
-          hotelId: room.hotelId,
-          roomId: room._id,
-          roomNumber: room.roomNumber,
-          roomTypeName: roomType.name || 'Deluxe Room',
-          guestName: effectiveName,
-          guestPhone: effectivePhone,
-          checkInDate: checkIn,
-          checkOutDate: checkOut,
-          grandTotal,
-          advancePaid: advance,
-          dueAmount,
-          idType,
-          idNumber: maskedId,
-          bookingLocation: booking.bookingLocation,
-          bookingStatus: 'PENDING_APPROVAL',
-          approvalStatus: 'PENDING_RECEPTION_APPROVAL',
-          requiresReceptionApproval: true,
-        },
-      });
-      return;
-    }
-
-    // 2. Resolve or Create GuestProfile
-    let guestProfile = await GuestProfile.findOne({ hotelId: room.hotelId, phone: effectivePhone });
-    if (!guestProfile) {
-      guestProfile = await GuestProfile.create({
-        hotelId: room.hotelId,
-        name: effectiveName,
-        phone: effectivePhone,
-        email: effectiveEmail,
-        totalVisits: 1,
-        totalLifetimeSpend: grandTotal,
-      });
-    } else {
-      guestProfile.totalVisits = (guestProfile.totalVisits || 1) + 1;
-      guestProfile.totalLifetimeSpend = (guestProfile.totalLifetimeSpend || 0) + grandTotal;
-      guestProfile.lastVisitDate = new Date();
-      await guestProfile.save();
-    }
-
-    const stayId = new Types.ObjectId();
-    const folioId = new Types.ObjectId();
-
-    // 3. Create MasterFolio
-    const masterFolio = await MasterFolio.create({
-      _id: folioId,
-      hotelId: room.hotelId,
-      stayId,
-      bookingId: booking._id,
-      roomId: room._id,
-      folioNumber,
-      totalRoomTariff: totalTariff,
-      totalFoodAndBeverage: 0,
-      totalLaundry: 0,
-      totalPaidServices: 0,
-      totalTaxes: taxAmount,
-      advancePaid: advance,
-      paidAmount: advance,
-      netAmountPayable: grandTotal,
-      dueAmount,
-      folioStatus: 'OPEN',
-    });
-
-    // 4. Create Initial FolioLineItem (Immutable Accommodation Charge)
-    await FolioLineItem.create({
-      hotelId: room.hotelId,
-      folioId,
-      department: DepartmentType.ROOM_RENT,
-      description: `Room ${room.roomNumber} (${nights} Night(s)) Accommodation Tariff`,
-      rate: totalTariff,
-      quantity: 1,
-      taxRate: gstRate,
-      taxAmount,
-      netAmount: grandTotal,
-      postedAt: new Date(),
-    });
-
-    // 5. Create Stay Record
-    const stay = await Stay.create({
-      _id: stayId,
-      hotelId: room.hotelId,
-      roomId: room._id,
-      bookingId: booking._id,
-      guestId: guestProfile._id,
-      stayStatus: StayStatus.ACTIVE,
-      masterFolioId: folioId,
-      checkInTimestamp: checkIn,
-      expectedCheckOutTimestamp: checkOut,
-      isCouple: Boolean(isCouple),
-      verificationMode: (['NONE', 'AADHAAR', 'PASSPORT', 'DRIVING_LICENSE', 'OTHER', 'PHYSICAL_AT_RECEPTION'].includes(idType)
-        ? idType
-        : 'PHYSICAL_AT_RECEPTION') as any,
-      idNumberMasked: maskedId,
-      verifiedByReceptionist: true,
-      keycardExpiresAt: checkOut,
-      receptionistNotes: deviceLocation
-        ? `Booked via Guest Portal. Location: ${deviceLocation.distanceKm || 0} km away (Lat: ${deviceLocation.latitude}, Lng: ${deviceLocation.longitude})`
-        : 'Booked via Guest Portal Express Check-in',
-    });
-
-    // 6. Update Physical Room Status
-    room.status = RoomStatus.OCCUPIED;
-    room.currentStayId = stay._id as any;
+    // Mark room as RESERVED in DB, return pending status and broadcast to reception
+    room.status = RoomStatus.RESERVED;
     await room.save();
 
-    // 7. Issue Signed Guest Session Token
-    const rawSessionToken = signGuestSessionToken({
-      hotelId: String(room.hotelId),
-      stayId: String(stay._id),
-      roomId: String(room._id),
-      roomNumber: String(room.roomNumber),
-    });
-    const tokenHash = hashGuestToken(rawSessionToken);
-    const expiresAt = new Date(Date.now() + GUEST_SESSION_TTL_MS);
+    const isFromHotel = bookingLocation === 'IN_HOTEL' || bookingLocation === 'HOTEL_RADIUS';
+    const originLabel = isFromHotel ? 'HOTEL_PREMISES' : 'REMOTE_HOME';
+    const originText = isFromHotel ? 'Booked from Hotel Premises (होटल से)' : 'Booked from Home / Remote (घर से)';
 
-    await GuestSession.create({
-      hotelId: room.hotelId,
-      stayId: stay._id,
-      roomId: room._id,
-      sessionTokenHash: tokenHash,
-      lastKnownRoute: '/guest-portal/home',
-      expiresAt,
-    });
+    io.to(`${room.hotelId}_admin`)
+      .to(`${room.hotelId}_pms`)
+      .to(`${room.hotelId}_frontdesk`)
+      .to(`${room.hotelId}_global`)
+      .emit('pms:room_status_changed', {
+        roomId: room._id,
+        roomNumber: room.roomNumber,
+        status: RoomStatus.RESERVED,
+        guestName: effectiveName,
+        bookingNumber: booking.bookingNumber,
+      });
 
-    // 8. Real-time PMS notification
-    io.to(`${room.hotelId}_global`).emit('pms:guest_checked_in', {
+    io.to(`${room.hotelId}_admin`).to(`${room.hotelId}_pms`).to(`${room.hotelId}_frontdesk`).emit('reception:new_checkin_request', {
+      bookingId: booking._id,
+      bookingNumber: booking.bookingNumber,
       roomNumber: room.roomNumber,
       guestName: effectiveName,
-      stayId: stay._id,
-      isCouple: stay.isCouple,
-      verified: true,
-      advanceCredited: advance,
-      balanceDue: dueAmount,
+      guestPhone: effectivePhone,
+      nights: numNights,
+      estimatedArrivalTime: effectiveArrivalTime,
       checkInDate: checkIn,
       checkOutDate: checkOut,
+      idType: 'AADHAAR',
+      idNumber: maskedId,
+      aadhaarFrontUrl: effectiveAadhaarFront,
+      aadhaarBackUrl: effectiveAadhaarBack,
+      secondaryGuestName: booking.secondaryGuestName,
+      secondaryGuestPhone: booking.secondaryGuestPhone,
+      secondaryGuestRelationship: booking.secondaryGuestRelationship,
+      bookingLocation: booking.bookingLocation,
+      bookingOrigin: originLabel,
+      originText,
+      distanceFromHotelKm: booking.distanceFromHotelKm,
+      submittedAt: new Date(),
+      grandTotal,
     });
-
-    const tenantDoc = await Tenant.findById(room.hotelId).select('wifiSsid wifiPassword');
-    const dynamicWifiSsid = tenantDoc?.wifiSsid || 'SpiceHub_HighSpeed';
-    const dynamicWifiPassword = tenantDoc?.wifiPassword || `Guest@${room.roomNumber}`;
 
     res.status(201).json({
       success: true,
-      message: `Room ${room.roomNumber} booked and checked in successfully!`,
+      message: `Aadhaar documents for Room ${room.roomNumber} submitted to Reception Desk for approval!`,
       data: {
-        sessionToken: rawSessionToken,
+        bookingId: booking._id,
+        bookingNumber: booking.bookingNumber,
         hotelId: room.hotelId,
         roomId: room._id,
         roomNumber: room.roomNumber,
         roomTypeName: roomType.name || 'Deluxe Room',
         guestName: effectiveName,
+        guestPhone: effectivePhone,
+        nights: numNights,
         checkInDate: checkIn,
         checkOutDate: checkOut,
-        nights,
-        stayId: stay._id,
-        masterFolioId: folioId,
-        folioNumber,
+        estimatedArrivalTime: effectiveArrivalTime,
         grandTotal,
         advancePaid: advance,
         dueAmount,
-        wifiSsid: dynamicWifiSsid,
-        wifiPassword: dynamicWifiPassword,
+        idType: 'AADHAAR',
+        idNumber: maskedId,
+        aadhaarFrontUrl: effectiveAadhaarFront,
+        aadhaarBackUrl: effectiveAadhaarBack,
+        secondaryGuestName: booking.secondaryGuestName,
+        secondaryGuestRelationship: booking.secondaryGuestRelationship,
+        bookingLocation: booking.bookingLocation,
+        bookingOrigin: originLabel,
+        originText,
+        bookingStatus: 'PENDING_APPROVAL',
+        approvalStatus: 'PENDING_RECEPTION_APPROVAL',
+        requiresReceptionApproval: true,
       },
     });
+    return;
   } catch (error: any) {
+    console.error('❌ [bookAndCheckInGuest] Error:', error);
     res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: error.message });
   }
 };
@@ -1854,7 +2362,7 @@ export const approveGuestCheckIn = async (req: Request, res: Response): Promise<
     let stay = await Stay.findOne({ bookingId: booking._id, hotelId: booking.hotelId });
     let folio = stay?.masterFolioId ? await MasterFolio.findById(stay.masterFolioId) : null;
 
-    const folioNumber = `FOLIO-${room.roomNumber}-${Date.now().toString().slice(-4)}`;
+    const folioNumber = `FOLIO-${room.roomNumber}-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
     const nights = Math.max(1, Math.ceil((new Date(booking.checkOutDate).getTime() - new Date(booking.checkInDate).getTime()) / (1000 * 3600 * 24)));
     const roomType = (room.roomTypeId as any) || {};
     const basePrice = Number(roomType.basePriceOvernight) || 2500;
@@ -1926,8 +2434,14 @@ export const approveGuestCheckIn = async (req: Request, res: Response): Promise<
         checkInTimestamp: booking.checkInDate || new Date(),
         expectedCheckOutTimestamp: booking.checkOutDate || new Date(Date.now() + 86400000),
         isCouple: false,
-        verificationMode: booking.idProofType || 'PHYSICAL_AT_RECEPTION',
+        verificationMode: booking.idProofType || 'AADHAAR',
         idNumberMasked: booking.idProofNumber || 'VERIFIED_AT_RECEPTION',
+        aadhaarFrontUrl: booking.aadhaarFrontUrl,
+        aadhaarBackUrl: booking.aadhaarBackUrl,
+        nights: booking.nights || nights,
+        secondaryGuestName: booking.secondaryGuestName,
+        secondaryGuestPhone: booking.secondaryGuestPhone,
+        secondaryGuestRelationship: booking.secondaryGuestRelationship,
         verifiedByReceptionist: true,
         keycardExpiresAt: booking.checkOutDate || new Date(Date.now() + 86400000),
         receptionistNotes: 'Checked in & verified at Front Desk Reception',
@@ -1935,6 +2449,12 @@ export const approveGuestCheckIn = async (req: Request, res: Response): Promise<
     } else {
       stay.stayStatus = StayStatus.ACTIVE;
       stay.verifiedByReceptionist = true;
+      stay.aadhaarFrontUrl = booking.aadhaarFrontUrl;
+      stay.aadhaarBackUrl = booking.aadhaarBackUrl;
+      stay.nights = booking.nights || nights;
+      stay.secondaryGuestName = booking.secondaryGuestName;
+      stay.secondaryGuestPhone = booking.secondaryGuestPhone;
+      stay.secondaryGuestRelationship = booking.secondaryGuestRelationship;
       await stay.save();
     }
 
@@ -1960,18 +2480,42 @@ export const approveGuestCheckIn = async (req: Request, res: Response): Promise<
       expiresAt,
     });
 
-    io.to(`${room.hotelId}_global`).to(`${room.hotelId}_admin`).emit('pms:booking_approved', {
-      bookingNumber: booking.bookingNumber,
-      roomNumber: room.roomNumber,
-      guestName: booking.guestName,
-      stayId: stay._id,
-      sessionToken: rawSessionToken,
-      approvedAt: new Date(),
-    });
+    io.to(`${room.hotelId}_global`)
+      .to(`${room.hotelId}_admin`)
+      .to(`${room.hotelId}_pms`)
+      .to(`${room.hotelId}_frontdesk`)
+      .emit('pms:room_status_changed', {
+        roomId: room._id,
+        roomNumber: room.roomNumber,
+        status: RoomStatus.OCCUPIED,
+        guestName: booking.guestName,
+        bookingNumber: booking.bookingNumber,
+      });
 
-    const tenantDoc = await Tenant.findById(booking.hotelId).select('wifiSsid wifiPassword');
+    const tenantDoc = await Tenant.findById(booking.hotelId).select('wifiSsid wifiPassword name');
     const dynamicWifiSsid = tenantDoc?.wifiSsid || 'SpiceHub_HighSpeed';
     const dynamicWifiPassword = tenantDoc?.wifiPassword || `Guest@${room.roomNumber}`;
+
+    io.to(`${room.hotelId}_global`)
+      .to(`${room.hotelId}_admin`)
+      .to(`${room.hotelId}_pms`)
+      .to(`${room.hotelId}_frontdesk`)
+      .emit('pms:booking_approved', {
+        bookingNumber: booking.bookingNumber,
+        roomNumber: room.roomNumber,
+        roomId: room._id,
+        guestName: booking.guestName,
+        guestPhone: booking.guestPhone,
+        stayId: stay._id,
+        sessionToken: rawSessionToken,
+        wifiSsid: dynamicWifiSsid,
+        wifiPassword: dynamicWifiPassword,
+        checkInDate: stay.checkInTimestamp,
+        checkOutDate: stay.expectedCheckOutTimestamp,
+        nights: booking.nights || nights,
+        grandTotal,
+        approvedAt: new Date(),
+      });
 
     res.status(200).json({
       success: true,
@@ -1999,6 +2543,82 @@ export const approveGuestCheckIn = async (req: Request, res: Response): Promise<
     });
   } catch (err: any) {
     console.error('❌ [approveGuestCheckIn] Error:', err);
+    res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: err.message });
+  }
+};
+
+// 10b. Reception Front Desk Reject Check-In / Remote Booking
+export const rejectGuestCheckIn = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { bookingId, bookingNumber, hotelId, reason } = req.body;
+
+    let query: any = {};
+    if (bookingId && Types.ObjectId.isValid(bookingId)) {
+      query._id = new Types.ObjectId(bookingId);
+    } else if (bookingNumber) {
+      query.bookingNumber = String(bookingNumber).trim();
+    } else {
+      res.status(400).json({ success: false, errorCode: 'MISSING_FIELDS', message: 'bookingId or bookingNumber is required' });
+      return;
+    }
+
+    if (hotelId && Types.ObjectId.isValid(hotelId)) {
+      query.hotelId = new Types.ObjectId(hotelId);
+    }
+
+    const booking = await Booking.findOne(query);
+    if (!booking) {
+      res.status(404).json({ success: false, errorCode: 'BOOKING_NOT_FOUND', message: 'Booking reservation not found' });
+      return;
+    }
+
+    const rejectionReason = reason || 'ID document verification rejected by Reception Front Desk';
+    booking.bookingStatus = BookingStatus.CANCELLED;
+    (booking as any).receptionRejectionReason = rejectionReason;
+    booking.receptionApprovedBy = 'Front Desk Receptionist (Rejected)';
+    await booking.save();
+
+    // Release allocated room if it was reserved
+    if (booking.allocatedRoomId) {
+      const room = await Room.findById(booking.allocatedRoomId);
+      if (room && room.status === RoomStatus.RESERVED) {
+        room.status = RoomStatus.AVAILABLE;
+        await room.save();
+
+        io.to(`${room.hotelId}_admin`)
+          .to(`${room.hotelId}_pms`)
+          .to(`${room.hotelId}_frontdesk`)
+          .to(`${room.hotelId}_global`)
+          .emit('pms:room_status_changed', {
+            roomId: room._id,
+            roomNumber: room.roomNumber,
+            status: RoomStatus.AVAILABLE,
+          });
+      }
+    }
+
+    io.to(`${booking.hotelId}_global`)
+      .to(`${booking.hotelId}_admin`)
+      .to(`${booking.hotelId}_frontdesk`)
+      .emit('pms:booking_rejected', {
+        bookingNumber: booking.bookingNumber,
+        guestName: booking.guestName,
+        guestPhone: booking.guestPhone,
+        reason: rejectionReason,
+        rejectedAt: new Date(),
+      });
+
+    res.status(200).json({
+      success: true,
+      message: `Booking #${booking.bookingNumber} rejected by Reception.`,
+      data: {
+        bookingNumber: booking.bookingNumber,
+        bookingStatus: 'CANCELLED',
+        reason: rejectionReason,
+      },
+    });
+  } catch (err: any) {
+    console.error('❌ [rejectGuestCheckIn] Error:', err);
     res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: err.message });
   }
 };
@@ -2155,18 +2775,28 @@ export const extendStayDates = async (req: Request, res: Response): Promise<void
     }
 
     const { session, stay } = resolved;
-    const { newCheckOutDate } = req.body;
+    let updatedCheckOut: Date;
+    const currentCheckOut = stay.expectedCheckOutTimestamp ? new Date(stay.expectedCheckOutTimestamp) : new Date();
 
-    if (!newCheckOutDate) {
-      res.status(400).json({ success: false, errorCode: 'INVALID_DATE', message: 'newCheckOutDate is required' });
+    if (req.body.daysToAdd && typeof req.body.daysToAdd === 'number') {
+      updatedCheckOut = new Date(currentCheckOut.getTime() + req.body.daysToAdd * 24 * 60 * 60 * 1000);
+    } else if (req.body.newCheckOutDate) {
+      updatedCheckOut = new Date(req.body.newCheckOutDate);
+    } else {
+      res.status(400).json({ success: false, errorCode: 'INVALID_DATE', message: 'newCheckOutDate or daysToAdd is required' });
       return;
     }
 
-    const currentCheckOut = stay.expectedCheckOutTimestamp ? new Date(stay.expectedCheckOutTimestamp) : new Date();
-    const updatedCheckOut = new Date(newCheckOutDate);
+    if (isNaN(updatedCheckOut.getTime())) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_DATE', message: 'Invalid check-out date format' });
+      return;
+    }
 
     if (updatedCheckOut <= currentCheckOut) {
       stay.expectedCheckOutTimestamp = updatedCheckOut;
+      if (stay.stayStatus === StayStatus.CHECKED_OUT) {
+        stay.stayStatus = StayStatus.ACTIVE;
+      }
       await stay.save();
       res.status(200).json({
         success: true,

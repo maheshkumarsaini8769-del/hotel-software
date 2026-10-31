@@ -19,12 +19,12 @@ export const InventoryAuditHeader: React.FC<InventoryAuditHeaderProps> = ({
   loading,
 }) => {
   return (
-    <div className="bg-[#0b0e14] border-b border-emerald-500/20 px-6 py-6 text-zinc-100 shadow-xl">
+    <div className="bg-slate-950 border-b border-emerald-500/20 px-6 py-6 text-zinc-100 shadow-xl">
       {/* Title & Actions */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <span className="h-3 w-3 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.8)]" />
+            <span className="h-3 w-3 rounded-full bg-emerald-400 animate-pulse shadow-sm dark:shadow-none" />
             <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
               Physical Stock Audit & Discrepancy Reconciliation
             </h1>
@@ -75,13 +75,13 @@ export const InventoryAuditHeader: React.FC<InventoryAuditHeaderProps> = ({
           </div>
         </div>
 
-        <div className="bg-zinc-900/80 border border-rose-500/30 p-4 rounded-2xl flex flex-col justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-rose-400">Net Shortage Loss</span>
+        <div className="bg-zinc-900/80 border border-red-500/30 p-4 rounded-2xl flex flex-col justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-red-400">Net Shortage Loss</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-black text-rose-400">
+            <span className="text-2xl font-black text-red-400">
               {InventoryAuditHelper.formatCurrency(metrics.totalNetShortageLoss)}
             </span>
-            <span className="text-[10px] text-rose-500/80">Shrinkage / Waste</span>
+            <span className="text-[10px] text-red-500/80">Shrinkage / Waste</span>
           </div>
         </div>
 
@@ -123,7 +123,7 @@ export const InventoryAuditHeader: React.FC<InventoryAuditHeaderProps> = ({
           onClick={() => onTabChange('RECONCILE')}
           className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
             activeTab === 'RECONCILE'
-              ? 'border-teal-400 text-teal-400 bg-teal-500/10'
+              ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
               : 'border-transparent text-zinc-400 hover:text-zinc-200'
           }`}
         >

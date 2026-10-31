@@ -743,9 +743,9 @@ export const HotelPoliciesAndUseCasesHubApp: React.FC<HotelPoliciesAndUseCasesHu
       case 'BILLING':
         return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
       case 'HOUSEKEEPING':
-        return 'text-purple-400 bg-purple-500/10 border-purple-500/30';
+        return 'text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800';
       case 'SAFETY':
-        return 'text-rose-400 bg-rose-500/10 border-rose-500/30';
+        return 'text-red-400 bg-red-500/10 border-red-500/30';
       default:
         return 'text-slate-400 bg-slate-500/10 border-slate-500/30';
     }
@@ -755,7 +755,7 @@ export const HotelPoliciesAndUseCasesHubApp: React.FC<HotelPoliciesAndUseCasesHu
     <div className="max-w-6xl mx-auto space-y-6 pb-16">
       {/* Toast Notification */}
       {saveToast && (
-        <div className="fixed top-6 right-6 z-50 px-4 py-3 rounded-xl bg-emerald-600 text-white shadow-2xl flex items-center gap-2 text-xs font-bold animate-in fade-in slide-in-from-top-4">
+        <div className="fixed top-6 right-6 z-50 px-4 py-3 rounded-xl bg-emerald-600 text-white shadow-sm dark:shadow-none flex items-center gap-2 text-xs font-bold animate-in fade-in slide-in-from-top-4">
           <CheckCircle2 className="w-4 h-4" />
           <span>{saveToast}</span>
         </div>
@@ -1130,7 +1130,7 @@ export const HotelPoliciesAndUseCasesHubApp: React.FC<HotelPoliciesAndUseCasesHu
                           <span className="font-bold block text-[10px] uppercase tracking-wider">Postconditions:</span>
                           <span className="text-slate-300 mt-0.5 block">{uc.postconditions}</span>
                         </div>
-                        <div className="p-3 rounded-xl bg-rose-950/20 border border-rose-900/40 text-rose-300">
+                        <div className="p-3 rounded-xl bg-red-950/20 border border-red-900/40 text-red-300">
                           <span className="font-bold block text-[10px] uppercase tracking-wider">Edge-Case Handling:</span>
                           <span className="text-slate-300 mt-0.5 block">{uc.edgeCase}</span>
                         </div>
@@ -1230,7 +1230,7 @@ export const HotelPoliciesAndUseCasesHubApp: React.FC<HotelPoliciesAndUseCasesHu
                 isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200'
               }`}
             >
-              <div className="flex items-center gap-2 text-rose-400 font-bold text-xs uppercase tracking-wider">
+              <div className="flex items-center gap-2 text-red-400 font-bold text-xs uppercase tracking-wider">
                 <AlertTriangle className="w-4 h-4" />
                 <span>Cancellation & Refunds</span>
               </div>
@@ -1392,7 +1392,7 @@ export const HotelPoliciesAndUseCasesHubApp: React.FC<HotelPoliciesAndUseCasesHu
                 isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200'
               }`}
             >
-              <div className="flex items-center gap-2 text-purple-400 font-bold text-xs uppercase tracking-wider">
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider">
                 <Sparkles className="w-4 h-4" />
                 <span>Housekeeping & Vault Custody</span>
               </div>

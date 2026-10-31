@@ -50,8 +50,8 @@ export const MenuHeaderFilter: React.FC<MenuHeaderFilterProps> = ({ filter, onFi
             onClick={() => onFilterChange({ foodType: FoodType.NON_VEG })}
             className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center space-x-1 border ${
               filter.foodType === FoodType.NON_VEG
-                ? 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/20'
-                : 'bg-slate-900 text-rose-400 border-rose-900/60 hover:bg-rose-950/30'
+                ? 'bg-red-600 text-white border-red-500 shadow-md shadow-sm'
+                : 'bg-slate-900 text-red-400 border-red-900/60 hover:bg-red-950/30'
             }`}
           >
             <span>🔴</span>

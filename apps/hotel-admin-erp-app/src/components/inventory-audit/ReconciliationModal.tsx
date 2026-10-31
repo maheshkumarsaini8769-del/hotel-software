@@ -84,12 +84,12 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-[#0f131a] border border-teal-500/30 w-full max-w-4xl rounded-2xl p-6 shadow-2xl text-zinc-100 max-h-[90vh] flex flex-col">
+      <div className="bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-4xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-teal-500/20 text-teal-300 border border-teal-500/40">
+              <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
                 {session.auditNumber}
               </span>
               <h2 className="text-lg font-bold text-white">Discrepancy Reconciliation & Ledger Adjustment</h2>
@@ -110,8 +110,8 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
         {/* Financial Discrepancy KPI Banner */}
         <div className="mt-4 grid grid-cols-3 gap-3 p-3 rounded-xl bg-zinc-900 border border-zinc-800">
           <div>
-            <span className="text-[11px] text-rose-400 uppercase font-bold block">Total Shortage</span>
-            <span className="text-lg font-bold text-rose-400">
+            <span className="text-[11px] text-red-400 uppercase font-bold block">Total Shortage</span>
+            <span className="text-lg font-bold text-red-400">
               {InventoryAuditHelper.formatCurrency(session.totalShortageValue)}
             </span>
           </div>
@@ -125,7 +125,7 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
             <span className="text-[11px] text-zinc-400 uppercase font-bold block">Net Variance Impact</span>
             <span
               className={`text-lg font-bold ${
-                session.netDiscrepancyValue < 0 ? 'text-rose-400' : 'text-emerald-400'
+                session.netDiscrepancyValue < 0 ? 'text-red-400' : 'text-emerald-400'
               }`}
             >
               {InventoryAuditHelper.formatCurrency(session.netDiscrepancyValue)}
@@ -186,7 +186,7 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
                           onChange={(e) =>
                             handleReasonChange(item.itemName, e.target.value as VarianceReasonUI)
                           }
-                          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-teal-500"
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-slate-200 dark:border-slate-800"
                         >
                           <option value="PILFERAGE_THEFT">Unauthorized Pilferage / Theft</option>
                           <option value="UNRECORDED_WASTE">Unrecorded Spoilage / Wastage</option>
@@ -207,7 +207,7 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
                           onChange={(e) =>
                             handleActionChange(item.itemName, e.target.value as AuditActionTakenUI)
                           }
-                          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-teal-500"
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-slate-200 dark:border-slate-800"
                         >
                           <option value="ADJUST_BOOK_STOCK">Adjust Book Stock Balance</option>
                           <option value="WRITE_OFF_TO_P_AND_L">Write Off Directly to P&L Expense</option>
@@ -230,7 +230,7 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Audit verified by Financial Controller. Variances reconciled into ERP general ledger."
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-teal-500"
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
             />
           </div>
 
@@ -246,7 +246,7 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-teal-900/30"
+              className="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-sm"
             >
               {loading ? 'Reconciling Ledger...' : 'Approve & Reconcile Book Stock'}
             </button>

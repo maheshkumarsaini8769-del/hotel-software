@@ -63,8 +63,8 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
                 isVeg
                   ? 'border-emerald-500'
                   : isBeverage
-                  ? 'border-cyan-500'
-                  : 'border-rose-500'
+                  ? 'border-slate-200 dark:border-slate-800'
+                  : 'border-red-500'
               }`}
             >
               <span
@@ -72,8 +72,8 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
                   isVeg
                     ? 'bg-emerald-500'
                     : isBeverage
-                    ? 'bg-cyan-500'
-                    : 'bg-rose-500'
+                    ? 'bg-slate-800 dark:bg-slate-200'
+                    : 'bg-red-500'
                 }`}
               />
             </span>
@@ -81,7 +81,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
               {isVeg ? 'Pure Veg' : isBeverage ? 'Beverage' : 'Non-Veg'}
             </span>
             {isOutOfStock && (
-              <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider bg-rose-950 text-rose-300 rounded border border-rose-800">
+              <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider bg-red-950 text-red-300 rounded border border-red-800">
                 86 • Sold Out
               </span>
             )}
@@ -128,7 +128,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
           />
           {isOutOfStock && (
             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-              <span className="text-[10px] font-extrabold text-rose-300 uppercase tracking-widest px-2 py-0.5 bg-rose-950/80 rounded border border-rose-700">
+              <span className="text-[10px] font-extrabold text-red-300 uppercase tracking-widest px-2 py-0.5 bg-red-950/80 rounded border border-red-700">
                 Unavailable
               </span>
             </div>
@@ -165,7 +165,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
           ) : (
             <button
               onClick={() => onAddToCart(item)}
-              className="w-full py-1.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-95 text-slate-950 font-black text-xs rounded-xl transition shadow-md flex items-center justify-center gap-1"
+              className="w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center justify-center gap-1"
             >
               <span>+</span>
               <span>ADD</span>

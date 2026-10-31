@@ -39,7 +39,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({
   };
 
   return (
-    <div className="flex h-screen min-h-screen flex-col bg-[#07090e] text-zinc-100">
+    <div className="flex h-screen min-h-screen flex-col bg-slate-950 text-zinc-100">
       {showBanner && (
         <div
           data-testid="cashier-embed-banner"
@@ -72,7 +72,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({
           </button>
         </div>
       )}
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-[#0b0f17] px-4 py-2.5">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-4 py-2.5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-slate-950">
             <ReceiptText className="h-4 w-4" />

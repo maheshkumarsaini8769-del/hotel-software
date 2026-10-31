@@ -67,9 +67,9 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="bg-[#121721] border border-amber-500/30 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden text-xs text-zinc-300">
+      <div className="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden text-xs text-zinc-300">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-[#0b0e14]">
+        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-slate-950">
           <div>
             <div className="flex items-center gap-2">
               <span className="font-mono text-amber-400 font-bold">{booking.bookingCode}</span>
@@ -111,7 +111,7 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
                 <select
                   value={seatingLayout}
                   onChange={(e) => setSeatingLayout(e.target.value as SeatingLayoutType)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-semibold"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-semibold"
                 >
                   <option value={SeatingLayoutType.ROUND_TABLE_CLUSTERS}>Round Table Clusters (Banquet Setup)</option>
                   <option value={SeatingLayoutType.THEATER}>Theater Style (Rows Facing Stage)</option>
@@ -127,7 +127,7 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
                   type="text"
                   value={stageDimensions}
                   onChange={(e) => setStageDimensions(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -137,7 +137,7 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
                   type="text"
                   value={audioVisualNotes}
                   onChange={(e) => setAudioVisualNotes(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
             </div>
@@ -155,7 +155,7 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
                   type="text"
                   value={welcomeDrinksTiming}
                   onChange={(e) => setWelcomeDrinksTiming(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
                 />
               </div>
 
@@ -165,7 +165,7 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
                   type="text"
                   value={starterCirculationTiming}
                   onChange={(e) => setStarterCirculationTiming(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
                 />
               </div>
 
@@ -175,7 +175,7 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
                   type="text"
                   value={mainBuffetOpenTiming}
                   onChange={(e) => setMainBuffetOpenTiming(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
                 />
               </div>
 
@@ -185,7 +185,7 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
                   type="text"
                   value={dessertStationTiming}
                   onChange={(e) => setDessertStationTiming(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
                 />
               </div>
 
@@ -196,7 +196,7 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
                   value={specialDietaryRequirements}
                   onChange={(e) => setSpecialDietaryRequirements(e.target.value)}
                   placeholder="e.g. Separate Jain counter for 30 pax, Gluten-free desserts"
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -207,7 +207,7 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
                   value={additionalInstructions}
                   onChange={(e) => setAdditionalInstructions(e.target.value)}
                   placeholder="e.g. VIP table gets personal attendant service"
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
             </div>
@@ -219,7 +219,7 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
               3. Inter-Departmental BEO Sign-Offs
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <label className={`p-4 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${chefSignOff ? 'bg-emerald-950/40 border-emerald-600/50' : 'bg-[#0b0e14] border-zinc-800'}`}>
+              <label className={`p-4 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${chefSignOff ? 'bg-emerald-950/40 border-emerald-600/50' : 'bg-slate-950 border-zinc-800'}`}>
                 <input
                   type="checkbox"
                   checked={chefSignOff}
@@ -234,7 +234,7 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
                 </div>
               </label>
 
-              <label className={`p-4 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${banquetManagerSignOff ? 'bg-emerald-950/40 border-emerald-600/50' : 'bg-[#0b0e14] border-zinc-800'}`}>
+              <label className={`p-4 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${banquetManagerSignOff ? 'bg-emerald-950/40 border-emerald-600/50' : 'bg-slate-950 border-zinc-800'}`}>
                 <input
                   type="checkbox"
                   checked={banquetManagerSignOff}
@@ -249,7 +249,7 @@ export const FunctionProspectusModal: React.FC<FunctionProspectusModalProps> = (
                 </div>
               </label>
 
-              <label className={`p-4 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${electricianAvSignOff ? 'bg-emerald-950/40 border-emerald-600/50' : 'bg-[#0b0e14] border-zinc-800'}`}>
+              <label className={`p-4 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${electricianAvSignOff ? 'bg-emerald-950/40 border-emerald-600/50' : 'bg-slate-950 border-zinc-800'}`}>
                 <input
                   type="checkbox"
                   checked={electricianAvSignOff}

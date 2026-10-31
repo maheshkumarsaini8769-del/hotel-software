@@ -15,6 +15,11 @@ export interface RealMapBranch {
   occupancy?: number;
   latitude?: number;
   longitude?: number;
+  street?: string;
+  pincode?: string;
+  country?: string;
+  googleMapUrl?: string;
+  locationNotes?: string;
 }
 
 interface SuperAdminRealMapProps {
@@ -23,6 +28,7 @@ interface SuperAdminRealMapProps {
   onSelectBranch: (branch: RealMapBranch) => void;
   theme?: 'dark' | 'light';
   onLocationPick?: (lat: number, lng: number) => void;
+  onEditLocation?: (branch: RealMapBranch) => void;
 }
 
 const CITY_COORDINATES: Record<string, [number, number]> = {
@@ -62,7 +68,13 @@ const CITY_COORDINATES: Record<string, [number, number]> = {
 };
 
 function resolveCoordinates(branch: RealMapBranch, index: number): [number, number] {
-  if (branch.latitude && branch.longitude) {
+  if (
+    typeof branch.latitude === 'number' &&
+    !isNaN(branch.latitude) &&
+    typeof branch.longitude === 'number' &&
+    !isNaN(branch.longitude) &&
+    (branch.latitude !== 0 || branch.longitude !== 0)
+  ) {
     return [branch.latitude, branch.longitude];
   }
   const key = (branch.city || '').trim().toLowerCase();
@@ -92,6 +104,7 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
   onSelectBranch,
   theme = 'dark',
   onLocationPick,
+  onEditLocation,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -184,7 +197,7 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
               ? 'bg-amber-500 border-white shadow-lg shadow-amber-500/60 scale-125 z-50'
               : isOnline
               ? 'bg-emerald-600 border-white shadow-md shadow-emerald-900/50 hover:scale-110'
-              : 'bg-rose-600 border-white shadow-md shadow-rose-900/50 hover:scale-110'
+              : 'bg-red-600 border-white shadow-md shadow-sm hover:scale-110'
           } transition-transform duration-200">
             <span class="text-xs font-black text-white">${isOnline ? '🏨' : '🔒'}</span>
           </div>
@@ -204,13 +217,16 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
 
       const marker = L.marker(coords, { icon: customIcon }).addTo(map);
 
-      // Tooltip
+      // Tooltip with real address & coordinates
+      const addressLine = [branch.street, branch.city, branch.state, branch.pincode].filter(Boolean).join(', ');
       marker.bindTooltip(
-        `<div class="p-1">
-          <p class="font-bold text-xs">${branch.name}</p>
-          <p class="text-[10px] text-slate-500">${branch.city}, ${branch.state} &bull; <span class="${
-          isOnline ? 'text-emerald-600 font-bold' : 'text-rose-600'
-        }">${branch.status}</span></p>
+        `<div class="p-1 font-sans">
+          <p class="font-bold text-xs text-white">${branch.name}</p>
+          <p class="text-[10px] text-slate-300">${addressLine || branch.city + ', ' + branch.state}</p>
+          <p class="text-[10px] font-mono text-amber-300">📍 ${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}</p>
+          <p class="text-[10px] text-slate-400 mt-0.5"><span class="${
+          isOnline ? 'text-emerald-400 font-bold' : 'text-red-400'
+        }">${branch.status}</span> &bull; Rev: ₹${branch.todayRevenue.toLocaleString('en-IN')}</p>
         </div>`,
         { direction: 'top', offset: [0, -32], opacity: 0.95 }
       );
@@ -259,7 +275,7 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
             type="button"
             onClick={() => setMapType('streets')}
             className={`px-2.5 py-1 rounded transition flex items-center gap-1.5 ${
-              mapType === 'streets' ? 'bg-indigo-600 text-white shadow' : 'text-slate-300 hover:text-white'
+              mapType === 'streets' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white shadow' : 'text-slate-300 hover:text-white'
             }`}
           >
             <span>🗺️</span>
@@ -269,7 +285,7 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
             type="button"
             onClick={() => setMapType('satellite')}
             className={`px-2.5 py-1 rounded transition flex items-center gap-1.5 ${
-              mapType === 'satellite' ? 'bg-indigo-600 text-white shadow' : 'text-slate-300 hover:text-white'
+              mapType === 'satellite' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white shadow' : 'text-slate-300 hover:text-white'
             }`}
           >
             <span>🛰️</span>
@@ -355,6 +371,76 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
           &minus;
         </button>
       </div>
+
+      {/* Floating Real Hotel Details Card (Bottom-Left) */}
+      {selectedBranch && (
+        <div className="absolute bottom-3 left-3 z-[1000] max-w-sm w-[90%] sm:w-80 bg-slate-900/95 backdrop-blur-md rounded-xl p-3 border border-slate-700/80 shadow-sm dark:shadow-none text-xs text-white animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">🏨</span>
+                <h4 className="font-bold text-sm text-white truncate">{selectedBranch.name}</h4>
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5 truncate">
+                {selectedBranch.street ? `${selectedBranch.street}, ` : ''}
+                {selectedBranch.city}, {selectedBranch.state}
+                {selectedBranch.pincode ? ` - ${selectedBranch.pincode}` : ''}
+              </p>
+            </div>
+            <span
+              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                selectedBranch.status === 'ONLINE'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                  : 'bg-red-500/20 text-red-400 border border-red-500/40'
+              }`}
+            >
+              {selectedBranch.status}
+            </span>
+          </div>
+
+          {/* Coordinates and Revenue */}
+          <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+            <span className="font-mono text-amber-300 flex items-center gap-1">
+              <span>📍</span>
+              <span>
+                {selectedBranch.latitude && selectedBranch.longitude
+                  ? `${selectedBranch.latitude.toFixed(5)}, ${selectedBranch.longitude.toFixed(5)}`
+                  : 'Default India Map'}
+              </span>
+            </span>
+            <span className="font-semibold text-emerald-400">
+              ₹{selectedBranch.todayRevenue.toLocaleString('en-IN')} rev
+            </span>
+          </div>
+
+          {/* Actions: Open in Google Maps & Edit Pin */}
+          <div className="mt-2 pt-2 border-t border-slate-800 flex items-center gap-1.5">
+            <a
+              href={
+                selectedBranch.googleMapUrl ||
+                `https://www.google.com/maps/search/?api=1&query=${selectedBranch.latitude || 26.9124},${selectedBranch.longitude || 75.7873}`
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold text-[11px] flex items-center justify-center gap-1.5 transition shadow"
+            >
+              <span>🌐</span>
+              <span>Google Maps ↗</span>
+            </a>
+            {onEditLocation && (
+              <button
+                type="button"
+                onClick={() => onEditLocation(selectedBranch)}
+                className="py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[11px] flex items-center justify-center gap-1 transition border border-slate-700"
+                title="Edit Exact GPS Coordinates & Address"
+              >
+                <span>✏️</span>
+                <span>Edit Pin</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Leaflet Map DOM Node */}
       <div ref={mapContainerRef} className="w-full h-full z-0" />

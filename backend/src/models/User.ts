@@ -8,6 +8,7 @@ export interface IUser extends Document {
   email: string;
   phone: string;
   passwordHash: string;
+  pinCode?: string;
   pinCodeHash?: string;
   pinApprovedByAdmin?: boolean;
   pendingPinHash?: string;
@@ -45,6 +46,7 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, lowercase: true, trim: true },
     phone: { type: String, required: true, trim: true },
     passwordHash: { type: String, required: true },
+    pinCode: { type: String, default: '1234' },
     pinCodeHash: { type: String },
     pinApprovedByAdmin: { type: Boolean, default: true },
     pendingPinHash: { type: String, select: false },

@@ -74,11 +74,11 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
   ];
 
   const urgentPresets = [
-    { title: 'Rush Order!', desc: 'Guest in hurry / has appointment', color: 'from-rose-600 to-red-700', icon: Flame, priority: 'URGENT' },
-    { title: 'Hold Starters', desc: 'Hold until guest signals ready', color: 'from-amber-600 to-orange-700', icon: Pause, priority: 'HIGH' },
-    { title: 'Allergen Alert', desc: 'Strict NO PEANUT / DAIRY in dish', color: 'from-purple-600 to-indigo-700', icon: AlertTriangle, priority: 'URGENT' },
-    { title: 'Overdue Alert', desc: 'Food prep time exceeded 20 mins', color: 'from-blue-600 to-cyan-700', icon: Clock, priority: 'HIGH' },
-    { title: 'Extra Gravy / Dips', desc: 'Bring hot mint chutney to pass', color: 'from-emerald-600 to-teal-700', icon: UtensilsCrossed, priority: 'NORMAL' },
+    { title: 'Rush Order!', desc: 'Guest in hurry / has appointment', color: 'bg-red-600', icon: Flame, priority: 'URGENT' },
+    { title: 'Hold Starters', desc: 'Hold until guest signals ready', color: 'bg-amber-600', icon: Pause, priority: 'HIGH' },
+    { title: 'Allergen Alert', desc: 'Strict NO PEANUT / DAIRY in dish', color: 'bg-rose-700', icon: AlertTriangle, priority: 'URGENT' },
+    { title: 'Overdue Alert', desc: 'Food prep time exceeded 20 mins', color: 'bg-blue-600', icon: Clock, priority: 'HIGH' },
+    { title: 'Extra Gravy / Dips', desc: 'Bring hot mint chutney to pass', color: 'bg-emerald-600', icon: UtensilsCrossed, priority: 'NORMAL' },
   ];
 
   const handleSendBuzzer = async (msgText: string, prio: string = 'HIGH') => {
@@ -134,10 +134,10 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-5 gap-3 sm:gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-500 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-500 flex items-center justify-center font-bold">
             <Radio className="w-5 h-5 animate-pulse" />
           </div>
           <div>
@@ -166,7 +166,7 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
         <div className="lg:col-span-7 space-y-4">
           {/* Quick Presets */}
           <div className={`p-5 rounded-2xl border space-y-3 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
               <Flame className="w-4 h-4 text-orange-500" />
@@ -181,7 +181,7 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
                     key={idx}
                     disabled={isSending}
                     onClick={() => handleSendBuzzer(`${p.title} - ${p.desc}`, p.priority)}
-                    className={`p-3 rounded-xl bg-gradient-to-br ${p.color} text-white text-left flex flex-col justify-between gap-1.5 shadow-md hover:scale-102 active:scale-98 disabled:opacity-50 transition`}
+                    className={`p-3 rounded-xl ${p.color} text-white text-left flex flex-col justify-between gap-1.5 shadow-xs hover:opacity-90 active:scale-98 disabled:opacity-50 transition`}
                   >
                     <span className="font-black text-xs flex items-center gap-1.5">
                       <Icon className="w-4 h-4 shrink-0 text-white/90" />
@@ -196,7 +196,7 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
 
           {/* Custom Composer */}
           <div className={`p-5 rounded-2xl border space-y-4 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
               <ChefHat className="w-4 h-4 text-orange-500" />
@@ -207,14 +207,16 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
               <div className="space-y-1">
                 <label className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Target Kitchen Station</label>
                 <select
+                  data-testid="select-kitchen-station"
                   value={station}
                   onChange={(e) => setStation(e.target.value)}
                   className={`w-full p-2.5 rounded-xl border text-xs font-bold focus:outline-none ${
                     isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                 >
+                  <option value="Main Kitchen">Main Kitchen</option>
+                  <option value="Tandoor Station">Tandoor Station</option>
                   <option value="Executive Chef Pass">Executive Chef Hot Pass</option>
-                  <option value="Tandoor Station">Tandoor & Clay Oven</option>
                   <option value="Curries & Gravy">Main Curries & Gravy</option>
                   <option value="Chinese & Wok">Chinese & Wok Section</option>
                   <option value="Bar & Beverage">Bar & Beverage Station</option>
@@ -225,6 +227,7 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
               <div className="space-y-1">
                 <label className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>My Assigned Table</label>
                 <select
+                  data-testid="select-kitchen-table"
                   value={table}
                   onChange={(e) => setTable(e.target.value)}
                   className={`w-full p-2.5 rounded-xl border text-xs font-bold focus:outline-none ${
@@ -241,6 +244,7 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
             <div className="space-y-1">
               <label className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Message to Chef</label>
               <textarea
+                data-testid="input-kitchen-message"
                 rows={3}
                 placeholder="Type urgent instructions, allergen details, spice adjustment..."
                 value={customMsg}
@@ -252,9 +256,10 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
             </div>
 
             <button
+              data-testid="btn-send-kitchen-buzzer"
               onClick={() => handleSendBuzzer(customMsg, 'HIGH')}
               disabled={isSending}
-              className="w-full py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 active:scale-98 disabled:opacity-50 text-white font-black text-xs flex items-center justify-center gap-2 shadow-md transition"
+              className="w-full py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 active:scale-98 disabled:opacity-50 text-white font-black text-xs flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
             >
               <Send className="w-4 h-4" />
               <span>{isSending ? 'Transmitting to KDS Pass...' : 'Send Audio Buzzer & Alert to KDS'}</span>
@@ -265,7 +270,7 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
         {/* Right Column: Dispatch Logs (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
           <div className={`p-5 rounded-2xl border space-y-3 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <div className="flex items-center justify-between">
               <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>

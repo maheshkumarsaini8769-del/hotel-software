@@ -88,7 +88,19 @@ export const CashierTableManagementView: React.FC<CashierTableManagementViewProp
   ).length;
   const runningTotal = tables.reduce((sum, table) => sum + table.activeOrderTotal, 0);
 
-  const handleTableClick = (table: LiveTable) => {
+  const handleTableClick = async (table: LiveTable) => {
+    if (table.currentStatus === 'PAYMENT_SETTLED' || table.currentStatus === 'DIRTY') {
+      try {
+        await getApiClient().request('PATCH', `/api/v1/pos/tables/${table.id}/status`, {
+          status: 'AVAILABLE',
+        });
+        onToast?.(`Table ${table.tableNumber} released and marked Available!`);
+        await loadTables();
+        return;
+      } catch (err: any) {
+        onToast?.(`Failed to release Table ${table.tableNumber}: ${err.message}`);
+      }
+    }
     if (table.activeSessionId && onSelectTableForBilling) {
       onSelectTableForBilling(table.tableNumber);
       onToast?.(`Opened billing terminal for Table ${table.tableNumber}.`);
@@ -106,7 +118,7 @@ export const CashierTableManagementView: React.FC<CashierTableManagementViewProp
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
       }`}>
         <div>
           <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -152,21 +164,21 @@ export const CashierTableManagementView: React.FC<CashierTableManagementViewProp
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="p-3 rounded-xl border border-slate-800 bg-[#141620]">
+        <div className="p-3 rounded-xl border border-slate-800 bg-slate-900">
           <span className="text-[11px] text-slate-400 font-bold">Total Tables</span>
           <div className="text-xl font-black text-white font-mono">{tables.length}</div>
         </div>
-        <div className="p-3 rounded-xl border border-slate-800 bg-[#141620]">
+        <div className="p-3 rounded-xl border border-slate-800 bg-slate-900">
           <span className="text-[11px] text-slate-400 font-bold">Occupied / Billing</span>
           <div className="text-xl font-black text-amber-400 font-mono">{occupiedCount}</div>
         </div>
-        <div className="p-3 rounded-xl border border-slate-800 bg-[#141620]">
+        <div className="p-3 rounded-xl border border-slate-800 bg-slate-900">
           <span className="text-[11px] text-slate-400 font-bold">Running Order Value</span>
           <div className="text-xl font-black text-emerald-400 font-mono">
             ₹{runningTotal.toLocaleString('en-IN')}
           </div>
         </div>
-        <div className="p-3 rounded-xl border border-slate-800 bg-[#141620]">
+        <div className="p-3 rounded-xl border border-slate-800 bg-slate-900">
           <span className="text-[11px] text-slate-400 font-bold">Vacant Tables</span>
           <div className="text-xl font-black text-blue-400 font-mono">
             {tables.filter((table) => table.currentStatus === 'AVAILABLE').length}
@@ -175,7 +187,7 @@ export const CashierTableManagementView: React.FC<CashierTableManagementViewProp
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
           <span className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
             {error}
@@ -208,7 +220,7 @@ export const CashierTableManagementView: React.FC<CashierTableManagementViewProp
                     : isOccupied
                     ? 'border-amber-500/50 bg-amber-950/30 hover:border-amber-500'
                     : isDark
-                    ? 'border-slate-800 bg-[#141620] hover:border-slate-700'
+                    ? 'border-slate-800 bg-slate-900 hover:border-slate-700'
                     : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
@@ -247,7 +259,7 @@ export const CashierTableManagementView: React.FC<CashierTableManagementViewProp
                   </span>
                   <span className="text-[10px] text-amber-400 font-bold flex items-center gap-0.5">
                     <Receipt className="w-3 h-3" />
-                    <span>{table.activeSessionId ? 'Bill' : 'View'}</span>
+                    <span>{table.currentStatus === 'PAYMENT_SETTLED' ? 'Release' : table.activeSessionId ? 'Bill' : 'View'}</span>
                     <ArrowRight className="w-3 h-3" />
                   </span>
                 </div>

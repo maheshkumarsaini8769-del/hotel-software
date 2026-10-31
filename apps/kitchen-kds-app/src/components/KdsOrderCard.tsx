@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { KdsOrderCardModel, KdsHelper } from '@spicehub/ui';
+import { Printer, X } from 'lucide-react';
 
 export interface KdsOrderCardProps {
   order: KdsOrderCardModel;
@@ -17,6 +18,7 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
   onToggleItemStatus,
 }) => {
   const urgencyStyle = KdsHelper.getUrgencyStyle(order.urgencyLevel);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   // Live second-by-second ticking timer for Kitchen Chefs
   const [elapsedSeconds, setElapsedSeconds] = React.useState<number>(() => {
@@ -67,7 +69,7 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
       case 'SERVED':
         return <span className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[11px] font-semibold">SERVED</span>;
       case 'CANCELLED':
-        return <span className="bg-rose-900/50 text-rose-300 border border-rose-700 px-2 py-0.5 rounded text-[11px] font-semibold">CANCELLED</span>;
+        return <span className="bg-red-900/50 text-red-300 border border-red-700 px-2 py-0.5 rounded text-[11px] font-semibold">CANCELLED</span>;
       case 'PLACED':
       default:
         return <span className="bg-sky-500/20 text-sky-300 border border-sky-500/30 px-2 py-0.5 rounded text-[11px] font-bold">NEW ORDER</span>;
@@ -188,8 +190,17 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
         })}
       </div>
 
-      {/* Card Action Buttons (1-Tap Progression) */}
+      {/* Card Action Buttons (1-Tap Progression & KOT Print) */}
       <div className="p-3 bg-slate-950/80 border-t border-slate-800 flex items-center space-x-2">
+        <button
+          type="button"
+          onClick={() => setIsPrintModalOpen(true)}
+          title="Print 80mm Thermal KOT"
+          className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700 transition active:scale-95 shrink-0"
+        >
+          <Printer className="w-4 h-4" />
+        </button>
+
         {(order.orderStatus === 'PLACED' || order.orderStatus === 'ACCEPTED') && (
           <button
             data-testid={`kds-btn-start-preparing-${order.id}`}
@@ -223,6 +234,103 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
           </button>
         )}
       </div>
+
+      {/* 80mm Thermal KOT Print Modal */}
+      {isPrintModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-xs bg-white text-slate-900 rounded-2xl p-5 shadow-sm dark:shadow-none font-mono text-xs border border-slate-300 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-dashed border-slate-400">
+              <span className="font-bold text-xs flex items-center gap-1.5 text-slate-800">
+                <Printer className="w-3.5 h-3.5 text-amber-600" />
+                Thermal KOT Ticket
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(false)}
+                className="text-slate-500 hover:text-black font-bold text-xs p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Thermal Print Slip */}
+            <div className="text-center pb-2 border-b border-dashed border-slate-300 space-y-0.5">
+              <div className="font-black text-sm uppercase tracking-wider">KITCHEN ORDER TICKET (KOT)</div>
+              <div className="text-[10px] text-slate-600 font-bold">HOT PASS • MAIN KITCHEN</div>
+              <div className="text-[11px] font-black text-slate-900 mt-1">KOT: {order.orderNumber}</div>
+            </div>
+
+            <div className="text-[11px] space-y-0.5 border-b border-dashed border-slate-300 pb-2">
+              <div className="flex justify-between font-bold">
+                <span>Location:</span>
+                <span>{getLocationLabel()}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Server / Captain:</span>
+                <span>{(order as any).waiterName || 'Floor Captain'}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Time Placed:</span>
+                <span>{new Date(order.placedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Ticket Type:</span>
+                <span className="uppercase font-bold">{order.orderType}</span>
+              </div>
+            </div>
+
+            {/* Special Instructions */}
+            {order.cookingInstructions && (
+              <div className="p-2 rounded bg-amber-50 border border-amber-300 text-amber-900 text-[10px] font-bold">
+                NOTE: {order.cookingInstructions}
+              </div>
+            )}
+
+            {/* Items */}
+            <div className="space-y-1.5 border-b border-dashed border-slate-300 pb-2">
+              <div className="font-bold uppercase tracking-wider text-[9px] text-slate-500 flex justify-between">
+                <span>QTY & ITEM</span>
+                <span>STATUS</span>
+              </div>
+              {order.items.map((item, idx) => (
+                <div key={idx} className="text-xs">
+                  <div className="flex justify-between font-bold">
+                    <span>{item.quantity}x {item.name}</span>
+                    <span className="text-[10px] text-slate-500 font-normal">{item.itemStatus}</span>
+                  </div>
+                  {item.specialInstructions && (
+                    <div className="text-[10px] text-red-600 pl-4 font-semibold italic">
+                      ↳ {item.specialInstructions}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="text-center text-[9px] text-slate-500">
+              *** END OF KOT TICKET ***
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(false)}
+                className="flex-1 py-2 rounded-xl border border-slate-300 font-bold text-xs text-slate-700 hover:bg-slate-100"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 py-2 rounded-xl bg-slate-900 hover:bg-black font-bold text-xs text-white flex items-center justify-center gap-1.5 shadow"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print KOT</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

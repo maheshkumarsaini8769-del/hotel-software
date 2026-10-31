@@ -100,7 +100,7 @@ export const RequisitionCardList: React.FC<RequisitionCardListProps> = ({
             return (
               <div
                 key={req._id}
-                className="bg-[#0f131a] rounded-2xl border border-zinc-800 hover:border-zinc-700 p-5 flex flex-col justify-between shadow-lg transition-all group"
+                className="bg-slate-900 rounded-2xl border border-zinc-800 hover:border-zinc-700 p-5 flex flex-col justify-between shadow-lg transition-all group"
               >
                 <div>
                   {/* Top Bar: Requisition # & Urgency */}
@@ -162,7 +162,7 @@ export const RequisitionCardList: React.FC<RequisitionCardListProps> = ({
                       type="button"
                       onClick={() => onIssueClick(req)}
                       disabled={loading}
-                      className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_12px_rgba(245,158,11,0.25)] flex items-center justify-center gap-1.5"
+                      className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center justify-center gap-1.5"
                     >
                       <span>📦</span>
                       <span>Issue Stock (Storekeeper)</span>

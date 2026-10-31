@@ -58,6 +58,12 @@ import {
   getRateOverrideAuditLog,
   getRoomTypes,
   updateRoomTypeTariff,
+  createRoomType,
+  deleteRoomType,
+  getPmsRooms,
+  createPmsRoom,
+  updatePmsRoom,
+  deletePmsRoom,
 } from '../controllers/frontDeskController';
 import {
   openFrontDeskShift,
@@ -162,9 +168,17 @@ export const authenticateFrontDeskTerminal = async (
 router.get('/rooms/search', searchAvailableRooms);
 router.post('/bookings/create', createRoomBooking);
 
+// PMS Physical Rooms Inventory & Capacity Governance
+router.get('/rooms', authenticateFrontDeskTerminal, getPmsRooms);
+router.post('/rooms', authenticateFrontDeskTerminal, createPmsRoom);
+router.patch('/rooms/:roomId', authenticateFrontDeskTerminal, updatePmsRoom);
+router.delete('/rooms/:roomId', authenticateFrontDeskTerminal, deletePmsRoom);
+
 // Room Type & Tariff Matrix (reception editor + corporate group booking)
 router.get('/room-types', authenticateFrontDeskTerminal, getRoomTypes);
+router.post('/room-types', authenticateFrontDeskTerminal, createRoomType);
 router.put('/room-types/:roomTypeId', authenticateFrontDeskTerminal, updateRoomTypeTariff);
+router.delete('/room-types/:roomTypeId', authenticateFrontDeskTerminal, deleteRoomType);
 
 // Shift 57 & Shift 58: Flexible Front Desk Check-in, Expected Arrivals & In-Room Guest Portal
 router.get('/frontdesk/available-rooms', authenticateFrontDeskTerminal, getFrontDeskAvailableRooms);

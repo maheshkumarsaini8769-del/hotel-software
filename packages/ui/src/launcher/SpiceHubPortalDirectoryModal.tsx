@@ -240,7 +240,7 @@ export const SpiceHubPortalDirectoryModal: React.FC<SpiceHubPortalDirectoryModal
       data-testid="spicehub-portal-directory"
       className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
     >
-      <div className="bg-[#0b0f19] border border-slate-800 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col my-auto max-h-[92vh] overflow-hidden text-slate-100">
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-5xl shadow-sm dark:shadow-none flex flex-col my-auto max-h-[92vh] overflow-hidden text-slate-100">
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-slate-800 bg-slate-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -297,14 +297,14 @@ export const SpiceHubPortalDirectoryModal: React.FC<SpiceHubPortalDirectoryModal
 
         {/* Subscription Notice Banner */}
         {blockedNotice && (
-          <div className="mx-4 sm:mx-6 mt-3 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between text-xs text-rose-300 animate-in fade-in">
+          <div className="mx-4 sm:mx-6 mt-3 p-3 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-between text-xs text-red-300 animate-in fade-in">
             <span className="flex items-center gap-2">
               <span>🔒</span>
               <span>{blockedNotice}</span>
             </span>
             <button
               onClick={() => setBlockedNotice(null)}
-              className="text-rose-400 hover:text-white font-bold ml-2"
+              className="text-red-400 hover:text-white font-bold ml-2"
             >
               ✕
             </button>
@@ -362,7 +362,7 @@ export const SpiceHubPortalDirectoryModal: React.FC<SpiceHubPortalDirectoryModal
                                     </span>
                                   )}
                                   {!isSubscribed && (
-                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
                                       Locked
                                     </span>
                                   )}
@@ -384,7 +384,7 @@ export const SpiceHubPortalDirectoryModal: React.FC<SpiceHubPortalDirectoryModal
                         <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
                           <span className="text-[11px] font-medium text-slate-500">
                             {!isSubscribed ? (
-                              <span className="text-rose-400 font-bold flex items-center gap-1">
+                              <span className="text-red-400 font-bold flex items-center gap-1">
                                 <span>🔒</span> Not Subscribed
                               </span>
                             ) : (

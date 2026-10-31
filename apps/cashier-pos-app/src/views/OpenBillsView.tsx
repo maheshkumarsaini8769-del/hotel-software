@@ -136,7 +136,7 @@ export const OpenBillsView: React.FC<OpenBillsViewProps> = ({
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div
         className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
         }`}
       >
         <div>
@@ -198,7 +198,7 @@ export const OpenBillsView: React.FC<OpenBillsViewProps> = ({
                 filterType === f.type
                   ? 'bg-amber-600 text-white shadow-md'
                   : isDark
-                    ? 'bg-[#141620] border border-slate-800 text-slate-400 hover:text-white'
+                    ? 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
                     : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
               }`}
             >
@@ -221,7 +221,7 @@ export const OpenBillsView: React.FC<OpenBillsViewProps> = ({
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
           <span className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
             {error}
@@ -240,7 +240,7 @@ export const OpenBillsView: React.FC<OpenBillsViewProps> = ({
       ) : filtered.length === 0 ? (
         <div
           className={`rounded-2xl border px-6 py-14 text-center ${
-            isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
           }`}
         >
           <UtensilsCrossed className="w-9 h-9 text-slate-500 mx-auto mb-3" />
@@ -258,7 +258,7 @@ export const OpenBillsView: React.FC<OpenBillsViewProps> = ({
               key={b.id}
               className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 transition ${
                 isDark
-                  ? 'bg-[#141620] border-slate-800 hover:border-slate-700'
+                  ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
                   : 'bg-white border-slate-200 shadow-sm'
               }`}
             >

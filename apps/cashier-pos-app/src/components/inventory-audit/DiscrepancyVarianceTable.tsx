@@ -48,7 +48,7 @@ export const DiscrepancyVarianceTable: React.FC<DiscrepancyVarianceTableProps> =
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="bg-[#0e121a] text-zinc-400 font-semibold border-b border-zinc-800 uppercase tracking-wider text-[11px]">
+          <thead className="bg-slate-900 text-zinc-400 font-semibold border-b border-zinc-800 uppercase tracking-wider text-[11px]">
             <tr>
               <th className="px-4 py-3">Item Details</th>
               <th className="px-4 py-3 text-right">System Book</th>

@@ -30,4 +30,6 @@ export interface CartPricingSummary {
   taxAmount: number;
   totalAmount: number;
   itemCount: number;
+  discountAmount?: number;
+  promoCode?: string;
 }

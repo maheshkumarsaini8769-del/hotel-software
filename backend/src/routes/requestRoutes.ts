@@ -63,6 +63,8 @@ export const authenticateWaiterAction = async (
 };
 
 // Protected Waiter / Staff actions
+router.get('/', requirePortal('waiter'), authenticateWaiterAction, getWaiterRequests);
+router.get('/waiter', requirePortal('waiter'), authenticateWaiterAction, getWaiterRequests);
 router.get('/waiter/assigned', requirePortal('waiter'), authenticateWaiterAction, getWaiterRequests);
 router.patch('/waiter/shift-status', requirePortal('waiter'), authenticateWaiterAction, updateWaiterShiftStatus);
 

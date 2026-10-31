@@ -39,11 +39,11 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({
   };
 
   return (
-    <div className="flex h-screen min-h-screen flex-col bg-[#07090e] text-zinc-100">
+    <div className="flex h-screen min-h-screen flex-col bg-slate-950 text-zinc-100">
       {showBanner && (
         <div
           data-testid="reception-embed-banner"
-          className="h-10 max-h-[48px] shrink-0 border-b border-indigo-500/30 bg-indigo-950/80 px-4 py-1 text-indigo-200 flex items-center justify-between gap-3 text-xs overflow-hidden"
+          className="h-10 max-h-[48px] shrink-0 border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 px-4 py-1 text-slate-700 dark:text-slate-300 flex items-center justify-between gap-3 text-xs overflow-hidden"
         >
           <div className="flex items-center gap-2 min-w-0 truncate">
             <span className="text-sm shrink-0">🏨</span>
@@ -55,7 +55,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({
               href={getPortalUrl('reception')}
               target="_blank"
               rel="noreferrer"
-              className="font-bold text-indigo-400 hover:text-indigo-300 underline shrink-0 inline-flex items-center gap-1 min-h-[32px]"
+              className="font-bold text-slate-700 dark:text-slate-300 hover:text-slate-700 dark:text-slate-300 underline shrink-0 inline-flex items-center gap-1 min-h-[32px]"
             >
               <span>Launch Dedicated Terminal (:3008)</span>
               <span>↗</span>
@@ -66,13 +66,13 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({
             data-testid="reception-banner-close-btn"
             onClick={handleDismissBanner}
             aria-label="Close reception standalone banner"
-            className="min-w-[32px] min-h-[32px] flex items-center justify-center rounded text-indigo-400/70 hover:text-indigo-200 hover:bg-indigo-900/50 shrink-0 transition"
+            className="min-w-[32px] min-h-[32px] flex items-center justify-center rounded text-slate-700 dark:text-slate-300/70 hover:text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800 shrink-0 transition"
           >
             ✕
           </button>
         </div>
       )}
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-[#0b0f17] px-4 py-2.5">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-4 py-2.5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 text-white">
             <BedDouble className="h-4 w-4" />

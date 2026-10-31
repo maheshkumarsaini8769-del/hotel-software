@@ -15,7 +15,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onEdit, onView }
   const grossProfitAmount = Math.max(0, (recipe.targetSellingPrice || 0) - (recipe.costPerPortion || 0));
 
   return (
-    <div className="bg-[#0f131a] rounded-2xl border border-zinc-800 hover:border-amber-500/40 p-5 flex flex-col justify-between transition-all duration-200 group shadow-lg">
+    <div className="bg-slate-900 rounded-2xl border border-zinc-800 hover:border-amber-500/40 p-5 flex flex-col justify-between transition-all duration-200 group shadow-lg">
       <div>
         {/* Header: Recipe Code & Health Badge */}
         <div className="flex items-center justify-between gap-2 pb-3 border-b border-zinc-800/80">

@@ -26,12 +26,12 @@ export const MenuEngineeringHeader: React.FC<MenuEngineeringHeaderProps> = ({
   };
 
   return (
-    <div className="bg-[#0b0e14] border-b border-amber-500/20 px-6 py-6 text-zinc-100 shadow-xl">
+    <div className="bg-slate-950 border-b border-amber-500/20 px-6 py-6 text-zinc-100 shadow-xl">
       {/* Title & Actions */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <span className="h-3 w-3 rounded-full bg-amber-400 animate-pulse shadow-[0_0_12px_rgba(245,158,11,0.8)]" />
+            <span className="h-3 w-3 rounded-full bg-amber-400 animate-pulse shadow-sm dark:shadow-none" />
             <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
               F&B Menu Engineering Matrix & BCG Profitability Analyzer
             </h1>
@@ -48,7 +48,7 @@ export const MenuEngineeringHeader: React.FC<MenuEngineeringHeaderProps> = ({
           <button
             type="button"
             onClick={onOpenSimulator}
-            className="px-4 py-2.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 font-bold text-xs uppercase tracking-wider border border-purple-500/40 transition-all flex items-center gap-2"
+            className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider border border-slate-200 dark:border-slate-800 transition-all flex items-center gap-2"
           >
             <span>🔮</span> What-If Price Simulator
           </button>
@@ -87,24 +87,24 @@ export const MenuEngineeringHeader: React.FC<MenuEngineeringHeaderProps> = ({
           </div>
         </div>
 
-        <div className="bg-zinc-900/80 border border-purple-500/30 p-4 rounded-2xl flex flex-col justify-between">
+        <div className="bg-zinc-900/80 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-purple-400">Puzzles (🧩)</span>
-            <span className="text-[10px] text-purple-500/80 bg-purple-500/10 px-2 py-0.5 rounded">Low Vol • High Margin</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">Puzzles (🧩)</span>
+            <span className="text-[10px] text-slate-700 dark:text-slate-300/80 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">Low Vol • High Margin</span>
           </div>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-3xl font-black text-purple-400">{summary.puzzlesCount}</span>
+            <span className="text-3xl font-black text-slate-700 dark:text-slate-300">{summary.puzzlesCount}</span>
             <span className="text-xs text-zinc-400">Upsell & Reposition</span>
           </div>
         </div>
 
-        <div className="bg-zinc-900/80 border border-rose-500/30 p-4 rounded-2xl flex flex-col justify-between">
+        <div className="bg-zinc-900/80 border border-red-500/30 p-4 rounded-2xl flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-rose-400">Dogs (🐕)</span>
-            <span className="text-[10px] text-rose-500/80 bg-rose-500/10 px-2 py-0.5 rounded">Low Vol • Low Margin</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-red-400">Dogs (🐕)</span>
+            <span className="text-[10px] text-red-500/80 bg-red-500/10 px-2 py-0.5 rounded">Low Vol • Low Margin</span>
           </div>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-3xl font-black text-rose-400">{summary.dogsCount}</span>
+            <span className="text-3xl font-black text-red-400">{summary.dogsCount}</span>
             <span className="text-xs text-zinc-400">Redesign or Discard</span>
           </div>
         </div>
@@ -168,7 +168,7 @@ export const MenuEngineeringHeader: React.FC<MenuEngineeringHeaderProps> = ({
           onClick={() => onTabChange('SIMULATOR')}
           className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
             activeTab === 'SIMULATOR'
-              ? 'border-purple-400 text-purple-400 bg-purple-500/10'
+              ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
               : 'border-transparent text-zinc-400 hover:text-zinc-200'
           }`}
         >

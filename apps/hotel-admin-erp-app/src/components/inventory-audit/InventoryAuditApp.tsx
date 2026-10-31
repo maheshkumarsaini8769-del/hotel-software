@@ -161,7 +161,7 @@ export const InventoryAuditApp: React.FC<InventoryAuditAppProps> = ({
   }, [state.sessions]);
 
   return (
-    <div className="min-h-screen bg-[#06080d] text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans">
       {/* Header with KPIs & Tab Bar */}
       <InventoryAuditHeader
         metrics={state.metrics}
@@ -280,9 +280,9 @@ export const InventoryAuditApp: React.FC<InventoryAuditAppProps> = ({
         {/* Tab 3: Discrepancy Reconciliation Board */}
         {activeTab === 'RECONCILE' && (
           <div className="space-y-6">
-            <div className="bg-teal-500/10 border border-teal-500/30 p-4 rounded-2xl flex items-center justify-between">
+            <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-teal-300">
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">
                   Financial Controller Discrepancy Review Board
                 </h3>
                 <p className="text-xs text-zinc-400 mt-0.5">

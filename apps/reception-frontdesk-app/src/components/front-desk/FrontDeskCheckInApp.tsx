@@ -7,6 +7,7 @@ export interface FrontDeskCheckInAppProps {
   hotelId?: string;
   preselectedRoomNumber?: string;
   onBackToMatrix?: () => void;
+  isDark?: boolean;
 }
 
 interface ExpectedArrival {
@@ -18,10 +19,25 @@ interface ExpectedArrival {
   roomTypeId: string;
   roomTypeName: string;
   roomTypeCode: string;
+  allocatedRoomId?: string;
+  allocatedRoomNumber?: string;
   checkInDate: string;
   checkOutDate: string;
   bookingSource: string;
   bookingMode: string;
+  bookingStatus?: string;
+  idProofType?: string;
+  idProofNumber?: string;
+  aadhaarFrontUrl?: string;
+  aadhaarBackUrl?: string;
+  nights?: number;
+  estimatedArrivalTime?: string;
+  secondaryGuestName?: string;
+  secondaryGuestPhone?: string;
+  secondaryGuestRelationship?: string;
+  distanceFromHotelKm?: number;
+  guestPhoneVerified?: boolean;
+  bookingLocation?: string;
   totalTariff: number;
   taxAmount: number;
   grandTotal: number;
@@ -506,6 +522,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   hotelId: propHotelId,
   preselectedRoomNumber,
   onBackToMatrix,
+  isDark = true,
 }) => {
   const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER' | 'SDB' | 'LUGGAGE' | 'PARCEL' | 'LOST_AND_FOUND'>('CHECKIN');
   const [loading, setLoading] = useState(false);
@@ -523,6 +540,9 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
 
   // Loaded Online Pre-Booking (if arriving via online queue)
   const [loadedBooking, setLoadedBooking] = useState<ExpectedArrival | null>(null);
+  const [arrivalStatusFilter, setArrivalStatusFilter] = useState<'ALL' | 'PENDING' | 'CONFIRMED'>('ALL');
+  const [previewDocModalUrl, setPreviewDocModalUrl] = useState<string | null>(null);
+  const [previewDocTitle, setPreviewDocTitle] = useState<string>('Aadhaar Document');
 
   // Concierge & Housekeeping Desk Requests (Shift 60)
   const [conciergeRequests, setConciergeRequests] = useState<ConciergeDeskRequest[]>([]);
@@ -808,6 +828,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const [isCouple, setIsCouple] = useState(false);
   const [idNumber, setIdNumber] = useState('');
   const [verifiedByReceptionist, setVerifiedByReceptionist] = useState(true);
+  const [dpdpConsent, setDpdpConsent] = useState(false);
   const [checkInDate, setCheckInDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [checkOutDate, setCheckOutDate] = useState(() => new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0]);
   const [stayNights, setStayNights] = useState<number>(2);
@@ -909,22 +930,13 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             setSelectedRoomId((prev) => prev || rooms[0].id || rooms[0]._id);
           }
         } else {
-          setAvailableRooms([
-            { id: 'rm-101', _id: 'rm-101', roomNumber: '101', floorNumber: 1, basePrice: 4500 },
-            { id: 'rm-102', _id: 'rm-102', roomNumber: '102', floorNumber: 1, basePrice: 4500 },
-            { id: 'rm-201', _id: 'rm-201', roomNumber: '201', floorNumber: 2, basePrice: 4500 },
-            { id: 'rm-202', _id: 'rm-202', roomNumber: '202', floorNumber: 2, basePrice: 4500 },
-            { id: 'rm-301', _id: 'rm-301', roomNumber: '301', floorNumber: 3, basePrice: 6500 },
-          ]);
-          setSelectedRoomId('rm-101');
+          setAvailableRooms([]);
+          setSelectedRoomId('');
         }
       } catch (err: any) {
-        setAvailableRooms([
-          { id: 'rm-101', _id: 'rm-101', roomNumber: '101', floorNumber: 1, basePrice: 3900 },
-          { id: 'rm-102', _id: 'rm-102', roomNumber: '102', floorNumber: 1, basePrice: 3900 },
-          { id: 'rm-201', _id: 'rm-201', roomNumber: '201', floorNumber: 2, basePrice: 4900 },
-        ]);
-        setSelectedRoomId('rm-101');
+        setAvailableRooms([]);
+        setSelectedRoomId('');
+        console.warn('Available rooms fetch note:', err?.message);
       }
 
       // 4. Fetch Concierge & Housekeeping Desk Requests (Shift 60)
@@ -2499,6 +2511,66 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
     showToast(`✅ Pre-Booking ${bkg.bookingNumber} loaded! Online advance of ₹${bkg.advancePaymentAmount} credited.`);
   };
 
+  // Direct In-Person Verification & Room Unlock for Remote Bookings
+  const handleApproveRemoteCheckIn = async (bkg: ExpectedArrival) => {
+    try {
+      setLoading(true);
+      const res = await axios.post(
+        `${apiBase}/guest-portal/rooms/approve-checkin`,
+        {
+          bookingId: bkg.bookingId,
+          bookingNumber: bkg.bookingNumber,
+          hotelId,
+        },
+        { headers: authHeaders }
+      );
+      if (res.data?.success) {
+        const roomNum = res.data.data?.roomNumber || bkg.allocatedRoomNumber || '';
+        showToast(`✅ Physical ID Verified & Approved! Room ${roomNum} unlocked with active digital keycard.`);
+        await loadData();
+        await loadActiveInHouseStays();
+      } else {
+        showToast(`❌ Verification error: ${res.data?.message || 'Approval failed'}`);
+      }
+    } catch (err: any) {
+      showToast(`❌ Verification error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Direct Rejection for Remote Bookings
+  const handleRejectRemoteCheckIn = async (bkg: ExpectedArrival) => {
+    const reason = window.prompt(
+      `Please provide a reason for rejecting booking #${bkg.bookingNumber}:`,
+      'Physical ID document verification rejected by Reception Front Desk'
+    );
+    if (reason === null) return; // User cancelled prompt
+    try {
+      setLoading(true);
+      const res = await axios.post(
+        `${apiBase}/guest-portal/rooms/reject-checkin`,
+        {
+          bookingId: bkg.bookingId,
+          bookingNumber: bkg.bookingNumber,
+          hotelId,
+          reason: reason.trim() || 'Physical ID document verification rejected by Reception',
+        },
+        { headers: authHeaders }
+      );
+      if (res.data?.success) {
+        showToast(`✕ Booking #${bkg.bookingNumber} rejected and room released.`);
+        await loadData();
+      } else {
+        showToast(`❌ Rejection error: ${res.data?.message || 'Failed to reject'}`);
+      }
+    } catch (err: any) {
+      showToast(`❌ Rejection error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSearchHistory = async () => {
     if (!searchHistoryQuery.trim()) return;
     setLoading(true);
@@ -2519,6 +2591,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
 
   const handleExecuteCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!dpdpConsent) {
+      showToast('⚠️ Guest must consent to KYC data storage as per DPDP Act 2023');
+      return;
+    }
     if (!guestName || !guestPhone) {
       showToast('⚠️ Please enter Guest Name and Phone Number');
       return;
@@ -2538,6 +2614,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
         idType: idProofType === 'Aadhaar Card' ? 'AADHAAR' : idProofType.toUpperCase(),
         idNumber: idNumber || 'XXXX-XXXX-1234',
         verifiedByReceptionist: true,
+        dpdpConsent: {
+          accepted: true,
+          timestamp: new Date(),
+        },
         receptionistNotes: receptionistNotes || `Walk-in reservation for ${stayNights} nights. ID: ${idProofType} verified.`,
         advancePaid: Number(advancePaid) || 0,
         nights: stayNights,
@@ -2591,89 +2671,123 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   const balanceDue = Math.max(0, grandTotal - Number(advancePaid || 0));
 
   return (
-    <div className="min-h-screen bg-[#06080d] text-zinc-100 flex flex-col font-sans p-6 space-y-6">
+    <div className={`min-h-screen flex flex-col font-sans p-3 sm:p-6 space-y-6 transition-colors ${
+      isDark ? 'bg-slate-950 text-zinc-100' : 'bg-slate-50 text-slate-800'
+    }`}>
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-6 right-6 z-50 bg-gradient-to-r from-amber-500 to-amber-600 text-zinc-950 font-bold px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-amber-300">
+        <div className="fixed top-6 right-6 z-50 bg-gradient-to-r from-amber-500 to-amber-600 text-zinc-950 font-bold px-5 py-3 rounded-xl shadow-sm dark:shadow-none flex items-center gap-3 border border-amber-300">
           <span>🔔</span>
           <span>{toastMessage}</span>
         </div>
       )}
 
       {/* Top Header & Metrics Bar */}
-      <div className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl backdrop-blur-xl shadow-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      <div className={`p-4 sm:p-6 rounded-3xl border backdrop-blur-xl transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-6 ${
+        isDark ? 'bg-zinc-900/90 border-zinc-800 shadow-sm dark:shadow-none' : 'bg-white border-slate-200 shadow-2xs'
+      }`}>
         <div>
           <div className="flex items-center gap-3">
-            <span className="p-2.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl text-xl">
+            <span className={`p-2.5 rounded-2xl text-xl border ${
+              isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}>
               🛎️
             </span>
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+              <h1 className={`text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2 flex-wrap ${
+                isDark ? 'text-white' : 'text-slate-800'
+              }`}>
                 Front Desk Reception & Pre-Booking Arrival Bridge
-                <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono uppercase">
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono uppercase border ${
+                  isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-amber-50 text-amber-800 border-amber-200'
+                }`}>
                   Shift 58 • In-Room Portal Binding
                 </span>
               </h1>
-              <p className="text-xs text-zinc-400 mt-1">
+              <p className={`text-xs mt-1 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
                 Online Pre-Booking Queue • 1-Click Key Allotment • In-Room Portal (:3004) Live Stay & Folio Hydration
               </p>
             </div>
           </div>
         </div>
 
-        {/* 5 Metric Badges */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {/* 7 Metric Badges */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
           <div
             data-testid="metric-expected-arrivals"
-            className="bg-zinc-950/70 border border-amber-500/40 p-3 rounded-2xl text-center cursor-pointer hover:border-amber-400 transition"
+            className={`p-3 rounded-2xl text-center cursor-pointer transition border ${
+              isDark
+                ? 'bg-zinc-950/70 border-amber-500/40 hover:border-amber-400'
+                : 'bg-amber-50/70 border-amber-200 hover:border-amber-300'
+            }`}
             onClick={() => setActiveTab('ARRIVALS')}
           >
-            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Expected Arrivals</span>
-            <div className="text-xl font-black text-amber-300 mt-0.5">{expectedArrivals.length}</div>
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>Expected Arrivals</span>
+            <div className={`text-xl font-black mt-0.5 ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>{expectedArrivals.length}</div>
           </div>
           <div
             data-testid="metric-inhouse-stays"
-            className="bg-zinc-950/70 border border-zinc-800 p-3 rounded-2xl text-center cursor-pointer hover:border-zinc-700 transition"
+            className={`p-3 rounded-2xl text-center cursor-pointer transition border ${
+              isDark
+                ? 'bg-zinc-950/70 border-zinc-800 hover:border-zinc-700'
+                : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
+            }`}
             onClick={() => setActiveTab('IN_HOUSE')}
           >
-            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">In-House Stays</span>
-            <div className="text-xl font-black text-white mt-0.5">{inHouseGuests.length}</div>
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>In-House Stays</span>
+            <div className={`text-xl font-black mt-0.5 ${isDark ? 'text-white' : 'text-slate-800'}`}>{inHouseGuests.length}</div>
           </div>
-          <div className="bg-zinc-950/70 border border-emerald-500/30 p-3 rounded-2xl text-center">
-            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Couple Stays</span>
-            <div className="text-xl font-black text-emerald-400 mt-0.5">{coupleCount}</div>
+          <div className={`p-3 rounded-2xl text-center border ${
+            isDark ? 'bg-zinc-950/70 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'
+          }`}>
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-emerald-400' : 'text-emerald-800'}`}>Couple Stays</span>
+            <div className={`text-xl font-black mt-0.5 ${isDark ? 'text-emerald-400' : 'text-emerald-800'}`}>{coupleCount}</div>
           </div>
-          <div className="bg-zinc-950/70 border border-cyan-500/30 p-3 rounded-2xl text-center">
-            <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">Available Rooms</span>
-            <div className="text-xl font-black text-cyan-400 mt-0.5">{availableRooms.length}</div>
+          <div className={`p-3 rounded-2xl text-center border ${
+            isDark ? 'bg-zinc-950/70 border-slate-200 dark:border-slate-800' : 'bg-blue-50/70 border-blue-200'
+          }`}>
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-blue-800'}`}>Available Rooms</span>
+            <div className={`text-xl font-black mt-0.5 ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-blue-800'}`}>{availableRooms.length}</div>
           </div>
           <div
             data-testid="metric-concierge-tasks"
-            className="bg-zinc-950/70 border border-purple-500/40 p-3 rounded-2xl text-center cursor-pointer hover:border-purple-400 transition"
+            className={`p-3 rounded-2xl text-center cursor-pointer transition border ${
+              isDark
+                ? 'bg-zinc-950/70 border-slate-200 dark:border-slate-800 hover:border-slate-200 dark:border-slate-800'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 hover:border-slate-200 dark:border-slate-800'
+            }`}
             onClick={() => setActiveTab('CONCIERGE')}
           >
-            <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Concierge Tasks</span>
-            <div className="text-xl font-black text-purple-300 mt-0.5">
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>Concierge Tasks</span>
+            <div className={`text-xl font-black mt-0.5 ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>
               {conciergeRequests.filter((r) => r.status !== 'COMPLETED').length}
             </div>
           </div>
           <div
             data-testid="metric-turnaround-queue"
-            className="bg-zinc-950/70 border border-teal-500/40 p-3 rounded-2xl text-center cursor-pointer hover:border-teal-400 transition"
+            className={`p-3 rounded-2xl text-center cursor-pointer transition border ${
+              isDark
+                ? 'bg-zinc-950/70 border-slate-200 dark:border-slate-800 hover:border-slate-200 dark:border-slate-800'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 hover:border-slate-200 dark:border-slate-800'
+            }`}
             onClick={() => setActiveTab('TURNAROUND')}
           >
-            <span className="text-[10px] font-bold text-teal-400 uppercase tracking-wider">Turnaround Queue</span>
-            <div className="text-xl font-black text-teal-300 mt-0.5">
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>Turnaround Queue</span>
+            <div className={`text-xl font-black mt-0.5 ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>
               {turnaroundQueue.filter((t) => t.status !== 'INSPECTED_PASSED').length}
             </div>
           </div>
           <div
             data-testid="metric-maintenance-tickets"
-            className="bg-zinc-950/70 border border-red-500/40 p-3 rounded-2xl text-center cursor-pointer hover:border-red-400 transition"
+            className={`p-3 rounded-2xl text-center cursor-pointer transition border col-span-2 sm:col-span-1 ${
+              isDark
+                ? 'bg-zinc-950/70 border-red-500/40 hover:border-red-400'
+                : 'bg-red-50/70 border-red-200 hover:border-red-300'
+            }`}
             onClick={() => setActiveTab('MAINTENANCE')}
           >
-            <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Out-Of-Service (OOS)</span>
-            <div className="text-xl font-black text-red-400 mt-0.5">
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-red-400' : 'text-red-800'}`}>Out-Of-Service</span>
+            <div className={`text-xl font-black mt-0.5 ${isDark ? 'text-red-400' : 'text-red-800'}`}>
               {maintenanceTickets.filter((t) => t.status !== 'CLOSED').length}
             </div>
           </div>
@@ -2681,15 +2795,19 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
       </div>
 
       {/* Modern Tabs Navigation */}
-      <div className="flex items-center gap-2 border-b border-zinc-800 pb-0 overflow-x-auto">
+      <div className={`flex items-center gap-2 border-b pb-0 overflow-x-auto ${
+        isDark ? 'border-zinc-800' : 'border-slate-200'
+      }`}>
         <button
           type="button"
           data-testid="tab-checkin"
           onClick={() => setActiveTab('CHECKIN')}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'CHECKIN'
-              ? 'border-amber-400 text-amber-400 bg-amber-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-amber-400 text-amber-500 bg-amber-500/10'
+              : isDark
+                ? 'border-transparent text-zinc-400 hover:text-zinc-200'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>🛎️</span> Quick Check-In Terminal
@@ -2700,8 +2818,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           onClick={() => setActiveTab('ARRIVALS')}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'ARRIVALS'
-              ? 'border-amber-400 text-amber-400 bg-amber-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-amber-400 text-amber-500 bg-amber-500/10'
+              : isDark
+                ? 'border-transparent text-zinc-400 hover:text-zinc-200'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>🌐</span> Online Pre-Bookings & Expected Arrivals ({expectedArrivals.length})
@@ -2712,8 +2832,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           onClick={() => setActiveTab('IN_HOUSE')}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'IN_HOUSE'
-              ? 'border-cyan-400 text-cyan-400 bg-cyan-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
+              : isDark
+                ? 'border-transparent text-zinc-400 hover:text-zinc-200'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>👥</span> In-House Staying Guests ({inHouseGuests.length})
@@ -2724,8 +2846,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           onClick={() => setActiveTab('HISTORY')}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'HISTORY'
-              ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-emerald-400 text-emerald-500 bg-emerald-500/10'
+              : isDark
+                ? 'border-transparent text-zinc-400 hover:text-zinc-200'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>📜</span> Guest Stay History & Ledger
@@ -2736,8 +2860,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           onClick={() => setActiveTab('CONCIERGE')}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'CONCIERGE'
-              ? 'border-purple-400 text-purple-400 bg-purple-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
+              : isDark
+                ? 'border-transparent text-zinc-400 hover:text-zinc-200'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>🛎️</span> In-Room Concierge & Housekeeping Desk ({conciergeRequests.filter((r) => r.status !== 'COMPLETED').length})
@@ -2748,8 +2874,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           onClick={() => setActiveTab('TURNAROUND')}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'TURNAROUND'
-              ? 'border-teal-400 text-teal-400 bg-teal-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
+              : isDark
+                ? 'border-transparent text-zinc-400 hover:text-zinc-200'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>🧹</span> Housekeeping Turnaround Desk ({turnaroundQueue.filter((t) => t.status !== 'INSPECTED_PASSED').length})
@@ -2760,8 +2888,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           onClick={() => setActiveTab('MAINTENANCE')}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'MAINTENANCE'
-              ? 'border-red-400 text-red-400 bg-red-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-red-400 text-red-500 bg-red-500/10'
+              : isDark
+                ? 'border-transparent text-zinc-400 hover:text-zinc-200'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>🛠️</span> Room Maintenance & OOS Desk ({maintenanceTickets.filter((t) => t.status !== 'CLOSED').length})
@@ -2775,8 +2905,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'CASHIER'
-              ? 'border-amber-400 text-amber-400 bg-amber-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-amber-400 text-amber-500 bg-amber-500/10'
+              : isDark
+                ? 'border-transparent text-zinc-400 hover:text-zinc-200'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>💼</span> Cashier Drawer & Shift Handover
@@ -2790,8 +2922,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'SDB'
-              ? 'border-cyan-400 text-cyan-400 bg-cyan-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
+              : isDark
+                ? 'border-transparent text-zinc-400 hover:text-zinc-200'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>🔒</span> Safe Deposit Vault (SDB)
@@ -2805,8 +2939,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'LUGGAGE'
-              ? 'border-indigo-400 text-indigo-400 bg-indigo-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
+              : isDark
+                ? 'border-transparent text-zinc-400 hover:text-zinc-200'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>🧳</span> Left Luggage & Bell Desk
@@ -2820,8 +2956,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'PARCEL'
-              ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-emerald-400 text-emerald-500 bg-emerald-500/10'
+              : isDark
+                ? 'border-transparent text-zinc-400 hover:text-zinc-200'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>📦</span> Parcels & Courier Desk
@@ -2835,8 +2973,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           }}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'LOST_AND_FOUND'
-              ? 'border-amber-400 text-amber-400 bg-amber-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-amber-400 text-amber-500 bg-amber-500/10'
+              : isDark
+                ? 'border-transparent text-zinc-400 hover:text-zinc-200'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>🔍</span> Lost & Found Vault
@@ -2849,15 +2989,21 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
         {activeTab === 'CHECKIN' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Form Column */}
-            <div className="lg:col-span-2 bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-6">
-              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4">
+            <div className={`lg:col-span-2 p-6 rounded-3xl space-y-6 border transition-colors ${
+              isDark ? 'bg-zinc-900/90 border-zinc-800' : 'bg-white border-slate-200 shadow-2xs'
+            }`}>
+              <div className={`flex items-center justify-between border-b pb-4 ${
+                isDark ? 'border-zinc-800/80' : 'border-slate-100'
+              }`}>
                 <div>
-                  <h2 className="text-lg font-black text-white">Guest Arrival & Room Key Allocation</h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">
+                  <h2 className={`text-lg font-black ${isDark ? 'text-white' : 'text-slate-800'}`}>Guest Arrival & Room Key Allocation</h2>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
                     1-Click fast check-in for solo/walk-in guests or online pre-booking arrival check-in with advance credit.
                   </p>
                 </div>
-                <span className="px-3 py-1 rounded-xl text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                <span className={`px-3 py-1 rounded-xl text-xs font-mono font-bold border ${
+                  isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-amber-50 text-amber-800 border-amber-200'
+                }`}>
                   RECEPTIONIST DESK
                 </span>
               </div>
@@ -2906,35 +3052,49 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
               <form onSubmit={handleExecuteCheckIn} className="space-y-5">
                 {/* Room Selector */}
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                  <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${
+                    isDark ? 'text-zinc-400' : 'text-slate-600'
+                  }`}>
                     Select Physical Room To Allot *
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {availableRooms.slice(0, 8).map((rm) => (
-                      <button
-                        key={rm.id || rm._id || rm.roomNumber}
-                        type="button"
-                        data-testid={`room-select-${rm.roomNumber}`}
-                        onClick={() => setSelectedRoomId(rm.id || rm._id)}
-                        className={`p-3 rounded-2xl border text-left transition-all ${
-                          (selectedRoomId === rm.id || selectedRoomId === rm._id)
-                            ? 'bg-amber-500/20 border-amber-500 text-white shadow-lg shadow-amber-500/10'
-                            : 'bg-zinc-950/60 border-zinc-800 text-zinc-300 hover:border-zinc-700'
-                        }`}
-                      >
-                        <div className="text-sm font-black text-white">Room {rm.roomNumber}</div>
-                        <div className="text-[10px] text-zinc-400 mt-0.5">
-                          Floor {rm.floorNumber || rm.floor || 1} • ₹{rm.basePrice || 3900}/night
-                        </div>
-                      </button>
-                    ))}
+                    {availableRooms.length === 0 ? (
+                      <div className={`col-span-full p-4 rounded-2xl border text-center text-xs ${
+                        isDark ? 'bg-zinc-950/40 border-zinc-800 text-zinc-400' : 'bg-slate-50 border-slate-200 text-slate-500'
+                      }`}>
+                        ⚠️ No rooms currently available for check-in. All rooms are either occupied, under cleaning, or not yet created.
+                      </div>
+                    ) : (
+                      availableRooms.map((rm) => (
+                        <button
+                          key={rm.id || rm._id || rm.roomNumber}
+                          type="button"
+                          data-testid={`room-select-${rm.roomNumber}`}
+                          onClick={() => setSelectedRoomId(rm.id || rm._id)}
+                          className={`p-3 rounded-2xl border text-left transition-all ${
+                            (selectedRoomId === rm.id || selectedRoomId === rm._id)
+                              ? 'bg-amber-500/20 border-amber-500 text-amber-900 shadow-sm'
+                              : isDark
+                                ? 'bg-zinc-950/60 border-zinc-800 text-zinc-300 hover:border-zinc-700'
+                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-800'}`}>Room {rm.roomNumber}</div>
+                          <div className={`text-[10px] mt-0.5 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
+                            Floor {rm.floorNumber || rm.floor || 1} • ₹{rm.basePrice || 3900}/night
+                          </div>
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
 
                 {/* Guest Basic Details */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                      isDark ? 'text-zinc-400' : 'text-slate-600'
+                    }`}>
                       Guest Name *
                     </label>
                     <input
@@ -2944,11 +3104,17 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       placeholder="e.g. Vikramaditya & Ananya Singhania"
                       value={guestName}
                       onChange={(e) => setGuestName(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                      className={`w-full rounded-xl px-4 py-2.5 text-sm border focus:outline-none focus:border-amber-500 transition ${
+                        isDark
+                          ? 'bg-zinc-950 border-zinc-800 text-zinc-100 placeholder-zinc-600'
+                          : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
+                      }`}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                      isDark ? 'text-zinc-400' : 'text-slate-600'
+                    }`}>
                       Phone Number *
                     </label>
                     <input
@@ -2958,13 +3124,19 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       placeholder="e.g. 9821098765"
                       value={guestPhone}
                       onChange={(e) => setGuestPhone(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                      className={`w-full rounded-xl px-4 py-2.5 text-sm border focus:outline-none focus:border-amber-500 transition ${
+                        isDark
+                          ? 'bg-zinc-950 border-zinc-800 text-zinc-100 placeholder-zinc-600'
+                          : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
+                      }`}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                    isDark ? 'text-zinc-400' : 'text-slate-600'
+                  }`}>
                     Email Address (Optional)
                   </label>
                   <input
@@ -2973,14 +3145,22 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     placeholder="e.g. guest@example.com"
                     value={guestEmail}
                     onChange={(e) => setGuestEmail(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                    className={`w-full rounded-xl px-4 py-2.5 text-sm border focus:outline-none focus:border-amber-500 transition ${
+                      isDark
+                        ? 'bg-zinc-950 border-zinc-800 text-zinc-100 placeholder-zinc-600'
+                        : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
+                    }`}
                   />
                 </div>
 
                 {/* ID PROOF & STATUTORY KYC */}
-                <div className="bg-zinc-950/80 border border-zinc-800/80 p-5 rounded-2xl space-y-4">
+                <div className={`p-5 rounded-2xl space-y-4 border ${
+                  isDark ? 'bg-zinc-950/80 border-zinc-800/80' : 'bg-slate-50 border-slate-200'
+                }`}>
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-bold text-white flex items-center gap-2">
+                    <div className={`text-sm font-bold flex items-center gap-2 ${
+                      isDark ? 'text-white' : 'text-slate-800'
+                    }`}>
                       <span>🪪 ID Proof & Statutory KYC</span>
                       <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
                         UIDAI COMPLIANT
@@ -2991,14 +3171,20 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                        isDark ? 'text-zinc-400' : 'text-slate-600'
+                      }`}>
                         Select ID Proof Type *
                       </label>
                       <select
                         data-testid="select-id-proof"
                         value={idProofType}
                         onChange={(e) => setIdProofType(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-amber-500"
+                        className={`w-full rounded-xl px-4 py-2.5 text-sm border focus:outline-none focus:border-amber-500 transition ${
+                          isDark
+                            ? 'bg-zinc-900 border-zinc-800 text-zinc-100'
+                            : 'bg-white border-slate-200 text-slate-800'
+                        }`}
                       >
                         <option value="Aadhaar Card">Aadhaar Card</option>
                         <option value="Passport">Passport</option>
@@ -3008,7 +3194,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-emerald-400 mb-1.5">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1.5">
                         ID Proof Number (Masked) *
                       </label>
                       <input
@@ -3018,27 +3204,37 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         placeholder="XXXX-XXXX-1234"
                         value={idNumber}
                         onChange={(e) => setIdNumber(e.target.value)}
-                        className="w-full bg-zinc-900 border border-emerald-500/40 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-emerald-400 font-mono"
+                        className={`w-full rounded-xl px-4 py-2.5 text-sm border focus:outline-none focus:border-emerald-400 font-mono transition ${
+                          isDark
+                            ? 'bg-zinc-900 border-emerald-500/40 text-zinc-100 placeholder-zinc-600'
+                            : 'bg-white border-emerald-300 text-slate-800 placeholder-slate-400'
+                        }`}
                       />
-                      <p className="text-[10px] text-zinc-500 mt-1">
-                        Format: <strong className="text-zinc-300">XXXX-XXXX-1234</strong>
+                      <p className={`text-[10px] mt-1 ${isDark ? 'text-zinc-500' : 'text-slate-400'}`}>
+                        Format: <strong className={isDark ? 'text-zinc-300' : 'text-slate-600'}>XXXX-XXXX-1234</strong>
                       </p>
                     </div>
                   </div>
                 </div>
 
                 {/* STAY DURATION & DATES */}
-                <div className="bg-zinc-950/80 border border-zinc-800/80 p-5 rounded-2xl space-y-4">
+                <div className={`p-5 rounded-2xl space-y-4 border ${
+                  isDark ? 'bg-zinc-950/80 border-zinc-800/80' : 'bg-slate-50 border-slate-200'
+                }`}>
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-bold text-white flex items-center gap-2">
+                    <div className={`text-sm font-bold flex items-center gap-2 ${
+                      isDark ? 'text-white' : 'text-slate-800'
+                    }`}>
                       <span>📅 Stay Schedule & Duration</span>
                     </div>
-                    <span className="text-xs text-amber-400 font-mono font-bold">2 Nights Selected</span>
+                    <span className="text-xs text-amber-500 font-mono font-bold">2 Nights Selected</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                        isDark ? 'text-zinc-400' : 'text-slate-600'
+                      }`}>
                         Check-in Date (TODAY) *
                       </label>
                       <input
@@ -3046,12 +3242,18 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         data-testid="input-checkin-date"
                         value={checkInDate}
                         onChange={(e) => setCheckInDate(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 font-mono"
+                        className={`w-full rounded-xl px-4 py-2.5 text-sm border focus:outline-none focus:border-amber-500 font-mono transition ${
+                          isDark
+                            ? 'bg-zinc-900 border-zinc-800 text-zinc-100'
+                            : 'bg-white border-slate-200 text-slate-800'
+                        }`}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                        isDark ? 'text-zinc-400' : 'text-slate-600'
+                      }`}>
                         Check-out Date (+2 Days) *
                       </label>
                       <input
@@ -3059,12 +3261,18 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         data-testid="input-checkout-date"
                         value={checkOutDate}
                         onChange={(e) => setCheckOutDate(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 font-mono"
+                        className={`w-full rounded-xl px-4 py-2.5 text-sm border focus:outline-none focus:border-amber-500 font-mono transition ${
+                          isDark
+                            ? 'bg-zinc-900 border-zinc-800 text-zinc-100'
+                            : 'bg-white border-slate-200 text-slate-800'
+                        }`}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                        isDark ? 'text-zinc-400' : 'text-slate-600'
+                      }`}>
                         Total Nights
                       </label>
                       <input
@@ -3074,64 +3282,88 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         data-testid="input-stay-nights"
                         value={stayNights}
                         onChange={(e) => setStayNights(Number(e.target.value))}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 font-mono"
+                        className={`w-full rounded-xl px-4 py-2.5 text-sm border focus:outline-none focus:border-amber-500 font-mono transition ${
+                          isDark
+                            ? 'bg-zinc-900 border-zinc-800 text-zinc-100'
+                            : 'bg-white border-slate-200 text-slate-800'
+                        }`}
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* RATE CALCULATION & STATUTORY TAX BREAKDOWN */}
-                <div data-testid="rate-calculation-summary" className="bg-gradient-to-br from-zinc-900 via-zinc-900/90 to-blue-950/20 border border-blue-500/30 p-5 rounded-2xl space-y-3">
-                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
+                <div data-testid="rate-calculation-summary" className={`border p-5 rounded-2xl space-y-3 ${
+                  isDark
+                    ? 'bg-gradient-to-br from-zinc-900 via-zinc-900/90 to-blue-950/20 border-blue-500/30'
+                    : 'bg-blue-50/50 border-blue-200'
+                }`}>
+                  <div className={`flex items-center justify-between border-b pb-2 ${
+                    isDark ? 'border-zinc-800' : 'border-blue-100'
+                  }`}>
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
                       Statutory Rate Calculation (SAC 9963 Accommodation)
                     </span>
-                    <span className="text-[10px] font-mono text-zinc-400">12% GST Slab Applicable</span>
+                    <span className={`text-[10px] font-mono ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>12% GST Slab Applicable</span>
                   </div>
 
-                  <div className="space-y-1.5 text-xs text-zinc-300">
+                  <div className={`space-y-1.5 text-xs ${isDark ? 'text-zinc-300' : 'text-slate-700'}`}>
                     <div className="flex justify-between">
                       <span>Room Tariff (₹4,500/night × {stayNights} nights)</span>
-                      <span className="font-mono font-bold text-white">₹{staySubtotal.toLocaleString('en-IN')}.00</span>
+                      <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>₹{staySubtotal.toLocaleString('en-IN')}.00</span>
                     </div>
-                    <div className="flex justify-between text-zinc-400 text-[11px]">
+                    <div className={`flex justify-between text-[11px] ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
                       <span>CGST (6% statutory SAC 9963)</span>
                       <span className="font-mono">₹{(totalGst / 2).toLocaleString('en-IN')}.00</span>
                     </div>
-                    <div className="flex justify-between text-zinc-400 text-[11px]">
+                    <div className={`flex justify-between text-[11px] ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
                       <span>SGST (6% statutory SAC 9963)</span>
                       <span className="font-mono">₹{(totalGst / 2).toLocaleString('en-IN')}.00</span>
                     </div>
-                    <div className="flex justify-between text-zinc-300 text-xs font-semibold pt-1 border-t border-zinc-800/80">
+                    <div className={`flex justify-between text-xs font-semibold pt-1 border-t ${
+                      isDark ? 'text-zinc-300 border-zinc-800/80' : 'text-slate-700 border-blue-100'
+                    }`}>
                       <span>Total Statutory Taxes (12%)</span>
-                      <span className="font-mono text-amber-300">+ ₹{totalGst.toLocaleString('en-IN')}.00</span>
+                      <span className="font-mono text-amber-500">+ ₹{totalGst.toLocaleString('en-IN')}.00</span>
                     </div>
-                    <div className="flex justify-between text-base font-black text-white pt-2 border-t border-zinc-700">
+                    <div className={`flex justify-between text-base font-black pt-2 border-t ${
+                      isDark ? 'text-white border-zinc-700' : 'text-slate-800 border-blue-200'
+                    }`}>
                       <span>Total Stay Amount</span>
-                      <span className="font-mono text-emerald-400">₹{grandTotal.toLocaleString('en-IN')}.00</span>
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400">₹{grandTotal.toLocaleString('en-IN')}.00</span>
                     </div>
                   </div>
                 </div>
 
                 {/* ADVANCE PAYMENT & UPI QR SCAN */}
-                <div className="bg-zinc-950/80 border border-zinc-800/80 p-5 rounded-2xl space-y-4">
+                <div className={`p-5 rounded-2xl space-y-4 border ${
+                  isDark ? 'bg-zinc-950/80 border-zinc-800/80' : 'bg-slate-50 border-slate-200'
+                }`}>
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-bold text-white flex items-center gap-2">
+                    <div className={`text-sm font-bold flex items-center gap-2 ${
+                      isDark ? 'text-white' : 'text-slate-800'
+                    }`}>
                       <span>💳 Advance Deposit Collection</span>
                     </div>
-                    <span className="text-xs text-emerald-400 font-mono font-bold">₹5,000.00 Advance</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono font-bold">₹5,000.00 Advance</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                        isDark ? 'text-zinc-400' : 'text-slate-600'
+                      }`}>
                         Payment Mode *
                       </label>
                       <select
                         data-testid="select-advance-mode"
                         value={paymentMode}
                         onChange={(e) => setPaymentMode(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-amber-500"
+                        className={`w-full rounded-xl px-4 py-2.5 text-sm border focus:outline-none focus:border-amber-500 transition ${
+                          isDark
+                            ? 'bg-zinc-900 border-zinc-800 text-zinc-100'
+                            : 'bg-white border-slate-200 text-slate-800'
+                        }`}
                       >
                         <option value="UPI (Scan QR)">UPI (Scan QR Simulation)</option>
                         <option value="Cash">Cash</option>
@@ -3140,7 +3372,9 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                        isDark ? 'text-zinc-400' : 'text-slate-600'
+                      }`}>
                         Advance Amount Received (₹) *
                       </label>
                       <input
@@ -3148,15 +3382,21 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         data-testid="input-advance-paid"
                         value={advancePaid}
                         onChange={(e) => setAdvancePaid(Number(e.target.value))}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 font-mono"
+                        className={`w-full rounded-xl px-4 py-2.5 text-sm border focus:outline-none focus:border-amber-500 font-mono transition ${
+                          isDark
+                            ? 'bg-zinc-900 border-zinc-800 text-zinc-100'
+                            : 'bg-white border-slate-200 text-slate-800'
+                        }`}
                       />
                     </div>
                   </div>
 
                   {/* Live UPI QR Simulation Card */}
-                  <div data-testid="qr-code-simulation" className="p-4 bg-zinc-900/90 border border-amber-500/30 rounded-xl flex items-center justify-between gap-4">
+                  <div data-testid="qr-code-simulation" className={`p-4 border rounded-xl flex items-center justify-between gap-4 ${
+                    isDark ? 'bg-zinc-900/90 border-amber-500/30' : 'bg-white border-slate-200 shadow-2xs'
+                  }`}>
                     <div className="flex items-center gap-3">
-                      <div className="w-16 h-16 bg-white p-1 rounded-lg flex items-center justify-center shrink-0">
+                      <div className="w-16 h-16 bg-white p-1 rounded-lg flex items-center justify-center shrink-0 border border-slate-200">
                         <div className="grid grid-cols-4 gap-0.5 w-full h-full p-1 bg-zinc-950 rounded">
                           <div className="bg-white rounded-xs"></div>
                           <div className="bg-zinc-900"></div>
@@ -3177,15 +3417,15 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         </div>
                       </div>
                       <div className="text-xs space-y-0.5">
-                        <div className="font-mono font-bold text-white">VPA: spicehub@icici</div>
-                        <div className="text-zinc-400 text-[11px]">Merchant: SpiceHub Taj Gateway PMS</div>
-                        <div className="text-emerald-400 font-bold text-[11px] flex items-center gap-1">
+                        <div className={`font-mono font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>VPA: spicehub@icici</div>
+                        <div className={`text-[11px] ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>Merchant: SpiceHub Taj Gateway PMS</div>
+                        <div className="text-emerald-600 dark:text-emerald-400 font-bold text-[11px] flex items-center gap-1">
                           <span>●</span>
                           <span>UPI QR Active — Scan to Pay ₹5,000.00</span>
                         </div>
                       </div>
                     </div>
-                    <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold font-mono">
+                    <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded-lg text-xs font-bold font-mono">
                       PAID ₹5,000
                     </span>
                   </div>
@@ -3193,7 +3433,9 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
 
                 {/* Front Desk Notes */}
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${
+                    isDark ? 'text-zinc-400' : 'text-slate-600'
+                  }`}>
                     Front Desk Notes / Special Requests
                   </label>
                   <input
@@ -3202,16 +3444,50 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     placeholder="e.g. VIP couple, extra bath sheets requested"
                     value={receptionistNotes}
                     onChange={(e) => setReceptionistNotes(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                    className={`w-full rounded-xl px-4 py-2.5 text-sm border focus:outline-none focus:border-amber-500 transition ${
+                      isDark
+                        ? 'bg-zinc-950 border-zinc-800 text-zinc-100 placeholder-zinc-600'
+                        : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
+                    }`}
                   />
+                </div>
+
+                {/* DPDP Act 2023 Digital Consent Checkbox */}
+                <div
+                  data-testid="dpdp-consent-container"
+                  className={`p-4 rounded-xl border transition-colors ${
+                    isDark ? 'bg-zinc-950/70 border-zinc-800' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      data-testid="checkbox-dpdp-consent"
+                      checked={dpdpConsent}
+                      onChange={(e) => setDpdpConsent(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 cursor-pointer"
+                    />
+                    <div className="text-xs">
+                      <span className={`font-semibold block ${isDark ? 'text-zinc-200' : 'text-slate-900'}`}>
+                        Guest consents to KYC data storage as per DPDP Act 2023
+                      </span>
+                      <span className={`text-[11px] block mt-0.5 ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
+                        Mandatory compliance under Digital Personal Data Protection Act 2023. Check-In remains disabled until consent is recorded.
+                      </span>
+                    </div>
+                  </label>
                 </div>
 
                 {/* Submit Action */}
                 <button
                   type="submit"
                   data-testid="btn-submit-checkin"
-                  disabled={loading}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-black text-sm uppercase tracking-wider shadow-xl shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                  disabled={loading || !dpdpConsent}
+                  className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 ${
+                    loading || !dpdpConsent
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-200'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                  }`}
                 >
                   <span>🛎️</span>
                   <span>{loading ? 'Allocating Key...' : 'Complete Check-In & Issue Keycard'}</span>
@@ -3221,40 +3497,52 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
 
             {/* Side Information Panel */}
             <div className="space-y-6">
-              <div className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-4">
-                <h3 className="text-sm font-black text-amber-400 uppercase tracking-wider">
+              <div className={`p-6 rounded-3xl space-y-4 border transition-colors ${
+                isDark ? 'bg-zinc-900/90 border-zinc-800' : 'bg-white border-slate-200 shadow-2xs'
+              }`}>
+                <h3 className="text-sm font-black text-amber-500 uppercase tracking-wider">
                   Hotel Policy Guidelines
                 </h3>
-                <div className="space-y-3 text-xs text-zinc-300">
-                  <div className="p-3 bg-zinc-950/70 border border-zinc-800/80 rounded-xl">
-                    <strong className="text-white block mb-0.5">⚡ 1-Click Fast Mode</strong>
-                    Single, corporate ya known guests ke liye document upload mandatory nahi hai. Receptionist direct check-in kar sakta hai.
+                <div className={`space-y-3 text-xs ${isDark ? 'text-zinc-300' : 'text-slate-600'}`}>
+                  <div className={`p-3 rounded-xl border ${
+                    isDark ? 'bg-zinc-950/70 border-zinc-800/80 text-zinc-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                  }`}>
+                    <strong className={`block mb-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>⚡ 1-Click Fast Mode</strong>
+                    Document upload is optional for single, corporate, or verified guests. The receptionist can proceed with direct check-in.
                   </div>
-                  <div className="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-xl text-emerald-300">
-                    <strong className="text-white block mb-0.5">👫 Couple Policy (Aadhaar Only)</strong>
-                    Couple check-in ke waqt toggle ON karein aur Aadhaar number enter karein. System use securely mask karke store karega.
+                  <div className={`p-3 rounded-xl border ${
+                    isDark ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                  }`}>
+                    <strong className={`block mb-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>👫 Couple Policy (Aadhaar Only)</strong>
+                    For couple check-ins, switch the toggle ON and enter the Aadhaar number. The system will securely mask and store the credential.
                   </div>
-                  <div className="p-3 bg-amber-950/20 border border-amber-500/30 rounded-xl text-amber-300">
-                    <strong className="text-white block mb-0.5">📱 In-Room Portal Binding (:3004)</strong>
-                    Check-in hote hi physical room live ho jata hai. Guest room ke QR ko scan karke ya `?room=102` par visit karke Wi-Fi aur Master Folio dekh sakta hai.
+                  <div className={`p-3 rounded-xl border ${
+                    isDark ? 'bg-amber-950/20 border-amber-500/30 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-800'
+                  }`}>
+                    <strong className={`block mb-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>📱 In-Room Portal Binding (:3004)</strong>
+                    Upon check-in, the physical room is live immediately. Guests can scan the in-room QR code or visit `?room=102` to access Wi-Fi and view their Master Folio.
                   </div>
                 </div>
               </div>
 
               {/* Quick Summary of in-house guests */}
-              <div className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-3xl space-y-3">
-                <h3 className="text-sm font-black text-white uppercase tracking-wider">
+              <div className={`p-6 rounded-3xl space-y-3 border transition-colors ${
+                isDark ? 'bg-zinc-900/90 border-zinc-800' : 'bg-white border-slate-200 shadow-2xs'
+              }`}>
+                <h3 className={`text-sm font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-800'}`}>
                   Live Rooms Overview
                 </h3>
                 <div className="space-y-2">
                   {inHouseGuests.slice(0, 3).map((g) => (
-                    <div key={g.stayId} className="flex items-center justify-between p-2.5 bg-zinc-950/70 rounded-xl border border-zinc-800/60 text-xs">
+                    <div key={g.stayId} className={`flex items-center justify-between p-2.5 rounded-xl border text-xs ${
+                      isDark ? 'bg-zinc-950/70 border-zinc-800/60' : 'bg-slate-50 border-slate-200'
+                    }`}>
                       <div>
-                        <span className="font-bold text-white">Room {g.roomNumber}</span>
-                        <span className="text-zinc-500 block text-[10px]">{g.guestName}</span>
+                        <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Room {g.roomNumber}</span>
+                        <span className={`block text-[10px] ${isDark ? 'text-zinc-500' : 'text-slate-500'}`}>{g.guestName}</span>
                       </div>
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        g.isCouple ? 'bg-emerald-500/20 text-emerald-400' : 'bg-cyan-500/20 text-cyan-300'
+                        g.isCouple ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                       }`}>
                         {g.isCouple ? 'Couple Verified' : 'Direct'}
                       </span>
@@ -3266,91 +3554,314 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           </div>
         )}
 
-        {/* TAB 2: EXPECTED ARRIVALS / ONLINE PRE-BOOKINGS */}
+        {/* TAB 2: EXPECTED ARRIVALS / ONLINE PRE-BOOKINGS & APPROVAL QUEUE */}
         {activeTab === 'ARRIVALS' && (
-          <div className="space-y-4">
-            <div className="bg-zinc-900/90 border border-zinc-800 p-5 rounded-3xl flex items-center justify-between">
+          <div className="space-y-5">
+            {/* Header with Filters & Refresh */}
+            <div className="bg-white border border-slate-200/90 p-5 rounded-2xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div>
-                <h2 className="text-base font-black text-white">Expected Online Arrivals Today</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Guests who booked in advance via public website or OTA. Click Check-In to load details and allot room.
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-extrabold text-slate-900">Expected Arrivals & Approval Queue</h2>
+                  {expectedArrivals.filter((a) => a.bookingStatus === 'PENDING_APPROVAL').length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
+                      {expectedArrivals.filter((a) => a.bookingStatus === 'PENDING_APPROVAL').length} Awaiting Approval
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Pre-bookings requiring physical ID verification, room check-in approval, or check-in terminal loading.
                 </p>
               </div>
-              <button
-                type="button"
-                data-testid="btn-refresh-arrivals"
-                onClick={loadData}
-                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 transition-all"
-              >
-                🔄 Refresh Arrivals
-              </button>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Filter Pills */}
+                <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setArrivalStatusFilter('ALL')}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      arrivalStatusFilter === 'ALL'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    All ({expectedArrivals.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setArrivalStatusFilter('PENDING')}
+                    className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                      arrivalStatusFilter === 'PENDING'
+                        ? 'bg-amber-500 text-white shadow-xs'
+                        : 'text-amber-700 hover:text-amber-900'
+                    }`}
+                  >
+                    <span>⚠️ Pending</span>
+                    <span className="text-[10px] bg-black/20 px-1.5 py-0.2 rounded-full">
+                      {expectedArrivals.filter((a) => a.bookingStatus === 'PENDING_APPROVAL').length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setArrivalStatusFilter('CONFIRMED')}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      arrivalStatusFilter === 'CONFIRMED'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-emerald-700 hover:text-emerald-900'
+                    }`}
+                  >
+                    ✓ Confirmed ({expectedArrivals.filter((a) => a.bookingStatus !== 'PENDING_APPROVAL').length})
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  data-testid="btn-refresh-arrivals"
+                  onClick={loadData}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 border border-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>🔄</span>
+                  <span>Refresh</span>
+                </button>
+              </div>
             </div>
 
-            {expectedArrivals.length === 0 ? (
-              <div className="bg-zinc-900/60 border border-zinc-800 p-12 text-center rounded-3xl text-zinc-500 text-xs">
-                No expected online pre-bookings waiting for arrival today.
+            {expectedArrivals.filter((arr) => {
+              if (arrivalStatusFilter === 'PENDING') return arr.bookingStatus === 'PENDING_APPROVAL';
+              if (arrivalStatusFilter === 'CONFIRMED') return arr.bookingStatus !== 'PENDING_APPROVAL';
+              return true;
+            }).length === 0 ? (
+              <div className="bg-white border border-slate-200/90 p-12 text-center rounded-2xl text-slate-500 text-xs shadow-sm">
+                No expected online pre-bookings matching current filter ({arrivalStatusFilter}).
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {expectedArrivals.map((arr) => (
-                  <div
-                    key={arr.bookingId}
-                    data-testid={`arrival-card-${arr.bookingNumber}`}
-                    className="bg-zinc-900/90 border border-zinc-800 p-5 rounded-3xl space-y-4 hover:border-amber-500/40 transition-all shadow-xl flex flex-col justify-between"
-                  >
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-black font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/30">
-                              {arr.bookingNumber}
+                {expectedArrivals
+                  .filter((arr) => {
+                    if (arrivalStatusFilter === 'PENDING') return arr.bookingStatus === 'PENDING_APPROVAL';
+                    if (arrivalStatusFilter === 'CONFIRMED') return arr.bookingStatus !== 'PENDING_APPROVAL';
+                    return true;
+                  })
+                  .map((arr) => (
+                    <div
+                      key={arr.bookingId}
+                      data-testid={`arrival-card-${arr.bookingNumber}`}
+                      className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between text-slate-800 space-y-4"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-black font-mono text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200">
+                                #{arr.bookingNumber}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-400">
+                                {arr.bookingSource}
+                              </span>
+                              {arr.bookingStatus === 'PENDING_APPROVAL' ? (
+                                <span className="text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-300 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                  <span>Awaiting Approval</span>
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-300 px-2 py-0.5 rounded-md">
+                                  {arr.bookingStatus}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Booking Origin: Hotel Premises vs Home Remote */}
+                            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                              {arr.bookingLocation === 'HOTEL_RADIUS' || arr.bookingLocation === 'IN_HOTEL' ? (
+                                <span
+                                  data-testid={`origin-hotel-${arr.bookingNumber}`}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                >
+                                  <span>🏨</span>
+                                  <span>Booked from Hotel Premises</span>
+                                  {typeof arr.distanceFromHotelKm === 'number' && (
+                                    <span className="font-mono text-[9px] text-emerald-800 font-bold">
+                                      ({arr.distanceFromHotelKm} km)
+                                    </span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span
+                                  data-testid={`origin-home-${arr.bookingNumber}`}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-sky-50 text-sky-700 border border-sky-200"
+                                >
+                                  <span>🏠</span>
+                                  <span>Booked from Home / Remote</span>
+                                </span>
+                              )}
+                            </div>
+
+                            <h3 className="text-base font-extrabold text-slate-900 mt-2">{arr.guestName}</h3>
+                            <p className="text-xs text-slate-500 font-mono">{arr.guestPhone}</p>
+                            {arr.allocatedRoomNumber && (
+                              <p className="text-xs font-bold text-blue-700 bg-blue-50/70 border border-blue-200 px-2 py-0.5 rounded-md inline-block mt-1">
+                                Allocated Room: {arr.allocatedRoomNumber}
+                              </p>
+                            )}
+                          </div>
+
+                          <span className="px-2.5 py-1 rounded-xl text-[11px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                            ₹{arr.advancePaymentAmount} Paid
+                          </span>
+                        </div>
+
+                        {/* Target Reserved Time Slot Window */}
+                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
+                          <div className="flex items-center justify-between text-[11px] font-bold">
+                            <span className="flex items-center gap-1 text-slate-600">
+                              <span>🕒</span>
+                              <span>Target Reserved Slot:</span>
                             </span>
-                            <span className="text-[10px] font-bold text-zinc-400">
-                              {arr.bookingSource}
+                            <span className="font-mono text-slate-900 font-bold">
+                              {new Date(arr.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                              {arr.estimatedArrivalTime ? ` @ ${arr.estimatedArrivalTime}` : ''}
+                              <span className="text-blue-600 mx-1">➔</span>
+                              {new Date(arr.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                             </span>
                           </div>
-                          <h3 className="text-sm font-extrabold text-white mt-1.5">{arr.guestName}</h3>
-                          <p className="text-xs text-zinc-400 font-mono">{arr.guestPhone}</p>
                         </div>
 
-                        <span className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          ₹{arr.advancePaymentAmount} Paid (Adv)
-                        </span>
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/90 space-y-1.5 text-xs">
+                          <div className="flex justify-between text-slate-600">
+                            <span>Reserved Type:</span>
+                            <strong className="text-slate-900 font-medium">{arr.roomTypeName}</strong>
+                          </div>
+                          <div className="flex justify-between text-slate-600">
+                            <span>Stay Duration:</span>
+                            <strong className="text-slate-900 font-mono font-medium">{arr.nights || 1} Night(s)</strong>
+                          </div>
+                          {arr.estimatedArrivalTime && (
+                            <div className="flex justify-between text-slate-600">
+                              <span>Est. Arrival:</span>
+                              <strong className="text-slate-900 font-mono">{arr.estimatedArrivalTime}</strong>
+                            </div>
+                          )}
+                          {arr.idProofType && (
+                            <div className="flex justify-between text-slate-600">
+                              <span>ID Document:</span>
+                              <strong className="text-blue-700 font-mono font-bold">{arr.idProofType} ({arr.idProofNumber || 'To Verify'})</strong>
+                            </div>
+                          )}
+                          {arr.guestPhoneVerified && (
+                            <div className="flex items-center gap-1.5 text-emerald-700 text-[11px] font-bold">
+                              <span>📱</span>
+                              <span>Mobile OTP Verified</span>
+                            </div>
+                          )}
+                          {arr.secondaryGuestName && (
+                            <div className="p-2 rounded-xl bg-white border border-slate-200 text-[11px] text-slate-700">
+                              <strong>2nd Room For:</strong> {arr.secondaryGuestName} ({arr.secondaryGuestRelationship || 'Guest'})
+                              {arr.secondaryGuestPhone && <span className="block font-mono text-[10px] text-slate-500 mt-0.5">📞 {arr.secondaryGuestPhone}</span>}
+                            </div>
+                          )}
+                          {(arr.aadhaarFrontUrl || arr.aadhaarBackUrl) && (
+                            <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1 mt-1 shadow-2xs">
+                              <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider block">
+                                🪪 Uploaded Aadhaar Photos
+                              </span>
+                              <div className="grid grid-cols-2 gap-2 pt-0.5">
+                                {arr.aadhaarFrontUrl ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPreviewDocModalUrl(arr.aadhaarFrontUrl!);
+                                      setPreviewDocTitle(`Aadhaar Front - ${arr.guestName} (${arr.bookingNumber})`);
+                                    }}
+                                    className="group relative rounded-lg overflow-hidden border border-slate-200 hover:border-blue-500 transition bg-slate-100 aspect-[3/2] flex items-center justify-center cursor-pointer"
+                                  >
+                                    <img src={arr.aadhaarFrontUrl} alt="Front" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                                    <span className="absolute bottom-0.5 left-0.5 px-1.5 py-0.2 rounded bg-black/75 text-[8px] font-bold text-white">Front</span>
+                                  </button>
+                                ) : (
+                                  <div className="rounded-lg border border-dashed border-slate-300 text-center text-[9px] text-slate-400 flex items-center justify-center p-1">No Front</div>
+                                )}
+                                {arr.aadhaarBackUrl ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPreviewDocModalUrl(arr.aadhaarBackUrl!);
+                                      setPreviewDocTitle(`Aadhaar Back - ${arr.guestName} (${arr.bookingNumber})`);
+                                    }}
+                                    className="group relative rounded-lg overflow-hidden border border-slate-200 hover:border-blue-500 transition bg-slate-100 aspect-[3/2] flex items-center justify-center cursor-pointer"
+                                  >
+                                    <img src={arr.aadhaarBackUrl} alt="Back" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                                    <span className="absolute bottom-0.5 left-0.5 px-1.5 py-0.2 rounded bg-black/75 text-[8px] font-bold text-white">Back</span>
+                                  </button>
+                                ) : (
+                                  <div className="rounded-lg border border-dashed border-slate-300 text-center text-[9px] text-slate-400 flex items-center justify-center p-1">No Back</div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-slate-600 pt-1 border-t border-slate-200">
+                            <span>Total Tariff:</span>
+                            <strong className="text-slate-900 font-mono">₹{arr.grandTotal}</strong>
+                          </div>
+                          <div className="flex justify-between text-slate-600">
+                            <span>Online Advance:</span>
+                            <strong className="text-emerald-700 font-mono font-bold">₹{arr.advancePaymentAmount}</strong>
+                          </div>
+                          <div className="flex justify-between text-slate-600">
+                            <span>Balance Due at Check-In:</span>
+                            <strong className="text-amber-700 font-mono font-bold">
+                              ₹{Math.max(0, arr.grandTotal - arr.advancePaymentAmount)}
+                            </strong>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="bg-zinc-950/70 p-3 rounded-2xl border border-zinc-800/80 space-y-1.5 text-xs">
-                        <div className="flex justify-between text-zinc-400">
-                          <span>Reserved Type:</span>
-                          <strong className="text-zinc-200 font-medium">{arr.roomTypeName}</strong>
-                        </div>
-                        <div className="flex justify-between text-zinc-400">
-                          <span>Total Tariff:</span>
-                          <strong className="text-zinc-200 font-mono">₹{arr.grandTotal}</strong>
-                        </div>
-                        <div className="flex justify-between text-zinc-400">
-                          <span>Online Advance:</span>
-                          <strong className="text-emerald-400 font-mono font-bold">₹{arr.advancePaymentAmount}</strong>
-                        </div>
-                        <div className="flex justify-between text-zinc-400">
-                          <span>Balance Due at Check-In:</span>
-                          <strong className="text-amber-400 font-mono font-bold">
-                            ₹{Math.max(0, arr.grandTotal - arr.advancePaymentAmount)}
-                          </strong>
-                        </div>
+                      {/* Action Buttons: Green Approve (bg-emerald-600), Red Reject (bg-red-600) */}
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        {arr.bookingStatus === 'PENDING_APPROVAL' ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              data-testid={`btn-approve-arrival-${arr.bookingNumber}`}
+                              onClick={() => handleApproveRemoteCheckIn(arr)}
+                              className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                            >
+                              <span>✓</span>
+                              <span>Approve</span>
+                            </button>
+                            <button
+                              type="button"
+                              data-testid={`btn-reject-arrival-${arr.bookingNumber}`}
+                              onClick={() => handleRejectRemoteCheckIn(arr)}
+                              className="w-full py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs uppercase tracking-wider shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                            >
+                              <span>✕</span>
+                              <span>Reject</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            data-testid={`btn-checkin-arrival-${arr.bookingNumber}`}
+                            onClick={() => handleLoadPreBookingForCheckIn(arr)}
+                            className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                          >
+                            <span>⚡</span>
+                            <span>Check-In This Guest</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          data-testid={`btn-open-terminal-${arr.bookingNumber}`}
+                          onClick={() => handleLoadPreBookingForCheckIn(arr)}
+                          className="w-full py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <span>⚙️</span>
+                          <span>Open in Check-In Terminal</span>
+                        </button>
                       </div>
                     </div>
-
-                    <button
-                      type="button"
-                      data-testid={`btn-checkin-arrival-${arr.bookingNumber}`}
-                      onClick={() => handleLoadPreBookingForCheckIn(arr)}
-                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/10 transition flex items-center justify-center gap-1.5"
-                    >
-                      <span>⚡</span>
-                      <span>Check-In This Guest</span>
-                    </button>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>
@@ -3403,7 +3914,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       <span className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border ${
                         guest.isCouple
                           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                          : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                       }`}>
                         {guest.isCouple ? '👫 Couple Verified' : '⚡ Direct Check-In'}
                       </span>
@@ -3469,13 +3980,13 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     {guest.lateCheckOutRecord && (
                       <div
                         data-testid={`badge-late-checkout-${guest.roomNumber}`}
-                        className="p-2.5 rounded-2xl bg-purple-500/10 border border-purple-500/40 text-purple-200 text-xs flex items-center justify-between shadow-lg"
+                        className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-xs flex items-center justify-between shadow-lg"
                       >
                         <div className="flex items-center gap-1.5 font-bold">
                           <span>🕒</span>
                           <span>Late Departure: {new Date(guest.lateCheckOutRecord.requestedCheckOutTime || guest.expectedCheckOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-                        <span className="text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30">
+                        <span className="text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-800">
                           {guest.lateCheckOutRecord.waived ? 'COMPLIMENTARY' : `+₹${guest.lateCheckOutRecord.totalCharge}`}
                         </span>
                       </div>
@@ -3516,7 +4027,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         type="button"
                         data-testid={`btn-late-checkout-${guest.roomNumber}`}
                         onClick={() => handleOpenLateCheckoutModal(guest)}
-                        className="py-2.5 rounded-xl font-bold text-[11px] bg-zinc-800 hover:bg-zinc-700 text-purple-300 border border-zinc-700/80 transition flex items-center justify-center gap-1 hover:border-purple-500/50"
+                        className="py-2.5 rounded-xl font-bold text-[11px] bg-zinc-800 hover:bg-zinc-700 text-slate-700 dark:text-slate-300 border border-zinc-700/80 transition flex items-center justify-center gap-1 hover:border-slate-200 dark:border-slate-800"
                       >
                         <span>🕒</span>
                         <span>Late Out</span>
@@ -3525,7 +4036,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         type="button"
                         data-testid={`btn-room-move-${guest.roomNumber}`}
                         onClick={() => handleOpenRoomMoveModal(guest)}
-                        className="py-2.5 rounded-xl font-bold text-[11px] bg-zinc-800 hover:bg-zinc-700 text-cyan-300 border border-zinc-700/80 transition flex items-center justify-center gap-1 hover:border-cyan-500/50"
+                        className="py-2.5 rounded-xl font-bold text-[11px] bg-zinc-800 hover:bg-zinc-700 text-slate-700 dark:text-slate-300 border border-zinc-700/80 transition flex items-center justify-center gap-1 hover:border-slate-200 dark:border-slate-800"
                       >
                         <span>🔄</span>
                         <span>Move</span>
@@ -3643,7 +4154,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                               <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold uppercase border ${
                                 st.isCouple
                                   ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                                  : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                               }`}>
                                 {st.isCouple ? `Couple (${st.idNumberMasked})` : 'Direct Check-In'}
                               </span>
@@ -3693,9 +4204,9 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
 
             {/* Quick Metrics Strip */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-zinc-900/80 border border-purple-500/30 p-4 rounded-2xl text-center">
-                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Active In-Flight</span>
-                <div className="text-2xl font-black text-purple-300 mt-1">
+              <div className="bg-zinc-900/80 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl text-center">
+                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Active In-Flight</span>
+                <div className="text-2xl font-black text-slate-700 dark:text-slate-300 mt-1">
                   {conciergeRequests.filter((r) => r.status !== 'COMPLETED').length}
                 </div>
               </div>
@@ -3734,12 +4245,12 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   <div
                     key={req.id}
                     data-testid={`concierge-card-${req.roomNumber}`}
-                    className="bg-zinc-900/90 border border-zinc-800 hover:border-purple-500/40 p-5 rounded-3xl transition flex flex-col lg:flex-row lg:items-center justify-between gap-5"
+                    className="bg-zinc-900/90 border border-zinc-800 hover:border-slate-200 dark:border-slate-800 p-5 rounded-3xl transition flex flex-col lg:flex-row lg:items-center justify-between gap-5"
                   >
                     {/* Left: Room & Request Information */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-3 flex-wrap">
-                        <span className="px-3 py-1 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-black font-mono">
+                        <span className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 text-xs font-black font-mono">
                           ROOM {req.roomNumber}
                         </span>
                         <span className="text-sm font-black text-white">{req.guestName}</span>
@@ -3748,10 +4259,10 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
                             req.priority === 'URGENT'
-                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                              ? 'bg-red-500/20 text-red-300 border-red-500/40'
                               : req.priority === 'HIGH'
                               ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                              : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                           }`}
                         >
                           {req.priority} Priority
@@ -3792,7 +4303,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         <span>Requested: {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         <span>• SLA Target: {req.slaMinutes}m</span>
                         {req.assignedStaffName && req.assignedStaffName !== 'Unassigned' && (
-                          <span className="text-purple-300 font-bold">
+                          <span className="text-slate-700 dark:text-slate-300 font-bold">
                             • Assigned Attendant: {req.assignedStaffName}
                           </span>
                         )}
@@ -3808,7 +4319,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                             : req.status === 'IN_PROGRESS'
                             ? 'bg-blue-500/20 text-blue-300 border-blue-500/40 animate-pulse'
                             : req.status === 'ASSIGNED'
-                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                             : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                         }`}
                       >
@@ -3829,7 +4340,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                                 type="button"
                                 data-testid={`assign-sunita-${req.roomNumber}`}
                                 onClick={() => handleAssignStaff(req.id, 'Sunita Sharma (Housekeeping)')}
-                                className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md transition"
+                                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold text-xs shadow-md transition"
                               >
                                 👤 Assign Sunita
                               </button>
@@ -3880,7 +4391,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-black text-white">Housekeeping Turnaround & Instant Ready Pipeline</h2>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
                     30-MIN SLA ENGINE
                   </span>
                 </div>
@@ -3957,7 +4468,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                           : isCleaning
                           ? 'border-amber-500/40 bg-gradient-to-b from-amber-950/15 to-zinc-900/90'
                           : isInspection
-                          ? 'border-cyan-500/40 bg-gradient-to-b from-cyan-950/15 to-zinc-900/90'
+                          ? 'border-slate-200 dark:border-slate-800 bg-gradient-to-b from-cyan-950/15 to-zinc-900/90'
                           : 'border-zinc-800 hover:border-zinc-700'
                       }`}
                     >
@@ -3980,7 +4491,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                                 INSTANT READY
                               </span>
                             ) : isInspection ? (
-                              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 uppercase">
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 uppercase">
                                 INSPECTION
                               </span>
                             ) : isCleaning ? (
@@ -4887,7 +5398,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="modal-open-cashier-shift"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
           >
-            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
               <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
                 <h3 className="text-base font-black text-white flex items-center gap-2">
                   <span>💼</span> Open New Cashier Shift
@@ -4968,7 +5479,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-black text-white">Front Desk Safe Deposit Box (SDB) Vault Management</h2>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
                     SHIFT 69 • DUO-KEY CUSTODY VAULT
                   </span>
                 </div>
@@ -5031,7 +5542,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   onClick={() => setSdbFilterStatus(st)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
                     sdbFilterStatus === st
-                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                       : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-white'
                   }`}
                 >
@@ -5065,7 +5576,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                           onClick={() => setSelectedSDBBox(box)}
                           className={`p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between h-36 ${
                             isSelected
-                              ? 'ring-2 ring-cyan-400 bg-cyan-950/20 border-cyan-400'
+                              ? 'ring-2 ring-cyan-400 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800'
                               : box.status === 'AVAILABLE'
                               ? 'bg-zinc-950/60 border-zinc-800 hover:border-emerald-500/50'
                               : box.status === 'OCCUPIED'
@@ -5164,7 +5675,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                           </div>
                           <div className="flex justify-between border-b border-zinc-800/60 pb-1.5">
                             <span className="text-zinc-400">Tamper Seal #:</span>
-                            <strong className="text-cyan-300 font-mono">{selectedSDBBox.tamperSealNumber}</strong>
+                            <strong className="text-slate-700 dark:text-slate-300 font-mono">{selectedSDBBox.tamperSealNumber}</strong>
                           </div>
                           <div className="flex justify-between border-b border-zinc-800/60 pb-1.5">
                             <span className="text-zinc-400">Master Guard Key:</span>
@@ -5193,7 +5704,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                               setAccessRemarks(`Guest ${selectedSDBBox.currentGuestName} accessed box.`);
                               setAccessModalOpen(true);
                             }}
-                            className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-cyan-300 font-bold text-xs uppercase tracking-wider transition border border-cyan-500/30 flex items-center justify-center gap-2"
+                            className="w-full py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider transition border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-2"
                           >
                             <span>🔓</span> Log Duo-Key Access Visit
                           </button>
@@ -5235,7 +5746,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                             setAllotSealNumber(`SEAL-${Date.now().toString().slice(-6)}`);
                             setAllotModalOpen(true);
                           }}
-                          className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2"
+                          className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-sm flex items-center justify-center gap-2"
                         >
                           <span>🔑</span> Allot Box to Guest
                         </button>
@@ -5258,7 +5769,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                           {selectedSDBBox.accessVisits.map((v, idx) => (
                             <div key={idx} className="bg-zinc-950/70 border border-zinc-800 p-2.5 rounded-xl text-[11px] space-y-1">
                               <div className="flex items-center justify-between">
-                                <span className="font-bold text-cyan-300 font-mono">{v.purpose}</span>
+                                <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">{v.purpose}</span>
                                 <span className="text-zinc-500 text-[10px]">{new Date(v.visitedAt).toLocaleTimeString()}</span>
                               </div>
                               <p className="text-zinc-300 text-[10px]">{v.remarks}</p>
@@ -5290,7 +5801,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="modal-allot-sdb"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
           >
-            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
               <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
                 <h3 className="text-base font-black text-white flex items-center gap-2">
                   <span>🔑</span> Allot Box {selectedSDBBox.boxNumber}
@@ -5312,7 +5823,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     data-testid="input-sdb-allot-guest"
                     value={allotGuestName}
                     onChange={(e) => setAllotGuestName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                   />
                 </div>
 
@@ -5324,7 +5835,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="input-sdb-allot-room"
                       value={allotRoomNumber}
                       onChange={(e) => setAllotRoomNumber(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-cyan-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -5334,7 +5845,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="input-sdb-allot-phone"
                       value={allotGuestPhone}
                       onChange={(e) => setAllotGuestPhone(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-cyan-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -5346,7 +5857,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     data-testid="input-sdb-allot-seal"
                     value={allotSealNumber}
                     onChange={(e) => setAllotSealNumber(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-cyan-300 font-mono font-bold focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-slate-700 dark:text-slate-300 font-mono font-bold focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                   />
                 </div>
 
@@ -5358,7 +5869,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="input-sdb-allot-key"
                       value={allotKeySerial}
                       onChange={(e) => setAllotKeySerial(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-cyan-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -5369,7 +5880,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="input-sdb-allot-deposit"
                       value={allotKeyDeposit}
                       onChange={(e) => setAllotKeyDeposit(Math.max(0, parseInt(e.target.value) || 0))}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-emerald-400 font-mono font-bold focus:border-cyan-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-emerald-400 font-mono font-bold focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -5388,7 +5899,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   data-testid="btn-confirm-allot-sdb"
                   onClick={handleAllotSDBBox}
                   disabled={sdbSubmitting}
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/20 disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-sm disabled:opacity-50"
                 >
                   Issue Duo-Key
                 </button>
@@ -5403,7 +5914,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="modal-access-sdb"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
           >
-            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
               <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
                 <h3 className="text-base font-black text-white flex items-center gap-2">
                   <span>🔓</span> Duo-Key Vault Access • {selectedSDBBox.boxNumber}
@@ -5423,7 +5934,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   <select
                     value={accessPurpose}
                     onChange={(e) => setAccessPurpose(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                   >
                     <option value="INSPECTION">Inspection (View Valuables)</option>
                     <option value="DEPOSIT">Deposit Additional Items</option>
@@ -5438,7 +5949,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     data-testid="input-sdb-access-remarks"
                     value={accessRemarks}
                     onChange={(e) => setAccessRemarks(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-cyan-400 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                   />
                 </div>
 
@@ -5473,7 +5984,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   data-testid="btn-confirm-access-sdb"
                   onClick={handleLogSDBAccess}
                   disabled={sdbSubmitting}
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/20 disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 text-zinc-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-sm disabled:opacity-50"
                 >
                   Authorize Duo-Key Turn
                 </button>
@@ -5488,7 +5999,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="modal-surrender-sdb"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
           >
-            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
               <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
                 <h3 className="text-base font-black text-white flex items-center gap-2">
                   <span>🔐</span> Surrender Box {selectedSDBBox.boxNumber}
@@ -5585,7 +6096,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 <div>
                   <div className="flex items-center gap-3">
                     <h2 className="text-lg font-black text-white">Left Luggage Cloakroom & Bell Desk</h2>
-                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
                       SHIFT 70 • BAGGAGE PIPELINE
                     </span>
                   </div>
@@ -5608,7 +6119,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       setTagClaimPin('4491');
                       setTagLuggageModalOpen(true);
                     }}
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-bold text-xs uppercase tracking-wider transition shadow-lg shadow-indigo-500/20 flex items-center gap-2"
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-bold text-xs uppercase tracking-wider transition shadow-lg shadow-sm flex items-center gap-2"
                   >
                     <span>➕</span> Tag New Luggage
                   </button>
@@ -5638,12 +6149,12 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 </div>
                 <div className="bg-zinc-950/70 border border-zinc-800/80 p-3.5 rounded-2xl">
                   <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Post-Checkout</span>
-                  <span className="text-xl font-black text-indigo-400">{luggageMetrics?.postCheckout ?? 0}</span>
+                  <span className="text-xl font-black text-slate-700 dark:text-slate-300">{luggageMetrics?.postCheckout ?? 0}</span>
                   <span className="text-[10px] text-zinc-500 block mt-0.5">Flight / train holds</span>
                 </div>
                 <div className="bg-zinc-950/70 border border-zinc-800/80 p-3.5 rounded-2xl">
                   <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Porter Dispatches</span>
-                  <span className="text-xl font-black text-cyan-400">{luggageMetrics?.activeDispatches ?? 0}</span>
+                  <span className="text-xl font-black text-slate-700 dark:text-slate-300">{luggageMetrics?.activeDispatches ?? 0}</span>
                   <span className="text-[10px] text-zinc-500 block mt-0.5">In transit now</span>
                 </div>
                 <div className="bg-zinc-950/70 border border-zinc-800/80 p-3.5 rounded-2xl col-span-2 md:col-span-1">
@@ -5663,7 +6174,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       onClick={() => setLuggageFilterStatus(st)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                         luggageFilterStatus === st
-                          ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/20'
+                          ? 'bg-slate-800 dark:bg-slate-200 text-white shadow-md shadow-sm'
                           : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
                       }`}
                     >
@@ -5718,14 +6229,14 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                           onClick={() => setSelectedLuggage(claim)}
                           className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-3 ${
                             isSelected
-                              ? 'bg-indigo-950/30 border-indigo-500 ring-2 ring-indigo-500/30'
+                              ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 ring-2 ring-indigo-500/30'
                               : 'bg-zinc-950/60 border-zinc-800/80 hover:border-zinc-700'
                           }`}
                         >
                           <div className="flex items-start justify-between">
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/30">
+                                <span className="font-mono text-xs font-black text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800">
                                   {claim.claimTag}
                                 </span>
                                 {claim.roomNumber && (
@@ -5746,7 +6257,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                                   ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse'
                                   : claim.status === 'DELIVERED_TO_ROOM'
                                   ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
-                                  : 'bg-purple-500/10 text-purple-400 border-purple-500/30'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                               }`}
                             >
                               {claim.status.replace(/_/g, ' ')}
@@ -5777,7 +6288,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   <div className="space-y-5">
                     <div className="border-b border-zinc-800/80 pb-4">
                       <div className="flex items-center justify-between">
-                        <span className="font-mono text-sm font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/30">
+                        <span className="font-mono text-sm font-black text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800">
                           {selectedLuggage.claimTag}
                         </span>
                         <span
@@ -5788,7 +6299,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                               ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                               : selectedLuggage.status === 'DELIVERED_TO_ROOM'
                               ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
-                              : 'bg-purple-500/10 text-purple-400 border-purple-500/30'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                           }`}
                         >
                           {selectedLuggage.status.replace(/_/g, ' ')}
@@ -5809,7 +6320,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       </div>
                       <div className="flex justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-zinc-800/60">
                         <span className="text-zinc-400 font-bold">Storage Type:</span>
-                        <span className="font-bold text-indigo-300">{selectedLuggage.storageType.replace(/_/g, ' ')}</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-300">{selectedLuggage.storageType.replace(/_/g, ' ')}</span>
                       </div>
                       <div className="flex justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-zinc-800/60">
                         <span className="text-zinc-400 font-bold">Security Claim PIN:</span>
@@ -5880,7 +6391,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                               setCounterReleaseNotes('Verified physical claim ticket at counter. All bags surrendered in good order.');
                               setCounterReleaseModalOpen(true);
                             }}
-                            className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-1.5"
+                            className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-sm flex items-center justify-center gap-1.5"
                           >
                             <span>🤝</span> Counter Release
                           </button>
@@ -5925,7 +6436,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="modal-tag-luggage"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
           >
-            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100 max-h-[92vh] overflow-y-auto">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100 max-h-[92vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
                 <h3 className="text-base font-black text-white flex items-center gap-2">
                   <span>🏷️</span> Tag New Left Luggage Claim
@@ -5948,7 +6459,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="input-luggage-guest-name"
                       value={tagGuestName}
                       onChange={(e) => setTagGuestName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:border-indigo-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -5958,7 +6469,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="input-luggage-guest-phone"
                       value={tagGuestPhone}
                       onChange={(e) => setTagGuestPhone(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-indigo-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -5971,7 +6482,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="input-luggage-room-number"
                       value={tagRoomNumber}
                       onChange={(e) => setTagRoomNumber(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-indigo-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -5979,7 +6490,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     <select
                       value={tagStorageType}
                       onChange={(e: any) => setTagStorageType(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:border-indigo-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                     >
                       <option value="EARLY_ARRIVAL">Early Arrival (Pre-CheckIn)</option>
                       <option value="POST_CHECKOUT">Post-Checkout Departure</option>
@@ -5997,7 +6508,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="input-luggage-rack-location"
                       value={tagRackLocation}
                       onChange={(e) => setTagRackLocation(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-indigo-300 font-mono font-bold focus:border-indigo-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-slate-700 dark:text-slate-300 font-mono font-bold focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -6008,7 +6519,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       max="10"
                       value={tagPieceCount}
                       onChange={(e) => setTagPieceCount(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold focus:border-indigo-400 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-mono font-bold focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -6019,7 +6530,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     type="text"
                     value={tagPieceDescription}
                     onChange={(e) => setTagPieceDescription(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-indigo-400 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                   />
                 </div>
 
@@ -6052,7 +6563,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     data-testid="input-luggage-claim-pin"
                     value={tagClaimPin}
                     onChange={(e) => setTagClaimPin(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-emerald-400 font-mono font-bold tracking-widest text-center focus:border-indigo-400 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-emerald-400 font-mono font-bold tracking-widest text-center focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                   />
                 </div>
               </div>
@@ -6070,7 +6581,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   data-testid="btn-submit-tag-luggage"
                   onClick={handleTagNewLuggage}
                   disabled={luggageSubmitting}
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-sm disabled:opacity-50"
                 >
                   Issue Claim Tag
                 </button>
@@ -6085,7 +6596,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="modal-dispatch-luggage"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
           >
-            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
               <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
                 <h3 className="text-base font-black text-white flex items-center gap-2">
                   <span>🚚</span> Dispatch Porter for {selectedLuggage.claimTag}
@@ -6161,7 +6672,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="modal-release-luggage"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
           >
-            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
               <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
                 <h3 className="text-base font-black text-white flex items-center gap-2">
                   <span>🤝</span> Counter Release for {selectedLuggage.claimTag}
@@ -6185,7 +6696,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     value={counterClaimPin}
                     onChange={(e) => setCounterClaimPin(e.target.value)}
                     placeholder="Enter 4-digit PIN"
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-indigo-500/50 text-indigo-300 font-mono font-bold text-center text-sm focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-mono font-bold text-center text-sm focus:outline-none"
                   />
                 </div>
 
@@ -6212,7 +6723,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     type="text"
                     value={counterReleaseNotes}
                     onChange={(e) => setCounterReleaseNotes(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-indigo-400 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-white focus:border-slate-200 dark:border-slate-800 focus:outline-none"
                   />
                 </div>
               </div>
@@ -6230,7 +6741,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   data-testid="btn-submit-release-luggage"
                   onClick={handleCounterRelease}
                   disabled={luggageSubmitting}
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-sm disabled:opacity-50"
                 >
                   Authorize Release
                 </button>
@@ -6300,7 +6811,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 </div>
 
                 <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800/80">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                     <span>🚚</span> Out for Delivery
                   </div>
                   <div className="text-2xl font-black text-white mt-1">
@@ -6310,7 +6821,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 </div>
 
                 <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800/80">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-red-400 flex items-center gap-1.5">
                     <span>🚨</span> Urgent / High-Value
                   </div>
                   <div className="text-2xl font-black text-white mt-1">
@@ -6320,7 +6831,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 </div>
 
                 <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800/80">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                     <span>✅</span> Handed Over Today
                   </div>
                   <div className="text-2xl font-black text-white mt-1">
@@ -6439,7 +6950,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                           isDelivered
                             ? 'bg-zinc-950/60 border-zinc-800/60 opacity-80'
                             : parcel.isHighValue || parcel.packageType === 'MEDICINE_PERISHABLE'
-                            ? 'bg-zinc-900/90 border-rose-500/40 shadow-rose-950/20'
+                            ? 'bg-zinc-900/90 border-red-500/40 shadow-sm'
                             : 'bg-zinc-900/90 border-zinc-800 hover:border-zinc-700'
                         }`}
                       >
@@ -6463,9 +6974,9 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                           <span
                             className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
                               isDelivered
-                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
                                 : isOutForDelivery
-                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 animate-pulse'
+                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 animate-pulse'
                                 : isGuestNotified
                                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                                 : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
@@ -6538,7 +7049,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                                     setSelectedParcel(parcel);
                                     setDispatchParcelModalOpen(true);
                                   }}
-                                  className="flex-1 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[11px] font-bold"
+                                  className="flex-1 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 text-[11px] font-bold"
                                 >
                                   🚚 Room Deliver
                                 </button>
@@ -6562,7 +7073,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                           )}
 
                           {isDelivered && (
-                            <div className="flex-1 text-center py-2 text-xs font-bold text-purple-400 bg-purple-950/20 border border-purple-800/30 rounded-xl">
+                            <div className="flex-1 text-center py-2 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl">
                               ✅ Delivered ({parcel.deliveryInfo?.recipientAcknowledgedBy || 'Guest'})
                             </div>
                           )}
@@ -6592,7 +7103,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 data-testid="modal-log-inward-parcel"
                 className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
               >
-                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">📦</span>
@@ -6740,9 +7251,9 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         data-testid="toggle-inward-high-value"
                         checked={inwardHighValue}
                         onChange={(e) => setInwardHighValue(e.target.checked)}
-                        className="w-4 h-4 rounded text-rose-500 focus:ring-0"
+                        className="w-4 h-4 rounded text-red-500 focus:ring-0"
                       />
-                      <span className="font-bold text-rose-300">
+                      <span className="font-bold text-red-300">
                         High Value / Urgent Package (Cold Storage / Safe Holding Required)
                       </span>
                     </label>
@@ -6776,7 +7287,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 data-testid="modal-dispatch-parcel"
                 className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
               >
-                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">🚚</span>
@@ -6841,7 +7352,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="btn-submit-dispatch-parcel"
                       onClick={handleDispatchParcelToRoom}
                       disabled={parcelSubmitting}
-                      className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/20 disabled:opacity-50"
+                      className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-sm disabled:opacity-50"
                     >
                       Confirm Dispatch
                     </button>
@@ -6856,7 +7367,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 data-testid="modal-handover-parcel"
                 className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
               >
-                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">✍️</span>
@@ -6985,7 +7496,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 data-testid="modal-outward-courier"
                 className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
               >
-                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">📤</span>
@@ -7123,7 +7634,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 data-testid="modal-parcel-audit"
                 className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
               >
-                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">📜</span>
@@ -7160,8 +7671,8 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   </div>
 
                   {selectedParcel.deliveryInfo && (
-                    <div className="p-3 rounded-2xl bg-purple-950/20 border border-purple-800/30 text-xs space-y-1">
-                      <div className="font-bold text-purple-300">Delivery Confirmation:</div>
+                    <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs space-y-1">
+                      <div className="font-bold text-slate-700 dark:text-slate-300">Delivery Confirmation:</div>
                       <div className="text-zinc-300">
                         Recipient: {selectedParcel.deliveryInfo.recipientAcknowledgedBy} • Staff: {selectedParcel.deliveryInfo.deliveredByStaffName}
                       </div>
@@ -7220,7 +7731,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     setLostItemGuestName('');
                     setLogLostItemModalOpen(true);
                   }}
-                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black font-black text-xs transition shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-900 font-black text-xs transition shadow-lg shadow-amber-500/20 flex items-center gap-2"
                 >
                   <span>➕</span> Log Found Item
                 </button>
@@ -7261,12 +7772,12 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 <div className="text-[10px] text-emerald-400/70 mt-1">In-person & courier dispatches</div>
               </div>
 
-              <div className="bg-zinc-900/80 border border-rose-500/20 p-4 rounded-2xl bg-rose-500/5">
-                <div className="text-[11px] font-bold uppercase text-rose-400 tracking-wider">Disposed / Auction</div>
-                <div className="text-2xl font-black text-rose-300 mt-1">
+              <div className="bg-zinc-900/80 border border-red-500/20 p-4 rounded-2xl bg-red-500/5">
+                <div className="text-[11px] font-bold uppercase text-red-400 tracking-wider">Disposed / Auction</div>
+                <div className="text-2xl font-black text-red-300 mt-1">
                   {lostFoundMetrics?.disposed ?? lostFoundItems.filter((i) => i.status === 'DISPOSED' || i.status === 'AUCTIONED').length}
                 </div>
-                <div className="text-[10px] text-rose-400/70 mt-1">Post-retention statutory clear</div>
+                <div className="text-[10px] text-red-400/70 mt-1">Post-retention statutory clear</div>
               </div>
             </div>
 
@@ -7301,7 +7812,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 <button
                   type="button"
                   onClick={() => loadLostAndFound()}
-                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition whitespace-nowrap"
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-bold transition whitespace-nowrap"
                 >
                   Search
                 </button>
@@ -7384,7 +7895,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                           LOGGED: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
                           CLAIMED: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
                           RETURNED: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-                          DISPATCHED: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+                          DISPATCHED: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800',
                           DISPOSED: 'bg-zinc-700/30 text-zinc-400 border-zinc-600/30',
                           AUCTIONED: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
                         };
@@ -7495,7 +8006,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                                         setLostCourierAwb(`AWB-LF-${Date.now().toString().slice(-6)}`);
                                         setLostCourierModalOpen(true);
                                       }}
-                                      className="px-2.5 py-1 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 font-bold text-[11px] transition"
+                                      className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 font-bold text-[11px] transition"
                                     >
                                       Courier Dispatch
                                     </button>
@@ -7514,7 +8025,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                                         setDisposalActionType('DISPOSED');
                                         setLostDisposeModalOpen(true);
                                       }}
-                                      className="px-2 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-bold text-[11px] transition"
+                                      className="px-2 py-1 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 font-bold text-[11px] transition"
                                     >
                                       Dispose
                                     </button>
@@ -7548,7 +8059,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 data-testid="modal-log-lost-item"
                 className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
               >
-                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">🔒</span>
@@ -7664,7 +8175,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="btn-submit-log-lost"
                       disabled={lostSubmitting}
                       onClick={handleLogInwardLostItem}
-                      className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition disabled:opacity-50"
+                      className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 text-xs font-bold transition disabled:opacity-50"
                     >
                       {lostSubmitting ? 'Inwarding to Vault...' : 'Log & Deposit to Vault'}
                     </button>
@@ -7679,7 +8190,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 data-testid="modal-verify-lost-claim"
                 className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
               >
-                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">🔍</span>
@@ -7817,7 +8328,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 data-testid="modal-lost-handover"
                 className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
               >
-                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">🤝</span>
@@ -7926,7 +8437,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 data-testid="modal-lost-courier"
                 className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
               >
-                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">🚚</span>
@@ -8070,7 +8581,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="btn-submit-courier"
                       disabled={lostSubmitting}
                       onClick={handleDispatchCourierLostItem}
-                      className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition disabled:opacity-50"
+                      className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-bold transition disabled:opacity-50"
                     >
                       {lostSubmitting ? 'Dispatching...' : 'Dispatch Express Courier'}
                     </button>
@@ -8085,7 +8596,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 data-testid="modal-lost-dispose"
                 className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
               >
-                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">🗑️</span>
@@ -8161,7 +8672,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="btn-submit-dispose"
                       disabled={lostSubmitting}
                       onClick={handleDisposeLostItem}
-                      className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition disabled:opacity-50"
+                      className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition disabled:opacity-50"
                     >
                       {lostSubmitting ? 'Processing...' : 'Authorize Action'}
                     </button>
@@ -8176,7 +8687,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 data-testid="modal-lost-audit"
                 className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
               >
-                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-zinc-100">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-sm dark:shadow-none space-y-5 text-zinc-100">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">📜</span>
@@ -8256,8 +8767,8 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
 
                     {/* Courier Dispatch Details if any */}
                     {selectedLostItem.courierDispatch && (
-                      <div className="p-3 rounded-2xl bg-purple-950/20 border border-purple-800/30 text-xs space-y-1">
-                        <div className="font-bold text-purple-300">Outward Courier Dispatched:</div>
+                      <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs space-y-1">
+                        <div className="font-bold text-slate-700 dark:text-slate-300">Outward Courier Dispatched:</div>
                         <div className="text-zinc-300">
                           Partner: {selectedLostItem.courierDispatch.courierPartner} • AWB: {selectedLostItem.courierDispatch.waybillNumber}
                         </div>
@@ -8292,7 +8803,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="front-desk-departure-modal"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
           >
-            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto relative text-zinc-100">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-2xl w-full p-6 shadow-sm dark:shadow-none space-y-6 max-h-[92vh] overflow-y-auto relative text-zinc-100">
               {/* Modal Header */}
               <div className="flex items-start justify-between border-b border-zinc-800/80 pb-4">
                 <div>
@@ -8537,7 +9048,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="turnaround-checklist-modal"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
           >
-            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto relative text-zinc-100">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-2xl w-full p-6 shadow-sm dark:shadow-none space-y-6 max-h-[92vh] overflow-y-auto relative text-zinc-100">
               {/* Modal Header */}
               <div className="flex items-start justify-between border-b border-zinc-800/80 pb-4">
                 <div>
@@ -8545,14 +9056,14 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     <span className="text-xl font-black text-white">
                       Room {selectedTurnaroundTask.room?.roomNumber}
                     </span>
-                    <span className="text-xs font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 px-2 py-0.5 rounded-full">
                       Floor {selectedTurnaroundTask.room?.floor ?? 1}
                     </span>
                     <span className="text-xs font-mono font-bold bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full">
                       Status: {selectedTurnaroundTask.status}
                     </span>
                   </div>
-                  <h3 className="text-sm font-bold text-teal-400 mt-1">
+                  <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">
                     Housekeeping 6-Point Quality Assurance & Turnaround Protocol
                   </h3>
                   <p className="text-xs text-zinc-400">
@@ -8572,13 +9083,13 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
               {/* Quick Action: Mark All Completed */}
               <div className="flex items-center justify-between bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800">
                 <div className="text-xs text-zinc-300">
-                  Completed items: <strong className="text-teal-400">{activeChecklist.filter((c) => c.isDone).length} of {activeChecklist.length}</strong>
+                  Completed items: <strong className="text-slate-700 dark:text-slate-300">{activeChecklist.filter((c) => c.isDone).length} of {activeChecklist.length}</strong>
                 </div>
                 <button
                   type="button"
                   data-testid="btn-check-all-items"
                   onClick={() => setActiveChecklist((prev) => prev.map((item) => ({ ...item, isDone: true })))}
-                  className="px-3 py-1 bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 rounded-xl text-xs font-bold transition"
+                  className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold transition"
                 >
                   ✓ Check All 6 Points
                 </button>
@@ -8595,7 +9106,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     data-testid={`checklist-item-${idx}`}
                     className={`flex items-start gap-3 p-3.5 rounded-2xl border transition cursor-pointer ${
                       item.isDone
-                        ? 'bg-teal-950/20 border-teal-500/40 text-zinc-200'
+                        ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-zinc-200'
                         : 'bg-zinc-900/40 border-zinc-800 text-zinc-300 hover:border-zinc-700'
                     }`}
                   >
@@ -8604,7 +9115,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid={`checkbox-checklist-${idx}`}
                       checked={item.isDone}
                       onChange={() => handleToggleChecklistItem(idx)}
-                      className="mt-0.5 rounded border-zinc-700 text-teal-500 focus:ring-teal-500 h-4 w-4"
+                      className="mt-0.5 rounded border-zinc-700 text-slate-700 dark:text-slate-300 focus:ring-teal-500 h-4 w-4"
                     />
                     <div className="text-xs leading-relaxed flex-1">
                       <span className={item.isDone ? 'line-through text-zinc-400' : 'font-medium'}>
@@ -8626,7 +9137,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   value={turnaroundNotes}
                   onChange={(e) => setTurnaroundNotes(e.target.value)}
                   placeholder="e.g. Linen changed, minibar audited, fragrance spritzed, sanitized for arrival."
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-teal-500 resize-none"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-slate-200 dark:border-slate-800 resize-none"
                 />
               </div>
 
@@ -8669,7 +9180,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="report-defect-modal"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
           >
-            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 relative text-zinc-100">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-sm dark:shadow-none space-y-5 relative text-zinc-100">
               <div className="flex items-start justify-between border-b border-zinc-800/80 pb-3">
                 <div>
                   <h3 className="text-base font-black text-white flex items-center gap-2">
@@ -8820,7 +9331,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="parts-resolution-modal"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
           >
-            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 relative text-zinc-100">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-xl w-full p-6 shadow-sm dark:shadow-none space-y-5 relative text-zinc-100">
               <div className="flex items-start justify-between border-b border-zinc-800/80 pb-3">
                 <div>
                   <div className="flex items-center gap-2">
@@ -8963,12 +9474,12 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="room-move-modal"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
           >
-            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 relative text-zinc-100">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-lg w-full p-6 shadow-sm dark:shadow-none space-y-5 relative text-zinc-100">
               <div className="flex items-start justify-between border-b border-zinc-800/80 pb-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-black text-white">Room Move & Suite Upgrade</span>
-                    <span className="text-xs font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-mono font-bold bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 px-2 py-0.5 rounded-full">
                       SHIFT 64
                     </span>
                   </div>
@@ -9003,7 +9514,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 <div>
                   <label className="text-zinc-300 font-bold block mb-1.5 flex items-center justify-between">
                     <span>Select Destination Room</span>
-                    {loadingUpgradeRooms && <span className="text-[10px] text-cyan-400 animate-pulse">Loading rooms...</span>}
+                    {loadingUpgradeRooms && <span className="text-[10px] text-slate-700 dark:text-slate-300 animate-pulse">Loading rooms...</span>}
                   </label>
                   {availableUpgradeRooms.length === 0 && !loadingUpgradeRooms ? (
                     <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
@@ -9014,7 +9525,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       data-testid="select-target-room"
                       value={targetRoomNumber}
                       onChange={(e) => handleSelectTargetRoom(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-white font-medium focus:outline-none focus:border-cyan-500"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-white font-medium focus:outline-none focus:border-slate-200 dark:border-slate-800"
                     >
                       {availableUpgradeRooms.map((r) => (
                         <option key={r.roomId} value={r.roomNumber}>
@@ -9042,7 +9553,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                         onClick={() => setMoveReason(opt.id as any)}
                         className={`p-2.5 rounded-xl border text-left transition-all ${
                           moveReason === opt.id
-                            ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-lg shadow-cyan-500/10'
+                            ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-white shadow-lg shadow-sm'
                             : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
                         }`}
                       >
@@ -9065,7 +9576,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     min="0"
                     value={moveUpgradeFee}
                     onChange={(e) => setMoveUpgradeFee(Math.max(0, Number(e.target.value) || 0))}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono font-bold focus:outline-none focus:border-cyan-500"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white font-mono font-bold focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                   {moveUpgradeFee > 0 && (
                     <div className="flex justify-between items-center text-[11px] pt-1 border-t border-zinc-800 text-zinc-400 font-mono">
@@ -9084,13 +9595,13 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     value={moveNotes}
                     onChange={(e) => setMoveNotes(e.target.value)}
                     placeholder="e.g. Upgraded to Presidential Suite as VIP Platinum gesture."
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                 </div>
 
                 {/* Operational Impact Notice */}
-                <div className="p-3 rounded-2xl bg-cyan-950/40 border border-cyan-800/50 text-[11px] text-cyan-200/90 space-y-1">
-                  <div className="font-bold flex items-center gap-1.5 text-cyan-300">
+                <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-700 dark:text-slate-300/90 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                     <span>ℹ️</span> Operational Workflow Automation:
                   </div>
                   <ul className="list-disc list-inside space-y-0.5 text-zinc-400 text-[10px]">
@@ -9116,7 +9627,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   data-testid="btn-submit-room-move"
                   disabled={submittingRoomMove || !targetRoomNumber}
                   onClick={handleExecuteRoomMove}
-                  className="flex-2 py-3 px-6 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-cyan-950/40 disabled:opacity-50"
+                  className="flex-2 py-3 px-6 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-sm disabled:opacity-50"
                 >
                   {submittingRoomMove ? 'Transferring...' : 'Execute Room Move & Re-Issue Key'}
                 </button>
@@ -9130,12 +9641,12 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
             <div
               data-testid="modal-late-checkout"
-              className="bg-zinc-950 border border-purple-500/40 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl text-xs relative max-h-[90vh] overflow-y-auto"
+              className="bg-zinc-950 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-sm dark:shadow-none text-xs relative max-h-[90vh] overflow-y-auto"
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <span className="p-2 rounded-2xl bg-purple-500/20 text-purple-400 text-lg">🕒</span>
+                  <span className="p-2 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-lg">🕒</span>
                   <div>
                     <h3 className="text-base font-black text-white">Late Check-Out & Keycard Extension</h3>
                     <p className="text-[11px] text-zinc-400">Tiered surcharge calculation, automated folio charge & door key sync</p>
@@ -9152,7 +9663,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
               </div>
 
               {/* Guest & Room Context Banner */}
-              <div className="bg-purple-950/20 border border-purple-500/30 p-3.5 rounded-2xl flex items-center justify-between">
+              <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-base font-black text-white">Room {selectedLateGuest.roomNumber}</span>
@@ -9169,7 +9680,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   <div className="text-[11px] text-zinc-400 font-mono">Current Check-Out: 11:00 AM</div>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] uppercase font-black text-purple-400 block">Folio Balance</span>
+                  <span className="text-[10px] uppercase font-black text-slate-700 dark:text-slate-300 block">Folio Balance</span>
                   <span className="text-base font-black text-amber-400 font-mono">₹{selectedLateGuest.balanceDue}</span>
                 </div>
               </div>
@@ -9190,12 +9701,12 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                       onClick={() => handleChangeLateTime(preset.time)}
                       className={`p-3 rounded-2xl border text-center transition-all ${
                         requestedLateDepartureTime === preset.time
-                          ? 'bg-purple-500/20 border-purple-400 text-white shadow-lg shadow-purple-500/20'
+                          ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-white shadow-lg shadow-sm'
                           : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
                       }`}
                     >
                       <div className="font-black text-sm">{preset.label}</div>
-                      <div className="text-[10px] text-purple-300/80 mt-0.5 font-bold">{preset.tag}</div>
+                      <div className="text-[10px] text-slate-700 dark:text-slate-300/80 mt-0.5 font-bold">{preset.tag}</div>
                     </button>
                   ))}
                 </div>
@@ -9207,7 +9718,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     data-testid="input-custom-late-time"
                     value={requestedLateDepartureTime}
                     onChange={(e) => handleChangeLateTime(e.target.value)}
-                    className="bg-zinc-900 border border-zinc-800 text-white rounded-xl px-3 py-1.5 font-mono text-xs focus:outline-none focus:border-purple-500"
+                    className="bg-zinc-900 border border-zinc-800 text-white rounded-xl px-3 py-1.5 font-mono text-xs focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                 </div>
               </div>
@@ -9220,7 +9731,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                 >
                   <div className="flex justify-between text-zinc-400 text-xs">
                     <span>Applicable Pricing Tier:</span>
-                    <strong className="text-purple-300 font-bold uppercase">{lateCalculation.tier} ({lateCalculation.percent}%)</strong>
+                    <strong className="text-slate-700 dark:text-slate-300 font-bold uppercase">{lateCalculation.tier} ({lateCalculation.percent}%)</strong>
                   </div>
                   <div className="flex justify-between text-zinc-400 text-xs">
                     <span>Extension Granted:</span>
@@ -9257,7 +9768,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     data-testid="checkbox-waive-late-fee"
                     checked={waiveLateFee}
                     onChange={(e) => setWaiveLateFee(e.target.checked)}
-                    className="w-4 h-4 rounded text-purple-600 bg-zinc-900 border-zinc-700 focus:ring-0"
+                    className="w-4 h-4 rounded text-slate-700 dark:text-slate-300 bg-zinc-900 border-zinc-700 focus:ring-0"
                   />
                   <span className="text-zinc-300 font-bold">Waive Late Check-Out Surcharge (GM / VIP Discretion)</span>
                 </label>
@@ -9268,14 +9779,14 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                     value={lateWaiverReason}
                     onChange={(e) => setLateWaiverReason(e.target.value)}
                     placeholder="Enter reason for complimentary waiver (e.g. Flight delay / VIP courtesy)"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-purple-500 font-sans"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-slate-200 dark:border-slate-800 font-sans"
                   />
                 )}
               </div>
 
               {/* Automation & Safety Advisory */}
-              <div className="p-3 rounded-2xl bg-purple-950/30 border border-purple-800/40 text-[11px] text-purple-200/90 space-y-1">
-                <div className="font-bold flex items-center gap-1.5 text-purple-300">
+              <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-700 dark:text-slate-300/90 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                   <span>⚡</span> Automated Actions Upon Approval:
                 </div>
                 <ul className="list-disc list-inside space-y-0.5 text-zinc-400 text-[10px]">
@@ -9300,7 +9811,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   data-testid="btn-confirm-late-checkout"
                   disabled={submittingLateCheckout}
                   onClick={handleExecuteLateCheckout}
-                  className="flex-2 py-3 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-purple-950/40 disabled:opacity-50"
+                  className="flex-2 py-3 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-sm disabled:opacity-50"
                 >
                   {submittingLateCheckout ? 'Extending Keycard...' : 'Approve Late Departure & Sync Keycard'}
                 </button>
@@ -9314,7 +9825,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
           <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
             <div
               data-testid="modal-rate-override"
-              className="bg-zinc-950 border border-amber-500/40 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl text-xs relative max-h-[90vh] overflow-y-auto"
+              className="bg-zinc-950 border border-amber-500/40 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-sm dark:shadow-none text-xs relative max-h-[90vh] overflow-y-auto"
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
@@ -9605,7 +10116,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="digital-keycard-modal"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
           >
-            <div className="bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 border border-amber-500/50 rounded-3xl p-7 max-w-md w-full shadow-2xl space-y-5 text-center relative overflow-hidden">
+            <div className="bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 border border-amber-500/50 rounded-3xl p-7 max-w-md w-full shadow-sm dark:shadow-none space-y-5 text-center relative overflow-hidden">
               <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
               <div className="space-y-1">
@@ -9649,6 +10160,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                   data-testid="btn-close-keycard"
                   onClick={() => {
                     setIssuedKeycard(null);
+                    setFolioPreview(null);
                     onBackToMatrix?.();
                   }}
                   className="py-3.5 px-4 rounded-xl border border-zinc-700 hover:border-zinc-500 text-zinc-300 font-bold text-xs transition"
@@ -9666,7 +10178,7 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
             data-testid="folio-preview-modal"
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
           >
-            <div className="bg-[#0c0e17] border border-blue-500/40 rounded-3xl p-7 max-w-lg w-full shadow-2xl space-y-5">
+            <div className="bg-slate-950 border border-blue-500/40 rounded-3xl p-7 max-w-lg w-full shadow-sm dark:shadow-none space-y-5">
               <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                 <div>
                   <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">
@@ -9729,6 +10241,45 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
               >
                 Return to Room Grid (Room Matrix)
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Aadhaar Document Inspection Lightbox Modal */}
+        {previewDocModalUrl && (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-zinc-900 border border-zinc-700 rounded-3xl max-w-2xl w-full p-5 space-y-4 shadow-sm dark:shadow-none relative">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                  <span>🪪</span> {previewDocTitle}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDocModalUrl(null)}
+                  className="p-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="rounded-2xl overflow-hidden border border-zinc-800 bg-black max-h-[70vh] flex items-center justify-center p-2">
+                <img
+                  src={previewDocModalUrl}
+                  alt="Document Inspection"
+                  className="w-full h-auto object-contain max-h-[66vh] rounded-lg"
+                />
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-[11px] text-zinc-400 font-mono">
+                  Verified by Front Desk Duty Receptionist
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDocModalUrl(null)}
+                  className="px-5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs"
+                >
+                  Close Inspection
+                </button>
+              </div>
             </div>
           </div>
         )}

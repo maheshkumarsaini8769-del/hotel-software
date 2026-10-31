@@ -23,16 +23,7 @@ import {
 import { WaiterStaffProfile } from '../components/WaiterLoginScreen';
 import { waiterFetch } from '../lib/waiterApi';
 
-export const PRESET_WAITER_AVATARS = [
-  { id: 'pw-1', name: 'Ravi Kumar (Captain)', url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80' },
-  { id: 'pw-2', name: 'Ramesh K. (Senior Waiter)', url: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200&auto=format&fit=crop&q=80' },
-  { id: 'pw-3', name: 'Priya Sharma (Waitress)', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80' },
-  { id: 'pw-4', name: 'Amit Singh (Steward)', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80' },
-  { id: 'pw-5', name: 'Deepak V. (Junior Waiter)', url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80' },
-  { id: 'pw-6', name: 'Ananya Roy (Hostess)', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&auto=format&fit=crop&q=80' },
-  { id: 'pw-7', name: 'Karan Mehra (Captain)', url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&auto=format&fit=crop&q=80' },
-  { id: 'pw-8', name: 'Neha Gupta (Captain)', url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&auto=format&fit=crop&q=80' },
-];
+export const DEFAULT_WAITER_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24" fill="%2394a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
 
 interface MyProfileViewProps {
   isDark: boolean;
@@ -70,7 +61,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
   const staffName = waiterSession?.name || 'Ravi Kumar';
   const staffRole = waiterSession?.role || 'Captain';
   const staffId = waiterSession?.staffId || 'W-101';
-  const staffAvatar = waiterSession?.avatar || PRESET_WAITER_AVATARS[0].url;
+  const staffAvatar = waiterSession?.avatar || DEFAULT_WAITER_AVATAR;
   const shiftTime = waiterSession?.shift || '09:00 AM - 05:00 PM';
   const tableRange = `Tables T-${String(waiterSession?.assignedTableStart || 1).padStart(2, '0')} to T-${String(waiterSession?.assignedTableEnd || 6).padStart(2, '0')}`;
   const section = waiterSession?.assignedSection || 'Indoor AC Dining Hall';
@@ -78,8 +69,6 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
   const [currentAvatar, setCurrentAvatar] = useState(staffAvatar);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(staffAvatar);
-  const [customPhotoUrl, setCustomPhotoUrl] = useState('');
-  const [isUrlTab, setIsUrlTab] = useState(false);
 
   useEffect(() => {
     if (waiterSession?.avatar) {
@@ -91,15 +80,33 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        triggerToast('⚠️ Image size exceeds 5MB! Please pick a smaller photo.');
+      if (file.size > 10 * 1024 * 1024) {
+        triggerToast('⚠️ Image size exceeds 10MB! Please pick a smaller photo.');
         return;
       }
       const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setSelectedPhoto(reader.result);
-        }
+      reader.onload = (event) => {
+        const rawUrl = event.target?.result as string;
+        if (!rawUrl) return;
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 400;
+          canvas.height = 400;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            const minSide = Math.min(img.width, img.height);
+            const sx = (img.width - minSide) / 2;
+            const sy = (img.height - minSide) / 2;
+            ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, 400, 400);
+            const compressed = canvas.toDataURL('image/jpeg', 0.82);
+            setSelectedPhoto(compressed);
+            triggerToast('✓ Real photo loaded and compressed to 400x400 JPEG (~40KB)!');
+          } else {
+            setSelectedPhoto(rawUrl);
+          }
+        };
+        img.src = rawUrl;
       };
       reader.readAsDataURL(file);
     }
@@ -130,7 +137,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
       body: JSON.stringify({ avatar: selectedPhoto }),
     }).catch(() => {});
 
-    triggerToast('✓ Profile photo updated successfully! (फोटो सेव हो गई)');
+    triggerToast('✓ Profile photo updated successfully!');
     setIsPhotoModalOpen(false);
   };
 
@@ -138,7 +145,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-5 gap-3 sm:gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-500 flex items-center justify-center font-bold">
@@ -168,7 +175,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
       <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-4 pb-32 lg:pb-8">
         {/* User Card */}
         <div className={`p-4 sm:p-6 rounded-2xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 ${
-          isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
         }`}>
           <div className="flex items-center gap-3 sm:gap-4">
             <div
@@ -183,7 +190,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
               />
               <div className="absolute inset-0 bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition text-[9px] font-bold">
                 <Camera className="w-4 h-4 text-orange-400 mb-0.5" />
-                <span>फोटो बदलें</span>
+                <span>Change Photo</span>
               </div>
               <div className="absolute -bottom-1 -right-1 p-1 bg-orange-600 rounded-full text-white border-2 border-slate-900 shadow">
                 <Camera className="w-3 h-3" />
@@ -208,7 +215,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
                   className="px-2.5 py-0.5 rounded-lg text-[11px] font-bold border border-orange-500/40 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 flex items-center gap-1 transition shadow-xs"
                 >
                   <Camera className="w-3 h-3" />
-                  <span>Update Photo / फोटो लगाएं</span>
+                  <span>Update Photo</span>
                 </button>
               </div>
               <p className={`text-xs mt-1 flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -256,7 +263,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
                   triggerToast('Waiter Shift concluded successfully.');
                 }
               }}
-              className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
+              className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
             >
               <LogOut className="w-4 h-4" />
               <span>End Shift</span>
@@ -267,7 +274,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
         {/* 4 Performance Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className={`p-4 rounded-2xl border space-y-1 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <div className={`flex items-center justify-between text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
               <span>Today's Sales</span>
@@ -282,7 +289,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
           </div>
 
           <div className={`p-4 rounded-2xl border space-y-1 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <div className={`flex items-center justify-between text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
               <span>Tables Served</span>
@@ -297,7 +304,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
           </div>
 
           <div className={`p-4 rounded-2xl border space-y-1 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <div className={`flex items-center justify-between text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
               <span>Avg Turnaround</span>
@@ -310,7 +317,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
           </div>
 
           <div className={`p-4 rounded-2xl border space-y-1 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <div className={`flex items-center justify-between text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
               <span>Guest Rating</span>
@@ -325,7 +332,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
 
         {/* Cash Float Register Widget */}
         <div className={`p-4 sm:p-6 rounded-2xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
-          isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
         }`}>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-600 flex items-center justify-center font-bold shrink-0">
@@ -369,8 +376,8 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
       {/* Waiter Profile Photo Upload & Preset Modal */}
       {isPhotoModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
-          <div className={`w-full max-w-md rounded-2xl border p-5 space-y-4 shadow-2xl ${
-            isDark ? 'bg-[#151926] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+          <div className={`w-full max-w-md rounded-2xl border p-5 space-y-4 shadow-sm dark:shadow-none ${
+            isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
           }`}>
             <div className="flex items-center justify-between pb-3 border-b border-slate-700/40">
               <div className="flex items-center gap-2.5">
@@ -378,7 +385,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
                   <Camera className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-sm">Update Profile Photo (अपनी फोटो लगाएं)</h3>
+                  <h3 className="font-black text-sm">Update Profile Photo</h3>
                   <p className="text-[11px] text-slate-400">Change photo visible on KOTs, Login screen & Badges</p>
                 </div>
               </div>
@@ -396,102 +403,47 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
                 <img
                   src={selectedPhoto || currentAvatar}
                   alt={staffName}
-                  className="w-24 h-24 rounded-full object-cover border-4 border-orange-500 shadow-xl ring-4 ring-orange-500/20"
+                  className="w-28 h-28 rounded-2xl object-cover border-2 border-orange-500 shadow-xl ring-4 ring-orange-500/20"
                 />
-                <div className="absolute bottom-0 right-0 p-1.5 bg-emerald-500 rounded-full text-white shadow">
-                  <Check className="w-3.5 h-3.5" />
+                <div className="absolute -bottom-1 -right-1 px-2 py-0.5 bg-emerald-500 text-white rounded-md text-[9px] font-bold shadow flex items-center gap-1">
+                  <Check className="w-2.5 h-2.5" />
+                  <span>Real Staff Photo</span>
                 </div>
               </div>
               <div className="text-center">
                 <span className="text-xs font-bold block">{staffName}</span>
                 <span className="text-[10px] text-slate-400 font-mono">ID: {staffId} • {staffRole}</span>
+                <span className="text-[9px] text-emerald-400 font-mono block mt-0.5">Optimized: 400 × 400 px, ~40 KB JPEG</span>
               </div>
             </div>
 
-            {/* Upload Options */}
-            <div className="space-y-3">
-              <label className="w-full py-2.5 px-4 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition shadow-sm">
-                <Upload className="w-4 h-4" />
-                <span>Upload Photo from Phone / Gallery</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handlePhotoUpload}
-                />
-              </label>
+              {/* Direct Camera & Gallery Upload (Exclusively Camera & Gallery as instructed) */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <label className="py-3 px-3 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex flex-col items-center justify-center gap-1.5 cursor-pointer transition shadow-xs text-center">
+                  <Camera className="w-5 h-5" />
+                  <span>Take Live Photo</span>
+                  <span className="text-[10px] text-orange-200 font-normal">Direct Camera</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    className="hidden"
+                    onChange={handlePhotoUpload}
+                  />
+                </label>
 
-              {/* Paste URL Option */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
-                  <span>Or enter photo link:</span>
-                  <button
-                    type="button"
-                    onClick={() => setIsUrlTab(!isUrlTab)}
-                    className="text-orange-400 hover:underline flex items-center gap-1"
-                  >
-                    <ImageIcon className="w-3 h-3" />
-                    <span>{isUrlTab ? 'Hide URL Box' : 'Enter URL'}</span>
-                  </button>
-                </div>
-                {isUrlTab && (
-                  <div className="flex items-center gap-2 pt-1">
-                    <input
-                      type="url"
-                      placeholder="https://..."
-                      value={customPhotoUrl}
-                      onChange={(e) => setCustomPhotoUrl(e.target.value)}
-                      className={`flex-1 p-2 rounded-lg border text-xs ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (customPhotoUrl.trim()) {
-                          setSelectedPhoto(customPhotoUrl.trim());
-                          triggerToast('✓ Photo preview updated!');
-                        }
-                      }}
-                      className="px-3 py-2 rounded-lg bg-orange-600 text-white text-xs font-bold"
-                    >
-                      Apply
-                    </button>
-                  </div>
-                )}
+                <label className="py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs flex flex-col items-center justify-center gap-1.5 cursor-pointer transition shadow-xs text-center">
+                  <Upload className="w-5 h-5 text-orange-400" />
+                  <span>Choose from Gallery</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Photo Library</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoUpload}
+                  />
+                </label>
               </div>
-
-              {/* Presets */}
-              <div>
-                <span className="text-[11px] font-bold text-slate-400 block mb-1">
-                  Or select preset waiter avatar:
-                </span>
-                <div className="grid grid-cols-4 gap-2">
-                  {PRESET_WAITER_AVATARS.map((p) => {
-                    const isSel = selectedPhoto === p.url;
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setSelectedPhoto(p.url)}
-                        className={`relative rounded-xl border-2 transition p-0.5 flex flex-col items-center ${
-                          isSel ? 'border-orange-500 ring-2 ring-orange-500/40 bg-orange-500/10' : 'border-slate-800 hover:border-slate-600'
-                        }`}
-                        title={p.name}
-                      >
-                        <img src={p.url} alt={p.name} className="w-12 h-12 rounded-lg object-cover" />
-                        <span className="text-[9px] font-semibold truncate w-full text-center mt-0.5">{p.name.split(' ')[0]}</span>
-                        {isSel && (
-                          <div className="absolute top-0 right-0 bg-orange-600 text-white rounded-full p-0.5">
-                            <Check className="w-2.5 h-2.5" />
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-700/40">
@@ -508,7 +460,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
                 className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
               >
                 <Check className="w-4 h-4" />
-                <span>Save Profile Photo (फोटो सेव करें)</span>
+                <span>Save Profile Photo</span>
               </button>
             </div>
           </div>

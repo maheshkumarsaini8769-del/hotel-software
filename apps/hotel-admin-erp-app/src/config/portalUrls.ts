@@ -49,15 +49,63 @@ function isLoopbackHost(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
 }
 
-export function getPortalUrl(portal: PortalKey, path = ''): string {
+export async function fetchServerLanIp(): Promise<string> {
+  if (typeof window === 'undefined') return '10.65.226.216';
+  try {
+    const res = await fetch('/api/v1/system/network-info');
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.lanIp) {
+        localStorage.setItem('spicehub_lan_ip', data.lanIp);
+        return data.lanIp;
+      }
+    }
+  } catch {}
+  return localStorage.getItem('spicehub_lan_ip') || '10.65.226.216';
+}
+
+export function getPortalUrl(portal: PortalKey, path = '', overrideHost?: string): string {
   const configured = ENV_URLS[portal]?.trim();
-  const origin = configured
-    ? trimTrailingSlash(configured)
-    : typeof window !== 'undefined' && isLoopbackHost(window.location.hostname)
-      ? `http://localhost:${LOCAL_PORTS[portal]}`
-      : typeof window !== 'undefined'
-        ? window.location.origin
-        : '';
+  if (configured) {
+    const origin = trimTrailingSlash(configured);
+    if (!path) return origin;
+    return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
+  // 1. If an override host is explicitly supplied (e.g. from QR Center selector)
+  if (overrideHost && overrideHost.trim()) {
+    const cleanHost = overrideHost.trim();
+    const port = LOCAL_PORTS[portal];
+    const origin = cleanHost.startsWith('http://') || cleanHost.startsWith('https://')
+      ? trimTrailingSlash(cleanHost)
+      : `http://${cleanHost}:${port}`;
+    if (!path) return origin;
+    return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
+  // 2. Check localStorage for persistent QR host selection
+  const storedQrHost = typeof window !== 'undefined' ? localStorage.getItem('spicehub_qr_host') : null;
+  if (storedQrHost && storedQrHost.trim()) {
+    const cleanHost = storedQrHost.trim();
+    const port = LOCAL_PORTS[portal];
+    const origin = cleanHost.startsWith('http://') || cleanHost.startsWith('https://')
+      ? trimTrailingSlash(cleanHost)
+      : `http://${cleanHost}:${port}`;
+    if (!path) return origin;
+    return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
+  // 3. If running on a LAN IP directly (e.g. 10.65.226.216 or 192.168.x.x)
+  if (typeof window !== 'undefined' && window.location.hostname && !isLoopbackHost(window.location.hostname)) {
+    const origin = `http://${window.location.hostname}:${LOCAL_PORTS[portal]}`;
+    if (!path) return origin;
+    return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
+  // 4. If running on loopback, check if cached LAN IP exists so phone QR scans work
+  const cachedLanIp = typeof window !== 'undefined' ? localStorage.getItem('spicehub_lan_ip') : null;
+  const targetHost = cachedLanIp || (typeof window !== 'undefined' ? window.location.hostname : 'localhost');
+  const origin = `http://${targetHost}:${LOCAL_PORTS[portal]}`;
 
   if (!origin) return path || '#';
   if (!path) return origin;

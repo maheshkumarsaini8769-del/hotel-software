@@ -145,14 +145,14 @@ export const RoomRatesView: React.FC<RoomRatesViewProps> = ({ isDark = true, onT
   };
 
   const cardClass = isDark
-    ? 'bg-[#141620] border-slate-800'
-    : 'bg-white border-slate-200 shadow-sm';
-  const headingClass = isDark ? 'text-white' : 'text-slate-900';
+    ? 'bg-slate-900 border-slate-800'
+    : 'bg-white border-slate-200 shadow-2xs';
+  const headingClass = isDark ? 'text-white' : 'text-slate-800';
   const mutedClass = isDark ? 'text-slate-400' : 'text-slate-500';
-  const inputClass = `w-24 px-2 py-1 rounded-lg border text-xs font-mono ${
+  const inputClass = `w-24 px-2 py-1 rounded-lg border text-xs font-mono transition ${
     isDark
-      ? 'bg-slate-900 border-slate-700 text-white'
-      : 'bg-white border-slate-300 text-slate-900'
+      ? 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500'
+      : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
   }`;
 
   return (
@@ -169,7 +169,9 @@ export const RoomRatesView: React.FC<RoomRatesViewProps> = ({ isDark = true, onT
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-xs font-bold flex items-center gap-1.5">
+          <div className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${
+            isDark ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          }`}>
             <Sparkles className="w-3.5 h-3.5" />
             <span>{rates.length} live room types</span>
           </div>
@@ -190,7 +192,7 @@ export const RoomRatesView: React.FC<RoomRatesViewProps> = ({ isDark = true, onT
       </div>
 
       {error && (
-        <div className="p-3 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-200 text-xs font-semibold flex items-center justify-between gap-3">
+        <div className="p-3 rounded-xl border border-red-500/40 bg-red-500/10 text-red-200 text-xs font-semibold flex items-center justify-between gap-3">
           <span className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             {error}
@@ -221,7 +223,9 @@ export const RoomRatesView: React.FC<RoomRatesViewProps> = ({ isDark = true, onT
                 <div className="space-y-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2.5">
                     <span className={`font-black text-sm ${headingClass}`}>{rate.name}</span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-300 border border-slate-700">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                      isDark ? 'bg-slate-800 text-amber-300 border-slate-700' : 'bg-amber-50 text-amber-800 border-amber-200'
+                    }`}>
                       {rate.code}
                     </span>
                     <span className={`text-[10px] ${mutedClass}`}>({rate.roomsCount} physical rooms)</span>
@@ -282,7 +286,7 @@ export const RoomRatesView: React.FC<RoomRatesViewProps> = ({ isDark = true, onT
                         aria-label="Weekend price"
                       />
                     ) : (
-                      <span className="text-sm font-black text-amber-400 tabular-nums">
+                      <span className={`text-sm font-black tabular-nums ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
                         ₹{rate.weekendPrice.toLocaleString('en-IN')}
                       </span>
                     )}
@@ -344,7 +348,9 @@ export const RoomRatesView: React.FC<RoomRatesViewProps> = ({ isDark = true, onT
                           type="button"
                           onClick={() => setEditingId(null)}
                           disabled={saving}
-                          className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200"
+                          className={`p-1.5 rounded-lg transition ${
+                            isDark ? 'bg-slate-700 hover:bg-slate-600 text-slate-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
                           title="Cancel"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -355,7 +361,11 @@ export const RoomRatesView: React.FC<RoomRatesViewProps> = ({ isDark = true, onT
                     <button
                       type="button"
                       onClick={() => handleStartEdit(rate)}
-                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                      className={`p-2 rounded-xl transition ${
+                        isDark
+                          ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200'
+                      }`}
                       title="Edit Rate"
                     >
                       <Edit2 className="w-3.5 h-3.5" />

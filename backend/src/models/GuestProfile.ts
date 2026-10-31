@@ -31,6 +31,11 @@ export interface IGuestProfile extends Document {
   pointsEarnedLifetime: number;
   pointsRedeemedLifetime: number;
   tags: string[];
+  dpdpConsent?: {
+    accepted: boolean;
+    timestamp: Date;
+    ipAddress?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -63,6 +68,11 @@ const GuestProfileSchema = new Schema<IGuestProfile>(
     pointsEarnedLifetime: { type: Number, default: 0, min: 0 },
     pointsRedeemedLifetime: { type: Number, default: 0, min: 0 },
     tags: [{ type: String, trim: true }],
+    dpdpConsent: {
+      accepted: { type: Boolean, default: false },
+      timestamp: { type: Date },
+      ipAddress: { type: String, trim: true },
+    },
   },
   { timestamps: true }
 );

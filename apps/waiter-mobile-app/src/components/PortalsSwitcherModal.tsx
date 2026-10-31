@@ -61,8 +61,8 @@ export const SPICEHUB_PORTALS: PortalItem[] = [
     port: 3008,
     url: getPortalUrl('reception'),
     icon: Layers,
-    color: 'text-indigo-400',
-    bgColor: 'bg-indigo-500/10 border-indigo-500/30',
+    color: 'text-slate-700 dark:text-slate-300',
+    bgColor: 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800',
     badge: 'PMS & Reservations',
     description: 'Check-in hotel guests, manage room keys, allocate room folios, view dining room charges, and checkout.',
   },
@@ -73,8 +73,8 @@ export const SPICEHUB_PORTALS: PortalItem[] = [
     port: 3003,
     url: getPortalUrl('kds'),
     icon: ChefHat,
-    color: 'text-rose-400',
-    bgColor: 'bg-rose-500/10 border-rose-500/30',
+    color: 'text-red-400',
+    bgColor: 'bg-red-500/10 border-red-500/30',
     badge: 'Live Kitchen Stations',
     description: 'Live order tickets from waiters and QR, cooking station queues, mark dishes ready for waiter pickup.',
   },
@@ -109,8 +109,8 @@ export const SPICEHUB_PORTALS: PortalItem[] = [
     port: 3006,
     url: getPortalUrl('superadmin'),
     icon: ShieldAlert,
-    color: 'text-purple-400',
-    bgColor: 'bg-purple-500/10 border-purple-500/30',
+    color: 'text-slate-700 dark:text-slate-300',
+    bgColor: 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800',
     badge: 'Multi-Tenant SaaS',
     description: 'Tenant hotel subscriptions, global kill-switch, database diagnostics, multi-property health monitoring.',
   },
@@ -121,8 +121,8 @@ export const SPICEHUB_PORTALS: PortalItem[] = [
     port: 5000,
     url: `${API_BASE_URL}/pos/demo-context`,
     icon: Server,
-    color: 'text-teal-400',
-    bgColor: 'bg-teal-500/10 border-teal-500/30',
+    color: 'text-slate-700 dark:text-slate-300',
+    bgColor: 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800',
     badge: 'Port 5000 Engine',
     description: 'High-speed Express REST API, MongoDB Mongoose models, and real-time Socket.IO synchronization hub.',
   },
@@ -143,7 +143,7 @@ export const PortalsSwitcherModal: React.FC<PortalsSwitcherModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#10131d] border border-slate-800 rounded-3xl max-w-4xl w-full p-6 sm:p-7 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full p-6 sm:p-7 shadow-sm dark:shadow-none flex flex-col max-h-[90vh] overflow-hidden">
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
           <div className="flex items-center gap-3">
@@ -185,8 +185,8 @@ export const PortalsSwitcherModal: React.FC<PortalsSwitcherModalProps> = ({
                 rel="noreferrer"
                 className={`p-4 rounded-2xl border transition-all hover:scale-[1.01] hover:shadow-xl flex flex-col justify-between gap-3 group ${
                   isCurrent
-                    ? 'bg-gradient-to-r from-orange-950/40 via-slate-900 to-[#181c2b] border-orange-500/80'
-                    : 'bg-[#151926] border-slate-800/80 hover:border-slate-700'
+                    ? 'bg-slate-900 border-amber-500'
+                    : 'bg-slate-900 border-slate-800/80 hover:border-slate-700'
                 }`}
               >
                 <div>

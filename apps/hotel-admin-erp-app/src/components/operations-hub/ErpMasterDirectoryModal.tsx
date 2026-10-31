@@ -270,8 +270,8 @@ export const ErpMasterDirectoryModal: React.FC<ErpMasterDirectoryModalProps> = (
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
       <div
-        className={`w-full max-w-5xl max-h-[90vh] rounded-3xl border shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
-          isDark ? 'bg-[#0a0d14] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
+        className={`w-full max-w-5xl max-h-[90vh] rounded-3xl border shadow-sm dark:shadow-none flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
+          isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
         }`}
       >
         {/* Modal Header */}
@@ -347,7 +347,7 @@ export const ErpMasterDirectoryModal: React.FC<ErpMasterDirectoryModalProps> = (
                 }}
                 className={`group p-4 rounded-2xl border transition-all duration-150 cursor-pointer hover:border-amber-500/60 hover:shadow-lg relative flex flex-col justify-between ${
                   isDark
-                    ? 'bg-[#0f1420] border-slate-800 hover:bg-slate-800/50'
+                    ? 'bg-slate-900 border-slate-800 hover:bg-slate-800/50'
                     : 'bg-slate-50 border-slate-200 hover:bg-white'
                 }`}
               >

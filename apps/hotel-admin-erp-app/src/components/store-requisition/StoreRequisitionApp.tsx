@@ -24,11 +24,15 @@ import { InterKitchenTransferModal } from './InterKitchenTransferModal';
 interface StoreRequisitionAppProps {
   apiBaseUrl?: string;
   token?: string;
+  hotelId?: string;
+  initialTab?: 'REQUISITIONS' | 'TRANSFERS' | 'FEFO_ALERTS';
 }
 
 export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
   apiBaseUrl = API_BASE_URL,
   token,
+  hotelId,
+  initialTab = 'FEFO_ALERTS',
 }) => {
   const [store] = useState(() => new StoreRequisitionStore());
   const [requisitions, setRequisitions] = useState<IStoreRequisitionUI[]>([]);
@@ -47,7 +51,7 @@ export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
     expiredCount: 0,
     totalAtRiskValue: 0,
   });
-  const [activeTab, setActiveTab] = useState<'REQUISITIONS' | 'TRANSFERS' | 'FEFO_ALERTS'>('REQUISITIONS');
+  const [activeTab, setActiveTab] = useState<'REQUISITIONS' | 'TRANSFERS' | 'FEFO_ALERTS'>(initialTab);
   const [filterStatus, setFilterStatus] = useState<RequisitionStatusUI | 'ALL'>('ALL');
   const [filterDepartment, setFilterDepartment] = useState<RequisitionDepartmentUI | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -75,7 +79,8 @@ export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
   const authHeaders = useCallback(() => ({
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  }), [token]);
+    ...(hotelId ? { 'x-hotel-id': hotelId } : {}),
+  }), [token, hotelId]);
 
   // Fetch Requisitions
   const fetchRequisitions = useCallback(async () => {
@@ -198,7 +203,7 @@ export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-zinc-100 flex flex-col font-sans select-none">
+    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans select-none">
       {/* Header */}
       <StoreRequisitionHeader
         metrics={metrics}
@@ -235,7 +240,7 @@ export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
         )}
 
         {activeTab === 'TRANSFERS' && (
-          <div className="bg-[#0f131a] rounded-2xl border border-zinc-800 p-5 space-y-4">
+          <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <div>
                 <h2 className="text-base font-bold text-white">Inter-Kitchen Stock Transfers</h2>

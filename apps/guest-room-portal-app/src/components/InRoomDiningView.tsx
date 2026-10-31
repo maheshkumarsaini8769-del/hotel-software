@@ -136,7 +136,7 @@ export const InRoomDiningView: React.FC<InRoomDiningViewProps> = ({
     <div className="max-w-4xl mx-auto p-4 space-y-4 pb-28">
       {orderToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-bounce">
-          <div className="p-4 bg-emerald-950 text-emerald-200 border border-emerald-600 rounded-2xl shadow-2xl text-xs sm:text-sm font-bold flex items-center justify-between">
+          <div className="p-4 bg-emerald-950 text-emerald-200 border border-emerald-600 rounded-2xl shadow-sm dark:shadow-none text-xs sm:text-sm font-bold flex items-center justify-between">
             <span>{orderToast}</span>
             <button onClick={() => setOrderToast(null)} className="text-white/60 hover:text-white">✕</button>
           </div>
@@ -184,8 +184,8 @@ export const InRoomDiningView: React.FC<InRoomDiningViewProps> = ({
                         dish.foodType === 'VEG'
                           ? 'border-emerald-500'
                           : dish.foodType === 'BEVERAGE'
-                          ? 'border-cyan-500'
-                          : 'border-rose-500'
+                          ? 'border-slate-200 dark:border-slate-800'
+                          : 'border-red-500'
                       }`}
                     >
                       <span
@@ -193,8 +193,8 @@ export const InRoomDiningView: React.FC<InRoomDiningViewProps> = ({
                           dish.foodType === 'VEG'
                             ? 'bg-emerald-500'
                             : dish.foodType === 'BEVERAGE'
-                            ? 'bg-cyan-500'
-                            : 'bg-rose-500'
+                            ? 'bg-slate-800 dark:bg-slate-200'
+                            : 'bg-red-500'
                         }`}
                       />
                     </span>
@@ -258,7 +258,7 @@ export const InRoomDiningView: React.FC<InRoomDiningViewProps> = ({
           <div
             data-testid="place-in-room-order-btn"
             onClick={handlePlaceInRoomOrder}
-            className="bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 p-3.5 rounded-2xl shadow-2xl flex items-center justify-between cursor-pointer border border-amber-300"
+            className="bg-blue-600 text-white p-3.5 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer border border-blue-500"
           >
             <div className="flex items-center gap-3">
               <span className="w-7 h-7 bg-slate-950 text-amber-400 rounded-full flex items-center justify-center font-black text-xs">

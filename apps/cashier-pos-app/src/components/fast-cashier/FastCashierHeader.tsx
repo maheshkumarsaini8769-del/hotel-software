@@ -24,16 +24,16 @@ export const FastCashierHeader: React.FC<FastCashierHeaderProps> = ({
   const readyCount = callingQueue.readyQueue?.length || 0;
 
   return (
-    <div className="bg-[#0b0e14] border-b border-amber-500/20 px-6 py-4 text-zinc-100 shadow-lg">
+    <div className="bg-slate-950 border-b border-amber-500/20 px-6 py-4 text-zinc-100 shadow-lg">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         {/* Title and Badges */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center justify-center h-11 w-11 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 font-black text-xl shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+          <div className="flex items-center justify-center h-11 w-11 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 font-black text-xl shadow-sm dark:shadow-none">
             ⚡
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse shadow-sm dark:shadow-none" />
               <h1 className="text-xl font-bold tracking-tight text-white">
                 Express Fast-Cashier POS
               </h1>
@@ -75,7 +75,7 @@ export const FastCashierHeader: React.FC<FastCashierHeaderProps> = ({
           <button
             type="button"
             onClick={onOpenCallingBoard}
-            className="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-300 text-xs font-semibold border border-amber-500/30 transition-all flex items-center gap-1.5 hover:shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+            className="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-300 text-xs font-semibold border border-amber-500/30 transition-all flex items-center gap-1.5 hover:shadow-sm dark:shadow-none"
           >
             <span>📺</span>
             <span>Calling Board</span>
@@ -107,7 +107,7 @@ export const FastCashierHeader: React.FC<FastCashierHeaderProps> = ({
               data-testid="blind-shift-close-btn"
               type="button"
               onClick={onBlindShiftClose}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)] flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5"
             >
               <span>🔒</span>
               <span>Blind Shift Close</span>

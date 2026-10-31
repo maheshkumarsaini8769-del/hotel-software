@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config/api';
 import {
   ChefHat,
@@ -15,12 +15,14 @@ import {
   Users,
   SlidersHorizontal,
   Save,
-  X
+  X,
+  Mail
 } from 'lucide-react';
 
 export interface WaiterStaffProfile {
   staffId: string;
   name: string;
+  email?: string;
   role: 'Captain' | 'Senior Waiter' | 'Floor Steward';
   /** Never shipped to the browser — the PIN is verified by the server. */
   pin?: string;
@@ -35,8 +37,22 @@ export interface WaiterStaffProfile {
 
 export const PRECONFIGURED_WAITERS: WaiterStaffProfile[] = [
   {
+    staffId: '6ae06e27ddbafddfbb0a81f2',
+    name: 'Mahesh',
+    email: 'maheshkumarsaini8769@gmail.com',
+    role: 'Floor Steward',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
+    assignedSection: 'Indoor AC Hall',
+    assignedTableStart: 1,
+    assignedTableEnd: 6,
+    assignedTableCount: 6,
+    shift: 'Evening Shift (04:00 PM - 12:00 AM)',
+    permissions: ['KOT Punching', 'Food Pickup & Serving', 'Table Transfer', 'Bill Settle Request', 'Guest Calls'],
+  },
+  {
     staffId: 'W-101',
     name: 'Ravi Kumar',
+    email: 'maheshsaini10101@gmail.com',
     role: 'Captain',
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
     assignedSection: 'Indoor AC Dining Hall',
@@ -49,6 +65,7 @@ export const PRECONFIGURED_WAITERS: WaiterStaffProfile[] = [
   {
     staffId: 'W-102',
     name: 'Ramesh Kumar',
+    email: 'ashishsaini8saini@gmail.com',
     role: 'Senior Waiter',
     avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
     assignedSection: 'AC Hall & Lounge',
@@ -61,6 +78,7 @@ export const PRECONFIGURED_WAITERS: WaiterStaffProfile[] = [
   {
     staffId: 'W-103',
     name: 'Amit Singh',
+    email: 'praveensinghshekhawat43@gmail.com',
     role: 'Floor Steward',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     assignedSection: 'Lounge & Rooftop Terrace',
@@ -202,7 +220,7 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
       const next = enteredPin + digit;
       setEnteredPin(next);
       setPinError(null);
-      if (next.length === 4) {
+      if (next.length === 4 && selectedStaff) {
         verifyPin(next, selectedStaff);
       }
     }
@@ -211,6 +229,148 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
   const handleBackspace = () => {
     setEnteredPin((prev) => prev.slice(0, -1));
     setPinError(null);
+  };
+
+  // Resend Email OTP Modal State
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [newOtpPin, setNewOtpPin] = useState('');
+  const [confirmOtpPin, setConfirmOtpPin] = useState('');
+  const [otpStep, setOtpStep] = useState<'request' | 'verify'>('request');
+  const [otpStatusMsg, setOtpStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [isOtpSubmitting, setIsOtpSubmitting] = useState(false);
+
+  // Fetch live staff roster from MongoDB backend
+  useEffect(() => {
+    const fetchLiveStaff = async () => {
+      try {
+        const hotelId = localStorage.getItem('spicehub_hotel_id') || localStorage.getItem('hotelId') || '';
+        const res = await fetch(`${API_BASE_URL}/hotel-staff?hotelId=${hotelId}`);
+        if (!res.ok) return;
+        const body = await res.json().catch(() => null);
+        if (body?.success && Array.isArray(body?.data)) {
+          const liveWaiters: WaiterStaffProfile[] = body.data
+            .filter((u: any) => ['WAITER', 'CAPTAIN', 'STEWARD', 'ADMIN'].includes(String(u.role).toUpperCase()))
+            .map((u: any, idx: number) => {
+              const start = Number(u.assignedTableStart) || (idx * 6 + 1);
+              const end = Number(u.assignedTableEnd) || (start + 5);
+              return {
+                staffId: u.id || u._id,
+                name: u.name,
+                email: u.email || '',
+                role: (String(u.role).toUpperCase() === 'CAPTAIN' ? 'Captain' : 'Senior Waiter') as WaiterStaffProfile['role'],
+                avatar: u.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+                assignedSection: u.assignedSection || 'Indoor AC Dining Hall',
+                assignedTableStart: start,
+                assignedTableEnd: end,
+                assignedTableCount: end - start + 1,
+                shift: u.shift || 'General Shift',
+                permissions: ['KOT Punching', 'Food Pickup & Serving', 'Table Transfer', 'Bill Settle Request', 'Guest Calls'],
+              };
+            });
+          if (liveWaiters.length > 0) {
+            setWaitersList((prev) => {
+              const ids = new Set(liveWaiters.map((w) => w.staffId));
+              const nonDuplicatedPrev = prev.filter((p) => !ids.has(p.staffId) && !liveWaiters.some((lw) => lw.email && lw.email.toLowerCase() === (p.email || '').toLowerCase()));
+              return [...liveWaiters, ...nonDuplicatedPrev];
+            });
+          }
+        }
+      } catch (_) {}
+    };
+    fetchLiveStaff();
+  }, []);
+
+  const handleSendPinOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!otpEmail) {
+      setOtpStatusMsg({ type: 'error', text: 'Please enter your registered staff email address.' });
+      return;
+    }
+    setIsOtpSubmitting(true);
+    setOtpStatusMsg(null);
+    try {
+      const hotelId = localStorage.getItem('spicehub_hotel_id') || localStorage.getItem('hotelId') || '';
+      const res = await fetch(`${API_BASE_URL}/auth/send-pin-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: otpEmail.trim().toLowerCase(),
+          staffId: selectedStaff?.staffId,
+          hotelId,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        const dest = data.data?.deliveredTo || data.data?.email || otpEmail;
+        const isFwd = data.data?.forwarded;
+        setOtpStatusMsg({
+          type: 'success',
+          text: isFwd
+            ? `✅ OTP generated! Delivered to verified owner inbox (${dest}) for ${otpEmail}. Please check your email to retrieve your 6-digit code.`
+            : `✅ 6-digit OTP code sent to your email inbox (${dest})! Check your email to retrieve your code.`,
+        });
+        setOtpStep('verify');
+      } else {
+        setOtpStatusMsg({ type: 'error', text: data?.message || 'Failed to send OTP email.' });
+      }
+    } catch {
+      setOtpStatusMsg({ type: 'error', text: 'Network error connecting to OTP service.' });
+    } finally {
+      setIsOtpSubmitting(false);
+    }
+  };
+
+  const handleVerifyPinOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otpCode || !newOtpPin) {
+      setOtpStatusMsg({ type: 'error', text: 'Please enter both the OTP code and new PIN.' });
+      return;
+    }
+    if (!/^\d{4}$/.test(newOtpPin)) {
+      setOtpStatusMsg({ type: 'error', text: 'New PIN must be exactly 4 numeric digits.' });
+      return;
+    }
+    if (newOtpPin !== confirmOtpPin) {
+      setOtpStatusMsg({ type: 'error', text: 'New PIN and Confirm PIN do not match.' });
+      return;
+    }
+
+    setIsOtpSubmitting(true);
+    setOtpStatusMsg(null);
+    try {
+      const hotelId = localStorage.getItem('spicehub_hotel_id') || localStorage.getItem('hotelId') || '';
+      const res = await fetch(`${API_BASE_URL}/auth/verify-pin-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: otpEmail.trim().toLowerCase(),
+          staffId: selectedStaff?.staffId,
+          otp: otpCode.trim(),
+          newPin: newOtpPin.trim(),
+          hotelId,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        setOtpStatusMsg({
+          type: 'success',
+          text: '🎉 PIN successfully reset and activated! Signing you in...',
+        });
+        setEnteredPin(newOtpPin.trim());
+        setTimeout(() => {
+          setShowOtpModal(false);
+          verifyPin(newOtpPin.trim(), selectedStaff);
+        }, 1200);
+      } else {
+        setOtpStatusMsg({ type: 'error', text: data?.message || 'Invalid or expired OTP code.' });
+      }
+    } catch {
+      setOtpStatusMsg({ type: 'error', text: 'Network error verifying OTP code.' });
+    } finally {
+      setIsOtpSubmitting(false);
+    }
   };
 
   const [isVerifying, setIsVerifying] = useState(false);
@@ -229,10 +389,20 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
 
     setIsVerifying(true);
     try {
+      const hotelId = localStorage.getItem('spicehub_hotel_id') || localStorage.getItem('hotelId') || '';
       const response = await fetch(`${API_BASE_URL}/auth/waiter-login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(hotelId ? { 'x-hotel-id': hotelId } : {}),
+        },
+        body: JSON.stringify({
+          pin,
+          hotelId: hotelId || undefined,
+          staffId: staff.staffId,
+          email: staff.email,
+          portal: 'waiter',
+        }),
       });
       const body = await response.json().catch(() => null);
 
@@ -242,6 +412,11 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
             body?.message ||
               "The Waiter Mobile Handheld portal is not included in this hotel's subscription. Please contact your Super Administrator."
           );
+          setEnteredPin('');
+          return;
+        }
+        if (body?.errorCode === 'PIN_PENDING_ADMIN_APPROVAL') {
+          setPinError('⏳ PIN Pending Approval: Your 4-digit PIN is awaiting Hotel Admin approval.');
           setEnteredPin('');
           return;
         }
@@ -296,62 +471,19 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-screen bg-[#080a0f] text-slate-100 flex flex-col justify-between p-4 sm:p-8 font-sans select-none">
-      {/* Top Bar with Brand & Cross-Portal Switcher */}
-      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 max-w-5xl mx-auto w-full pb-4 border-b border-slate-800/80">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-950/40">
-            <ChefHat className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="font-black text-lg text-white tracking-tight flex items-center gap-2">
-              <span>SpiceHub</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-md bg-orange-500/20 text-orange-400 font-bold uppercase tracking-wider border border-orange-500/30">
-                Staff Terminal
-              </span>
-            </h1>
-            <p className="text-xs text-slate-400">{hotelName}</p>
-          </div>
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex items-center gap-2.5">
-          {/* Admin Table Allocation Config Button */}
-          <button
-            onClick={() => setIsAdminModalOpen(true)}
-            className="px-3 py-1.5 rounded-xl border border-orange-500/40 bg-orange-500/10 hover:bg-orange-500/20 text-xs font-bold text-orange-300 flex items-center gap-1.5 transition shadow-xs"
-            title="Configure table range for each waiter"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-orange-400" />
-            <span>Admin Set Tables</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Main Login Card */}
-      <main className="max-w-4xl mx-auto w-full my-auto py-6 grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
-        {/* Left Side: Select Waiter / Assigned Tables Info */}
-        <div className="md:col-span-6 space-y-5">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs font-bold mb-2">
-              <ShieldCheck className="w-4 h-4 text-orange-500" />
-              <span>Authorized Waiter Station</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Select Your Staff Profile
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Log in to view tables assigned to you by Hotel Admin ERP and receive live kitchen food pickup alerts.
-            </p>
-          </div>
-
-          {/* Waiter Selection List */}
-          <div className="space-y-3">
+    <div className="min-h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white flex flex-col justify-center items-center p-0 md:p-4 font-sans select-none">
+      {/* Centered Staff Login Card (Tablet/Desktop: max-w-md mx-auto mt-20, Mobile: full-screen white card) */}
+      <div className="w-full min-h-screen md:min-h-0 md:max-w-md mx-auto md:mt-20 bg-white dark:bg-slate-900 md:border md:border-slate-200 md:dark:border-slate-800 md:rounded-2xl p-6 shadow-sm flex flex-col items-center text-center justify-center">
+        {/* Optional Multi-Waiter Selector Bar if multiple profiles configured */}
+        {waitersList.length > 1 && (
+          <div className="w-full flex items-center justify-center gap-1.5 overflow-x-auto pb-3 mb-4 border-b border-slate-200 dark:border-slate-800 custom-scrollbar">
             {waitersList.map((staff) => {
               const isSelected = selectedStaff.staffId === staff.staffId;
               return (
-                <div
+                <button
                   key={staff.staffId}
+                  type="button"
+                  data-testid={`card-staff-${staff.name.toLowerCase()}`}
                   onClick={() => {
                     setSelectedStaff(staff);
                     setEnteredPin('');
@@ -359,155 +491,152 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
                     setFailedPinAttempts(0);
                     setPinLockedUntil(0);
                   }}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition border ${
                     isSelected
-                      ? 'bg-gradient-to-r from-orange-950/40 via-slate-900 to-[#181c2b] border-orange-500 shadow-lg shadow-orange-950/30'
-                      : 'bg-[#10131d] border-slate-800 hover:border-slate-700 opacity-80 hover:opacity-100'
+                      ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white'
+                      : 'bg-white text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={staff.avatar}
-                        alt={staff.name}
-                        className={`w-11 h-11 rounded-full object-cover border-2 ${
-                          isSelected ? 'border-orange-500' : 'border-slate-700'
-                        }`}
-                      />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-white">{staff.name}</span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-orange-400 font-bold">
-                            {staff.staffId}
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-400">{staff.role} • {staff.shift}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Prominent Assigned Tables Range Display */}
-                  <div className={`mt-3 p-2 rounded-xl border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs font-semibold ${
-                    isSelected
-                      ? 'bg-orange-500/10 border-orange-500/30 text-orange-300'
-                      : 'bg-slate-900/60 border-slate-800/80 text-slate-400'
-                  }`}>
-                    <div className="flex items-center gap-1.5">
-                      <Grid className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-                      <span>Assigned Tables: <strong>T-{String(staff.assignedTableStart).padStart(2, '0')} to T-{String(staff.assignedTableEnd).padStart(2, '0')}</strong></span>
-                    </div>
-                    <span className="text-[11px] font-bold text-slate-300">
-                      {staff.assignedTableCount} Tables ({staff.assignedSection})
-                    </span>
-                  </div>
-                </div>
+                  {staff.name}
+                </button>
               );
             })}
           </div>
+        )}
+
+        {/* Staff Card: Photo, Name, Role */}
+        <img
+          src={selectedStaff.avatar}
+          alt={selectedStaff.name}
+          className="w-20 h-20 rounded-full border-2 border-slate-200 dark:border-slate-700 object-cover mb-3"
+        />
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+          {selectedStaff.name}
+        </h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
+          {selectedStaff.role}
+        </p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">
+          {selectedStaff.assignedSection} • Tables T-{String(selectedStaff.assignedTableStart).padStart(2, '0')} to T-{String(selectedStaff.assignedTableEnd).padStart(2, '0')}
+        </p>
+
+        {/* 4-Digit PIN Dots */}
+        <div className="flex items-center gap-4 mb-5 justify-center">
+          {[0, 1, 2, 3].map((idx) => (
+            <div
+              key={idx}
+              className={`w-4 h-4 rounded-full border-2 transition-all ${
+                enteredPin.length > idx
+                  ? 'bg-slate-900 border-slate-900 dark:bg-white dark:border-white'
+                  : 'border-slate-300 dark:border-slate-700 bg-transparent'
+              }`}
+            />
+          ))}
         </div>
 
-        {/* Right Side: Security PIN Pad */}
-        <div className="md:col-span-6 bg-[#10131d] border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center">
-          <div className="w-12 h-12 rounded-2xl bg-orange-500/10 border border-orange-500/30 text-orange-500 flex items-center justify-center mb-3">
-            <KeyRound className="w-6 h-6" />
+        {pinError && (
+          <div className="text-xs text-red-600 dark:text-red-400 font-semibold mb-3">
+            {pinError}
           </div>
-          <h3 className="font-black text-lg text-white">Enter Station PIN</h3>
-          <p className="text-xs text-slate-400 mt-0.5 mb-5 text-center">
-            Logging in as <strong className="text-orange-400">{selectedStaff.name}</strong> ({selectedStaff.staffId})
-          </p>
+        )}
 
-          {/* 4-Digit PIN Circles */}
-          <div className="flex items-center gap-4 mb-4">
-            {[0, 1, 2, 3].map((idx) => (
-              <div
-                key={idx}
-                className={`w-4 h-4 rounded-full transition-all ${
-                  enteredPin.length > idx
-                    ? 'bg-orange-500 scale-125 shadow-md shadow-orange-500/50'
-                    : 'bg-slate-800 border border-slate-700'
-                }`}
-              />
-            ))}
-          </div>
-
-          {pinError && (
-            <div className="text-xs text-rose-400 font-bold mb-3 animate-shake">
-              {pinError}
-            </div>
-          )}
-
-          {/* PIN Pad Digits (1-9, Backspace, 0, Enter) */}
-          <div className="grid grid-cols-3 gap-3 w-full max-w-xs mb-4">
-            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-              <button
-                key={digit}
-                onClick={() => handlePinDigit(digit)}
-                className="h-14 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-lg font-black text-white hover:text-orange-400 transition flex items-center justify-center shadow-xs active:scale-95"
-              >
-                {digit}
-              </button>
-            ))}
+        {/* 3-Column Numpad */}
+        <div className="grid grid-cols-3 gap-3 w-full mb-4">
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
             <button
-              onClick={handleBackspace}
-              className="h-14 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-xs font-bold text-slate-400 hover:text-white transition flex items-center justify-center active:scale-95"
+              key={digit}
+              type="button"
+              data-testid={`btn-digit-${digit}`}
+              onClick={() => handlePinDigit(digit)}
+              className="h-16 text-2xl font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white transition flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
             >
-              Clear
+              {digit}
             </button>
-            <button
-              onClick={() => handlePinDigit('0')}
-              className="h-14 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-lg font-black text-white hover:text-orange-400 transition flex items-center justify-center shadow-xs active:scale-95"
-            >
-              0
-            </button>
-            <button
-              onClick={() => verifyPin(enteredPin, selectedStaff)}
-              disabled={enteredPin.length !== 4}
-              className="h-14 rounded-2xl bg-orange-600 hover:bg-orange-500 disabled:opacity-40 border border-orange-500/40 text-xs font-black text-white transition flex items-center justify-center shadow-md active:scale-95"
-            >
-              Enter
-            </button>
-          </div>
-
-          {/* Permissions / Authority Summary */}
-          <div className="w-full max-w-xs pt-3 border-t border-slate-800/80 text-[11px] text-slate-400">
-            <div className="font-bold text-slate-300 mb-1 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Authority & Role Permissions:</span>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {selectedStaff.permissions.map((p, i) => (
-                <span key={i} className="px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 text-[10px]">
-                  • {p}
-                </span>
-              ))}
-            </div>
-          </div>
+          ))}
+          <button
+            type="button"
+            data-testid="btn-digit-clear"
+            onClick={() => setEnteredPin('')}
+            className="h-16 text-base font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition flex items-center justify-center cursor-pointer active:scale-95"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            data-testid="btn-digit-0"
+            onClick={() => handlePinDigit('0')}
+            className="h-16 text-2xl font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white transition flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
+          >
+            0
+          </button>
+          <button
+            type="button"
+            data-testid="btn-digit-delete"
+            onClick={handleBackspace}
+            className="h-16 text-xl font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition flex items-center justify-center cursor-pointer active:scale-95"
+          >
+            ⌫
+          </button>
         </div>
-      </main>
 
-      {/* Footer Info */}
-      <footer className="max-w-5xl mx-auto w-full pt-4 border-t border-slate-800/80 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
-        <div>SpiceHub Hospitality Suite • Multi-Tenant Restaurant POS & KDS</div>
-        <div>Station PIN required • Contact your administrator for access</div>
-      </footer>
+        {/* Login Button */}
+        <button
+          type="button"
+          data-testid="btn-login-pin"
+          onClick={() => verifyPin(enteredPin, selectedStaff)}
+          disabled={enteredPin.length !== 4 || isVerifying}
+          className="h-14 w-full bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-xl text-lg font-bold hover:opacity-90 disabled:opacity-40 transition flex items-center justify-center cursor-pointer shadow-sm active:scale-95 mb-3"
+        >
+          {isVerifying ? 'Authenticating...' : 'Sign In'}
+        </button>
+
+        {/* Reset via OTP & Admin Configuration Actions */}
+        <div className="flex items-center justify-between w-full pt-3 border-t border-slate-200 dark:border-slate-800 text-xs">
+          <button
+            type="button"
+            data-testid="btn-forgot-pin-otp"
+            onClick={() => {
+              setOtpEmail(selectedStaff.email || '');
+              setOtpCode('');
+              setNewOtpPin('');
+              setConfirmOtpPin('');
+              setOtpStep('request');
+              setOtpStatusMsg(null);
+              setShowOtpModal(true);
+            }}
+            className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-medium underline cursor-pointer"
+          >
+            Forgot PIN? Reset with OTP
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsAdminModalOpen(true)}
+            className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-medium flex items-center gap-1 cursor-pointer"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Set Tables</span>
+          </button>
+        </div>
+      </div>
 
       {/* Hotel Admin Table Allocation Configuration Modal */}
       {isAdminModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#10131d] border border-orange-500/40 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-sm space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center font-bold">
-                  <SlidersHorizontal className="w-5 h-5 text-orange-400" />
+                <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-bold">
+                  <SlidersHorizontal className="w-5 h-5 text-slate-700 dark:text-slate-300" />
                 </div>
                 <div>
-                  <h3 className="font-black text-base text-white">Hotel Admin: Set Waiter Tables</h3>
-                  <p className="text-[11px] text-slate-400">Configure which tables each waiter is assigned to handle</p>
+                  <h3 className="font-semibold text-base text-slate-900 dark:text-white">Hotel Admin: Set Waiter Tables</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Configure which tables each waiter is assigned to handle</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsAdminModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -519,24 +648,24 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
                 return (
                   <div
                     key={w.staffId}
-                    className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2.5"
+                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <img src={w.avatar} alt={w.name} className="w-7 h-7 rounded-full object-cover" />
                         <div>
-                          <span className="font-bold text-xs text-white">{w.name}</span>
-                          <span className="text-[10px] text-slate-400 ml-1.5">({w.role})</span>
+                          <span className="font-semibold text-xs text-slate-900 dark:text-white">{w.name}</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 ml-1.5">({w.role})</span>
                         </div>
                       </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 font-mono font-bold">
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono font-bold">
                         {w.staffId}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div>
-                        <label className="text-[11px] text-slate-400 font-semibold block mb-1">
+                        <label className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold block mb-1">
                           Start Table # (From)
                         </label>
                         <input
@@ -551,11 +680,11 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
                               [w.staffId]: { ...prev[w.staffId], start: val },
                             }));
                           }}
-                          className="w-full p-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono font-bold text-xs focus:outline-none focus:border-orange-500"
+                          className="w-full p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white font-mono font-bold text-xs focus:outline-none focus:border-slate-500"
                         />
                       </div>
                       <div>
-                        <label className="text-[11px] text-slate-400 font-semibold block mb-1">
+                        <label className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold block mb-1">
                           End Table # (To)
                         </label>
                         <input
@@ -570,12 +699,12 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
                               [w.staffId]: { ...prev[w.staffId], end: val },
                             }));
                           }}
-                          className="w-full p-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono font-bold text-xs focus:outline-none focus:border-orange-500"
+                          className="w-full p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white font-mono font-bold text-xs focus:outline-none focus:border-slate-500"
                         />
                       </div>
                     </div>
 
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-[11px] text-slate-600 dark:text-slate-400">
                       <span>Dining Section: </span>
                       <input
                         type="text"
@@ -587,11 +716,11 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
                             [w.staffId]: { ...prev[w.staffId], section: val },
                           }));
                         }}
-                        className="w-full mt-1 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-orange-500"
+                        className="w-full mt-1 p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-200 text-xs focus:outline-none focus:border-slate-500"
                       />
                     </div>
 
-                    <div className="text-[11px] text-orange-400/90 font-bold bg-orange-500/10 px-2 py-1 rounded-lg">
+                    <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium bg-slate-100 dark:bg-slate-700/50 px-2 py-1 rounded-lg">
                       Assigned: Tables T-{String(alloc.start).padStart(2, '0')} to T-{String(alloc.end).padStart(2, '0')} (Total {Math.max(1, alloc.end - alloc.start + 1)} Tables)
                     </div>
                   </div>
@@ -599,21 +728,191 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
               })}
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
               <button
                 onClick={() => setIsAdminModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+                className="px-4 py-2 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveAdminAllocations}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-1.5 transition shadow-md shadow-orange-950/40"
+                className="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-900 text-white dark:bg-white dark:text-slate-900 flex items-center gap-1.5 hover:opacity-90 transition shadow-sm"
               >
                 <Save className="w-3.5 h-3.5" />
-                <span>Save & Apply Table Allocation</span>
+                <span>Save Table Allocation</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resend Email OTP Modal - PIN Reset via Email Only */}
+      {showOtpModal && (
+        <div
+          data-testid="waiter-pin-otp-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200"
+        >
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-sm space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-bold">
+                  <Mail className="w-5 h-5 text-slate-700 dark:text-slate-300" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-base text-slate-900 dark:text-white">Reset Staff Workstation PIN</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Security code sent directly to your email inbox</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowOtpModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Selected staff preview */}
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+              <img
+                src={selectedStaff.avatar}
+                alt={selectedStaff.name}
+                className="w-10 h-10 rounded-full object-cover border border-slate-300 dark:border-slate-600"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-sm text-slate-900 dark:text-white truncate">{selectedStaff.name}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                  <span>{selectedStaff.role}</span>
+                  <span>•</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300">{selectedStaff.staffId}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Status notification banner */}
+            {otpStatusMsg && (
+              <div
+                className={`p-3 rounded-xl text-xs font-semibold border ${
+                  otpStatusMsg.type === 'success'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800/80 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-red-50 dark:bg-red-950/60 border-red-200 dark:border-red-800/80 text-red-800 dark:text-red-300'
+                }`}
+              >
+                {otpStatusMsg.text}
+              </div>
+            )}
+
+            {otpStep === 'request' ? (
+              <form onSubmit={handleSendPinOtp} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                    Registered Staff Email Address:
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+                    <input
+                      type="email"
+                      required
+                      value={otpEmail}
+                      onChange={(e) => setOtpEmail(e.target.value)}
+                      placeholder="e.g. staff@hotel.com"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-slate-500 transition"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
+                    A secure 6-digit OTP will be dispatched to your registered email address.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowOtpModal(false)}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isOtpSubmitting || !otpEmail}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-900 dark:bg-white text-white dark:text-slate-900 disabled:opacity-50 flex items-center gap-1.5 transition hover:opacity-90 shadow-sm"
+                  >
+                    {isOtpSubmitting ? 'Sending Email...' : 'Send Verification OTP'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyPinOtp} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    6-Digit OTP from Email:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Enter 6-digit code"
+                    className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-center font-mono text-lg tracking-widest text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-slate-500 transition"
+                  />
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Check your email inbox at <span className="text-slate-900 dark:text-white font-medium">{otpEmail}</span>.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      New 4-Digit PIN:
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      maxLength={4}
+                      value={newOtpPin}
+                      onChange={(e) => setNewOtpPin(e.target.value.replace(/\D/g, ''))}
+                      placeholder="••••"
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-center font-mono text-base tracking-widest text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-slate-500 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Confirm PIN:
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      maxLength={4}
+                      value={confirmOtpPin}
+                      onChange={(e) => setConfirmOtpPin(e.target.value.replace(/\D/g, ''))}
+                      placeholder="••••"
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-center font-mono text-base tracking-widest text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-slate-500 transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpStep('request');
+                      setOtpStatusMsg(null);
+                    }}
+                    className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
+                  >
+                    ← Change Email / Resend
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isOtpSubmitting || otpCode.length !== 6 || newOtpPin.length !== 4}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                  >
+                    {isOtpSubmitting ? 'Verifying...' : 'Set New PIN & Login'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

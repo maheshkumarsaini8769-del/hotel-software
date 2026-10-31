@@ -47,7 +47,7 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
   );
 
   const [reason, setReason] = useState<string>(
-    'Currently busy serving another table (दूसरी टेबल अटेंड कर रहा हूँ)'
+    'Currently busy serving another table'
   );
   const [customNote, setCustomNote] = useState<string>('');
 
@@ -56,10 +56,10 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
   const selectedColleague = colleagues.find((c) => c.staffId === selectedStaffId) || colleagues[0];
 
   const presetReasons = [
-    'Currently busy serving another table (दूसरी टेबल अटेंड कर रहा हूँ)',
-    'Taking long food order on table (ऑर्डर लेने में व्यस्त हूँ)',
-    'High guest rush in assigned zone (भीड़ ज्यादा है)',
-    'Guest requested quick assistance (तुरंत सहायता चाहिए)',
+    'Currently busy serving another table',
+    'Taking long food order on table',
+    'High guest rush in assigned zone',
+    'Guest requested quick assistance',
   ];
 
   const handleConfirm = () => {
@@ -71,14 +71,14 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs animate-fadeIn">
       <div
-        className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden transition-all duration-200 transform scale-100 ${
+        className={`w-full max-w-md rounded-2xl border shadow-sm dark:shadow-none overflow-hidden transition-all duration-200 transform scale-100 ${
           isDark
-            ? 'bg-[#121520] border-orange-500/40 text-slate-100'
+            ? 'bg-slate-900 border-orange-500/40 text-slate-100'
             : 'bg-white border-orange-300 text-slate-800'
         }`}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 p-4 text-white flex items-center justify-between shadow-md">
+        <div className="bg-amber-600 p-4 text-white flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center font-black text-xl shadow-inner">
               <ArrowRightLeft className="w-5 h-5 text-white" />
@@ -86,7 +86,7 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base sm:text-lg font-black tracking-tight">
-                  Delegate Request (दूसरे वेटर को सौंपें)
+                  Delegate Request
                 </h2>
               </div>
               <p className="text-xs text-amber-100">
@@ -137,7 +137,7 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
           {/* Select Colleague Waiter */}
           <div>
             <label className="block text-xs font-black uppercase tracking-wider mb-2 text-slate-400 flex items-center justify-between">
-              <span>Choose Available Colleague (उपलब्ध सहयोगी वेटर)</span>
+              <span>Choose Available Colleague</span>
               <span className="text-emerald-400 text-[10px]">🟢 On Duty Staff</span>
             </label>
 
@@ -198,7 +198,7 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
           {/* Reason for Reassignment */}
           <div>
             <label className="block text-xs font-black uppercase tracking-wider mb-1.5 text-slate-400">
-              Handover Reason (सौंपने का कारण)
+              Handover Reason
             </label>
             <div className="space-y-1.5">
               {presetReasons.map((r, i) => (
@@ -238,7 +238,7 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
         {/* Footer Actions */}
         <div
           className={`p-4 border-t flex items-center justify-between gap-3 ${
-            isDark ? 'bg-[#0f121b] border-slate-800' : 'bg-slate-50 border-slate-200'
+            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}
         >
           <button
@@ -255,7 +255,7 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
           <button
             type="button"
             onClick={handleConfirm}
-            className="px-5 py-2.5 rounded-xl font-black text-xs text-white bg-gradient-to-r from-orange-600 via-amber-600 to-orange-700 hover:from-orange-500 hover:to-amber-500 shadow-md shadow-orange-950/40 flex items-center gap-1.5 transition transform hover:scale-102"
+            className="px-5 py-2.5 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-700 shadow-xs flex items-center gap-1.5 transition"
           >
             <Send className="w-3.5 h-3.5" />
             <span>Send Request to {selectedColleague?.name || 'Colleague'}</span>

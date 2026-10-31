@@ -119,15 +119,15 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
           onClick={() => onSelectStatus(RoomStatus.CLEANING)}
           className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
             selectedStatus === RoomStatus.CLEANING
-              ? 'bg-cyan-500/15 border-cyan-500/50 shadow-md shadow-cyan-500/5'
+              ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 shadow-md shadow-sm'
               : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
           }`}
         >
-          <div className="text-[11px] font-medium text-cyan-400 flex items-center justify-between">
+          <div className="text-[11px] font-medium text-slate-700 dark:text-slate-300 flex items-center justify-between">
             <span>In Cleaning</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-800 animate-pulse"></span>
           </div>
-          <div className="text-xl font-bold text-cyan-300 mt-0.5">{summary.cleaning}</div>
+          <div className="text-xl font-bold text-slate-700 dark:text-slate-300 mt-0.5">{summary.cleaning}</div>
         </div>
 
         <div
@@ -149,15 +149,15 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
           onClick={() => onSelectStatus(RoomStatus.OUT_OF_SERVICE)}
           className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
             selectedStatus === RoomStatus.OUT_OF_SERVICE
-              ? 'bg-rose-500/15 border-rose-500/50 shadow-md shadow-rose-500/5'
+              ? 'bg-red-500/15 border-red-500/50 shadow-md shadow-sm'
               : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
           }`}
         >
-          <div className="text-[11px] font-medium text-rose-400 flex items-center justify-between">
+          <div className="text-[11px] font-medium text-red-400 flex items-center justify-between">
             <span>Out of Order</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
           </div>
-          <div className="text-xl font-bold text-rose-300 mt-0.5">{summary.outOfService}</div>
+          <div className="text-xl font-bold text-red-300 mt-0.5">{summary.outOfService}</div>
         </div>
       </div>
 

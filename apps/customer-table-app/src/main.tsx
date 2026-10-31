@@ -2,7 +2,7 @@ import './index.css';
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import { CustomerMenuApp, CustomerRequestType } from './CustomerMenuApp';
-import { ErrorBoundary, MenuCartStore, CustomerLocationSelectorModal, CustomerPortalSwitcherBar } from '@spicehub/ui';
+import { ErrorBoundary, MenuCartStore, CustomerLocationSelectorModal, CustomerPortalSwitcherBar, I18nProvider } from '@spicehub/ui';
 import { SpiceHubSocket, SpiceHubClient } from '@spicehub/api-client';
 import { API_ORIGIN, SOCKET_URL } from './config/api';
 import { getPortalUrl } from './config/env';
@@ -67,6 +67,22 @@ export const CustomerAppRoot: React.FC = () => {
   const [section, setSection] = useState<string>('Dining');
   const [tableSessionId, setTableSessionId] = useState<string>('');
   const [sessionToken, setSessionToken] = useState<string>('');
+  const [occupiedTable, setOccupiedTable] = useState<{
+    isOccupied: boolean;
+    isTableFull?: boolean;
+    errorCode: string;
+    message: string;
+    tableNumber: string;
+    tableId?: string;
+    capacity?: number;
+    guestCount?: number;
+    hotelId?: string;
+    hotelName?: string;
+    section?: string;
+    viewOnlyAccepted?: boolean;
+  } | null>(null);
+  const [canOrder, setCanOrder] = useState<boolean>(true);
+  const [isReadOnly, setIsReadOnly] = useState<boolean>(false);
   const [guestCount, setGuestCount] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('spicehub_customer_guest_count');
@@ -119,7 +135,7 @@ export const CustomerAppRoot: React.FC = () => {
   const bootstrap = useCallback(async (overrideTableNumber?: string) => {
     try {
       const searchParams = new URLSearchParams(window.location.search);
-      const qHotelId = searchParams.get('hotelId');
+      const qHotelId = searchParams.get('hotelId') || localStorage.getItem('spicehub_customer_hotel_id') || '6ae06d00ddbafddfbb0a8013';
       const qTableId = searchParams.get('tableId');
       const rawTable =
         overrideTableNumber ||
@@ -128,18 +144,74 @@ export const CustomerAppRoot: React.FC = () => {
         (searchParams.get('type') === 'table' ? searchParams.get('id') : null) ||
         qTableId;
       const qrToken = searchParams.get('qrToken') || searchParams.get('token');
-      const isQrEntry = Boolean(qHotelId && qTableId && !overrideTableNumber);
+      const isQrEntry = Boolean((qHotelId || qrToken) && (qTableId || rawTable) && !overrideTableNumber);
 
       // Real QR entry is authoritative. Demo context is a local-only fallback.
       if (isQrEntry) {
         const qrUrl = new URL(`${API_BASE}/api/v1/pos/table/qr-entry`);
         qrUrl.searchParams.set('hotelId', String(qHotelId));
-        qrUrl.searchParams.set('tableId', String(qTableId));
+        if (qTableId) qrUrl.searchParams.set('tableId', String(qTableId));
+        if (rawTable) qrUrl.searchParams.set('table', String(rawTable));
         if (qrToken) qrUrl.searchParams.set('token', qrToken);
+        const existingClientToken =
+          searchParams.get('sessionToken') ||
+          localStorage.getItem('spicehub_customer_session_token') ||
+          sessionStorage.getItem('spicehub_customer_session_token');
+        if (existingClientToken) {
+          qrUrl.searchParams.set('sessionToken', existingClientToken);
+        }
 
         const qrRes = await fetch(qrUrl.toString());
         const qrBody = await qrRes.json().catch(() => null);
         if (!qrRes.ok || !qrBody?.success || !qrBody?.data?.sessionToken) {
+          if (
+            qrBody?.errorCode === 'TABLE_ALREADY_OCCUPIED' ||
+            qrBody?.errorCode === 'TABLE_BILLING_IN_PROGRESS' ||
+            qrBody?.errorCode === 'TABLE_NOT_AVAILABLE'
+          ) {
+            const occData = qrBody.data || {};
+            const occTableNumber = occData.tableNumber || rawTable || 'Dining';
+            const occHotelId = String(occData.hotelId || qHotelId);
+            const occHotelName = occData.hotelName || 'SpiceHub Hotel';
+
+            setHotelId(occHotelId);
+            setHotelName(occHotelName);
+            setTableNumber(occTableNumber);
+            if (occData.tableId) setTableId(String(occData.tableId));
+            if (occData.section) setSection(occData.section);
+            if (typeof occData.waiterEnabled === 'boolean') setWaiterEnabled(occData.waiterEnabled);
+            setShowPaxModal(false);
+            setCanOrder(false);
+            setIsReadOnly(true);
+
+            setOccupiedTable({
+              isOccupied: true,
+              isTableFull: Boolean(occData.isTableFull),
+              errorCode: qrBody.errorCode,
+              message: qrBody.message || `Table ${occTableNumber} is currently occupied.`,
+              tableNumber: occTableNumber,
+              tableId: occData.tableId ? String(occData.tableId) : undefined,
+              capacity: occData.capacity || 4,
+              guestCount: occData.guestCount || 4,
+              hotelId: occHotelId,
+              hotelName: occHotelName,
+              section: occData.section,
+              viewOnlyAccepted: false,
+            });
+
+            // Pre-load dishes so customer can browse catalog in view-only mode
+            try {
+              const menuRes = await fetch(`${API_BASE}/api/v1/pos/menu?hotelId=${encodeURIComponent(occHotelId)}`, { cache: 'no-store' });
+              const menuBody = await menuRes.json().catch(() => null);
+              if (menuBody?.success && Array.isArray(menuBody.data)) {
+                store.setMenuItems(menuBody.data);
+              }
+            } catch {}
+
+            setIsReady(true);
+            return;
+          }
+
           throw new Error(qrBody?.message || 'This table QR code is invalid or has expired.');
         }
 
@@ -155,6 +227,9 @@ export const CustomerAppRoot: React.FC = () => {
         setSection(d.section || 'Dining');
         setTableSessionId(String(d.sessionId));
         setSessionToken(String(d.sessionToken));
+        setCanOrder(true);
+        setIsReadOnly(false);
+        setOccupiedTable(null);
         setGuestCount(Number(d.guestCount) > 0 ? Number(d.guestCount) : 2);
         if (typeof d.waiterEnabled === 'boolean') {
           setWaiterEnabled(d.waiterEnabled);
@@ -164,6 +239,7 @@ export const CustomerAppRoot: React.FC = () => {
           localStorage.setItem('spicehub_customer_table', qrTableNumberStr);
           localStorage.setItem('spicehub_customer_hotel', qrHotelNameStr);
           localStorage.setItem('spicehub_customer_hotel_id', qrHotelIdStr);
+          localStorage.setItem('spicehub_customer_session_token', String(d.sessionToken));
           if (qrTableNumberStr && !localStorage.getItem(`spicehub_table_pax_set_${qrTableNumberStr}`)) {
             setShowPaxModal(true);
           }
@@ -172,6 +248,13 @@ export const CustomerAppRoot: React.FC = () => {
         if (d.sessionId) {
           await fetchSessionOrders(String(d.sessionId));
         }
+        try {
+          const menuRes = await fetch(`${API_BASE}/api/v1/pos/menu?hotelId=${encodeURIComponent(qrHotelIdStr)}`, { cache: 'no-store' });
+          const menuBody = await menuRes.json().catch(() => null);
+          if (menuBody?.success && Array.isArray(menuBody.data)) {
+            store.setMenuItems(menuBody.data);
+          }
+        } catch {}
         return;
       }
 
@@ -401,10 +484,23 @@ export const CustomerAppRoot: React.FC = () => {
   };
 
   const handlePlaceOrder = async (idempotencyKey: string, instructions?: string, clientItems?: any[], requestedGuestCount?: number): Promise<boolean> => {
+    if (occupiedTable || !canOrder || isReadOnly) {
+      setLiveToast({
+        message: occupiedTable?.message || 'Table is currently occupied. Food orders cannot be placed from this device.',
+        type: 'warn',
+      });
+      setTimeout(() => setLiveToast(null), 5000);
+      return false;
+    }
+
     const cartItems = clientItems && clientItems.length > 0 ? clientItems : store.getCartItems();
-    if (!cartItems || cartItems.length === 0) return false;
+    if (!cartItems || cartItems.length === 0) {
+      console.warn('[handlePlaceOrder] cart is empty');
+      return false;
+    }
 
     if (!hotelId || !tableSessionId || !sessionToken) {
+      console.warn('[handlePlaceOrder] session not ready:', { hotelId, tableSessionId, sessionToken: Boolean(sessionToken) });
       setLiveToast({ message: 'Dining session is not ready. Please rescan the table QR code.', type: 'warn' });
       setTimeout(() => setLiveToast(null), 5000);
       return false;
@@ -438,6 +534,7 @@ export const CustomerAppRoot: React.FC = () => {
       },
     };
 
+    console.log('[handlePlaceOrder] sending order payload:', JSON.stringify(payload));
     let serverOrderData: any = null;
 
     // Authoritative POS order placement. Never show an order that the server rejected.
@@ -451,6 +548,7 @@ export const CustomerAppRoot: React.FC = () => {
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
+      console.log('[handlePlaceOrder] response status:', res.status, 'data:', data);
       if (!res.ok || !data?.success || !(data?.data || data?.order)) {
         setLiveToast({
           message: data?.message || 'Order could not be sent to the kitchen. Please try again.',
@@ -461,6 +559,7 @@ export const CustomerAppRoot: React.FC = () => {
       }
       serverOrderData = data.data || data.order;
     } catch (err: any) {
+      console.error('[handlePlaceOrder] error:', err);
       setLiveToast({
         message: err?.message || 'Kitchen is unreachable. Your order was not placed.',
         type: 'warn',
@@ -651,7 +750,7 @@ export const CustomerAppRoot: React.FC = () => {
       {/* Direct Camera / Chrome Scanner Pax Modal */}
       {showPaxModal && (
         <div data-testid="table-pax-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#141620] border border-amber-500/40 rounded-3xl max-w-sm w-full p-6 text-white shadow-2xl space-y-5">
+          <div className="bg-slate-900 border border-amber-500/40 rounded-3xl max-w-sm w-full p-6 text-white shadow-sm dark:shadow-none space-y-5">
             <div className="text-center space-y-1">
               <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl font-black mb-2 border border-amber-500/30">
                 👥
@@ -687,26 +786,135 @@ export const CustomerAppRoot: React.FC = () => {
             <button
               type="button"
               data-testid="pax-confirm-btn"
-              onClick={() => {
+              onClick={async () => {
                 setShowPaxModal(false);
+                const selectedPax = guestCount || 2;
                 if (tableNumber) {
                   try {
-                    localStorage.setItem(`spicehub_table_pax_set_${tableNumber}`, String(guestCount || 2));
-                    localStorage.setItem('spicehub_customer_guest_count', String(guestCount || 2));
+                    localStorage.setItem(`spicehub_table_pax_set_${tableNumber}`, String(selectedPax));
+                    localStorage.setItem('spicehub_customer_guest_count', String(selectedPax));
                   } catch {}
                 }
+                // Immediately sync guestCount to backend MongoDB session
+                if (hotelId && (tableSessionId || tableId)) {
+                  try {
+                    await fetch(`${API_BASE}/api/v1/pos/table-session/pax`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        hotelId,
+                        tableId,
+                        tableSessionId,
+                        sessionToken,
+                        guestCount: selectedPax,
+                      }),
+                    });
+                  } catch (err) {
+                    console.warn('Failed to sync table session pax:', err);
+                  }
+                }
               }}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm shadow-xl transition"
+              className="w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-sm transition"
             >
               Continue to Menu ({guestCount || 2} Pax) ➔
             </button>
           </div>
         </div>
       )}
+
+      {/* Table Already Occupied Bilingual Alert Screen */}
+      {occupiedTable && !occupiedTable.viewOnlyAccepted && (
+        <div data-testid="table-already-occupied-screen" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4 overflow-y-auto">
+          <div className="bg-slate-900 border-2 border-red-500/60 rounded-3xl max-w-md w-full p-6 sm:p-8 text-white shadow-sm dark:shadow-none space-y-6 text-center animate-fadeIn">
+            {/* Top Warning Badge */}
+            <div className="w-16 h-16 mx-auto rounded-3xl bg-red-500/20 text-red-400 flex items-center justify-center text-3xl font-black border border-red-500/40 shadow-lg shadow-sm">
+              🚫
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30">
+                {occupiedTable.errorCode === 'TABLE_BILLING_IN_PROGRESS' ? 'BILLING IN PROGRESS' : 'TABLE ALREADY OCCUPIED'}
+              </span>
+              <h2 className="text-2xl font-black text-white tracking-tight">
+                Table {occupiedTable.tableNumber} is Occupied
+              </h2>
+              <p className="text-sm font-bold text-red-300">
+                Table is currently occupied • {occupiedTable.guestCount || 4} guests seated
+              </p>
+            </div>
+
+            {/* Occupancy details card */}
+            <div className="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 text-left space-y-2 text-xs">
+              <div className="flex justify-between items-center py-1 border-b border-slate-800/80">
+                <span className="text-slate-400">Current Seated Guests:</span>
+                <span className="font-bold text-amber-400">{occupiedTable.guestCount || 4} Guests Seated</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-800/80">
+                <span className="text-slate-400">Table Capacity:</span>
+                <span className="font-bold text-white">{occupiedTable.capacity || 4} Seats</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-800/80">
+                <span className="text-slate-400">Occupancy Status:</span>
+                <span className="font-black text-red-400 uppercase">
+                  {occupiedTable.isTableFull ? 'Full Capacity Reached (100%)' : 'Active Dining Session'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 pt-1 leading-relaxed">
+                For guest privacy and billing integrity, when a table is occupied, new orders cannot be placed from another personal device.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-3 pt-2">
+              {/* Option 1: Call Waiter */}
+              <button
+                type="button"
+                data-testid="occupied-call-waiter-btn"
+                onClick={async () => {
+                  try {
+                    await handleRequestService('CALL_WAITER');
+                    setLiveToast({ message: `🛎️ Waiter notified! Staff will assist you at Table ${occupiedTable.tableNumber}`, type: 'success' });
+                  } catch (e) {
+                    setLiveToast({ message: 'Waiter call dispatched to staff.', type: 'info' });
+                  }
+                }}
+                className="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition"
+              >
+                <span>🛎️ Call Waiter</span>
+              </button>
+
+              {/* Option 2: View Menu (View-Only) */}
+              <button
+                type="button"
+                data-testid="occupied-view-menu-btn"
+                onClick={() => {
+                  setOccupiedTable(prev => prev ? ({ ...prev, viewOnlyAccepted: true }) : null);
+                }}
+                className="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 flex items-center justify-center gap-2 transition"
+              >
+                <span>📖 Browse Menu (View-Only)</span>
+              </button>
+
+              {/* Option 3: Choose Another Table */}
+              <button
+                type="button"
+                data-testid="occupied-select-another-btn"
+                onClick={() => {
+                  setShowLocationModal(true);
+                }}
+                className="w-full py-2.5 rounded-xl text-slate-400 hover:text-white font-medium text-xs transition"
+              >
+                Select or Scan Another Table
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {liveToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-bounce">
           <div
-            className={`px-4 py-3 rounded-2xl shadow-2xl border text-sm font-bold flex items-center justify-between gap-2 ${
+            className={`px-4 py-3 rounded-2xl shadow-sm dark:shadow-none border text-sm font-bold flex items-center justify-between gap-2 ${
               liveToast.type === 'success'
                 ? 'bg-emerald-950 text-emerald-200 border-emerald-600'
                 : 'bg-amber-950 text-amber-200 border-amber-600'
@@ -729,6 +937,9 @@ export const CustomerAppRoot: React.FC = () => {
         initialGuestCount={guestCount}
         hotelId={hotelId}
         waiterEnabled={waiterEnabled}
+        canOrder={canOrder && !occupiedTable}
+        isReadOnly={isReadOnly || Boolean(occupiedTable)}
+        occupiedWarning={occupiedTable?.message}
         onRefreshOrders={() => {
           if (tableSessionId) fetchSessionOrders(tableSessionId);
         }}
@@ -742,7 +953,9 @@ if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <ErrorBoundary>
-        <CustomerAppRoot />
+        <I18nProvider>
+          <CustomerAppRoot />
+        </I18nProvider>
       </ErrorBoundary>
     </React.StrictMode>
   );

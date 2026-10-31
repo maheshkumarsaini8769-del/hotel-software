@@ -69,13 +69,13 @@ export class RecipeCostingHelper {
   public static getWasteTypeBadge(type: string): { label: string; bg: string; text: string } {
     switch (type) {
       case 'SPOILED':
-        return { label: 'Spoiled Prep', bg: 'bg-rose-950/60', text: 'text-rose-400' };
+        return { label: 'Spoiled Prep', bg: 'bg-red-950/60', text: 'text-red-400' };
       case 'BURNT_OVERCOOKED':
         return { label: 'Burnt / Overcooked', bg: 'bg-orange-950/60', text: 'text-orange-400' };
       case 'EXPIRED':
         return { label: 'Expired Expiry', bg: 'bg-red-950/60', text: 'text-red-400' };
       case 'CUSTOMER_RETURN':
-        return { label: 'Guest Return', bg: 'bg-purple-950/60', text: 'text-purple-400' };
+        return { label: 'Guest Return', bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-700 dark:text-slate-300' };
       case 'TRIMMING_LOSS':
         return { label: 'Trimming Loss', bg: 'bg-yellow-950/60', text: 'text-yellow-400' };
       case 'BUFFET_SURPLUS':

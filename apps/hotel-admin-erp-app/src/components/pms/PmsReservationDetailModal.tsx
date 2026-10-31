@@ -94,7 +94,7 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col text-white overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-sm dark:shadow-none flex flex-col text-white overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Modal Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
           <div className="flex items-center space-x-3">
@@ -122,7 +122,7 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
         {/* Content Body */}
         <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
           {errorMessage && (
-            <div className="p-3 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-semibold">
+            <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-semibold">
               ⚠️ {errorMessage}
             </div>
           )}
@@ -220,7 +220,7 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
             <button
               onClick={handleCancel}
               disabled={isProcessing}
-              className="py-2.5 px-4 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800 text-rose-300 font-bold text-xs rounded-xl transition active:scale-95 disabled:opacity-50"
+              className="py-2.5 px-4 bg-red-950/40 hover:bg-red-900/60 border border-red-800 text-red-300 font-bold text-xs rounded-xl transition active:scale-95 disabled:opacity-50"
             >
               Cancel Booking
             </button>

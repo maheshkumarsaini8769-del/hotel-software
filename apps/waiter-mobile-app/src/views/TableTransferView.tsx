@@ -71,7 +71,7 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-5 gap-3 sm:gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-500 flex items-center justify-center font-bold">
@@ -105,7 +105,7 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 overflow-y-auto pr-1 custom-scrollbar pb-32 lg:pb-8">
         {/* Left Form (7 cols) */}
         <div className={`lg:col-span-7 p-4 sm:p-6 rounded-2xl border space-y-5 ${
-          isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
         }`}>
           <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
             <span>Transfer Parameters</span>
@@ -232,7 +232,7 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
         <div className="lg:col-span-5 space-y-4">
           {/* Recent Transfers Log */}
           <div className={`p-5 rounded-2xl border space-y-3 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
               <Clock className="w-4 h-4 text-orange-500" />
@@ -262,7 +262,7 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
 
           {/* SOP Card */}
           <div className={`p-4 rounded-2xl border space-y-2 text-xs ${
-            isDark ? 'bg-[#121520] border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-700'
+            isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-700'
           }`}>
             <div className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-900'}`}>
               <FileText className="w-4 h-4 text-blue-500" />

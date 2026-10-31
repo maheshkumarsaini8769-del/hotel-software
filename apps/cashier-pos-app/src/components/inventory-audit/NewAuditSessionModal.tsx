@@ -101,7 +101,7 @@ export const NewAuditSessionModal: React.FC<NewAuditSessionModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-[#0f131a] border border-emerald-500/30 w-full max-w-3xl rounded-2xl p-6 shadow-2xl text-zinc-100 max-h-[90vh] flex flex-col">
+      <div className="bg-slate-900 border border-emerald-500/30 w-full max-w-3xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div>
@@ -252,7 +252,7 @@ export const NewAuditSessionModal: React.FC<NewAuditSessionModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRemoveItem(index)}
-                        className="text-rose-400 hover:text-rose-300 p-1.5 rounded-lg hover:bg-zinc-800 text-xs"
+                        className="text-red-400 hover:text-red-300 p-1.5 rounded-lg hover:bg-zinc-800 text-xs"
                       >
                         ✕
                       </button>

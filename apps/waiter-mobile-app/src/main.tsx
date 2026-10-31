@@ -4,7 +4,7 @@ import { API_BASE_URL, SOCKET_URL } from './config/api';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { WaiterMobileApp, TableStatusItem } from './WaiterMobileApp';
-import { ErrorBoundary, WaiterStore } from '@spicehub/ui';
+import { ErrorBoundary, WaiterStore, I18nProvider } from '@spicehub/ui';
 import { SpiceHubSocket } from '@spicehub/api-client';
 import {
   WaiterLoginScreen,
@@ -499,6 +499,7 @@ export const WaiterAppRoot: React.FC = () => {
                         r.tableNumber ||
                         r.table?.tableNumber ||
                         (r.roomNumber ? `Room ${r.roomNumber}` : ''),
+                      notes: r.notes,
                       status: r.status || 'ASSIGNED',
                       createdAt: r.createdAt || new Date().toISOString(),
                       slaMinutes: r.slaMinutes || 1,
@@ -534,7 +535,7 @@ export const WaiterAppRoot: React.FC = () => {
 
   const [kitchenBuzzers, setKitchenBuzzers] = useState<any[]>([]);
 
-  // Fetch initial kitchen buzzers
+  // Fetch initial kitchen buzzers & ready pickups
   useEffect(() => {
     if (!hotelId) return;
     waiterFetch(`${API_BASE_URL}/pos/kds/buzzers?hotelId=${hotelId}`)
@@ -542,6 +543,36 @@ export const WaiterAppRoot: React.FC = () => {
       .then((res) => {
         if (res.success && Array.isArray(res.data)) {
           setKitchenBuzzers(res.data);
+        }
+      })
+      .catch(() => {});
+
+    waiterFetch(`${API_BASE_URL}/pos/kds/orders?status=READY`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && Array.isArray(res.data)) {
+          const tickets = res.data.map((order: any) => {
+            const tableNum = order.tableId?.tableNumber || order.tableNumber || (order.roomId ? `Room ${order.roomId.roomNumber}` : 'T-01');
+            return {
+              _id: String(order._id),
+              id: String(order._id),
+              orderNumber: order.orderNumber,
+              tableNumber: tableNum.startsWith('Table') ? tableNum : `Table ${tableNum}`,
+              floorLevel: order.tableId?.section || 'Dining Floor',
+              itemsSummary: (order.items || []).map((i: any) => `${i.quantity || 1}x ${i.name}`).join(', '),
+              itemsCount: (order.items || []).length,
+              slaMinutes: 10,
+              snoozeCount: 0,
+              readyAt: order.readyAt || order.updatedAt || new Date().toISOString(),
+              status: 'READY_FOR_PICKUP',
+              urgency: 'URGENT',
+            };
+          });
+          setPickupTickets((prev) => {
+            const existingIds = new Set(prev.map(p => p.id || p._id));
+            const newOnes = tickets.filter((t: any) => !existingIds.has(t.id));
+            return [...prev, ...newOnes];
+          });
         }
       })
       .catch(() => {});
@@ -869,12 +900,12 @@ export const WaiterAppRoot: React.FC = () => {
 
   if (notSubscribed) {
     return (
-      <div className="min-h-screen bg-[#080a0f] text-slate-100 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-full max-w-sm rounded-3xl border border-rose-500/30 bg-[#0e121b] p-8 shadow-2xl space-y-4">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-rose-500/30 bg-rose-500/10 text-3xl">
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-full max-w-sm rounded-3xl border border-red-500/30 bg-slate-900 p-8 shadow-sm dark:shadow-none space-y-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10 text-3xl">
             🔒
           </div>
-          <span className="inline-block px-3 py-1 rounded-full border border-rose-500/30 bg-rose-500/10 text-xs font-bold text-rose-400">
+          <span className="inline-block px-3 py-1 rounded-full border border-red-500/30 bg-red-500/10 text-xs font-bold text-red-400">
             Workstation Not Subscribed
           </span>
           <h2 className="text-xl font-black text-white">Waiter Handheld Is Inactive</h2>
@@ -884,7 +915,7 @@ export const WaiterAppRoot: React.FC = () => {
           </p>
           <button
             onClick={() => setIsPortalsModalOpen(true)}
-            className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-xs font-bold text-white hover:bg-indigo-500 transition"
+            className="w-full rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-3 text-xs font-bold text-white hover:bg-slate-800 dark:bg-slate-200 transition"
           >
             Switch Operational Portal
           </button>
@@ -900,7 +931,7 @@ export const WaiterAppRoot: React.FC = () => {
 
   if (!waiterSession) {
     return (
-      <div className="min-h-screen bg-[#080a0f] text-slate-100 flex flex-col justify-between">
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between">
         <WaiterLoginScreen
           onLoginSuccess={handleLogin}
           onOpenPortalsSwitcher={() => setIsPortalsModalOpen(true)}
@@ -915,14 +946,14 @@ export const WaiterAppRoot: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col justify-between">
+    <div className="h-screen w-full max-w-full overflow-x-hidden flex flex-col justify-between">
       {notification && (
-        <div className="fixed top-3 left-3 right-3 z-50 animate-bounce max-w-lg mx-auto">
+        <div data-testid="live-urgent-notification-banner" className="fixed top-3 left-3 right-3 z-50 animate-bounce max-w-lg mx-auto">
           <div
-            className={`p-4 rounded-2xl shadow-2xl border flex items-center justify-between gap-3 ${
+            className={`p-4 rounded-2xl shadow-sm dark:shadow-none border flex items-center justify-between gap-3 ${
               notification.type === 'urgent'
-                ? 'bg-gradient-to-r from-rose-950 via-slate-900 to-amber-950 border-amber-500/80 text-white'
-                : 'bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 border-emerald-500/80 text-white'
+                ? 'bg-slate-900 border-amber-500/80 text-white'
+                : 'bg-slate-900 border-emerald-500/80 text-white'
             }`}
           >
             <div className="flex items-center gap-3">
@@ -936,6 +967,7 @@ export const WaiterAppRoot: React.FC = () => {
               <p className="text-xs sm:text-sm font-bold tracking-tight">{notification.message}</p>
             </div>
             <button
+              data-testid="btn-dismiss-notification"
               onClick={() => setNotification(null)}
               className="px-2.5 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-bold"
             >
@@ -1232,7 +1264,9 @@ if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <ErrorBoundary>
-        <WaiterAppRoot />
+        <I18nProvider>
+          <WaiterAppRoot />
+        </I18nProvider>
       </ErrorBoundary>
     </React.StrictMode>
   );

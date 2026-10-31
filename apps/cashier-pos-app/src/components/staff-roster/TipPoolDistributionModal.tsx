@@ -46,7 +46,7 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="bg-[#0f131a] border border-emerald-500/30 w-full max-w-2xl rounded-2xl p-6 shadow-2xl text-zinc-100 max-h-[90vh] flex flex-col">
+      <div className="bg-slate-900 border border-emerald-500/30 w-full max-w-2xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div>

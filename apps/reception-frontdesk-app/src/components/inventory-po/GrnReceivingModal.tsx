@@ -104,9 +104,9 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-[#0f131a] border-2 border-emerald-500/40 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_0_50px_rgba(52,211,153,0.2)] animate-in fade-in zoom-in-95">
+      <div className="bg-slate-900 border-2 border-emerald-500/40 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
         {/* Header */}
-        <div className="bg-[#10171a] px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <div className="bg-slate-900 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-xl">🚚</span>
             <div>
@@ -174,7 +174,7 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
                 Dock Physical Inspection & Verification
               </span>
               {hasRejections && (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/70 text-rose-300 border border-rose-500/40 animate-pulse">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-950/70 text-red-300 border border-red-500/40 animate-pulse">
                   ⚠️ Discrepancy / Rejections Flagged
                 </span>
               )}
@@ -221,7 +221,7 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
                         required
                       />
                     </div>
-                    <div className="col-span-2 text-right font-mono text-xs font-bold text-rose-400 pr-2">
+                    <div className="col-span-2 text-right font-mono text-xs font-bold text-red-400 pr-2">
                       {it.rejectedQty} {it.unit}
                     </div>
                   </div>
@@ -229,13 +229,13 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
                   {/* Rejection Reason Row if any rejected */}
                   {it.rejectedQty > 0 && (
                     <div className="pt-1.5 border-t border-zinc-800/60 flex items-center gap-2">
-                      <span className="text-[10px] font-semibold text-rose-400 shrink-0">Reason:</span>
+                      <span className="text-[10px] font-semibold text-red-400 shrink-0">Reason:</span>
                       <input
                         type="text"
                         value={it.rejectionReason}
                         onChange={(e) => handleItemChange(idx, 'rejectionReason', e.target.value)}
                         placeholder="e.g. Torn bag, spoiled vegetable, leakage..."
-                        className="flex-1 px-2 py-1 bg-red-950/30 border border-red-500/30 rounded text-[11px] text-rose-200 outline-none"
+                        className="flex-1 px-2 py-1 bg-red-950/30 border border-red-500/30 rounded text-[11px] text-red-200 outline-none"
                         required
                       />
                     </div>
@@ -285,7 +285,7 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
             <button
               type="submit"
               disabled={loading || !invoiceNumber.trim()}
-              className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 text-black font-black text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(52,211,153,0.3)]"
+              className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
             >
               {loading ? 'Creating GRN...' : 'Verify & Generate GRN'}
             </button>

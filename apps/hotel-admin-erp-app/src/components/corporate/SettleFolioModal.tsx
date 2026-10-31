@@ -30,9 +30,9 @@ export const SettleFolioModal: React.FC<SettleFolioModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-[#121721] border border-amber-500/30 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-xs text-zinc-300">
+      <div className="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-md shadow-sm dark:shadow-none overflow-hidden text-xs text-zinc-300">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-[#0b0e14]">
+        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-slate-950">
           <div>
             <h2 className="text-base font-bold text-white">Settle Corporate Master Account</h2>
             <p className="text-[11px] text-zinc-400 mt-0.5">
@@ -49,7 +49,7 @@ export const SettleFolioModal: React.FC<SettleFolioModalProps> = ({
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="bg-[#0b0e14] p-4 rounded-xl border border-zinc-800 text-center">
+          <div className="bg-slate-950 p-4 rounded-xl border border-zinc-800 text-center">
             <div className="text-[11px] uppercase tracking-wider text-zinc-500 font-semibold">
               Current Outstanding Balance
             </div>
@@ -67,7 +67,7 @@ export const SettleFolioModal: React.FC<SettleFolioModalProps> = ({
               required
               value={amount}
               onChange={(e) => setAmount(Number(e.target.value))}
-              className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-amber-500"
             />
           </div>
 
@@ -76,7 +76,7 @@ export const SettleFolioModal: React.FC<SettleFolioModalProps> = ({
             <select
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-medium"
+              className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500 font-medium"
             >
               <option value="BANK_TRANSFER">NEFT / RTGS / Bank Transfer</option>
               <option value="CORPORATE_CREDIT">Corporate Credit Account (Net 30)</option>

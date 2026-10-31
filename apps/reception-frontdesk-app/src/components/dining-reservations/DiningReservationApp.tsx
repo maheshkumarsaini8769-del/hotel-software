@@ -163,7 +163,7 @@ export const DiningReservationApp: React.FC<DiningReservationAppProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#06080d] text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans">
       {/* Header */}
       <DiningReservationHeader
         metrics={state.metrics}

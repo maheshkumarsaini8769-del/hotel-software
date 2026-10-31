@@ -36,7 +36,7 @@ export const WaiterHeader: React.FC<WaiterHeaderProps> = ({ profile, onToggleShi
       <div className="flex items-center space-x-2">
         {/* Active Requests Pill */}
         {profile.activeRequestsCount > 0 && (
-          <span className="px-2.5 py-1 text-xs font-bold bg-rose-500 text-white rounded-full animate-bounce">
+          <span className="px-2.5 py-1 text-xs font-bold bg-red-500 text-white rounded-full animate-bounce">
             🔔 {profile.activeRequestsCount}
           </span>
         )}

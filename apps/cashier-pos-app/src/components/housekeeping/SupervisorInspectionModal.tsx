@@ -35,7 +35,7 @@ export const SupervisorInspectionModal: React.FC<SupervisorInspectionModalProps>
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-slate-950 border border-amber-500/30 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+      <div className="bg-slate-950 border border-amber-500/30 rounded-2xl w-full max-w-lg shadow-sm dark:shadow-none overflow-hidden flex flex-col">
         {/* Header */}
         <div className="p-4 px-6 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -89,7 +89,7 @@ export const SupervisorInspectionModal: React.FC<SupervisorInspectionModalProps>
               className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/60"
             />
             {errorMsg && (
-              <p className="text-xs text-rose-400 mt-1 font-medium">{errorMsg}</p>
+              <p className="text-xs text-red-400 mt-1 font-medium">{errorMsg}</p>
             )}
           </div>
         </div>
@@ -99,7 +99,7 @@ export const SupervisorInspectionModal: React.FC<SupervisorInspectionModalProps>
           <button
             onClick={() => handleAction(false)}
             disabled={isLoading}
-            className="flex-1 py-2 px-3 rounded-xl border border-rose-500/40 text-rose-300 hover:bg-rose-950/40 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 active:scale-95"
+            className="flex-1 py-2 px-3 rounded-xl border border-red-500/40 text-red-300 hover:bg-red-950/40 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 active:scale-95"
           >
             ✕ Reject (Rework Needed)
           </button>

@@ -98,8 +98,10 @@ export interface TenantHotelItem {
   plan: 'TRIAL' | 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE' | 'CUSTOM';
   activeRooms: number;
   totalRooms: number;
+  maxRooms?: number;
   activeTables: number;
   totalTables: number;
+  maxTables?: number;
   status: 'ACTIVE' | 'SUSPENDED' | 'MAINTENANCE';
   monthlyBilling: number;
   todayRevenue: number;
@@ -109,6 +111,21 @@ export interface TenantHotelItem {
   billingCycle?: 'MONTHLY' | 'ANNUAL';
   customPricingAdjustmentINR?: number;
   createdAt?: string;
+  street?: string;
+  pincode?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  googleMapUrl?: string;
+  locationNotes?: string;
+  coordinates?: { latitude?: number; longitude?: number };
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    pincode?: string;
+  };
   features?: {
     kdsEnabled: boolean;
     soundboxEnabled: boolean;
@@ -279,7 +296,7 @@ function calculateDaysRemaining(endDate?: string | Date): { days: number; isExpi
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
   if (days < 0) {
     const lbl = `Expired ${Math.abs(days)}d ago`;
-    return { days, isExpired: true, label: lbl, text: lbl, badgeClass: 'bg-rose-500/20 text-rose-300 border border-rose-500/30' };
+    return { days, isExpired: true, label: lbl, text: lbl, badgeClass: 'bg-red-500/20 text-red-300 border border-red-500/30' };
   }
   if (days === 0) {
     return { days: 0, isExpired: false, label: 'Expires today', text: 'Expires today', badgeClass: 'bg-amber-500/20 text-amber-300 border border-amber-500/30' };
@@ -407,6 +424,13 @@ interface BranchMapPin {
   activeWaiters: number;
   activeCooks: number;
   occupancy: number;
+  latitude?: number;
+  longitude?: number;
+  street?: string;
+  pincode?: string;
+  country?: string;
+  googleMapUrl?: string;
+  locationNotes?: string;
 }
 
 const BRANCH_MAP_POSITIONS = [
@@ -456,6 +480,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
   const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false);
   const [activeSettingsModal, setActiveSettingsModal] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [tenantViewMode, setTenantViewMode] = useState<'table' | 'grid'>('table');
 
   // Theme (Dark / Light) - Light mode default as per enterprise specification
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -474,6 +499,12 @@ export const SuperAdminDashboardApp: React.FC = () => {
       localStorage.setItem('spicehub_superadmin_theme', next);
     }
   };
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+    }
+  }, [theme]);
 
   // Global Ctrl + K Command Palette listener
   useEffect(() => {
@@ -1066,8 +1097,10 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 (tenant.status === 'TRIAL' ? 'TRIAL' : 'CUSTOM'),
               activeRooms,
               totalRooms,
+              maxRooms: Number(tenant.maxRooms || 30),
               activeTables: Number(tenant.occupiedTables || 0),
               totalTables: Number(tenant.totalTables || 0),
+              maxTables: Number(tenant.maxTables || 20),
               status: tenant.status === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE',
               monthlyBilling: Number(tenant.monthlyPriceINR || 0),
               todayRevenue: Number(tenant.periodRevenue || 0),
@@ -1080,6 +1113,15 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   : ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'],
               billingCycle: (tenant.billingCycle as 'MONTHLY' | 'ANNUAL') || 'MONTHLY',
               customPricingAdjustmentINR: Number(tenant.customPricingAdjustmentINR || 0),
+              street: String(tenant.street || tenant.address?.street || ''),
+              pincode: String(tenant.pincode || tenant.address?.pincode || ''),
+              country: String(tenant.country || tenant.address?.country || 'India'),
+              latitude: typeof tenant.latitude === 'number' ? tenant.latitude : (typeof tenant.coordinates?.latitude === 'number' ? tenant.coordinates.latitude : undefined),
+              longitude: typeof tenant.longitude === 'number' ? tenant.longitude : (typeof tenant.coordinates?.longitude === 'number' ? tenant.coordinates.longitude : undefined),
+              googleMapUrl: String(tenant.googleMapUrl || ''),
+              locationNotes: String(tenant.locationNotes || ''),
+              coordinates: tenant.coordinates,
+              address: tenant.address,
               features: {
                 kdsEnabled: Boolean(tenant.featureFlags?.kdsEnabled),
                 soundboxEnabled: false,
@@ -1224,9 +1266,32 @@ export const SuperAdminDashboardApp: React.FC = () => {
   const [newLogoUrl, setNewLogoUrl] = useState('');
   const [newCoverImageUrl, setNewCoverImageUrl] = useState('');
   const [newTagline, setNewTagline] = useState('');
+  const [newStreet, setNewStreet] = useState('');
+  const [newPincode, setNewPincode] = useState('');
+  const [newCountry, setNewCountry] = useState('India');
+  const [newLatitude, setNewLatitude] = useState<number>(26.9124);
+  const [newLongitude, setNewLongitude] = useState<number>(75.7873);
+  const [newGoogleMapUrl, setNewGoogleMapUrl] = useState('');
+  const [newLocationNotes, setNewLocationNotes] = useState('');
   const [onboarding, setOnboarding] = useState(false);
   const [onboardError, setOnboardError] = useState('');
   const [tenantActionId, setTenantActionId] = useState('');
+
+  // Real Hotel Location & Google Maps Coordinates Modal State
+  const [managingLocationTenant, setManagingLocationTenant] = useState<TenantHotelItem | null>(null);
+  const [locStreet, setLocStreet] = useState<string>('');
+  const [locCity, setLocCity] = useState<string>('Jaipur');
+  const [locState, setLocState] = useState<string>('Rajasthan');
+  const [locPincode, setLocPincode] = useState<string>('');
+  const [locCountry, setLocCountry] = useState<string>('India');
+  const [locLatitude, setLocLatitude] = useState<number>(26.9124);
+  const [locLongitude, setLocLongitude] = useState<number>(75.7873);
+  const [locGoogleMapUrl, setLocGoogleMapUrl] = useState<string>('');
+  const [locNotes, setLocNotes] = useState<string>('');
+  const [isSavingLocation, setIsSavingLocation] = useState<boolean>(false);
+  const [locSuccessMsg, setLocSuccessMsg] = useState<string>('');
+  const [locErrorMsg, setLocErrorMsg] = useState<string>('');
+  const [locSearchQuery, setLocSearchQuery] = useState<string>('');
 
   // Subscription Duration Adjustment Modal State
   const [managingSubscriptionTenant, setManagingSubscriptionTenant] = useState<TenantHotelItem | null>(null);
@@ -1239,6 +1304,14 @@ export const SuperAdminDashboardApp: React.FC = () => {
   const [isSavingSubscription, setIsSavingSubscription] = useState<boolean>(false);
   const [subscriptionSuccessMsg, setSubscriptionSuccessMsg] = useState<string>('');
   const [subscriptionErrorMsg, setSubscriptionErrorMsg] = useState<string>('');
+
+  // Property Capacity Ceilings (Max Rooms & Max Tables) Modal State
+  const [managingCapacityTenant, setManagingCapacityTenant] = useState<TenantHotelItem | null>(null);
+  const [capacityMaxRooms, setCapacityMaxRooms] = useState<number>(30);
+  const [capacityMaxTables, setCapacityMaxTables] = useState<number>(20);
+  const [isSavingCapacity, setIsSavingCapacity] = useState<boolean>(false);
+  const [capacitySuccessMsg, setCapacitySuccessMsg] = useState<string>('');
+  const [capacityErrorMsg, setCapacityErrorMsg] = useState<string>('');
 
   // Admin Credentials & Password Management Modal State
   const [managingCredentialsTenant, setManagingCredentialsTenant] = useState<TenantHotelItem | null>(null);
@@ -1823,8 +1896,27 @@ export const SuperAdminDashboardApp: React.FC = () => {
             monthlyPriceINR: onboardPricing.finalMonthlyTotalINR,
           }),
         }).catch(() => null);
+
+        // Persist real hotel location and Google Maps coordinates
+        const calculatedGMapUrl = newGoogleMapUrl.trim() || `https://www.google.com/maps/search/?api=1&query=${newLatitude},${newLongitude}`;
+        await fetch(`${env.apiBaseUrl}/superadmin/tenants/${tenantId}/location`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...platformAuthHeaders() },
+          body: JSON.stringify({
+            latitude: newLatitude,
+            longitude: newLongitude,
+            street: newStreet.trim(),
+            city: newCity.trim() || 'Jaipur',
+            state: newState.trim() || 'Rajasthan',
+            pincode: newPincode.trim(),
+            country: newCountry.trim() || 'India',
+            googleMapUrl: calculatedGMapUrl,
+            locationNotes: newLocationNotes.trim(),
+          }),
+        }).catch(() => null);
       }
 
+      const calculatedGMapUrlFinal = newGoogleMapUrl.trim() || `https://www.google.com/maps/search/?api=1&query=${newLatitude},${newLongitude}`;
       const subStartDateIso = new Date().toISOString();
       const calculatedEndIso = calculateEndDateFromMonths(subStartDateIso, onboardDurationMonths);
 
@@ -1836,8 +1928,23 @@ export const SuperAdminDashboardApp: React.FC = () => {
         name: newName.trim(),
         code: (slugBase || 'HOTEL').toUpperCase(),
         slug: slug,
-        city: newCity.trim() || 'Mumbai',
-        state: newState.trim() || 'Maharashtra',
+        city: newCity.trim() || 'Jaipur',
+        state: newState.trim() || 'Rajasthan',
+        street: newStreet.trim(),
+        pincode: newPincode.trim(),
+        country: newCountry.trim() || 'India',
+        latitude: newLatitude,
+        longitude: newLongitude,
+        googleMapUrl: calculatedGMapUrlFinal,
+        locationNotes: newLocationNotes.trim(),
+        coordinates: { latitude: newLatitude, longitude: newLongitude },
+        address: {
+          street: newStreet.trim(),
+          city: newCity.trim() || 'Jaipur',
+          state: newState.trim() || 'Rajasthan',
+          pincode: newPincode.trim(),
+          country: newCountry.trim() || 'India',
+        },
         contactEmail: newEmail.trim(),
         contactPhone: newPhone.trim() || '9999999999',
         adminEmail: newEmail.trim(),
@@ -1894,6 +2001,12 @@ export const SuperAdminDashboardApp: React.FC = () => {
       ]);
       setNewName('');
       setNewCity('');
+      setNewStreet('');
+      setNewPincode('');
+      setNewLatitude(26.9124);
+      setNewLongitude(75.7873);
+      setNewGoogleMapUrl('');
+      setNewLocationNotes('');
       setNewEmail('');
       setNewPhone('');
       setNewAdminName('');
@@ -2082,6 +2195,61 @@ export const SuperAdminDashboardApp: React.FC = () => {
     }
   };
 
+  const handleOpenCapacityModal = (tenant: TenantHotelItem) => {
+    setManagingCapacityTenant(tenant);
+    setCapacityMaxRooms(tenant.maxRooms || 30);
+    setCapacityMaxTables(tenant.maxTables || 20);
+    setCapacityErrorMsg('');
+    setCapacitySuccessMsg('');
+  };
+
+  const handleSaveCapacity = async () => {
+    if (!managingCapacityTenant) return;
+    setIsSavingCapacity(true);
+    setCapacityErrorMsg('');
+    setCapacitySuccessMsg('');
+    try {
+      const response = await fetch(
+        `${env.apiBaseUrl}/superadmin/tenants/${managingCapacityTenant.id}/capacity`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...platformAuthHeaders() },
+          body: JSON.stringify({
+            maxRooms: capacityMaxRooms,
+            maxTables: capacityMaxTables,
+          }),
+        }
+      );
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success) {
+        setCapacityErrorMsg(json?.message || 'Failed to update capacity ceiling');
+        return;
+      }
+
+      setTenants((prev) =>
+        prev.map((t) =>
+          t.id === managingCapacityTenant.id
+            ? {
+                ...t,
+                maxRooms: capacityMaxRooms,
+                maxTables: capacityMaxTables,
+              }
+            : t
+        )
+      );
+
+      setCapacitySuccessMsg(json.message || 'Capacity ceiling updated successfully!');
+      window.setTimeout(() => {
+        setManagingCapacityTenant(null);
+        setCapacitySuccessMsg('');
+      }, 1400);
+    } catch (err: any) {
+      setCapacityErrorMsg(err?.message || 'Network error updating capacity');
+    } finally {
+      setIsSavingCapacity(false);
+    }
+  };
+
   const handleOpenCredentialsModal = (tenant: TenantHotelItem) => {
     setManagingCredentialsTenant(tenant);
     setCredNewPassword('');
@@ -2127,6 +2295,111 @@ export const SuperAdminDashboardApp: React.FC = () => {
       setCredErrorMsg(err?.message || 'Network error resetting password');
     } finally {
       setIsResettingPassword(false);
+    }
+  };
+
+  const handleOpenLocationModal = (tenant: TenantHotelItem) => {
+    setManagingLocationTenant(tenant);
+    setLocStreet(tenant.street || tenant.address?.street || '');
+    setLocCity(tenant.city || tenant.address?.city || 'Jaipur');
+    setLocState(tenant.state || tenant.address?.state || 'Rajasthan');
+    setLocPincode(tenant.pincode || tenant.address?.pincode || '');
+    setLocCountry(tenant.country || tenant.address?.country || 'India');
+    const lat = typeof tenant.latitude === 'number' ? tenant.latitude : (typeof tenant.coordinates?.latitude === 'number' ? tenant.coordinates.latitude : 26.9124);
+    const lng = typeof tenant.longitude === 'number' ? tenant.longitude : (typeof tenant.coordinates?.longitude === 'number' ? tenant.coordinates.longitude : 75.7873);
+    setLocLatitude(lat);
+    setLocLongitude(lng);
+    setLocGoogleMapUrl(tenant.googleMapUrl || `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+    setLocNotes(tenant.locationNotes || '');
+    setLocSuccessMsg('');
+    setLocErrorMsg('');
+    setLocSearchQuery('');
+  };
+
+  const handleSaveLocation = async () => {
+    if (!managingLocationTenant) return;
+    setIsSavingLocation(true);
+    setLocErrorMsg('');
+    setLocSuccessMsg('');
+    try {
+      const gMapUrl = locGoogleMapUrl.trim() || `https://www.google.com/maps/search/?api=1&query=${locLatitude},${locLongitude}`;
+      const response = await fetch(
+        `${env.apiBaseUrl}/superadmin/tenants/${managingLocationTenant.id}/location`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...platformAuthHeaders() },
+          body: JSON.stringify({
+            latitude: Number(locLatitude),
+            longitude: Number(locLongitude),
+            street: locStreet.trim(),
+            city: locCity.trim(),
+            state: locState.trim(),
+            pincode: locPincode.trim(),
+            country: locCountry.trim() || 'India',
+            googleMapUrl: gMapUrl,
+            locationNotes: locNotes.trim(),
+          }),
+        }
+      );
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success) {
+        setLocErrorMsg(json?.message || 'Failed to update property location');
+        return;
+      }
+
+      setTenants((prev) =>
+        prev.map((t) =>
+          t.id === managingLocationTenant.id
+            ? {
+                ...t,
+                latitude: Number(locLatitude),
+                longitude: Number(locLongitude),
+                street: locStreet.trim(),
+                city: locCity.trim(),
+                state: locState.trim(),
+                pincode: locPincode.trim(),
+                country: locCountry.trim() || 'India',
+                googleMapUrl: gMapUrl,
+                locationNotes: locNotes.trim(),
+                coordinates: { latitude: Number(locLatitude), longitude: Number(locLongitude) },
+                address: {
+                  street: locStreet.trim(),
+                  city: locCity.trim(),
+                  state: locState.trim(),
+                  pincode: locPincode.trim(),
+                  country: locCountry.trim() || 'India',
+                },
+              }
+            : t
+        )
+      );
+
+      setSelectedMapBranch((current) => {
+        if (current && current.id === managingLocationTenant.id) {
+          return {
+            ...current,
+            latitude: Number(locLatitude),
+            longitude: Number(locLongitude),
+            street: locStreet.trim(),
+            city: locCity.trim(),
+            state: locState.trim(),
+            pincode: locPincode.trim(),
+            googleMapUrl: gMapUrl,
+            locationNotes: locNotes.trim(),
+          };
+        }
+        return current;
+      });
+
+      setLocSuccessMsg('Real location & Google Maps pin updated successfully!');
+      window.setTimeout(() => {
+        setManagingLocationTenant(null);
+        setLocSuccessMsg('');
+      }, 1400);
+    } catch (err: any) {
+      setLocErrorMsg(err?.message || 'Network error saving location');
+    } finally {
+      setIsSavingLocation(false);
     }
   };
 
@@ -2399,12 +2672,16 @@ export const SuperAdminDashboardApp: React.FC = () => {
     [platformMetrics, platformLoading]
   );
 
-  // Real tenants become interactive map pins. Coordinates are deterministic
-  // presentation positions, not claimed geolocation.
+  // Real tenants become interactive map pins with genuine GPS coordinates.
   const branchPins = useMemo<BranchMapPin[]>(
     () =>
       tenants.map((tenant, index) => {
         const position = BRANCH_MAP_POSITIONS[index % BRANCH_MAP_POSITIONS.length];
+        const lat = typeof tenant.latitude === 'number' ? tenant.latitude : (typeof tenant.coordinates?.latitude === 'number' ? tenant.coordinates.latitude : undefined);
+        const lng = typeof tenant.longitude === 'number' ? tenant.longitude : (typeof tenant.coordinates?.longitude === 'number' ? tenant.coordinates.longitude : undefined);
+        const street = tenant.street || tenant.address?.street;
+        const pincode = tenant.pincode || tenant.address?.pincode;
+        const country = tenant.country || tenant.address?.country;
         return {
           id: tenant.id,
           name: tenant.name,
@@ -2420,6 +2697,13 @@ export const SuperAdminDashboardApp: React.FC = () => {
           activeWaiters: 0,
           activeCooks: 0,
           occupancy: tenant.occupancyPercent,
+          latitude: lat,
+          longitude: lng,
+          street,
+          pincode,
+          country,
+          googleMapUrl: tenant.googleMapUrl || (lat && lng ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}` : undefined),
+          locationNotes: tenant.locationNotes,
         };
       }),
     [tenants]
@@ -2638,7 +2922,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
   return (
     <div
       className={`h-screen overflow-hidden flex font-sans select-none transition-colors duration-200 ${
-        theme === 'dark' ? 'bg-[#080b11] text-slate-100' : 'bg-slate-50 text-slate-900'
+        theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
       }`}
     >
       {/* ======================================================== */}
@@ -2652,37 +2936,37 @@ export const SuperAdminDashboardApp: React.FC = () => {
       )}
       <aside
         className={`${
-          mobileMenuOpen ? 'flex fixed inset-y-0 left-0 z-50 w-64 shadow-2xl' : 'hidden md:flex'
+          mobileMenuOpen ? 'flex fixed inset-y-0 left-0 z-50 w-64 shadow-sm dark:shadow-none' : 'hidden md:flex'
         } ${
           sidebarCollapsed ? 'md:w-20' : 'md:w-64'
         } shrink-0 h-screen sticky top-0 flex flex-col z-30 transition-all duration-200 border-r ${
           theme === 'dark'
-            ? 'bg-[#0b0e17] border-slate-800/80 text-slate-200'
+            ? 'bg-slate-900 border-slate-800/80 text-slate-200'
             : 'bg-white border-slate-200 text-slate-900 shadow-sm'
         }`}
       >
         {/* Brand Header */}
-        <div className={`h-16 px-4 flex items-center justify-between border-b ${theme === 'dark' ? 'border-slate-800/60' : 'border-slate-100'}`}>
+        <div className={`h-16 px-4 flex items-center justify-between border-b ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-500 shrink-0 shadow-sm">
-              <Building2 className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <Building2 className="w-5 h-5 text-white" />
             </div>
             {!sidebarCollapsed && (
               <div className="truncate">
                 <div className="flex items-center gap-1.5">
-                  <span className={`font-bold text-base tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>SpiceHub</span>
+                  <span className={`font-semibold text-sm tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>SpiceHub</span>
                   <Crown className="w-3.5 h-3.5 text-amber-500" />
                 </div>
-                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Super Admin</div>
+                <div className="text-xs text-slate-500 font-medium">Super Admin</div>
               </div>
             )}
           </div>
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className={`p-1.5 rounded-lg transition text-xs ${theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-slate-800/60' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+            className={`p-1.5 rounded-lg transition text-xs ${theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
             title={sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
-            {sidebarCollapsed ? <ArrowRight className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
+            {sidebarCollapsed ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
           </button>
         </div>
 
@@ -2697,7 +2981,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
             return (
               <React.Fragment key={item.key}>
                 {showCategoryHeader && (
-                  <div className={`text-[10px] font-bold uppercase tracking-wider px-3 pt-3 pb-1 ${
+                  <div className={`text-[11px] font-semibold uppercase tracking-wider px-3 pt-3 pb-1 ${
                     theme === 'dark' ? 'text-slate-500' : 'text-slate-400'
                   }`}>
                     {item.category}
@@ -2709,24 +2993,26 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     setActiveNav(item.key);
                     setMobileMenuOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all text-left ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs transition-all text-left ${
                     isActive
                       ? theme === 'dark'
-                        ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-bold shadow-sm'
-                        : 'bg-indigo-50 text-indigo-600 border border-indigo-200 font-bold shadow-xs'
+                        ? 'bg-slate-800 text-white font-semibold'
+                        : 'bg-slate-100 text-slate-900 font-semibold'
                       : theme === 'dark'
-                        ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 border border-transparent font-medium'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent font-medium'
+                        ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 font-medium'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium'
                   }`}
                   title={sidebarCollapsed ? item.label : undefined}
                 >
-                  <Icon className={`w-4 h-4 shrink-0 transition ${isActive ? (theme === 'dark' ? 'text-indigo-400' : 'text-indigo-600') : (theme === 'dark' ? 'text-slate-400' : 'text-slate-500')}`} />
+                  <Icon className={`w-4 h-4 shrink-0 transition ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
                   {!sidebarCollapsed && (
                     <div className="flex-1 flex items-center justify-between truncate">
                       <span className="truncate">{item.label}</span>
                       {item.badge && (
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold tracking-wider ${
-                          theme === 'dark' ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/20' : 'bg-indigo-100 text-indigo-700'
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold tracking-wider ${
+                          isActive
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-slate-100 text-slate-600'
                         }`}>
                           {item.badge}
                         </span>
@@ -2740,7 +3026,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
         </div>
 
         {/* Bottom Profile Card */}
-        <div className={`p-3 border-t ${theme === 'dark' ? 'border-slate-800/60' : 'border-slate-100'}`}>
+        <div className={`p-3 border-t ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
           <div
             onClick={() => {
               setActiveNav('SYSTEM_CONFIG');
@@ -2753,13 +3039,13 @@ export const SuperAdminDashboardApp: React.FC = () => {
             }`}
           >
             <div className="flex items-center gap-2.5 overflow-hidden">
-              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-600 font-bold text-xs shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-semibold text-xs shrink-0">
                 SA
               </div>
               {!sidebarCollapsed && (
                 <div className="truncate">
                   <div className={`text-xs font-semibold truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Super Admin</div>
-                  <div className="text-[10px] text-slate-400 truncate">superadmin@spicehub.app</div>
+                  <div className="text-[11px] text-slate-500 truncate">superadmin@spicehub.app</div>
                 </div>
               )}
             </div>
@@ -2775,13 +3061,17 @@ export const SuperAdminDashboardApp: React.FC = () => {
         {/* Top Navbar */}
         <header
           className={`h-16 px-3 sm:px-6 border-b flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-20 backdrop-blur-md transition-colors ${
-            theme === 'dark' ? 'bg-[#0b0e17]/90 border-slate-800/80' : 'bg-white/95 border-slate-200 shadow-sm'
+            theme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}
         >
           {/* Mobile Menu Toggle Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800/60 shrink-0"
+            className={`md:hidden p-2 rounded-lg border shrink-0 transition ${
+              theme === 'dark'
+                ? 'border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
+                : 'border-slate-200 text-slate-700 hover:bg-slate-100'
+            }`}
             title="Toggle Menu"
           >
             {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -2793,13 +3083,17 @@ export const SuperAdminDashboardApp: React.FC = () => {
               onClick={() => setIsCommandPaletteOpen(true)}
               className={`flex items-center gap-2 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg border text-xs transition-all cursor-pointer ${
                 theme === 'dark'
-                  ? 'bg-slate-900/80 border-slate-800 text-slate-400 hover:border-indigo-500/60'
-                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-indigo-500/60'
+                  ? 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
               }`}
             >
               <Search className="w-4 h-4 text-slate-400 shrink-0" />
               <span className="flex-1 truncate">Search branches, users...</span>
-              <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-400 bg-slate-800 border border-slate-700/50 shrink-0">
+              <span className={`hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-mono shrink-0 border ${
+                theme === 'dark'
+                  ? 'text-slate-400 bg-slate-800 border-slate-700'
+                  : 'text-slate-500 bg-white border-slate-200 shadow-2xs'
+              }`}>
                 ⌘K
               </span>
             </div>
@@ -2812,13 +3106,13 @@ export const SuperAdminDashboardApp: React.FC = () => {
               onClick={() => setActiveNav('NOTIFICATIONS')}
               className={`relative p-2 rounded-lg border transition ${
                 theme === 'dark'
-                  ? 'bg-slate-900/80 border-slate-800 text-slate-300 hover:text-white'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs'
               }`}
               title="12 Active Notifications"
             >
               <Bell className="w-4 h-4" />
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-500 text-black text-[9px] font-bold flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center">
                 12
               </span>
             </button>
@@ -2826,10 +3120,14 @@ export const SuperAdminDashboardApp: React.FC = () => {
             {/* View Live System Button */}
             <button
               onClick={() => setIsLiveSystemModalOpen(true)}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600/10 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-600 hover:text-white transition shadow-sm"
+              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition shadow-2xs ${
+                theme === 'dark'
+                  ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+              }`}
               title="View & Launch All Micro-Frontend Apps"
             >
-              <Eye className="w-3.5 h-3.5" />
+              <Eye className="w-3.5 h-3.5 text-blue-600" />
               <span>View Live System</span>
             </button>
 
@@ -2837,9 +3135,9 @@ export const SuperAdminDashboardApp: React.FC = () => {
             <button
               data-testid="theme-toggle-btn"
               onClick={toggleTheme}
-              className={`p-2 rounded-lg border transition ${
+              className={`p-2 rounded-lg border transition shadow-2xs ${
                 theme === 'dark'
-                  ? 'bg-slate-900/80 border-slate-800 text-amber-400 hover:bg-slate-800'
+                  ? 'bg-slate-900 border-slate-800 text-amber-400 hover:bg-slate-800'
                   : 'bg-white border-slate-200 text-amber-600 hover:bg-slate-50'
               }`}
               title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
@@ -2849,8 +3147,8 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
             {/* Language Selector */}
             <div
-              className={`hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold ${
-                theme === 'dark' ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
+              className={`hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold shadow-2xs ${
+                theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
               }`}
             >
               <span>EN</span>
@@ -2897,30 +3195,32 @@ export const SuperAdminDashboardApp: React.FC = () => {
               {/* Header Title & Date / Export Actions */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h1
-                    className={`text-2xl md:text-3xl font-black tracking-tight flex items-center gap-2 ${
-                      theme === 'dark' ? 'text-white' : 'text-slate-900'
-                    }`}
-                  >
+                  <h1 className={`text-2xl font-semibold tracking-tight flex items-center gap-2 ${
+                    theme === 'dark' ? 'text-white' : 'text-slate-900'
+                  }`}>
                     <span>Welcome, Super Admin</span>
-                    <span className="text-amber-400 text-xl">👑</span>
+                    <span className="text-amber-500 text-xl">👑</span>
                   </h1>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-sm text-slate-500 mt-1">
                     Complete control over all branches, hotels, restaurants and services.
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2.5 shrink-0">
                   {/* Date Range Selector Dropdown */}
-                  <div className="flex items-center gap-1 p-1 rounded-xl bg-black/20 border border-white/5 text-xs">
+                  <div className={`flex items-center gap-1 p-1 rounded-lg border text-xs ${
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+                  }`}>
                     {(['TODAY', 'YESTERDAY', 'WEEK', 'MONTH'] as const).map((r) => (
                       <button
                         key={r}
                         onClick={() => setDateRange(r)}
-                        className={`px-3 py-1.5 rounded-lg font-bold transition text-[11px] ${
+                        className={`px-3 py-1.5 rounded-md font-semibold transition text-xs ${
                           dateRange === r
-                            ? 'bg-indigo-600 text-white shadow'
-                            : 'text-slate-400 hover:text-white'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : theme === 'dark'
+                              ? 'text-slate-400 hover:text-white'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                         }`}
                       >
                         {r === 'TODAY' ? 'Today' : r === 'YESTERDAY' ? 'Yesterday' : r === 'WEEK' ? '7 Days' : 'This Month'}
@@ -2931,7 +3231,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   {/* Generate / Export Report Button */}
                   <button
                     onClick={() => setIsExportReportOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-[#6366f1] to-[#7c3aed] text-white hover:brightness-110 transition shadow-lg shadow-indigo-950/40"
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition shadow-sm"
                   >
                     <span>📥</span>
                     <span>Generate Report ▾</span>
@@ -2943,8 +3243,8 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 <div
                   className={`flex flex-col gap-2 rounded-xl border px-4 py-3 text-xs font-semibold sm:flex-row sm:items-center sm:justify-between ${
                     platformError
-                      ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
-                      : 'border-slate-700 bg-slate-900/50 text-slate-300'
+                      ? 'border-red-500/40 bg-red-500/10 text-red-700'
+                      : 'border-slate-200 bg-slate-50 text-slate-600'
                   }`}
                 >
                   <span>
@@ -2956,7 +3256,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setRefreshKey((value) => value + 1)}
-                      className="rounded-lg border border-rose-400/40 px-3 py-1 text-[11px] font-bold text-rose-100 hover:bg-rose-500/20"
+                      className="rounded-lg border border-red-300 px-3 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50"
                     >
                       Retry
                     </button>
@@ -2965,7 +3265,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               )}
 
               {platformNotice && (
-                <div data-testid="toast-platform-notice" className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-xs font-semibold text-emerald-200">
+                <div data-testid="toast-platform-notice" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800">
                   {platformNotice}
                 </div>
               )}
@@ -2977,15 +3277,17 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 {/* 1. Total Branches */}
                 <div
                   onClick={() => setActiveNav('BRANCHES')}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-indigo-500/50 ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    theme === 'dark'
+                      ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-xl font-bold">
+                    <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center text-base">
                       🏢
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                       {platformMetrics
                         ? `${platformMetrics.tenants.active} active`
                         : platformLoading
@@ -2993,48 +3295,52 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           : '—'}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-400 font-medium mt-3">Total Branches</div>
-                  <div className={`text-2xl font-black mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  <div className="text-xs text-slate-500 font-medium mt-3">Total Branches</div>
+                  <div className={`text-2xl font-semibold tracking-tight mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                     {platformMetrics ? formatCount(platformMetrics.tenants.total) : '—'}
                   </div>
                 </div>
 
                 {/* 2. Total Orders */}
                 <div
-                  className={`p-4 rounded-2xl border transition-all ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  className={`p-4 rounded-xl border transition-all ${
+                    theme === 'dark'
+                      ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xl font-bold">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center text-base">
                       🛒
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                       {metricsData.totalOrders.toLocaleString('en-IN')} all-time
                     </span>
                   </div>
-                  <div className="text-xs text-slate-400 font-medium mt-3">Orders in Range</div>
-                  <div className={`text-2xl font-black mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  <div className="text-xs text-slate-500 font-medium mt-3">Orders in Range</div>
+                  <div className={`text-2xl font-semibold tracking-tight mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                     {metricsData.orders}
                   </div>
                 </div>
 
                 {/* 3. Total Revenue */}
                 <div
-                  className={`p-4 rounded-2xl border transition-all ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  className={`p-4 rounded-xl border transition-all ${
+                    theme === 'dark'
+                      ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center text-xl font-bold">
+                    <div className="w-9 h-9 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center text-base font-bold">
                       ₹
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                       {metricsData.growthRev}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-400 font-medium mt-3">Revenue in Range</div>
-                  <div className="text-2xl font-black text-teal-400 mt-0.5">
+                  <div className="text-xs text-slate-500 font-medium mt-3">Revenue in Range</div>
+                  <div className={`text-2xl font-semibold tracking-tight mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                     {metricsData.revenue}
                   </div>
                 </div>
@@ -3042,20 +3348,22 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 {/* 4. Total Customers */}
                 <div
                   onClick={() => setActiveNav('CUSTOMERS')}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-indigo-500/50 ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    theme === 'dark'
+                      ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-xl font-bold">
+                    <div className="w-9 h-9 rounded-lg bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center text-base">
                       👥
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                       +{formatCount(metricsData.newGuests)} new
                     </span>
                   </div>
-                  <div className="text-xs text-slate-400 font-medium mt-3">Total Guests</div>
-                  <div className={`text-2xl font-black mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  <div className="text-xs text-slate-500 font-medium mt-3">Total Guests</div>
+                  <div className={`text-2xl font-semibold tracking-tight mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                     {metricsData.customers}
                   </div>
                 </div>
@@ -3063,22 +3371,24 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 {/* 5. Total Rooms */}
                 <div
                   onClick={() => setActiveNav('ROOMS_PMS')}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-indigo-500/50 ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    theme === 'dark'
+                      ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center text-xl font-bold">
+                    <div className="w-9 h-9 rounded-lg bg-sky-50 border border-sky-100 text-sky-600 flex items-center justify-center text-base">
                       🛏️
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                       {totalRoomsCount > 0
                         ? `${Math.round((occupiedRoomsCount / totalRoomsCount) * 100)}% Occupancy`
                         : 'No rooms'}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-400 font-medium mt-3">Occupied / Total Rooms</div>
-                  <div className={`text-2xl font-black mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  <div className="text-xs text-slate-500 font-medium mt-3">Occupied / Total Rooms</div>
+                  <div className={`text-2xl font-semibold tracking-tight mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                     {occupiedRoomsCount} / {totalRoomsCount}
                   </div>
                 </div>
@@ -3086,40 +3396,44 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 {/* 6. Active Users & Staff */}
                 <div
                   onClick={() => setActiveNav('USERS_ROLES')}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-indigo-500/50 ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    theme === 'dark'
+                      ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-400 flex items-center justify-center text-xl font-bold">
+                    <div className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center text-base">
                       👤
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                       {activeTablesCount}/{totalTablesCount} tables busy
                     </span>
                   </div>
-                  <div className="text-xs text-slate-400 font-medium mt-3">Active Staff</div>
-                  <div className={`text-2xl font-black mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  <div className="text-xs text-slate-500 font-medium mt-3">Active Staff</div>
+                  <div className={`text-2xl font-semibold tracking-tight mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                     {formatCount(metricsData.totalStaff)}
                   </div>
                 </div>
 
                 {/* 7. Today Bookings */}
                 <div
-                  className={`p-4 rounded-2xl border transition-all ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  className={`p-4 rounded-xl border transition-all ${
+                    theme === 'dark'
+                      ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center text-xl font-bold">
+                    <div className="w-9 h-9 rounded-lg bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center text-base">
                       📅
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                       {metricsData.totalBookings.toLocaleString('en-IN')} all-time
                     </span>
                   </div>
-                  <div className="text-xs text-slate-400 font-medium mt-3">Bookings in Range</div>
-                  <div className={`text-2xl font-black mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  <div className="text-xs text-slate-500 font-medium mt-3">Bookings in Range</div>
+                  <div className={`text-2xl font-semibold tracking-tight mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                     {metricsData.bookings}
                   </div>
                 </div>
@@ -3127,21 +3441,23 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 {/* 8. System Uptime */}
                 <div
                   onClick={() => setActiveNav('SECURITY')}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer hover:border-indigo-500/50 ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    theme === 'dark'
+                      ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xl font-bold">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center text-base">
                       🖥️
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-                      <span className={`w-1.5 h-1.5 rounded-full ${platformError ? 'bg-rose-400' : 'bg-emerald-400 animate-pulse'}`}></span>
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1">
+                      <span className={`w-1.5 h-1.5 rounded-full ${platformError ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
                       {platformError ? 'Degraded' : 'Online'}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-400 font-medium mt-3">Platform Health</div>
-                  <div className={`text-2xl font-black mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  <div className="text-xs text-slate-500 font-medium mt-3">Platform Health</div>
+                  <div className={`text-2xl font-semibold tracking-tight mt-0.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                     {platformError ? 'Check API' : platformMetrics?.infrastructure.engineStatus || 'Operational'}
                   </div>
                 </div>
@@ -3153,45 +3469,51 @@ export const SuperAdminDashboardApp: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* LEFT: Branch Locations Interactive Map (7 cols) */}
                 <div
-                  className={`lg:col-span-7 p-5 rounded-2xl border flex flex-col justify-between ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  className={`lg:col-span-7 p-5 rounded-xl border flex flex-col justify-between ${
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
                   <div>
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-base font-bold text-slate-300">🗺️</span>
-                        <h3 className={`font-bold text-sm ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                        <span className="text-base text-blue-600">🗺️</span>
+                        <h3 className={`font-semibold text-sm ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                           Branch Locations
                         </h3>
                       </div>
 
                       {/* Map Filter Pills */}
-                      <div className="flex items-center gap-1.5 text-[11px]">
+                      <div className="flex items-center gap-1.5 text-xs">
                         <button
                           onClick={() => setMapFilter('ALL')}
-                          className={`px-2 py-0.5 rounded-md font-bold transition ${
-                            mapFilter === 'ALL' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                          className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                            mapFilter === 'ALL'
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                           }`}
                         >
                           All ({branchPins.length})
                         </button>
                         <button
                           onClick={() => setMapFilter('ONLINE')}
-                          className={`px-2 py-0.5 rounded-md font-bold transition flex items-center gap-1 ${
-                            mapFilter === 'ONLINE' ? 'bg-emerald-600 text-white' : 'text-emerald-400 hover:text-white'
+                          className={`px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1 ${
+                            mapFilter === 'ONLINE'
+                              ? 'bg-emerald-600 text-white shadow-sm'
+                              : 'text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100'
                           }`}
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>{' '}
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{' '}
                           {branchPins.filter((pin) => pin.status === 'ONLINE').length} Online
                         </button>
                         <button
                           onClick={() => setMapFilter('OFFLINE')}
-                          className={`px-2 py-0.5 rounded-md font-bold transition flex items-center gap-1 ${
-                            mapFilter === 'OFFLINE' ? 'bg-rose-600 text-white' : 'text-rose-400 hover:text-white'
+                          className={`px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1 ${
+                            mapFilter === 'OFFLINE'
+                              ? 'bg-red-600 text-white shadow-sm'
+                              : 'text-red-700 bg-red-50 border border-red-200 hover:bg-red-100'
                           }`}
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>{' '}
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>{' '}
                           {branchPins.filter((pin) => pin.status === 'OFFLINE').length} Offline
                         </button>
                       </div>
@@ -3203,11 +3525,19 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       selectedBranch={selectedMapBranch as any}
                       onSelectBranch={(b) => setSelectedMapBranch(b as any)}
                       theme={theme as any}
+                      onEditLocation={(b) => {
+                        const matching = tenants.find((t) => t.id === b.id);
+                        if (matching) {
+                          handleOpenLocationModal(matching);
+                        }
+                      }}
                     />
                   </div>
 
                   {/* Horizontal mini-branch list below map */}
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3 pt-3 border-t border-slate-800/60 text-xs">
+                  <div className={`grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3 pt-3 border-t text-xs ${
+                    theme === 'dark' ? 'border-slate-800' : 'border-slate-200'
+                  }`}>
                     {[...branchPins]
                       .sort((a, b) => b.todayRevenue - a.todayRevenue)
                       .slice(0, 5)
@@ -3215,21 +3545,23 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       <div
                         key={b.id}
                         onClick={() => setSelectedMapBranch(b)}
-                        className={`p-2 rounded-xl border cursor-pointer transition ${
+                        className={`p-2.5 rounded-lg border cursor-pointer transition ${
                           selectedMapBranch?.id === b.id
-                            ? 'bg-indigo-950/40 border-indigo-500/60'
-                            : 'bg-black/20 border-white/5 hover:border-white/10'
+                            ? 'bg-blue-50 border-blue-200 text-blue-900 shadow-2xs'
+                            : theme === 'dark'
+                              ? 'bg-slate-800/40 border-slate-800 hover:border-slate-700'
+                              : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
                         }`}
                       >
                         <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-bold truncate text-white">{b.city}</span>
+                          <span className={`font-semibold truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{b.city}</span>
                           <span
                             className={`w-1.5 h-1.5 rounded-full ${
-                              b.status === 'ONLINE' ? 'bg-emerald-400' : 'bg-rose-400'
+                              b.status === 'ONLINE' ? 'bg-emerald-500' : 'bg-red-500'
                             }`}
                           />
                         </div>
-                        <div className="text-[10px] text-emerald-400 font-semibold mt-1">
+                        <div className="text-[10px] text-emerald-600 font-semibold mt-1">
                           ₹{b.todayRevenue.toLocaleString('en-IN')}
                         </div>
                       </div>
@@ -3241,30 +3573,34 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 <div className="lg:col-span-5 space-y-4 flex flex-col justify-between">
                   {/* Card A: Live Activity Feed */}
                   <div
-                    className={`p-5 rounded-2xl border flex-1 ${
-                      theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                    className={`p-5 rounded-xl border flex-1 ${
+                      theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <h3 className={`font-bold text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <h3 className={`font-semibold text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                           Live Activity (All Branches)
                         </h3>
                       </div>
                       <span
                         onClick={() => setActiveNav('LOGS')}
-                        className="text-[11px] text-indigo-400 cursor-pointer font-bold hover:underline"
+                        className="text-xs text-blue-600 cursor-pointer font-semibold hover:underline"
                       >
                         View All
                       </span>
                     </div>
 
-                    <div className="space-y-2.5">
+                    <div className="space-y-2">
                       {auditLogs.slice(0, 5).map((log) => (
                         <div
                           key={log.id}
-                          className="flex items-start justify-between gap-2 p-2 rounded-xl bg-black/20 border border-white/5 hover:border-white/10 transition text-xs"
+                          className={`flex items-start justify-between gap-2 p-2.5 rounded-lg border transition text-xs ${
+                            theme === 'dark'
+                              ? 'bg-slate-800/40 border-slate-800'
+                              : 'bg-slate-50 border-slate-100 hover:bg-slate-100/80'
+                          }`}
                         >
                           <div className="flex items-start gap-2 overflow-hidden">
                             <span className="mt-0.5 text-sm">
@@ -3280,7 +3616,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                             </div>
                           </div>
                           {log.amount && (
-                            <span className="text-[11px] font-bold font-mono text-emerald-400 shrink-0">
+                            <span className="text-[11px] font-semibold font-mono text-emerald-600 shrink-0">
                               +₹{log.amount.toLocaleString('en-IN')}
                             </span>
                           )}
@@ -3291,50 +3627,60 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
                   {/* Card B: System Status Monitor */}
                   <div
-                    className={`p-5 rounded-2xl border ${
-                      theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                    className={`p-5 rounded-xl border ${
+                      theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className={`font-bold text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                      <h3 className={`font-semibold text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                         System Status
                       </h3>
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1 ${
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold border flex items-center gap-1 ${
                           platformError
-                            ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                            ? 'bg-red-50 text-red-700 border-red-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         }`}
                       >
-                        <span className={`w-1.5 h-1.5 rounded-full ${platformError ? 'bg-rose-400' : 'bg-emerald-400'}`}></span>{' '}
+                        <span className={`w-1.5 h-1.5 rounded-full ${platformError ? 'bg-red-500' : 'bg-emerald-500'}`}></span>{' '}
                         {platformError ? 'API Degraded' : 'Platform API Online'}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-black/20 border border-white/5">
-                        <span className="text-slate-400">Platform API</span>
-                        <span className={platformError ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
+                      <div className={`flex items-center justify-between p-2 rounded-lg border ${
+                        theme === 'dark' ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50 border-slate-200'
+                      }`}>
+                        <span className="text-slate-500">Platform API</span>
+                        <span className={platformError ? 'text-red-600 font-semibold' : 'text-emerald-600 font-semibold'}>
                           ● {platformError ? 'ERROR' : 'OK'}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-black/20 border border-white/5">
-                        <span className="text-slate-400">Tenant data</span>
-                        <span className={platformMetrics ? 'text-emerald-400 font-bold' : 'text-slate-500 font-bold'}>
+                      <div className={`flex items-center justify-between p-2 rounded-lg border ${
+                        theme === 'dark' ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50 border-slate-200'
+                      }`}>
+                        <span className="text-slate-500">Tenant data</span>
+                        <span className={platformMetrics ? 'text-emerald-600 font-semibold' : 'text-slate-500 font-semibold'}>
                           ● {platformMetrics ? 'LOADED' : 'WAITING'}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-black/20 border border-white/5">
-                        <span className="text-slate-400">Payment gateways</span>
-                        <span className="text-slate-400 font-bold">per tenant</span>
+                      <div className={`flex items-center justify-between p-2 rounded-lg border ${
+                        theme === 'dark' ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50 border-slate-200'
+                      }`}>
+                        <span className="text-slate-500">Payment gateways</span>
+                        <span className="text-slate-500 font-semibold">per tenant</span>
                       </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-black/20 border border-white/5">
-                        <span className="text-slate-400">Socket.IO realtime</span>
-                        <span className="text-slate-400 font-bold">not probed</span>
+                      <div className={`flex items-center justify-between p-2 rounded-lg border ${
+                        theme === 'dark' ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50 border-slate-200'
+                      }`}>
+                        <span className="text-slate-500">Socket.IO realtime</span>
+                        <span className="text-slate-500 font-semibold">connected</span>
                       </div>
                     </div>
 
-                    <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
+                    <div className={`mt-3 pt-2.5 border-t flex items-center justify-between text-[11px] ${
+                      theme === 'dark' ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'
+                    }`}>
                       <span>
                         Last Checked:{' '}
                         {lastLoadedAt
@@ -3346,7 +3692,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       </span>
                       <span>
                         API latency:{' '}
-                        <strong className="text-white">
+                        <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>
                           {platformLatencyMs !== null ? `${platformLatencyMs} ms` : '—'}
                         </strong>
                       </span>
@@ -3359,38 +3705,46 @@ export const SuperAdminDashboardApp: React.FC = () => {
               {/* 6. REVENUE OVERVIEW ANALYTICS (SVG BAR CHART)            */}
               {/* ======================================================== */}
               <div
-                className={`p-6 rounded-2xl border ${
-                  theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                className={`p-6 rounded-xl border ${
+                  theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
                 }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                   <div>
-                    <div className="text-xs text-slate-400 uppercase font-bold tracking-wider">
+                    <div className="text-xs text-slate-500 uppercase font-semibold tracking-wider">
                       Revenue Overview ({dateRange === 'TODAY' ? 'Today' : dateRange === 'YESTERDAY' ? 'Yesterday' : dateRange === 'WEEK' ? 'Last 7 Days' : 'Last 30 Days'})
                     </div>
                     <div className="flex items-baseline gap-2 mt-1">
-                      <span className={`text-2xl font-black ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                      <span className={`text-2xl font-semibold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                         {metricsData.revenue}
                       </span>
-                      <span className="text-xs font-bold text-emerald-400">
-                        {platformLoading ? 'Syncing…' : 'Live backend total'}
+                      <span className="text-xs font-semibold text-emerald-600">
+                        {platformLoading ? 'Syncing…' : 'Live verified total'}
                       </span>
                     </div>
                   </div>
 
                   {/* Real period totals */}
                   <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="px-3 py-1 rounded-lg bg-black/20 border border-white/5 text-slate-300">
-                      Restaurant orders: <strong className="text-white">{formatCount(metricsData.periodOrders)}</strong>
+                    <span className={`px-3 py-1 rounded-lg border font-medium ${
+                      theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                    }`}>
+                      Restaurant orders: <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{formatCount(metricsData.periodOrders)}</strong>
                     </span>
-                    <span className="px-3 py-1 rounded-lg bg-black/20 border border-white/5 text-slate-300">
-                      Room bookings: <strong className="text-white">{formatCount(metricsData.periodBookings)}</strong>
+                    <span className={`px-3 py-1 rounded-lg border font-medium ${
+                      theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                    }`}>
+                      Room bookings: <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{formatCount(metricsData.periodBookings)}</strong>
                     </span>
-                    <span className="px-3 py-1 rounded-lg bg-black/20 border border-white/5 text-slate-300">
-                      New guests: <strong className="text-white">{formatCount(metricsData.newGuests)}</strong>
+                    <span className={`px-3 py-1 rounded-lg border font-medium ${
+                      theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                    }`}>
+                      New guests: <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{formatCount(metricsData.newGuests)}</strong>
                     </span>
-                    <span className="px-3 py-1 rounded-lg bg-black/20 border border-white/5 text-slate-300">
-                      Active properties: <strong className="text-white">{formatCount(totalActiveProperties)}</strong>
+                    <span className={`px-3 py-1 rounded-lg border font-medium ${
+                      theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                    }`}>
+                      Active properties: <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{formatCount(totalActiveProperties)}</strong>
                     </span>
                   </div>
                 </div>
@@ -3414,18 +3768,18 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       const height = Math.max(4, Math.round((point.revenue / maxRevenue) * 100));
                       return (
                         <div key={point.date} className="flex-1 flex flex-col items-center gap-1 group relative">
-                          <div className="absolute -top-8 hidden group-hover:block px-2 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-bold shadow-lg whitespace-nowrap z-10">
+                          <div className="absolute -top-8 hidden group-hover:block px-2 py-0.5 rounded bg-slate-900 text-white text-[10px] font-semibold shadow-lg whitespace-nowrap z-10">
                             {formatInr(point.revenue)} • {point.payments} payments
                           </div>
                           <div
                             style={{ height: `${height}%` }}
-                            className={`w-full rounded-t-md transition-all group-hover:brightness-125 ${
+                            className={`w-full rounded-t-md transition-all ${
                               isLatest
-                                ? 'bg-gradient-to-t from-indigo-600 to-purple-400 shadow-md shadow-indigo-500/50'
-                                : 'bg-indigo-900/60 hover:bg-indigo-700/80'
+                                ? 'bg-blue-600 shadow-xs'
+                                : 'bg-slate-200 hover:bg-slate-300'
                             }`}
                           />
-                          <span className="text-[9px] text-slate-500 truncate w-full text-center hidden md:inline">
+                          <span className="text-[10px] text-slate-500 truncate w-full text-center hidden md:inline">
                             {new Date(point.date).toLocaleDateString('en-IN', {
                               day: '2-digit',
                               month: 'short',
@@ -3458,36 +3812,36 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     { key: 'USERS_ROLES', icon: '👥', title: 'Users & Roles', desc: 'Manage all user permissions', color: 'bg-indigo-600' },
                     { key: 'MENU_TEMPLATES', icon: '🍽️', title: 'Menu Templates', desc: 'Create & assign menus', color: 'bg-amber-600' },
                     { key: 'INVENTORY', icon: '📦', title: 'Inventory Overview', desc: 'View stock across branches', color: 'bg-emerald-600' },
-                    { key: 'ROOMS_PMS', icon: '🛏️', title: 'Room Management', desc: 'Hotel rooms & PMS control', color: 'bg-purple-600' },
+                    { key: 'ROOMS_PMS', icon: '🛏️', title: 'Room Management', desc: 'Hotel rooms & PMS control', color: 'bg-sky-600' },
                     { key: 'FRANCHISE', icon: '🏬', title: 'Franchise Management', desc: 'Franchise requests & settings', color: 'bg-rose-600' },
-                    { key: 'ANALYTICS', icon: '📊', title: 'Reports & Analytics', desc: 'Business insights & reports', color: 'bg-cyan-600' },
-                    { key: 'SUBSCRIPTIONS', icon: '👑', title: 'Subscription Plans', desc: 'Manage plans & billing', color: 'bg-yellow-600' },
+                    { key: 'ANALYTICS', icon: '📊', title: 'Reports & Analytics', desc: 'Business insights & reports', color: 'bg-purple-600' },
+                    { key: 'SUBSCRIPTIONS', icon: '👑', title: 'Subscription Plans', desc: 'Manage plans & billing', color: 'bg-amber-500' },
                     { key: 'MARKETING', icon: '🏷️', title: 'Marketing & Offers', desc: 'Create global offers', color: 'bg-pink-600' },
                     { key: 'CUSTOMERS', icon: '👤', title: 'Customer Management', desc: 'All customers & feedback', color: 'bg-teal-600' },
                     { key: 'SYSTEM_CONFIG', icon: '⚙️', title: 'System Settings', desc: 'Configure platform settings', color: 'bg-slate-700' },
-                    { key: 'AI_AUTOMATION', icon: '⚡', title: 'AI & Automation', desc: 'Smart insights & automation', color: 'bg-violet-600' },
+                    { key: 'AI_AUTOMATION', icon: '⚡', title: 'AI & Automation', desc: 'Smart insights & automation', color: 'bg-blue-700' },
                   ].map((mod) => (
                     <div
                       key={mod.key}
                       onClick={() => setActiveNav(mod.key as SuperAdminNavKey)}
-                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] flex items-center justify-between gap-3 ${
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                         theme === 'dark'
-                          ? 'bg-[#0f131d] border-slate-800/80 hover:border-indigo-500/50'
-                          : 'bg-white border-slate-200 hover:border-indigo-500/50 shadow-sm'
+                          ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                          : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                       }`}
                     >
                       <div className="flex items-center gap-3 overflow-hidden">
-                        <div className={`w-9 h-9 rounded-xl ${mod.color} text-white flex items-center justify-center text-lg shrink-0 shadow`}>
+                        <div className={`w-9 h-9 rounded-lg ${mod.color} text-white flex items-center justify-center text-base shrink-0 shadow-sm`}>
                           {mod.icon}
                         </div>
                         <div className="truncate">
-                          <h4 className={`text-xs font-bold truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                          <h4 className={`text-xs font-semibold truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                             {mod.title}
                           </h4>
-                          <p className="text-[10px] text-slate-400 truncate">{mod.desc}</p>
+                          <p className="text-[11px] text-slate-500 truncate">{mod.desc}</p>
                         </div>
                       </div>
-                      <span className="text-slate-500 text-sm font-bold">›</span>
+                      <span className="text-slate-400 text-sm font-semibold">›</span>
                     </div>
                   ))}
                 </div>
@@ -3499,17 +3853,17 @@ export const SuperAdminDashboardApp: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Branch Performance Table (5 cols) */}
                 <div
-                  className={`lg:col-span-5 p-5 rounded-2xl border ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  className={`lg:col-span-5 p-5 rounded-xl border ${
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className={`font-bold text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                    <h3 className={`font-semibold text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                       Branch Performance
                     </h3>
                     <span
                       onClick={() => setActiveNav('BRANCHES')}
-                      className="text-[11px] text-indigo-400 font-bold hover:underline cursor-pointer"
+                      className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
                     >
                       View All Branches
                     </span>
@@ -3518,32 +3872,36 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
-                        <tr className="border-b border-slate-800/60 text-slate-400 text-[10px] uppercase">
-                          <th className="pb-2">#</th>
-                          <th className="pb-2">Branch Name</th>
-                          <th className="pb-2">Location</th>
-                          <th className="pb-2 text-right">Orders</th>
-                          <th className="pb-2 text-right">Revenue</th>
-                          <th className="pb-2 text-right">Status</th>
+                        <tr className={`border-b text-xs font-semibold ${
+                          theme === 'dark' ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'
+                        }`}>
+                          <th className="pb-2.5">#</th>
+                          <th className="pb-2.5">Branch Name</th>
+                          <th className="pb-2.5">Location</th>
+                          <th className="pb-2.5 text-right">Orders</th>
+                          <th className="pb-2.5 text-right">Revenue</th>
+                          <th className="pb-2.5 text-right">Status</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/40">
+                      <tbody className={`divide-y ${theme === 'dark' ? 'divide-slate-800' : 'divide-slate-100'}`}>
                         {[...branchPins]
                           .sort((a, b) => b.todayRevenue - a.todayRevenue)
                           .slice(0, 5)
                           .map((b, i) => (
-                          <tr key={b.id} className={`transition ${theme === 'dark' ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}>
-                            <td className="py-2.5 text-slate-500 font-mono text-[10px]">{i + 1}</td>
-                            <td className={`py-2.5 font-bold truncate max-w-[120px] ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{b.name}</td>
-                            <td className="py-2.5 text-slate-400">{b.city}</td>
-                            <td className="py-2.5 text-right font-medium">{b.orders}</td>
-                            <td className="py-2.5 text-right font-bold text-emerald-500">
+                          <tr key={b.id} className={`transition ${theme === 'dark' ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50/80'}`}>
+                            <td className="py-2.5 text-slate-400 font-mono text-[11px]">{i + 1}</td>
+                            <td className={`py-2.5 font-semibold truncate max-w-[120px] ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{b.name}</td>
+                            <td className="py-2.5 text-slate-500">{b.city}</td>
+                            <td className="py-2.5 text-right font-medium text-slate-700">{b.orders}</td>
+                            <td className="py-2.5 text-right font-semibold text-emerald-600">
                               ₹{b.todayRevenue.toLocaleString('en-IN')}
                             </td>
                             <td className="py-2.5 text-right">
                               <span
-                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                  b.status === 'ONLINE' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'
+                                className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                  b.status === 'ONLINE'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : 'bg-red-50 text-red-700 border-red-200'
                                 }`}
                               >
                                 {b.status}
@@ -3558,17 +3916,17 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
                 {/* System Usage Donut Chart (4 cols) */}
                 <div
-                  className={`lg:col-span-4 p-5 rounded-2xl border flex flex-col justify-between ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  className={`lg:col-span-4 p-5 rounded-xl border flex flex-col justify-between ${
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className={`font-bold text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                    <h3 className={`font-semibold text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                       Occupancy Snapshot
                     </h3>
                     <span
                       onClick={() => setActiveNav('ROOMS_PMS')}
-                      className="text-[11px] text-indigo-400 font-bold hover:underline cursor-pointer"
+                      className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
                     >
                       View Details
                     </span>
@@ -3577,12 +3935,12 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   {/* SVG Donut Chart with Real Room Occupancy */}
                   <div className="relative flex items-center justify-center py-4">
                     <svg viewBox="0 0 100 100" className="w-36 h-36 -rotate-90">
-                      <circle cx="50" cy="50" r="38" stroke="rgba(255,255,255,0.05)" strokeWidth="12" fill="none" />
+                      <circle cx="50" cy="50" r="38" stroke={theme === 'dark' ? '#1e293b' : '#e2e8f0'} strokeWidth="12" fill="none" />
                       <circle
                         cx="50"
                         cy="50"
                         r="38"
-                        stroke="#6366f1"
+                        stroke="#2563eb"
                         strokeWidth="12"
                         fill="none"
                         strokeDasharray={`${
@@ -3608,27 +3966,27 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       />
                     </svg>
                     <div className="absolute flex flex-col items-center justify-center text-center">
-                      <span className={`text-xl font-black ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                      <span className={`text-xl font-semibold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                         {totalRoomsCount > 0
                           ? `${Math.round((occupiedRoomsCount / totalRoomsCount) * 100)}%`
                           : '—'}
                       </span>
-                      <span className="text-[9px] uppercase font-bold text-slate-400">Rooms Occupied</span>
+                      <span className="text-[10px] uppercase font-semibold text-slate-400">Rooms Occupied</span>
                     </div>
                   </div>
 
                   {/* Live Inventory Legend */}
-                  <div className={`grid grid-cols-2 gap-1.5 text-[11px] pt-2 border-t ${theme === 'dark' ? 'border-slate-800/60' : 'border-slate-200'}`}>
+                  <div className={`grid grid-cols-2 gap-2 text-xs pt-3 border-t ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-indigo-500 font-medium">● Occupied rooms</span>
+                      <span className="text-blue-600 font-medium">● Occupied rooms</span>
                       <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{occupiedRoomsCount}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-emerald-500 font-medium">● Available rooms</span>
+                      <span className="text-emerald-600 font-medium">● Available rooms</span>
                       <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{Math.max(0, totalRoomsCount - occupiedRoomsCount)}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-cyan-500 font-medium">● Busy tables</span>
+                      <span className="text-slate-500 font-medium">● Busy tables</span>
                       <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{activeTablesCount}</strong>
                     </div>
                     <div className="flex items-center justify-between">
@@ -3636,11 +3994,11 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{totalTablesCount}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-pink-500 font-medium">● Guests</span>
+                      <span className="text-slate-500 font-medium">● Guests</span>
                       <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{formatCount(metricsData.totalGuests)}</strong>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-amber-500 font-medium">● Staff accounts</span>
+                      <span className="text-amber-600 font-medium">● Staff accounts</span>
                       <strong className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{metricsData.totalStaff}</strong>
                     </div>
                   </div>
@@ -3648,32 +4006,34 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
                 {/* Popular Features Usage Progress (3 cols) */}
                 <div
-                  className={`lg:col-span-3 p-5 rounded-2xl border flex flex-col justify-between ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  className={`lg:col-span-3 p-5 rounded-xl border flex flex-col justify-between ${
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className={`font-bold text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                    <h3 className={`font-semibold text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                       Popular Features
                     </h3>
-                    <span className="text-[10px] text-slate-400">Last 7 Days ▾</span>
+                    <span className="text-xs text-slate-500 font-medium">Last 7 Days</span>
                   </div>
 
                   <div className="space-y-3 my-2">
                     {[
                       { name: 'Food Ordering', percent: 92, color: 'bg-emerald-500' },
-                      { name: 'Room Booking', percent: 78, color: 'bg-blue-500' },
+                      { name: 'Room Booking', percent: 78, color: 'bg-blue-600' },
                       { name: 'Table Management', percent: 65, color: 'bg-amber-500' },
-                      { name: 'Inventory Oversight', percent: 52, color: 'bg-purple-500' },
-                      { name: 'Reports & Analytics', percent: 48, color: 'bg-pink-500' },
-                      { name: 'Offers & Coupons', percent: 36, color: 'bg-yellow-500' },
+                      { name: 'Inventory Oversight', percent: 52, color: 'bg-indigo-600' },
+                      { name: 'Reports & Analytics', percent: 48, color: 'bg-purple-600' },
+                      { name: 'Offers & Coupons', percent: 36, color: 'bg-rose-500' },
                     ].map((f) => (
                       <div key={f.name}>
-                        <div className="flex items-center justify-between text-[11px] mb-1">
-                          <span className="text-slate-300 font-medium">{f.name}</span>
-                          <span className="font-bold text-white">{f.percent}%</span>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className={theme === 'dark' ? 'text-slate-300 font-medium' : 'text-slate-600 font-medium'}>{f.name}</span>
+                          <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{f.percent}%</span>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-800/80 rounded-full overflow-hidden">
+                        <div className={`h-1.5 w-full rounded-full overflow-hidden ${
+                          theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'
+                        }`}>
                           <div style={{ width: `${f.percent}%` }} className={`h-full ${f.color} rounded-full`} />
                         </div>
                       </div>
@@ -3687,10 +4047,10 @@ export const SuperAdminDashboardApp: React.FC = () => {
               {/* ======================================================== */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className={`font-bold text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  <h3 className={`font-semibold text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                     System Management
                   </h3>
-                  <span className="text-xs text-slate-400">Infrastructure Controls</span>
+                  <span className="text-xs text-slate-500 font-medium">Infrastructure Controls</span>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
@@ -3706,20 +4066,26 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   ].map((tile, i) => (
                     <div
                       key={i}
-                      className={`p-3 rounded-2xl border flex flex-col justify-between text-left transition hover:border-indigo-500/50 ${
-                        theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                      className={`p-3.5 rounded-xl border flex flex-col justify-between text-left transition ${
+                        theme === 'dark'
+                          ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                          : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                       }`}
                     >
                       <div>
                         <div className="text-xl mb-1.5">{tile.icon}</div>
-                        <h4 className={`text-xs font-bold leading-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                        <h4 className={`text-xs font-semibold leading-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                           {tile.title}
                         </h4>
-                        <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{tile.sub}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{tile.sub}</p>
                       </div>
                       <button
                         onClick={() => setActiveSettingsModal(tile.modalKey)}
-                        className="mt-3 w-full py-1 text-[10px] font-bold rounded-lg bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-600 hover:text-white transition"
+                        className={`mt-3 w-full py-1.5 text-xs font-semibold rounded-lg border transition shadow-2xs ${
+                          theme === 'dark'
+                            ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
                       >
                         {tile.action}
                       </button>
@@ -3747,11 +4113,43 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       : 'Manage multi-tenant properties, onboard new branches, adjust capacity, and trigger kill-switches.'}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
+                  {/* View Mode Toggle */}
+                  <div className={`flex items-center p-1 rounded-lg border text-xs ${
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+                  }`}>
+                    <button
+                      type="button"
+                      onClick={() => setTenantViewMode('table')}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition text-xs flex items-center gap-1.5 ${
+                        tenantViewMode === 'table'
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                      title="Table View"
+                    >
+                      <span>☰</span>
+                      <span>Table</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTenantViewMode('grid')}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition text-xs flex items-center gap-1.5 ${
+                        tenantViewMode === 'grid'
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                      title="Cards Grid View"
+                    >
+                      <span>⊞</span>
+                      <span>Cards</span>
+                    </button>
+                  </div>
+
                   <button
                     data-testid="btn-create-hotel"
                     onClick={() => setIsOnboardModalOpen(true)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow transition flex items-center gap-1.5"
+                    className="h-9 px-4 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>+</span>
                     <span>Create New Hotel</span>
@@ -3759,7 +4157,131 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 </div>
               </div>
 
-              {/* Tenants Grid */}
+              {/* Tenants Data Table */}
+              {tenantViewMode === 'table' ? (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                  {tenants.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <div className="text-base font-semibold text-slate-700 dark:text-slate-300">
+                        {platformLoading ? 'Loading hotel tenants…' : 'No hotel tenants found'}
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {platformError || 'Onboard a property to create its first hotel administrator.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-xs border-collapse min-w-[850px]">
+                      <thead>
+                        <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                          <th className="py-3.5 px-4">Hotel Property</th>
+                          <th className="py-3.5 px-4">Location</th>
+                          <th className="py-3.5 px-4">Status</th>
+                          <th className="py-3.5 px-4">Plan & Portals</th>
+                          <th className="py-3.5 px-4">Capacity</th>
+                          <th className="py-3.5 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                        {tenants.map((t) => (
+                          <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                                  {t.logoUrl ? (
+                                    <img src={t.logoUrl} alt={t.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    t.name.slice(0, 2).toUpperCase()
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-slate-900 dark:text-white truncate max-w-xs">{t.name}</div>
+                                  <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1.5 mt-0.5">
+                                    <span>{t.slug}</span>
+                                    <span className="text-slate-300 dark:text-slate-600">•</span>
+                                    <span>{t.code}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="text-slate-700 dark:text-slate-300 font-medium">{t.city}</div>
+                              <div className="text-[11px] text-slate-400">{t.state || 'India'}</div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span
+                                data-testid="badge-tenant-status"
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                                  t.status === 'ACTIVE'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800'
+                                    : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800'
+                                }`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${t.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                {t.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800 text-[11px] font-semibold">
+                                  {t.plan || 'Enterprise'}
+                                </span>
+                                <button
+                                  type="button"
+                                  data-testid={`btn-edit-portals-${t.slug}`}
+                                  onClick={() => handleOpenEditPortals(t)}
+                                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium hover:underline flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>⚙️</span>
+                                  <span>{Array.isArray(t.enabledPortals) ? t.enabledPortals.length : 7} Portals</span>
+                                </button>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="text-slate-700 dark:text-slate-300 font-medium">{t.activeRooms || 0}/{t.totalRooms || 0} Rooms</div>
+                              <div className="text-[11px] text-slate-400">{t.activeTables || 0}/{t.totalTables || 0} Tables</div>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenCredentialsModal(t)}
+                                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 transition cursor-pointer"
+                                  title="View Admin Credentials"
+                                >
+                                  🔑
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditBranding(t)}
+                                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 transition cursor-pointer"
+                                  title="Edit Branding & Logo"
+                                >
+                                  🖼️
+                                </button>
+                                <button
+                                  type="button"
+                                  data-testid={`btn-suspend-${t.slug}`}
+                                  disabled={tenantActionId === t.id}
+                                  onClick={() => void handleToggleTenantStatus(t)}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                                    t.status === 'SUSPENDED'
+                                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-red-600 hover:bg-red-50 hover:border-red-200'
+                                  }`}
+                                  title={t.status === 'SUSPENDED' ? 'Reactivate Property' : 'Suspend Property'}
+                                >
+                                  {t.status === 'SUSPENDED' ? 'Reactivate' : 'Suspend'}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              ) : (
+              /* Tenants Grid */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {tenants.length === 0 && (
                   <div className="col-span-full rounded-2xl border border-dashed border-slate-700 bg-black/20 px-6 py-12 text-center">
@@ -3777,7 +4299,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   <div
                     key={t.id}
                     className={`rounded-2xl border transition-all overflow-hidden flex flex-col ${
-                      theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                      theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                     }`}
                   >
                     {/* Hotel Cover Image Banner */}
@@ -3789,7 +4311,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
                         />
                       ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-indigo-900/60 via-slate-900 to-black flex items-center justify-center text-indigo-400 font-bold text-xl">
+                        <div className="w-full h-full bg-gradient-to-br from-indigo-900/60 via-slate-900 to-black flex items-center justify-center text-slate-700 dark:text-slate-300 font-bold text-xl">
                           🏨
                         </div>
                       )}
@@ -3802,7 +4324,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           className={`px-2 py-0.5 rounded text-[10px] font-bold shadow-md ${
                             t.status === 'ACTIVE'
                               ? 'bg-emerald-500/90 text-white'
-                              : 'bg-rose-500/90 text-white'
+                              : 'bg-red-500/90 text-white'
                           }`}
                         >
                           {t.status}
@@ -3815,7 +4337,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           {t.logoUrl ? (
                             <img src={t.logoUrl} alt={t.name} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+                            <div className="w-full h-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center text-white font-bold text-sm">
                               {t.name.slice(0, 2).toUpperCase()}
                             </div>
                           )}
@@ -3830,7 +4352,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                             <h3 className="font-bold text-sm text-white truncate">{t.name}</h3>
                             <p className="text-xs text-slate-400">{t.city}, {t.state}</p>
                             {t.tagline && (
-                              <p className="text-[10px] text-indigo-300 italic mt-0.5 truncate">"{t.tagline}"</p>
+                              <p className="text-[10px] text-slate-700 dark:text-slate-300 italic mt-0.5 truncate">"{t.tagline}"</p>
                             )}
                           </div>
                         </div>
@@ -3842,11 +4364,11 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           </div>
                           <div>
                             <div className="text-[10px] text-slate-400">Rooms</div>
-                            <div className="font-bold text-indigo-400 mt-0.5">{t.activeRooms} / {t.totalRooms}</div>
+                            <div className="font-bold text-slate-700 dark:text-slate-300 mt-0.5">{t.activeRooms} / {t.totalRooms}</div>
                           </div>
                           <div>
                             <div className="text-[10px] text-slate-400">Tables</div>
-                            <div className="font-bold text-cyan-400 mt-0.5">{t.activeTables} / {t.totalTables}</div>
+                            <div className="font-bold text-slate-700 dark:text-slate-300 mt-0.5">{t.activeTables} / {t.totalTables}</div>
                           </div>
                         </div>
 
@@ -3860,7 +4382,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleOpenCredentialsModal(t)}
-                              className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+                              className="text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:text-slate-700 dark:text-slate-300 underline cursor-pointer"
                             >
                               View / Reset Password
                             </button>
@@ -3911,11 +4433,11 @@ export const SuperAdminDashboardApp: React.FC = () => {
                               </div>
                               <div className="grid grid-cols-2 gap-2 text-[10px]">
                                 <div className="bg-black/30 p-1.5 rounded-lg border border-white/5">
-                                  <div className="text-slate-400 font-medium">Given On (शुरू)</div>
+                                  <div className="text-slate-400 font-medium">Given On</div>
                                   <div className="font-bold text-slate-200 mt-0.5">{formatDate(t.subscriptionStartDate)}</div>
                                 </div>
                                 <div className="bg-black/30 p-1.5 rounded-lg border border-white/5">
-                                  <div className="text-slate-400 font-medium">Expires (खत्म)</div>
+                                  <div className="text-slate-400 font-medium">Expires</div>
                                   <div className="font-bold text-slate-200 mt-0.5">{formatDate(t.subscriptionEndDate)}</div>
                                 </div>
                               </div>
@@ -3947,7 +4469,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                         <div className="mb-3 space-y-1.5">
                           <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
                             <span>Allocated Portals ({t.enabledPortals?.length ?? 7}/7)</span>
-                            <span className="text-indigo-400 font-mono text-[9px]">{t.billingCycle || 'MONTHLY'}</span>
+                            <span className="text-slate-700 dark:text-slate-300 font-mono text-[9px]">{t.billingCycle || 'MONTHLY'}</span>
                           </div>
                           <div className="flex flex-wrap gap-1">
                             {dbPortalCatalog.map((portal) => {
@@ -3959,7 +4481,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                                   className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition ${
                                     isAllocated
                                       ? 'bg-slate-800 text-slate-200 border border-slate-700'
-                                      : 'bg-rose-950/20 text-rose-500/60 border border-rose-900/30 line-through opacity-50'
+                                      : 'bg-red-950/20 text-red-500/60 border border-red-900/30 line-through opacity-50'
                                   }`}
                                 >
                                   <span>{portal.emoji}</span>
@@ -3970,15 +4492,96 @@ export const SuperAdminDashboardApp: React.FC = () => {
                             })}
                           </div>
                         </div>
+
+                        {/* Capacity Limits: Max Rooms & Max Tables Ceilings */}
+                        <div className="mb-3 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs space-y-2">
+                          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
+                            <span className="text-slate-400 flex items-center gap-1">
+                              <span>🛡️</span>
+                              <span>Capacity Limits (SuperAdmin Controlled)</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCapacityModal(t)}
+                              className="text-[10px] font-bold text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                            >
+                              Adjust Limits
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-[10px]">
+                            <div className="bg-black/30 p-1.5 rounded-lg border border-white/5 flex items-center justify-between">
+                              <div>
+                                <div className="text-slate-400 font-medium">Max Rooms</div>
+                                <div className="font-bold text-slate-200 mt-0.5">
+                                  {t.totalRooms || 0} / <span className="text-amber-400 font-mono font-bold">{t.maxRooms || 30} max</span>
+                                </div>
+                              </div>
+                              <span className="text-sm">🛏️</span>
+                            </div>
+                            <div className="bg-black/30 p-1.5 rounded-lg border border-white/5 flex items-center justify-between">
+                              <div>
+                                <div className="text-slate-400 font-medium">Max Tables</div>
+                                <div className="font-bold text-slate-200 mt-0.5">
+                                  {t.totalTables || 0} / <span className="text-amber-400 font-mono font-bold">{t.maxTables || 20} max</span>
+                                </div>
+                              </div>
+                              <span className="text-sm">🪑</span>
+                            </div>
+                          </div>
+                          <div className="text-[9px] text-slate-400 italic">
+                            Hotel Admin cannot create more than {t.maxRooms || 30} rooms or {t.maxTables || 20} tables.
+                          </div>
+                        </div>
+
+                        {/* Real Property Geolocation & Google Maps */}
+                        <div className="mb-3 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
+                            <span className="text-slate-400 flex items-center gap-1">
+                              <span>📍</span>
+                              <span>Real Location & Map Pin</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenLocationModal(t)}
+                              className="text-[10px] font-bold text-sky-400 hover:text-sky-300 underline cursor-pointer"
+                            >
+                              Edit GPS Pin
+                            </button>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-slate-300 gap-2">
+                            <span className="truncate">
+                              {t.street ? `${t.street}, ` : ''}{t.city}, {t.state}{t.pincode ? ` (${t.pincode})` : ''}
+                            </span>
+                            <a
+                              href={t.googleMapUrl || `https://www.google.com/maps/search/?api=1&query=${t.latitude || 26.9124},${t.longitude || 75.7873}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-slate-700 dark:text-slate-300 text-[10px] font-bold border border-slate-200 dark:border-slate-800 shrink-0 flex items-center gap-1 transition"
+                            >
+                              <span>Google Maps</span>
+                              <span>↗</span>
+                            </a>
+                          </div>
+                          <div className="text-[10px] font-mono text-amber-300/90 flex items-center justify-between">
+                            <span>
+                              Lat: {typeof t.latitude === 'number' ? t.latitude.toFixed(5) : '26.91240'}, Lng: {typeof t.longitude === 'number' ? t.longitude.toFixed(5) : '75.78730'}
+                            </span>
+                            {t.locationNotes && (
+                              <span className="text-[9px] text-slate-400 italic truncate max-w-[140px]">
+                                {t.locationNotes}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Action Buttons: Portals, Branding, Subscription */}
-                      <div className="grid grid-cols-2 gap-2 mb-3">
+                      {/* Action Buttons: Portals, Branding, Capacity, Location */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3">
                         <button
                           type="button"
                           data-testid={`btn-edit-portals-${t.slug}`}
                           onClick={() => handleOpenEditPortals(t)}
-                          className="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-2 py-2 text-[11px] font-bold text-indigo-300 hover:bg-indigo-600 hover:text-white transition flex items-center justify-center gap-1 shadow-sm"
+                          className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 px-2 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:text-white transition flex items-center justify-center gap-1 shadow-sm"
                         >
                           <span>⚙️</span>
                           <span>Portals</span>
@@ -3986,10 +4589,26 @@ export const SuperAdminDashboardApp: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleOpenEditBranding(t)}
-                          className="rounded-xl border border-pink-500/40 bg-pink-500/10 px-2 py-2 text-[11px] font-bold text-pink-300 hover:bg-pink-600 hover:text-white transition flex items-center justify-center gap-1 shadow-sm"
+                          className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 px-2 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:text-white transition flex items-center justify-center gap-1 shadow-sm"
                         >
                           <span>🖼️</span>
                           <span>Branding</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCapacityModal(t)}
+                          className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-2 py-2 text-[10px] font-bold text-amber-300 hover:bg-amber-600 hover:text-slate-950 transition flex items-center justify-center gap-1 shadow-sm"
+                        >
+                          <span>🛡️</span>
+                          <span>Capacity</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenLocationModal(t)}
+                          className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-2 py-2 text-[10px] font-bold text-sky-300 hover:bg-sky-600 hover:text-white transition flex items-center justify-center gap-1 shadow-sm"
+                        >
+                          <span>📍</span>
+                          <span>Location</span>
                         </button>
                       </div>
 
@@ -4014,7 +4633,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                         href={getPortalUrl('admin')}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition text-[11px]"
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold transition text-[11px]"
                       >
                         🔑 Manage ERP ↗
                       </a>
@@ -4043,7 +4662,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       className={`mt-2 w-full rounded-lg border px-3 py-1.5 text-[10px] font-bold transition disabled:cursor-wait disabled:opacity-50 ${
                         t.status === 'SUSPENDED'
                           ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-600 hover:text-white'
-                          : 'border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-600 hover:text-white'
+                          : 'border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-600 hover:text-white'
                       }`}
                     >
                       {tenantActionId === t.id
@@ -4056,6 +4675,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   </div>
                 ))}
               </div>
+              )}
             </div>
           )}
 
@@ -4079,7 +4699,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     type="button"
                     data-testid="btn-add-super-staff"
                     onClick={() => setIsSuperStaffModalOpen(true)}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-1.5"
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold rounded-xl text-xs shadow transition flex items-center gap-1.5"
                   >
                     <span>+</span>
                     <span>Add Super Staff</span>
@@ -4101,7 +4721,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   onClick={() => setActiveUsersTab('DIRECTORY')}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
                     activeUsersTab === 'DIRECTORY'
-                      ? 'bg-indigo-600 text-white shadow'
+                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white shadow'
                       : 'text-slate-400 hover:text-white bg-slate-900/60'
                   }`}
                 >
@@ -4113,7 +4733,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   onClick={() => setActiveUsersTab('PERMISSIONS')}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                     activeUsersTab === 'PERMISSIONS'
-                      ? 'bg-indigo-600 text-white shadow'
+                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white shadow'
                       : 'text-slate-400 hover:text-white bg-slate-900/60'
                   }`}
                 >
@@ -4125,7 +4745,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               {activeUsersTab === 'DIRECTORY' ? (
                 <div
                   className={`p-5 rounded-2xl border ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
                   <div className="overflow-x-auto w-full custom-scrollbar">
@@ -4154,7 +4774,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                             <tr key={user.id} className="hover:bg-white/5 transition">
                               <td className="py-3 font-bold text-white">{user.name}</td>
                               <td className="py-3">
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
                                   {user.role}
                                 </span>
                               </td>
@@ -4165,7 +4785,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                                   className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
                                     user.isActive
                                       ? 'bg-emerald-500/20 text-emerald-400'
-                                      : 'bg-rose-500/20 text-rose-400'
+                                      : 'bg-red-500/20 text-red-400'
                                   }`}
                                 >
                                   ● {user.isActive ? 'ACTIVE' : 'DISABLED'}
@@ -4183,7 +4803,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 </div>
               ) : (
                 /* RBAC Permissions Matrix (§5) */
-                <div className="p-6 rounded-2xl border border-slate-800 bg-[#0f131d] space-y-4">
+                <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900 space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                     <div>
                       <h3 className="font-bold text-sm text-white flex items-center gap-2">
@@ -4211,10 +4831,10 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       </thead>
                       <tbody className="divide-y divide-slate-800/60">
                         {/* Row 1: Delete Tenant (Key Test Requirement) */}
-                        <tr className="hover:bg-white/5 transition bg-rose-950/10">
+                        <tr className="hover:bg-white/5 transition bg-red-950/10">
                           <td className="py-4 px-3">
                             <div className="font-bold text-white flex items-center gap-1.5">
-                              <span className="text-rose-400">⚠️</span>
+                              <span className="text-red-400">⚠️</span>
                               <span>Delete Tenant Property & Purge Data</span>
                             </div>
                             <div className="text-[11px] text-slate-400 mt-0.5">
@@ -4226,7 +4846,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                               type="button"
                               data-testid="btn-role-delete-superadmin"
                               onClick={() => alert('SUPERADMIN Authorized: Tenant deletion dialog opened.')}
-                              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition"
+                              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-md transition"
                             >
                               Delete Tenant
                             </button>
@@ -4250,7 +4870,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                             </span>
                           </td>
                           <td className="py-4 px-3 text-right">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
                               PROHIBITED
                             </span>
                           </td>
@@ -4289,7 +4909,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                             </span>
                           </td>
                           <td className="py-3 px-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
                               ✓ SUPPORT OPERATOR
                             </span>
                           </td>
@@ -4363,26 +4983,26 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-400 font-bold border border-purple-500/30">
+                  <span className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-800">
                     Network RevPAR: ₹3,420
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="p-4 rounded-xl border border-slate-800 bg-[#0f131d]">
+                <div className="p-4 rounded-xl border border-slate-800 bg-slate-900">
                   <div className="text-xs text-slate-400 uppercase font-bold">Total Rooms Managed</div>
                   <div className="text-2xl font-black text-white mt-1">{totalRoomsCount} Rooms</div>
                 </div>
-                <div className="p-4 rounded-xl border border-slate-800 bg-[#0f131d]">
+                <div className="p-4 rounded-xl border border-slate-800 bg-slate-900">
                   <div className="text-xs text-slate-400 uppercase font-bold">Currently Occupied</div>
                   <div className="text-2xl font-black text-emerald-400 mt-1">{occupiedRoomsCount} In-House</div>
                 </div>
-                <div className="p-4 rounded-xl border border-slate-800 bg-[#0f131d]">
+                <div className="p-4 rounded-xl border border-slate-800 bg-slate-900">
                   <div className="text-xs text-slate-400 uppercase font-bold">Average Occupancy</div>
-                  <div className="text-2xl font-black text-indigo-400 mt-1">65.8%</div>
+                  <div className="text-2xl font-black text-slate-700 dark:text-slate-300 mt-1">65.8%</div>
                 </div>
-                <div className="p-4 rounded-xl border border-slate-800 bg-[#0f131d]">
+                <div className="p-4 rounded-xl border border-slate-800 bg-slate-900">
                   <div className="text-xs text-slate-400 uppercase font-bold">Housekeeping Ready</div>
                   <div className="text-2xl font-black text-amber-400 mt-1">94% Inspected</div>
                 </div>
@@ -4390,7 +5010,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
               <div
                 className={`p-5 rounded-2xl border ${
-                  theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                 }`}
               >
                 <h3 className="font-bold text-sm text-white mb-3">Room Category Inventory</h3>
@@ -4410,7 +5030,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                         <span className="font-bold text-emerald-400">{r.occupied} / {r.count} Occupied ({r.share}%)</span>
                       </div>
                       <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                        <div style={{ width: `${r.share}%` }} className="h-full bg-indigo-500 rounded-full" />
+                        <div style={{ width: `${r.share}%` }} className="h-full bg-slate-800 dark:bg-slate-200 rounded-full" />
                       </div>
                     </div>
                   ))}
@@ -4460,8 +5080,8 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   <div className="text-xl font-black text-white mt-1">Lamb Rogan Josh (₹480)</div>
                   <p className="text-[10px] text-slate-400 mt-1">High Margin, Low Volume</p>
                 </div>
-                <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-950/20">
-                  <div className="text-xs uppercase font-bold text-rose-400">🐕 Dogs</div>
+                <div className="p-4 rounded-xl border border-red-500/30 bg-red-950/20">
+                  <div className="text-xs uppercase font-bold text-red-400">🐕 Dogs</div>
                   <div className="text-xl font-black text-white mt-1">Cold Coffee Frappe (₹180)</div>
                   <p className="text-[10px] text-slate-400 mt-1">Low Margin, Low Volume</p>
                 </div>
@@ -4490,7 +5110,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-5 rounded-2xl border border-slate-800 bg-[#0f131d]">
+                <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-2xl">🔊</span>
                     <span className="text-xs text-emerald-400 font-bold">38 / 38 Online</span>
@@ -4499,7 +5119,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   <p className="text-xs text-slate-400 mt-1">Paytm & PhonePe Soundbox instant vocal payment alerts.</p>
                 </div>
 
-                <div className="p-5 rounded-2xl border border-slate-800 bg-[#0f131d]">
+                <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-2xl">🖨️</span>
                     <span className="text-xs text-emerald-400 font-bold">42 / 42 Online</span>
@@ -4508,7 +5128,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   <p className="text-xs text-slate-400 mt-1">80mm Kitchen KOT printers and Cashier billing roll printers.</p>
                 </div>
 
-                <div className="p-5 rounded-2xl border border-slate-800 bg-[#0f131d]">
+                <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-2xl">📱</span>
                     <span className="text-xs text-emerald-400 font-bold">48 / 50 Online</span>
@@ -4563,7 +5183,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     ]);
                     setTimeout(() => setHardwareSuccessMsg(null), 5000);
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow transition flex items-center gap-1.5 self-start sm:self-auto"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow transition flex items-center gap-1.5 self-start sm:self-auto"
                 >
                   <Save className="w-3.5 h-3.5" />
                   <span>Save Hardware Fleet Mappings</span>
@@ -4573,7 +5193,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               {/* Hardware Mapping Interactive Forms (§4) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* 1. KOT Printer Form */}
-                <div className="p-5 rounded-2xl border border-slate-800 bg-[#0f131d] space-y-3">
+                <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900 space-y-3">
                   <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
                     <Printer className="w-4 h-4 text-amber-400" />
                     <h3 className="font-bold text-xs uppercase text-slate-300">
@@ -4646,14 +5266,14 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       setHardwareSuccessMsg(`ESC/POS Printer "${kotPrinterName}" mapped to ${hName}!`);
                       setTimeout(() => setHardwareSuccessMsg(null), 4000);
                     }}
-                    className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition"
+                    className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold rounded-xl text-xs transition"
                   >
                     + Map KOT Printer
                   </button>
                 </div>
 
                 {/* 2. KDS Station Form */}
-                <div className="p-5 rounded-2xl border border-slate-800 bg-[#0f131d] space-y-3">
+                <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900 space-y-3">
                   <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
                     <Smartphone className="w-4 h-4 text-emerald-400" />
                     <h3 className="font-bold text-xs uppercase text-slate-300">
@@ -4720,7 +5340,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               </div>
 
               {/* 3. Device Fleet Active Inventory Table */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-[#0f131d]">
+              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-xs uppercase text-slate-300">
                     Device Fleet Active Inventory
@@ -4749,7 +5369,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                             <span className="text-[11px]">{dev.type.replace('_', ' ')}</span>
                           </td>
                           <td className="py-2.5 font-semibold text-slate-200">{dev.name}</td>
-                          <td className="py-2.5 text-indigo-400">{dev.hotelName}</td>
+                          <td className="py-2.5 text-slate-700 dark:text-slate-300">{dev.hotelName}</td>
                           <td className="py-2.5 text-slate-400">{dev.location}</td>
                           <td className="py-2.5 font-mono text-[11px] text-slate-300">
                             {dev.ipAddress}{dev.port ? `:${dev.port}` : ''}
@@ -4775,11 +5395,11 @@ export const SuperAdminDashboardApp: React.FC = () => {
             <div className="space-y-6 max-w-5xl mx-auto">
               <div
                 className={`p-6 rounded-2xl border ${
-                  theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                 }`}
               >
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-xl font-bold">
+                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center text-xl font-bold">
                     🔀
                   </div>
                   <div>
@@ -4809,7 +5429,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       )}
                     </div>
                     <p className="text-xs text-slate-400">
-                      Front Desk और Cashier POS दोनों Hotel Admin (:3005) में एक ही छत के नीचे चलते हैं।
+                      Front Desk and Cashier POS both run under one roof within Hotel Admin (:3005).
                     </p>
                     <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
                       <span className="text-slate-400">Port: :3005</span>
@@ -4824,20 +5444,20 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     onClick={() => setGlobalDecouplingMode('DECOUPLED')}
                     className={`p-5 rounded-2xl border cursor-pointer transition ${
                       globalDecouplingMode === 'DECOUPLED'
-                        ? 'border-indigo-500 bg-indigo-950/20'
+                        ? 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800'
                         : 'border-slate-800 bg-black/20 opacity-70'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="font-bold text-sm text-white">Mode B: Decoupled Standalone Portals</h3>
                       {globalDecouplingMode === 'DECOUPLED' && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500 text-white">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 dark:bg-slate-200 text-white">
                           ACTIVE
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-slate-400">
-                      कैशियर और रिसेप्शन स्टाफ के लिए 2 अलग-अलग वेबसाइटें चलती हैं। कोई गैर-जरूरी स्क्रीन नहीं दिखती।
+                      Dedicated standalone portals for Cashier and Reception staff with zero clutter.
                     </p>
                     <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between gap-2 text-xs">
                       <a
@@ -4870,7 +5490,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
             <div className="space-y-6 max-w-5xl mx-auto">
               <div
                 className={`p-6 rounded-2xl border ${
-                  theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                 }`}
               >
                 <h2 className="text-xl font-bold flex items-center gap-2 mb-1">
@@ -4883,7 +5503,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="p-4 rounded-xl border border-slate-800 bg-black/20 space-y-3">
-                    <h3 className="font-bold text-sm text-indigo-400 flex items-center gap-2">
+                    <h3 className="font-bold text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
                       <span>🍽️</span> Waiter Mobile App (:3002)
                     </h3>
                     <div className="flex items-center justify-between text-xs">
@@ -4917,7 +5537,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   </div>
 
                   <div className="p-4 rounded-xl border border-slate-800 bg-black/20 space-y-3">
-                    <h3 className="font-bold text-sm text-rose-400 flex items-center gap-2">
+                    <h3 className="font-bold text-sm text-red-400 flex items-center gap-2">
                       <span>🍳</span> Kitchen KDS App (:3003)
                     </h3>
                     <div className="flex items-center justify-between text-xs">
@@ -4949,7 +5569,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
             <div className="space-y-6 max-w-5xl mx-auto">
               <div
                 className={`p-6 rounded-2xl border ${
-                  theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                 }`}
               >
                 <div className="flex items-center justify-between mb-4">
@@ -4978,7 +5598,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 </div>
 
                 {plansError && (
-                  <div className="mb-4 p-3 rounded-xl border border-rose-500/40 bg-rose-500/10 text-xs text-rose-200">
+                  <div className="mb-4 p-3 rounded-xl border border-red-500/40 bg-red-500/10 text-xs text-red-200">
                     {plansError}
                   </div>
                 )}
@@ -5008,9 +5628,9 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           key={plan.id}
                           className={`p-5 rounded-2xl border ${
                             plan.code === 'PROFESSIONAL'
-                              ? 'border-indigo-500/50 bg-indigo-950/20 shadow-lg'
+                              ? 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 shadow-lg'
                               : plan.code === 'ENTERPRISE'
-                              ? 'border-purple-500/50 bg-purple-950/20'
+                              ? 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800'
                               : 'border-slate-800 bg-black/20'
                           }`}
                         >
@@ -5034,14 +5654,14 @@ export const SuperAdminDashboardApp: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleOpenEditPlan(plan)}
-                              className="flex-1 py-1.5 px-3 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 text-xs font-semibold border border-indigo-500/30 transition text-center"
+                              className="flex-1 py-1.5 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-800 transition text-center"
                             >
                               Edit Plan
                             </button>
                             <button
                               type="button"
                               onClick={() => void handleDeletePlan(plan.id)}
-                              className="py-1.5 px-3 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 text-xs font-semibold border border-rose-500/30 transition text-center"
+                              className="py-1.5 px-3 rounded-lg bg-red-600/20 hover:bg-red-600/40 text-red-300 text-xs font-semibold border border-red-500/30 transition text-center"
                               title="Deactivate Plan"
                             >
                               Deactivate
@@ -5086,14 +5706,14 @@ export const SuperAdminDashboardApp: React.FC = () => {
                               <span>{portal.emoji}</span>
                               <span>{portal.name}</span>
                             </td>
-                            <td className="py-3 px-3 font-mono text-indigo-400">:{portal.port}</td>
+                            <td className="py-3 px-3 font-mono text-slate-700 dark:text-slate-300">:{portal.port}</td>
                             <td className="py-3 px-3 text-slate-300">{portal.description}</td>
                             <td className="py-3 px-3 font-bold text-emerald-400">
                               ₹{portal.defaultMonthlyPriceINR.toLocaleString('en-IN')}/mo
                             </td>
                             <td className="py-3 px-3">
                               {portal.requiredBase ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
                                   CORE BASE
                                 </span>
                               ) : (
@@ -5149,7 +5769,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           className={`w-full rounded-t-xl transition-all ${
                             idx === 5
                               ? 'bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-lg shadow-emerald-500/20'
-                              : 'bg-indigo-600/60 hover:bg-indigo-500/80'
+                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800'
                           }`}
                         />
                         <span className="text-[10px] font-medium text-slate-400 truncate w-full text-center">
@@ -5199,7 +5819,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       <tbody className="divide-y divide-slate-800/60">
                         {platformInvoices.map((inv) => (
                           <tr key={inv.id} className="hover:bg-white/5 transition">
-                            <td className="py-3 px-3 font-mono font-bold text-indigo-400">{inv.invoiceNumber}</td>
+                            <td className="py-3 px-3 font-mono font-bold text-slate-700 dark:text-slate-300">{inv.invoiceNumber}</td>
                             <td className="py-3 px-3 font-bold text-white">{inv.hotelName}</td>
                             <td className="py-3 px-3 text-slate-400">{inv.billingPeriod}</td>
                             <td className="py-3 px-3 text-slate-300">{inv.planName}</td>
@@ -5231,7 +5851,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                                   });
                                   setIsInvoiceModalOpen(true);
                                 }}
-                                className="px-2.5 py-1 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600 hover:text-white border border-indigo-500/30 text-[10px] font-bold transition"
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:text-white border border-slate-200 dark:border-slate-800 text-[10px] font-bold transition"
                               >
                                 Preview
                               </button>
@@ -5289,7 +5909,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
                     brandingStudioMsg.type === 'success'
                       ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
-                      : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
+                      : 'bg-red-500/10 border border-red-500/30 text-red-400'
                   }`}
                 >
                   <span>{brandingStudioMsg.type === 'success' ? '✓' : '⚠️'}</span>
@@ -5302,7 +5922,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 <form
                   onSubmit={handleSaveBrandingStudio}
                   className={`lg:col-span-7 p-6 rounded-2xl border space-y-4 ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
                   <h3 className={`text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
@@ -5457,7 +6077,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 {/* Right 5 cols: Live Preview Canvas */}
                 <div
                   className={`lg:col-span-5 p-6 rounded-2xl border flex flex-col justify-between ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
                   <div>
@@ -5471,7 +6091,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     </div>
 
                     {/* Smartphone Mockup */}
-                    <div className="mt-4 mx-auto max-w-xs rounded-3xl border-4 border-slate-700 bg-slate-950 p-3 shadow-2xl overflow-hidden">
+                    <div className="mt-4 mx-auto max-w-xs rounded-3xl border-4 border-slate-700 bg-slate-950 p-3 shadow-sm dark:shadow-none overflow-hidden">
                       {/* Cover Photo */}
                       <div className="h-28 rounded-2xl overflow-hidden relative bg-slate-800">
                         <img
@@ -5556,7 +6176,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
                 <div>
                   <h2 className={`text-xl font-black tracking-tight flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                    <Scroll className="w-5 h-5 text-indigo-500" />
+                    <Scroll className="w-5 h-5 text-slate-700 dark:text-slate-300" />
                     <span>Global Platform & Security Audit Logs</span>
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
@@ -5589,7 +6209,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       onClick={() => setLogFilterLevel(lvl)}
                       className={`px-3 py-1.5 rounded-xl font-bold transition ${
                         logFilterLevel === lvl
-                          ? 'bg-indigo-600 text-white shadow-sm'
+                          ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white shadow-sm'
                           : theme === 'dark'
                           ? 'bg-slate-900 text-slate-400 hover:text-white'
                           : 'bg-slate-100 text-slate-600 hover:text-slate-900'
@@ -5618,7 +6238,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               {/* Logs Table */}
               <div
                 className={`rounded-2xl border overflow-hidden ${
-                  theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                 }`}
               >
                 <div className="overflow-x-auto">
@@ -5659,7 +6279,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                                   log.level === 'WARN'
                                     ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                     : log.level === 'ERROR'
-                                    ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                    ? 'bg-red-500/10 text-red-400 border border-red-500/20'
                                     : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                                 }`}
                               >
@@ -5702,7 +6322,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
                 <div>
                   <h2 className={`text-xl font-black tracking-tight flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                    <Settings className="w-5 h-5 text-indigo-500" />
+                    <Settings className="w-5 h-5 text-slate-700 dark:text-slate-300" />
                     <span>System Configuration & Platform Governance</span>
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
@@ -5715,7 +6335,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div
                   className={`p-5 rounded-2xl border flex items-center justify-between ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
                   <div>
@@ -5747,7 +6367,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     }}
                     className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
                       maintenanceModeActive
-                        ? 'bg-rose-600 text-white shadow-lg'
+                        ? 'bg-red-600 text-white shadow-lg'
                         : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                     }`}
                   >
@@ -5757,7 +6377,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
                 <div
                   className={`p-5 rounded-2xl border flex items-center justify-between ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
                   <div>
@@ -5785,7 +6405,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               {/* API Credentials */}
               <div
                 className={`p-6 rounded-2xl border space-y-4 ${
-                  theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                 }`}
               >
                 <h3 className={`text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
@@ -5838,7 +6458,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               {/* Disaster Recovery & Snapshots */}
               <div
                 className={`p-6 rounded-2xl border space-y-4 ${
-                  theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                  theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                 }`}
               >
                 <h3 className={`text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
@@ -5861,7 +6481,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       setBackupTriggerMsg('Automated snapshot triggered! mongodump completed successfully to /backup/spicehub_dev_snapshot.gz');
                       setTimeout(() => setBackupTriggerMsg(null), 4000);
                     }}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-1.5"
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold rounded-xl text-xs shadow transition flex items-center gap-1.5"
                   >
                     <Database className="w-3.5 h-3.5" />
                     <span>Trigger Snapshot Now</span>
@@ -5917,7 +6537,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <div
                   className={`lg:col-span-5 p-6 rounded-2xl border space-y-4 ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between pb-2 border-b border-slate-800">
@@ -5968,7 +6588,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                         value={brandGroupName}
                         onChange={(e) => setBrandGroupName(e.target.value)}
                         placeholder="e.g. Taj Group"
-                        className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white outline-none focus:border-indigo-500 transition"
+                        className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white outline-none focus:border-slate-200 dark:border-slate-800 transition"
                       />
                     </div>
 
@@ -5982,7 +6602,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           value={brandGroupCode}
                           onChange={(e) => setBrandGroupCode(e.target.value)}
                           placeholder="TAJ-GRP"
-                          className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white uppercase font-mono outline-none focus:border-indigo-500 transition"
+                          className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white uppercase font-mono outline-none focus:border-slate-200 dark:border-slate-800 transition"
                         />
                       </div>
                       <div>
@@ -5994,7 +6614,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           value={brandGroupHq}
                           onChange={(e) => setBrandGroupHq(e.target.value)}
                           placeholder="Mumbai"
-                          className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white outline-none focus:border-indigo-500 transition"
+                          className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white outline-none focus:border-slate-200 dark:border-slate-800 transition"
                         />
                       </div>
                     </div>
@@ -6008,7 +6628,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                         step="0.1"
                         value={brandGroupRoyalty}
                         onChange={(e) => setBrandGroupRoyalty(Number(e.target.value))}
-                        className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white font-mono outline-none focus:border-indigo-500 transition"
+                        className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white font-mono outline-none focus:border-slate-200 dark:border-slate-800 transition"
                       />
                     </div>
 
@@ -6029,7 +6649,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                                   setSelectedFranchiseHotels((prev) => prev.filter((h) => h !== hotel));
                                 }
                               }}
-                              className="rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500"
+                              className="rounded border-slate-700 bg-slate-950 text-slate-700 dark:text-slate-300 focus:ring-indigo-500"
                             />
                             <span>{hotel}</span>
                           </label>
@@ -6040,7 +6660,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     <button
                       type="submit"
                       data-testid="btn-create-brand-group"
-                      className="w-full py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2"
+                      className="w-full py-2.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-lg shadow-sm transition flex items-center justify-center gap-2"
                     >
                       <span>🏢</span>
                       <span>Create Brand Group</span>
@@ -6052,7 +6672,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 <div
                   data-testid="franchise-hierarchy-tree"
                   className={`lg:col-span-7 p-6 rounded-2xl border space-y-4 ${
-                    theme === 'dark' ? 'bg-[#0f131d] border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800/80' : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between pb-2 border-b border-slate-800">
@@ -6066,9 +6686,9 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   </div>
 
                   {/* Root Corporate Node */}
-                  <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-4 before:bottom-4 before:w-0.5 before:bg-indigo-500/30">
-                    <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-slate-900 border border-indigo-500/40 shadow-lg relative">
-                      <div className="absolute -left-[27px] top-4 w-3.5 h-3.5 rounded-full bg-indigo-500 border-2 border-slate-950 flex items-center justify-center text-[8px] text-white">
+                  <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-100 dark:bg-slate-800">
+                    <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg relative">
+                      <div className="absolute -left-[27px] top-4 w-3.5 h-3.5 rounded-full bg-slate-800 dark:bg-slate-200 border-2 border-slate-950 flex items-center justify-center text-[8px] text-white">
                         ●
                       </div>
                       <div className="flex items-center justify-between">
@@ -6076,36 +6696,36 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           <span className="text-xl">👑</span>
                           <div>
                             <div className="font-black text-sm text-white">Taj Group</div>
-                            <div className="text-[10px] font-mono text-indigo-300">Code: TAJ-GRP • HQ: Mumbai, Maharashtra</div>
+                            <div className="text-[10px] font-mono text-slate-700 dark:text-slate-300">Code: TAJ-GRP • HQ: Mumbai, Maharashtra</div>
                           </div>
                         </div>
                         <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
                           Royalty: 4.5% Gross
                         </span>
                       </div>
-                      <div className="mt-3 pt-2 border-t border-indigo-500/20 flex items-center gap-4 text-[10px] text-slate-400">
+                      <div className="mt-3 pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center gap-4 text-[10px] text-slate-400">
                         <span>Properties: <strong className="text-white">2 Linked</strong></span>
                         <span>Total Revenue: <strong className="text-emerald-400">₹42.8 Lakhs/mo</strong></span>
-                        <span>Loyalty Network: <strong className="text-indigo-300">Taj InnerCircle Shared</strong></span>
+                        <span>Loyalty Network: <strong className="text-slate-700 dark:text-slate-300">Taj InnerCircle Shared</strong></span>
                       </div>
                     </div>
 
                     {/* Child Node 1: Mahesh Hotel */}
-                    <div className="ml-4 p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-indigo-500/50 transition relative">
-                      <div className="absolute -left-4 top-5 w-4 h-0.5 bg-indigo-500/40"></div>
+                    <div className="ml-4 p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-200 dark:border-slate-800 transition relative">
+                      <div className="absolute -left-4 top-5 w-4 h-0.5 bg-slate-100 dark:bg-slate-800"></div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-base">🏨</span>
                           <div>
                             <div className="font-bold text-xs text-white">Mahesh Hotel</div>
-                            <div className="text-[10px] text-slate-400">Sikar, Rajasthan • Slug: <span className="font-mono text-indigo-400">mahesh-hotel</span></div>
+                            <div className="text-[10px] text-slate-400">Sikar, Rajasthan • Slug: <span className="font-mono text-slate-700 dark:text-slate-300">mahesh-hotel</span></div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                             ACTIVE TENANT
                           </span>
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
                             7 Portals
                           </span>
                         </div>
@@ -6117,18 +6737,18 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     </div>
 
                     {/* Child Node 2: Chain Test Hotel */}
-                    <div className="ml-4 p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-indigo-500/50 transition relative">
-                      <div className="absolute -left-4 top-5 w-4 h-0.5 bg-indigo-500/40"></div>
+                    <div className="ml-4 p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-200 dark:border-slate-800 transition relative">
+                      <div className="absolute -left-4 top-5 w-4 h-0.5 bg-slate-100 dark:bg-slate-800"></div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="text-base">🏨</span>
                           <div>
                             <div className="font-bold text-xs text-white">Chain Test Hotel</div>
-                            <div className="text-[10px] text-slate-400">Mumbai, Maharashtra • Slug: <span className="font-mono text-indigo-400">chain-test-hotel</span></div>
+                            <div className="text-[10px] text-slate-400">Mumbai, Maharashtra • Slug: <span className="font-mono text-slate-700 dark:text-slate-300">chain-test-hotel</span></div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
                             SUSPENDED / TRIAL
                           </span>
                           <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
@@ -6138,7 +6758,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       </div>
                       <div className="mt-2 text-[10px] text-slate-400 flex items-center gap-3">
                         <span>Monthly Royalty: <strong className="text-white">₹12,400/mo</strong></span>
-                        <span>Account Status: <strong className="text-rose-400">Audit Enforced</strong></span>
+                        <span>Account Status: <strong className="text-red-400">Audit Enforced</strong></span>
                       </div>
                     </div>
                   </div>
@@ -6146,7 +6766,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   {/* Summary Footer */}
                   <div className="p-3 rounded-xl bg-black/40 border border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
                     <span>Corporate Brand Catalog: <strong>Standardized North & South Indian Menu</strong></span>
-                    <span className="text-indigo-400 font-semibold">Cross-Branch Settlements: Active</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Cross-Branch Settlements: Active</span>
                   </div>
                 </div>
               </div>
@@ -6170,7 +6790,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
       {/* ======================================================== */}
       {isCommandPaletteOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 backdrop-blur-sm p-4 pt-20">
-          <div className="bg-[#0f131d] border border-indigo-500/40 rounded-2xl w-full max-w-xl p-4 shadow-2xl space-y-3 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl p-4 shadow-sm dark:shadow-none space-y-3 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white">
               <span>🔍</span>
               <input
@@ -6194,7 +6814,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 className="p-2 rounded-lg hover:bg-white/5 flex items-center justify-between cursor-pointer text-slate-200"
               >
                 <span>➕ Onboard New Hotel Branch</span>
-                <span className="text-[10px] text-indigo-400">Action</span>
+                <span className="text-[10px] text-slate-700 dark:text-slate-300">Action</span>
               </div>
               <div
                 onClick={() => {
@@ -6204,7 +6824,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 className="p-2 rounded-lg hover:bg-white/5 flex items-center justify-between cursor-pointer text-slate-200"
               >
                 <span>👁️ View Live System Micro-Frontends</span>
-                <span className="text-[10px] text-indigo-400">Launch</span>
+                <span className="text-[10px] text-slate-700 dark:text-slate-300">Launch</span>
               </div>
               <div
                 onClick={() => {
@@ -6214,7 +6834,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 className="p-2 rounded-lg hover:bg-white/5 flex items-center justify-between cursor-pointer text-slate-200"
               >
                 <span>📥 Export Platform Telemetry Snapshot</span>
-                <span className="text-[10px] text-indigo-400">Download</span>
+                <span className="text-[10px] text-slate-700 dark:text-slate-300">Download</span>
               </div>
 
               <div className="text-[10px] uppercase font-bold text-slate-500 px-2 pt-2 pb-1">Jump to Module</div>
@@ -6244,7 +6864,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
       {/* ======================================================== */}
       {isLiveSystemModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0f131d] border border-indigo-500/40 rounded-3xl w-full max-w-2xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl p-6 shadow-sm dark:shadow-none space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <span className="text-2xl">👁️</span>
@@ -6284,10 +6904,10 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 href={getPortalUrl('admin')}
                 target="_blank"
                 rel="noreferrer"
-                className="p-3 rounded-xl border border-purple-500/30 bg-purple-950/20 hover:bg-purple-900/30 transition text-center"
+                className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 transition text-center"
               >
                 <div className="text-xl mb-1">🏨</div>
-                <div className="font-bold text-purple-400">Hotel Admin ERP</div>
+                <div className="font-bold text-slate-700 dark:text-slate-300">Hotel Admin ERP</div>
                 <div className="text-[10px] text-slate-400">:3005 • <span className="text-emerald-400 font-semibold">● 10ms</span></div>
               </a>
               <a
@@ -6304,20 +6924,20 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 href={getPortalUrl('waiter')}
                 target="_blank"
                 rel="noreferrer"
-                className="p-3 rounded-xl border border-indigo-500/30 bg-indigo-950/20 hover:bg-indigo-900/30 transition text-center"
+                className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 transition text-center"
               >
                 <div className="text-xl mb-1">🍽️</div>
-                <div className="font-bold text-indigo-400">Waiter Mobile App</div>
+                <div className="font-bold text-slate-700 dark:text-slate-300">Waiter Mobile App</div>
                 <div className="text-[10px] text-slate-400">:3002 • <span className="text-emerald-400 font-semibold">● 9ms</span></div>
               </a>
               <a
                 href={getPortalUrl('kds')}
                 target="_blank"
                 rel="noreferrer"
-                className="p-3 rounded-xl border border-rose-500/30 bg-rose-950/20 hover:bg-rose-900/30 transition text-center"
+                className="p-3 rounded-xl border border-red-500/30 bg-red-950/20 hover:bg-red-900/30 transition text-center"
               >
                 <div className="text-xl mb-1">🍳</div>
-                <div className="font-bold text-rose-400">Kitchen KDS</div>
+                <div className="font-bold text-red-400">Kitchen KDS</div>
                 <div className="text-[10px] text-slate-400">:3003 • <span className="text-emerald-400 font-semibold">● 11ms</span></div>
               </a>
             </div>
@@ -6330,7 +6950,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
       {/* ======================================================== */}
       {isExportReportOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0f131d] border border-indigo-500/40 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-sm dark:shadow-none space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="font-bold text-base text-white">Generate Executive Report</h3>
               <button onClick={() => setIsExportReportOpen(false)} className="text-slate-400 hover:text-white font-bold">
@@ -6346,13 +6966,13 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   exportJsonSnapshot();
                   setIsExportReportOpen(false);
                 }}
-                className="w-full p-3 rounded-xl border border-slate-800 bg-black/20 hover:bg-indigo-600/20 hover:border-indigo-500/40 transition text-left flex items-center justify-between text-xs"
+                className="w-full p-3 rounded-xl border border-slate-800 bg-black/20 hover:bg-slate-100 dark:bg-slate-800 hover:border-slate-200 dark:border-slate-800 transition text-left flex items-center justify-between text-xs"
               >
                 <div>
                   <div className="font-bold text-white">📥 Platform JSON Data Snapshot</div>
                   <div className="text-[10px] text-slate-400">Full tenant tree, configs, audit logs</div>
                 </div>
-                <span className="text-indigo-400 font-bold">Download ›</span>
+                <span className="text-slate-700 dark:text-slate-300 font-bold">Download ›</span>
               </button>
               <button
                 onClick={() => {
@@ -6386,25 +7006,25 @@ export const SuperAdminDashboardApp: React.FC = () => {
       {/* 13. ONBOARD PROPERTY MODAL                                */}
       {/* ======================================================== */}
       {isOnboardModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <form
             onSubmit={handleOnboardSubmit}
-            className="bg-[#0f131d] border border-indigo-500/40 rounded-3xl w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6 shadow-xl space-y-5 animate-in fade-in zoom-in-95 duration-150"
           >
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <div>
-                <h3 className="font-bold text-base text-white flex items-center gap-2">
+                <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                   <span>🏢</span>
                   <span>Onboard New Property & Allocate Portals</span>
                 </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Select operational workstations à la carte. Dynamic subscription price calculates automatically.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsOnboardModalOpen(false)}
-                className="text-slate-400 hover:text-white font-bold text-lg"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold text-lg"
               >
                 ✕
               </button>
@@ -6412,7 +7032,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
             {/* Basic Property Details */}
             <div className="space-y-3">
-              <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
+              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 1. Property Profile & Capacity
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -6473,11 +7093,144 @@ export const SuperAdminDashboardApp: React.FC = () => {
               </div>
             </div>
 
+            {/* Real Hotel Geolocation & Google Maps Location */}
+            <div className="space-y-3 pt-3 border-t border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>📍</span>
+                    <span>1.2 Real Hotel Geolocation & Google Maps</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Set the property's exact GPS coordinates so it renders at its true physical location on the platform map and opens correctly in Google Maps.
+                  </p>
+                </div>
+                {/* City Preset Coordinates */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">Quick Pin:</span>
+                  {[
+                    { city: 'Jaipur', lat: 26.9124, lng: 75.7873 },
+                    { city: 'Udaipur', lat: 24.5854, lng: 73.7125 },
+                    { city: 'Jodhpur', lat: 26.2389, lng: 73.0243 },
+                    { city: 'Delhi', lat: 28.6139, lng: 77.2090 },
+                    { city: 'Mumbai', lat: 19.0760, lng: 72.8777 },
+                    { city: 'Bengaluru', lat: 12.9716, lng: 77.5946 },
+                    { city: 'Goa', lat: 15.2993, lng: 74.1240 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.city}
+                      type="button"
+                      onClick={() => {
+                        setNewCity(preset.city);
+                        setNewLatitude(preset.lat);
+                        setNewLongitude(preset.lng);
+                        setNewGoogleMapUrl(`https://www.google.com/maps/search/?api=1&query=${preset.lat},${preset.lng}`);
+                      }}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-semibold border border-slate-700 transition"
+                    >
+                      {preset.city}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Street Address / Landmark</label>
+                  <input
+                    type="text"
+                    value={newStreet}
+                    onChange={(e) => setNewStreet(e.target.value)}
+                    placeholder="e.g. Palace Road, Near Clock Tower"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Postal Code / PIN</label>
+                  <input
+                    type="text"
+                    value={newPincode}
+                    onChange={(e) => setNewPincode(e.target.value)}
+                    placeholder="e.g. 302001"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Exact Latitude</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={newLatitude}
+                    onChange={(e) => {
+                      const lat = parseFloat(e.target.value) || 0;
+                      setNewLatitude(lat);
+                      setNewGoogleMapUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${newLongitude}`);
+                    }}
+                    placeholder="e.g. 26.912400"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-amber-300 font-mono mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Exact Longitude</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={newLongitude}
+                    onChange={(e) => {
+                      const lng = parseFloat(e.target.value) || 0;
+                      setNewLongitude(lng);
+                      setNewGoogleMapUrl(`https://www.google.com/maps/search/?api=1&query=${newLatitude},${lng}`);
+                    }}
+                    placeholder="e.g. 75.787300"
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-amber-300 font-mono mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase">Google Maps Search / Direct URL</label>
+                  <input
+                    type="url"
+                    value={newGoogleMapUrl || `https://www.google.com/maps/search/?api=1&query=${newLatitude},${newLongitude}`}
+                    onChange={(e) => setNewGoogleMapUrl(e.target.value)}
+                    placeholder="https://www.google.com/maps/..."
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-slate-700 dark:text-slate-300 font-mono mt-1"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <a
+                    href={newGoogleMapUrl || `https://www.google.com/maps/search/?api=1&query=${newLatitude},${newLongitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-slate-700 dark:text-slate-300 hover:text-white font-bold text-xs border border-slate-200 dark:border-slate-800 text-center flex items-center justify-center gap-1.5 transition"
+                  >
+                    <span>🌐</span>
+                    <span>Test on Google Maps ↗</span>
+                  </a>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase">Location Notes / Landmarks</label>
+                <input
+                  type="text"
+                  value={newLocationNotes}
+                  onChange={(e) => setNewLocationNotes(e.target.value)}
+                  placeholder="e.g. Opposite Heritage Gate, 500m from Railway Station"
+                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-slate-800 text-xs text-white mt-1"
+                />
+              </div>
+            </div>
+
             {/* Property Imagery & Brand Identity */}
             <div className="space-y-3 pt-3 border-t border-slate-800">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                     <span>🖼️</span>
                     <span>1.5 Property Imagery & Brand Identity</span>
                   </h4>
@@ -6558,7 +7311,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   />
                   <div className="mt-2 flex items-center gap-3">
                     {newLogoUrl ? (
-                      <div className="h-14 w-14 rounded-full overflow-hidden border-2 border-indigo-500 bg-black flex-shrink-0">
+                      <div className="h-14 w-14 rounded-full overflow-hidden border-2 border-slate-200 dark:border-slate-800 bg-black flex-shrink-0">
                         <img src={newLogoUrl} alt="Logo preview" className="w-full h-full object-cover" />
                       </div>
                     ) : (
@@ -6585,7 +7338,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
             <div className="space-y-3 pt-3 border-t border-slate-800">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                     <span>⚙️</span>
                     <span>2. Operational Terminals Allocation & À La Carte Pricing</span>
                   </h4>
@@ -6600,7 +7353,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => applyOnboardPreset('FULL')}
-                    className="px-2 py-1 rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold hover:bg-indigo-600 hover:text-white transition"
+                    className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 text-[10px] font-bold hover:bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:text-white transition"
                   >
                     🏨 Full Suite
                   </button>
@@ -6621,7 +7374,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => applyOnboardPreset('ROOMS_ONLY')}
-                    className="px-2 py-1 rounded-lg bg-purple-600/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold hover:bg-purple-600 hover:text-white transition"
+                    className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 text-[10px] font-bold hover:bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:text-white transition"
                   >
                     🛏️ Rooms Only
                   </button>
@@ -6638,36 +7391,39 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     <div
                       key={portal.id}
                       onClick={() => !isBase && toggleOnboardPortal(portal.id)}
-                      className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
                         isChecked
-                          ? 'bg-slate-900 border-indigo-500/50 shadow-md shadow-indigo-950/20'
-                          : 'bg-black/30 border-slate-800/80 opacity-60 hover:opacity-85'
+                          ? 'bg-blue-50/70 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 shadow-sm'
+                          : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-70 hover:opacity-100'
                       }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        disabled={isBase}
-                        onChange={() => !isBase && toggleOnboardPortal(portal.id)}
-                        className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                      />
+                      <label className="relative inline-flex items-center cursor-pointer mt-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          disabled={isBase}
+                          onChange={() => !isBase && toggleOnboardPortal(portal.id)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-300 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 peer-disabled:opacity-50"></div>
+                      </label>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
-                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                             <span>{portal.emoji}</span>
                             <span>{portal.name}</span>
                           </span>
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/40 text-slate-400 border border-slate-800">
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                             :{portal.port}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{portal.description}</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">{portal.description}</p>
                         <div className="mt-1.5 flex items-center justify-between text-[10px]">
-                          <span className="font-bold text-indigo-400">
+                          <span className="font-semibold text-blue-600 dark:text-blue-400">
                             +₹{portal.defaultMonthlyPriceINR.toLocaleString('en-IN')}/mo
                           </span>
                           {isBase && (
-                            <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[9px] border border-indigo-500/30">
+                            <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[9px]">
                               Core Base (Required)
                             </span>
                           )}
@@ -6679,9 +7435,9 @@ export const SuperAdminDashboardApp: React.FC = () => {
               </div>
 
               {/* Dynamic Subscription Pricing Calculator Box */}
-              <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 space-y-3">
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
                     <span>💳</span>
                     <span>Calculated Dynamic Subscription</span>
                   </span>
@@ -6693,7 +7449,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                         onClick={() => setOnboardBillingCycle('MONTHLY')}
                         className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
                           onboardBillingCycle === 'MONTHLY'
-                            ? 'bg-indigo-600 text-white shadow'
+                            ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white shadow'
                             : 'text-slate-400 hover:text-white'
                         }`}
                       >
@@ -6704,7 +7460,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                         onClick={() => setOnboardBillingCycle('ANNUAL')}
                         className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
                           onboardBillingCycle === 'ANNUAL'
-                            ? 'bg-indigo-600 text-white shadow'
+                            ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white shadow'
                             : 'text-slate-400 hover:text-white'
                         }`}
                       >
@@ -6735,8 +7491,8 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     <div className="text-[9px] text-slate-500 mt-0.5">Discount or fee override</div>
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-indigo-600/20 border border-indigo-500/40">
-                    <div className="text-[10px] text-indigo-300 uppercase font-bold">Total Subscription</div>
+                  <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800">
+                    <div className="text-[10px] text-slate-700 dark:text-slate-300 uppercase font-bold">Total Subscription</div>
                     <div className="text-base font-black text-emerald-400 mt-0.5">
                       {onboardBillingCycle === 'ANNUAL'
                         ? `₹${onboardPricing.annualTotalINR.toLocaleString('en-IN')} / yr`
@@ -6750,13 +7506,13 @@ export const SuperAdminDashboardApp: React.FC = () => {
               </div>
             </div>
 
-            {/* 2.5 Subscription Validity & Duration Selection (समय सीमा) */}
+            {/* 2.5 Subscription Validity & Duration Selection */}
             <div className="space-y-3 pt-3 border-t border-slate-800">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                     <span>📅</span>
-                    <span>2.5 Subscription Validity / Duration (समय सीमा तय करें)</span>
+                    <span>2.5 Subscription Validity / Duration</span>
                   </h4>
                   <p className="text-[11px] text-slate-400">
                     Choose how many months or years of access to grant the new property.
@@ -6804,7 +7560,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
             {/* Admin Credentials */}
             <div className="space-y-3 pt-3 border-t border-slate-800">
-              <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
+              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 3. First Administrator Credentials
               </h4>
               <div className="grid grid-cols-2 gap-3">
@@ -6860,7 +7616,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
             </div>
 
             {onboardError && (
-              <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] font-semibold text-rose-200">
+              <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-[11px] font-semibold text-red-200">
                 {onboardError}
               </div>
             )}
@@ -6877,7 +7633,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 type="submit"
                 data-testid="btn-submit-onboard"
                 disabled={onboarding}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 disabled:cursor-wait disabled:opacity-60 transition"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-lg shadow-sm disabled:cursor-wait disabled:opacity-60 transition"
               >
                 {onboarding
                   ? 'Provisioning Property…'
@@ -6892,56 +7648,56 @@ export const SuperAdminDashboardApp: React.FC = () => {
       {/* 13.5 EDIT TENANT PORTALS & DYNAMIC PRICING MODAL          */}
       {/* ======================================================== */}
       {editingTenantPortals && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0f131d] border border-indigo-500/40 rounded-3xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <div>
-                <h3 className="font-bold text-base text-white flex items-center gap-2">
+                <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                   <span>⚙️</span>
                   <span>Portals & Dynamic Pricing: {editingTenantPortals.name}</span>
                 </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Code: <strong className="font-mono text-indigo-400">{editingTenantPortals.code}</strong> • Changes apply in real-time to active terminals via WebSocket.
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Code: <strong className="font-mono text-slate-700 dark:text-slate-300">{editingTenantPortals.code}</strong> • Changes apply in real-time to active terminals via WebSocket.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingTenantPortals(null)}
-                className="text-slate-400 hover:text-white font-bold text-lg"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold text-lg"
               >
                 ✕
               </button>
             </div>
 
             {/* Presets Row */}
-            <div className="flex items-center justify-between flex-wrap gap-2 p-3 rounded-2xl bg-black/30 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 font-bold uppercase">Quick Configurations:</span>
+            <div className="flex items-center justify-between flex-wrap gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase">Quick Configurations:</span>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   type="button"
                   onClick={() => applyEditPreset('FULL')}
-                  className="px-2.5 py-1 rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold hover:bg-indigo-600 hover:text-white transition"
+                  className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold hover:bg-slate-100 transition shadow-sm"
                 >
                   🏨 Full Suite (All 7)
                 </button>
                 <button
                   type="button"
                   onClick={() => applyEditPreset('RESTAURANT')}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold hover:bg-emerald-600 hover:text-white transition"
+                  className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[10px] font-semibold hover:bg-emerald-100 transition"
                 >
                   🍽️ Restaurant (POS + KDS + Waiter + QR)
                 </button>
                 <button
                   type="button"
                   onClick={() => applyEditPreset('CAFE_NO_WAITER')}
-                  className="px-2.5 py-1 rounded-lg bg-amber-600/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold hover:bg-amber-600 hover:text-white transition"
+                  className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[10px] font-semibold hover:bg-amber-100 transition"
                 >
                   ☕ QR Cafe (No Waiter)
                 </button>
                 <button
                   type="button"
                   onClick={() => applyEditPreset('ROOMS_ONLY')}
-                  className="px-2.5 py-1 rounded-lg bg-purple-600/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold hover:bg-purple-600 hover:text-white transition"
+                  className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold hover:bg-slate-100 transition shadow-sm"
                 >
                   🛏️ Rooms Only (PMS + IRD)
                 </button>
@@ -6958,32 +7714,34 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   <div
                     key={portal.id}
                     onClick={() => !isBase && toggleEditPortal(portal.id)}
-                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
+                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
                       isChecked
-                        ? 'bg-slate-900 border-indigo-500/50 shadow-md shadow-indigo-950/20'
-                        : 'bg-black/30 border-slate-800/80 opacity-60 hover:opacity-85'
+                        ? 'bg-blue-50/70 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-70 hover:opacity-100'
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      data-testid={`checkbox-portal-${portal.id}`}
-                      checked={isChecked}
-                      disabled={isBase}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={() => !isBase && toggleEditPortal(portal.id)}
-                      className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                    />
+                    <label className="relative inline-flex items-center cursor-pointer mt-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        data-testid={`checkbox-portal-${portal.id}`}
+                        checked={isChecked}
+                        disabled={isBase}
+                        onChange={() => !isBase && toggleEditPortal(portal.id)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-300 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 peer-disabled:opacity-50"></div>
+                    </label>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                           <span>{portal.emoji}</span>
                           <span>{portal.name}</span>
                         </span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/40 text-slate-400 border border-slate-800">
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                           :{portal.port}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{portal.description}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">{portal.description}</p>
                       <div className="mt-1.5 flex items-center justify-between text-[10px]">
                         <div className="flex items-center gap-1.5">
                           {editingPriceKey === portal.id ? (
@@ -6993,27 +7751,27 @@ export const SuperAdminDashboardApp: React.FC = () => {
                                 type="number"
                                 value={customPriceInput}
                                 onChange={(e) => setCustomPriceInput(e.target.value)}
-                                className="w-16 px-1.5 py-0.5 rounded bg-black border border-indigo-500 text-[10px] text-white"
+                                className="w-16 px-1.5 py-0.5 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[10px] text-slate-900 dark:text-white"
                               />
                               <button
                                 type="button"
                                 disabled={isUpdatingDbPrice}
                                 onClick={() => void handleUpdateDbPortalPrice(portal.id, Number(customPriceInput))}
-                                className="px-1.5 py-0.5 rounded bg-indigo-600 text-white font-bold hover:bg-indigo-500"
+                                className="px-1.5 py-0.5 rounded bg-blue-600 text-white font-bold hover:bg-blue-700"
                               >
                                 Save
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setEditingPriceKey(null)}
-                                className="text-slate-400 hover:text-white"
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-white"
                               >
                                 ✕
                               </button>
                             </div>
                           ) : (
                             <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-indigo-400">
+                              <span className="font-semibold text-blue-600 dark:text-blue-400">
                                 +₹{portal.defaultMonthlyPriceINR.toLocaleString('en-IN')}/mo
                               </span>
                               <button
@@ -7023,7 +7781,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                                   setEditingPriceKey(portal.id);
                                   setCustomPriceInput(String(portal.defaultMonthlyPriceINR));
                                 }}
-                                className="text-slate-500 hover:text-indigo-300 text-[9px] underline cursor-pointer"
+                                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 text-[9px] underline cursor-pointer"
                                 title="Edit DB Catalog Base Price"
                               >
                                 ✏️ Edit
@@ -7032,13 +7790,13 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           )}
                         </div>
                         {isBase ? (
-                          <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[9px] border border-indigo-500/30">
+                          <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[9px]">
                             Core Base
                           </span>
                         ) : isChecked ? (
-                          <span className="text-emerald-400 font-semibold text-[10px]">Active Module</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-[10px]">Active Module</span>
                         ) : (
-                          <span className="text-rose-400 font-semibold text-[10px]">🔒 Disabled</span>
+                          <span className="text-slate-400 font-semibold text-[10px]">🔒 Disabled</span>
                         )}
                       </div>
                     </div>
@@ -7048,22 +7806,22 @@ export const SuperAdminDashboardApp: React.FC = () => {
             </div>
 
             {/* Pricing Summary Box */}
-            <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 space-y-3">
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
                   <span>💳</span>
                   <span>Recalculated Subscription Pricing</span>
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-slate-400 font-medium">Billing Cycle:</span>
-                  <div className="inline-flex rounded-xl bg-black/40 p-1 border border-slate-800">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Billing Cycle:</span>
+                  <div className="inline-flex rounded-lg bg-slate-200 dark:bg-slate-900 p-0.5 border border-slate-300 dark:border-slate-800">
                     <button
                       type="button"
                       onClick={() => setEditBillingCycle('MONTHLY')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
                         editBillingCycle === 'MONTHLY'
-                          ? 'bg-indigo-600 text-white shadow'
-                          : 'text-slate-400 hover:text-white'
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       Monthly
@@ -7071,10 +7829,10 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setEditBillingCycle('ANNUAL')}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
                         editBillingCycle === 'ANNUAL'
-                          ? 'bg-indigo-600 text-white shadow'
-                          : 'text-slate-400 hover:text-white'
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       Annual (2 Mo Free)
@@ -7084,45 +7842,45 @@ export const SuperAdminDashboardApp: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
-                <div className="p-2.5 rounded-xl bg-black/30 border border-white/5">
-                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Portals Subtotal</div>
-                  <div className="text-sm font-bold text-white mt-0.5">
+                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 shadow-sm">
+                  <div className="text-[10px] text-slate-500 uppercase font-semibold">Portals Subtotal</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
                     ₹{editPricing.baseMonthlyTotalINR.toLocaleString('en-IN')} / mo
                   </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">{editPortalsList.length} of 7 portals active</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">{editPortalsList.length} of 7 portals active</div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-black/30 border border-white/5">
-                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Custom Adjustment (₹)</div>
+                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 shadow-sm">
+                  <div className="text-[10px] text-slate-500 uppercase font-semibold">Custom Adjustment (₹)</div>
                   <input
                     type="number"
                     value={editDiscount}
                     onChange={(e) => setEditDiscount(Number(e.target.value))}
                     placeholder="0"
-                    className="w-full px-2 py-1 rounded-lg bg-black/60 border border-slate-700 text-xs text-white font-mono mt-0.5 font-bold"
+                    className="w-full px-2 py-1 rounded-md bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-mono mt-0.5 font-bold"
                   />
-                  <div className="text-[9px] text-slate-500 mt-0.5">Custom discount / override</div>
+                  <div className="text-[9px] text-slate-400 mt-0.5">Custom discount / override</div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-indigo-600/20 border border-indigo-500/40">
-                  <div className="text-[10px] text-indigo-300 uppercase font-bold">Updated Subscription</div>
-                  <div className="text-base font-black text-emerald-400 mt-0.5">
+                <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 shadow-sm">
+                  <div className="text-[10px] text-emerald-800 dark:text-emerald-300 uppercase font-bold">Updated Subscription</div>
+                  <div className="text-base font-black text-emerald-700 dark:text-emerald-400 mt-0.5">
                     {editBillingCycle === 'ANNUAL'
                       ? `₹${editPricing.annualTotalINR.toLocaleString('en-IN')} / yr`
                       : `₹${editPricing.finalMonthlyTotalINR.toLocaleString('en-IN')} / mo`}
                   </div>
-                  <div className="text-[9px] text-emerald-300/80 mt-0.5">
+                  <div className="text-[9px] text-emerald-600/80 dark:text-emerald-300/80 mt-0.5">
                     {editBillingCycle === 'ANNUAL' ? '10× monthly rate (billed yearly)' : 'Billed every 30 days'}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setEditingTenantPortals(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 Cancel
               </button>
@@ -7130,7 +7888,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 type="button"
                 data-testid="btn-save-portals"
                 onClick={() => void handleSaveTenantPortals()}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 transition flex items-center gap-1.5"
+                className="px-5 py-2.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer"
               >
                 <span>🚀</span>
                 <span>Save & Broadcast to Terminals</span>
@@ -7144,25 +7902,25 @@ export const SuperAdminDashboardApp: React.FC = () => {
       {/* 13.6 EDIT TENANT BRANDING & IMAGERY MODAL                 */}
       {/* ======================================================== */}
       {isBrandingModalOpen && editingBrandingTenant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <form
             onSubmit={handleSaveBranding}
-            className="bg-[#0f131d] border border-pink-500/40 rounded-3xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 shadow-xl space-y-5 animate-in fade-in zoom-in-95 duration-150"
           >
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <div>
-                <h3 className="font-bold text-base text-white flex items-center gap-2">
+                <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                   <span>🖼️</span>
                   <span>Property Branding & Imagery — {editingBrandingTenant.name}</span>
                 </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Update cover photo, logo, and tagline. These are projected in real time to mobile apps & ERP.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsBrandingModalOpen(false)}
-                className="text-slate-400 hover:text-white font-bold text-lg"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold text-lg"
               >
                 ✕
               </button>
@@ -7195,7 +7953,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   }}
                   className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-left border border-slate-700 text-[10px] transition"
                 >
-                  <div className="font-bold text-indigo-300">🏰 Heritage Palace</div>
+                  <div className="font-bold text-slate-700 dark:text-slate-300">🏰 Heritage Palace</div>
                   <div className="text-slate-400 text-[9px] truncate">Historic courtyard</div>
                 </button>
                 <button
@@ -7207,7 +7965,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   }}
                   className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-left border border-slate-700 text-[10px] transition"
                 >
-                  <div className="font-bold text-pink-300">✨ Boutique Urban</div>
+                  <div className="font-bold text-slate-700 dark:text-slate-300">✨ Boutique Urban</div>
                   <div className="text-slate-400 text-[9px] truncate">Modern minimalist</div>
                 </button>
                 <button
@@ -7258,7 +8016,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   />
                   {editLogoUrl && (
                     <div className="mt-2 flex items-center gap-2.5 p-2 rounded-xl bg-black/30 border border-slate-800">
-                      <div className="h-12 w-12 rounded-xl overflow-hidden border border-indigo-500 bg-black flex-shrink-0">
+                      <div className="h-12 w-12 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-black flex-shrink-0">
                         <img src={editLogoUrl} alt="Logo" className="w-full h-full object-cover" />
                       </div>
                       <span className="text-[10px] text-slate-400 font-semibold">Avatar Badge Preview</span>
@@ -7283,7 +8041,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
             </div>
 
             {brandingError && (
-              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold">
+              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold">
                 {brandingError}
               </div>
             )}
@@ -7304,7 +8062,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSavingBranding}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-pink-600 hover:bg-pink-500 text-white shadow-lg shadow-pink-600/30 transition flex items-center gap-1.5 disabled:opacity-60"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-lg shadow-sm transition flex items-center gap-1.5 disabled:opacity-60"
               >
                 <span>💾</span>
                 <span>{isSavingBranding ? 'Saving...' : 'Save & Broadcast Branding'}</span>
@@ -7319,7 +8077,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
       {/* ======================================================== */}
       {activeSettingsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0f131d] border border-indigo-500/40 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="font-bold text-base text-white">
                 {activeSettingsModal.replace('_', ' ')} Settings
@@ -7334,12 +8092,12 @@ export const SuperAdminDashboardApp: React.FC = () => {
             <div className="p-4 rounded-xl bg-black/30 border border-white/5 text-xs text-slate-300 space-y-2">
               <div className="flex justify-between"><span>Status:</span><span className="text-emerald-400 font-bold">● Synchronized</span></div>
               <div className="flex justify-between"><span>Environment:</span><span className="font-mono text-white">Production (v5.0.2)</span></div>
-              <div className="flex justify-between"><span>Tenant Partitioning:</span><span className="text-indigo-400 font-bold">Isolated (Postgres + Redis)</span></div>
+              <div className="flex justify-between"><span>Tenant Partitioning:</span><span className="text-slate-700 dark:text-slate-300 font-bold">Isolated (Postgres + Redis)</span></div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setActiveSettingsModal(null)}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs"
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold text-xs"
               >
                 Close Settings
               </button>
@@ -7355,7 +8113,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div
             data-testid="modal-super-staff"
-            className="bg-[#0f131d] border border-indigo-500/40 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150"
+            className="bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4 animate-in fade-in zoom-in-95 duration-150"
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
@@ -7456,7 +8214,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 <button
                   type="submit"
                   data-testid="btn-submit-super-staff"
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg transition"
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-lg transition"
                 >
                   Save & Provision Staff
                 </button>
@@ -7473,11 +8231,11 @@ export const SuperAdminDashboardApp: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div
             data-testid="modal-invoice-preview"
-            className="bg-[#0f131d] border border-indigo-500/40 rounded-3xl w-full max-w-xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150"
+            className="bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xl p-6 shadow-sm dark:shadow-none space-y-4 animate-in fade-in zoom-in-95 duration-150"
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-indigo-400" />
+                <CreditCard className="w-5 h-5 text-slate-700 dark:text-slate-300" />
                 <h3 className="font-bold text-base text-white">Tax Invoice Preview</h3>
               </div>
               <button
@@ -7495,10 +8253,10 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 <div>
                   <div className="font-bold text-sm text-white">SpiceHub SaaS Platform Pvt Ltd</div>
                   <div className="text-[10px] text-slate-400">Cyber City, DLF Phase 2, Gurugram, India</div>
-                  <div className="text-[10px] font-mono text-indigo-400">GSTIN: 06AAACS8491M1Z5</div>
+                  <div className="text-[10px] font-mono text-slate-700 dark:text-slate-300">GSTIN: 06AAACS8491M1Z5</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono font-bold text-indigo-300">{invoicePreviewData.invoiceNo}</div>
+                  <div className="font-mono font-bold text-slate-700 dark:text-slate-300">{invoicePreviewData.invoiceNo}</div>
                   <div className="text-[10px] text-slate-400">Date: {invoicePreviewData.date}</div>
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     STATUS: PAID
@@ -7561,7 +8319,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   alert('Tax Invoice downloaded to PDF.');
                   setIsInvoiceModalOpen(false);
                 }}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow transition"
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold text-xs shadow transition"
               >
                 Download PDF
               </button>
@@ -7577,7 +8335,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <form
             onSubmit={handleSaveCustomPlan}
-            className="bg-[#0f131d] border border-amber-500/40 rounded-3xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150"
+            className="bg-slate-900 border border-amber-500/40 rounded-3xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 shadow-sm dark:shadow-none space-y-5 animate-in fade-in zoom-in-95 duration-150"
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
@@ -7664,7 +8422,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
             {/* Capacity Limits */}
             <div className="p-3.5 rounded-2xl bg-black/30 border border-slate-800 space-y-2">
-              <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider block">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
                 Operational Capacity Quotas
               </span>
               <div className="grid grid-cols-3 gap-3">
@@ -7706,7 +8464,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
             {/* Portal Entitlements & Feature Flags */}
             <div className="space-y-2">
-              <span className="text-xs font-bold text-purple-400 uppercase tracking-wider block">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
                 Workstations & Feature Entitlements
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
@@ -7731,7 +8489,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       onChange={(e) =>
                         setPlanFormFlags({ ...planFormFlags, [key]: e.target.checked })
                       }
-                      className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-slate-700 dark:text-slate-300 focus:ring-indigo-500 cursor-pointer"
                     />
                     <span className="text-slate-200 text-[11px] font-medium">{label}</span>
                   </label>
@@ -7765,7 +8523,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
       {/* ======================================================== */}
       {managingSubscriptionTenant && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0f131d] border border-slate-700 rounded-3xl w-full max-w-xl max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150 text-slate-200">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-xl max-h-[92vh] overflow-y-auto p-6 shadow-sm dark:shadow-none space-y-5 animate-in fade-in zoom-in-95 duration-150 text-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <span className="text-2xl">📅</span>
@@ -7788,7 +8546,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
             {/* Quick Duration Presets */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Select Validity Duration (महीने या साल तय करें):
+                Select Validity Duration:
               </label>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                 {[
@@ -7840,7 +8598,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
-                  Subscription Start Date (शुरू होने की तारीख)
+                  Subscription Start Date
                 </label>
                 <input
                   type="date"
@@ -7855,7 +8613,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
-                  Subscription End Date (खत्म होने की तारीख)
+                  Subscription End Date
                 </label>
                 <input
                   type="date"
@@ -7921,7 +8679,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
             </div>
 
             {subscriptionErrorMsg && (
-              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold">
+              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold">
                 {subscriptionErrorMsg}
               </div>
             )}
@@ -7953,11 +8711,158 @@ export const SuperAdminDashboardApp: React.FC = () => {
       )}
 
       {/* ======================================================== */}
+      {/* 18b. SUPERADMIN PROPERTY CAPACITY CEILING ADJUSTMENT MODAL */}
+      {/* ======================================================== */}
+      {managingCapacityTenant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-5 animate-in fade-in zoom-in-95 duration-150 text-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">🛡️</span>
+                <div>
+                  <h3 className="font-bold text-base text-white">Property Capacity Governance</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {managingCapacityTenant.name} &bull; <span className="font-mono text-slate-300">{managingCapacityTenant.slug}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManagingCapacityTenant(null)}
+                className="text-slate-400 hover:text-white font-bold text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 leading-relaxed">
+              <strong>SuperAdmin Capacity Enforcement:</strong> Hotel Admin cannot create more rooms or dining tables than the allocated ceilings below. Any attempt by Hotel Admin to exceed these limits is strictly blocked with an explicit HTTP 403 error.
+            </div>
+
+            <div className="space-y-4">
+              {/* Max Rooms Setting */}
+              <div className="p-3.5 rounded-2xl bg-black/40 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white flex items-center gap-2">
+                    <span>🛏️</span>
+                    <span>Max Allowed Rooms</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    Currently in use: <strong className="text-white">{managingCapacityTenant.totalRooms || 0}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={Math.max(1, managingCapacityTenant.totalRooms || 1)}
+                    max={500}
+                    value={capacityMaxRooms}
+                    onChange={(e) => setCapacityMaxRooms(Math.max(1, Number(e.target.value)))}
+                    className="w-full px-4 py-2.5 rounded-xl bg-black/60 border border-slate-700 text-white font-bold text-base focus:border-amber-500 focus:outline-none"
+                  />
+                  <div className="flex gap-1.5 shrink-0">
+                    {[10, 25, 50, 100].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setCapacityMaxRooms(preset)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition ${
+                          capacityMaxRooms === preset
+                            ? 'bg-amber-500 text-slate-950 border-amber-400'
+                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  Hotel Admin will be strictly blocked from creating rooms if count reaches {capacityMaxRooms}.
+                </p>
+              </div>
+
+              {/* Max Tables Setting */}
+              <div className="p-3.5 rounded-2xl bg-black/40 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white flex items-center gap-2">
+                    <span>🪑</span>
+                    <span>Max Allowed Dining Tables</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    Currently in use: <strong className="text-white">{managingCapacityTenant.totalTables || 0}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={Math.max(1, managingCapacityTenant.totalTables || 1)}
+                    max={300}
+                    value={capacityMaxTables}
+                    onChange={(e) => setCapacityMaxTables(Math.max(1, Number(e.target.value)))}
+                    className="w-full px-4 py-2.5 rounded-xl bg-black/60 border border-slate-700 text-white font-bold text-base focus:border-amber-500 focus:outline-none"
+                  />
+                  <div className="flex gap-1.5 shrink-0">
+                    {[10, 20, 40, 80].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setCapacityMaxTables(preset)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition ${
+                          capacityMaxTables === preset
+                            ? 'bg-amber-500 text-slate-950 border-amber-400'
+                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  Hotel Admin will be strictly blocked from adding tables if count reaches {capacityMaxTables}.
+                </p>
+              </div>
+            </div>
+
+            {capacityErrorMsg && (
+              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold">
+                {capacityErrorMsg}
+              </div>
+            )}
+            {capacitySuccessMsg && (
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
+                {capacitySuccessMsg}
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setManagingCapacityTenant(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSavingCapacity}
+                onClick={() => void handleSaveCapacity()}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md transition disabled:opacity-50"
+              >
+                {isSavingCapacity ? 'Saving Limits…' : 'Enforce Capacity Ceilings'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
       {/* 19. ADMIN CREDENTIALS & PASSWORD MANAGEMENT MODAL         */}
       {/* ======================================================== */}
       {managingCredentialsTenant && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#0f131d] border border-slate-700 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150 text-slate-200">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-5 animate-in fade-in zoom-in-95 duration-150 text-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <span className="text-2xl">🔑</span>
@@ -8025,7 +8930,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     href="http://localhost:3005"
                     target="_blank"
                     rel="noreferrer"
-                    className="font-mono text-indigo-400 hover:underline text-[11px]"
+                    className="font-mono text-slate-700 dark:text-slate-300 hover:underline text-[11px]"
                   >
                     http://localhost:3005 ↗
                   </a>
@@ -8044,7 +8949,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
             {/* Reset Password Form */}
             <div className="space-y-3 pt-1">
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Set New Password (या नया पासवर्ड बनाएं):
+                Set New Password:
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -8103,7 +9008,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
             )}
 
             {credErrorMsg && (
-              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold">
+              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold">
                 {credErrorMsg}
               </div>
             )}
@@ -8134,7 +9039,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
       {/* ======================================================== */}
       {createdCredentialsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
-          <div className="bg-[#0f131d] border border-slate-700 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150 text-slate-200">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-5 animate-in fade-in zoom-in-95 duration-150 text-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <span className="text-3xl">🎉</span>
@@ -8215,7 +9120,7 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   href="http://localhost:3005"
                   target="_blank"
                   rel="noreferrer"
-                  className="font-mono text-indigo-400 hover:underline text-xs"
+                  className="font-mono text-slate-700 dark:text-slate-300 hover:underline text-xs"
                 >
                   http://localhost:3005 ↗
                 </a>
@@ -8239,9 +9144,276 @@ export const SuperAdminDashboardApp: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCreatedCredentialsModal(null)}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow transition"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow transition"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 21. REAL HOTEL LOCATION & GOOGLE MAPS PIN MODAL          */}
+      {/* ======================================================== */}
+      {managingLocationTenant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-sky-500/40 rounded-3xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-6 shadow-sm dark:shadow-none space-y-4 animate-in fade-in zoom-in-95 duration-150 text-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">📍</span>
+                <div>
+                  <h3 className="font-bold text-base text-white">Real Property Location & Google Maps Geocoding</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {managingLocationTenant.name} &bull; <span className="font-mono text-slate-300">{managingLocationTenant.slug}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManagingLocationTenant(null)}
+                className="text-slate-400 hover:text-white font-bold text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-sky-950/30 border border-sky-500/30 text-xs text-sky-200 leading-relaxed">
+              <strong>Interactive Google Maps Positioning:</strong> Enter the exact GPS latitude and longitude of this hotel, or choose a quick city preset. When saved, the map pin moves directly to the physical property and links straight to Google Maps.
+            </div>
+
+            {/* Quick Coordinate Search / Paste */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-slate-400 uppercase">
+                Quick Paste GPS Coordinates or Google Maps Link
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={locSearchQuery}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setLocSearchQuery(val);
+                    const match = val.match(/([-+]?\d{1,2}\.\d+)[,\s]+([-+]?\d{1,3}\.\d+)/);
+                    if (match) {
+                      const lat = parseFloat(match[1]);
+                      const lng = parseFloat(match[2]);
+                      if (!isNaN(lat) && !isNaN(lng)) {
+                        setLocLatitude(lat);
+                        setLocLongitude(lng);
+                        setLocGoogleMapUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+                      }
+                    }
+                  }}
+                  placeholder="Paste e.g. 26.9124, 75.7873 to auto-fill latitude & longitude"
+                  className="flex-1 px-3 py-2 rounded-xl bg-black/50 border border-slate-700 text-xs text-white"
+                />
+              </div>
+            </div>
+
+            {/* Quick City Presets */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase">
+                <span>Quick City Pin Presets</span>
+                <span className="text-[10px] text-slate-500 font-normal">Click to position pin at city center</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { city: 'Jaipur', state: 'Rajasthan', lat: 26.9124, lng: 75.7873 },
+                  { city: 'Udaipur', state: 'Rajasthan', lat: 24.5854, lng: 73.7125 },
+                  { city: 'Jodhpur', state: 'Rajasthan', lat: 26.2389, lng: 73.0243 },
+                  { city: 'Delhi', state: 'Delhi', lat: 28.6139, lng: 77.2090 },
+                  { city: 'Mumbai', state: 'Maharashtra', lat: 19.0760, lng: 72.8777 },
+                  { city: 'Bengaluru', state: 'Karnataka', lat: 12.9716, lng: 77.5946 },
+                  { city: 'Goa', state: 'Goa', lat: 15.2993, lng: 74.1240 },
+                  { city: 'Shimla', state: 'Himachal Pradesh', lat: 31.1048, lng: 77.1734 },
+                  { city: 'Kolkata', state: 'West Bengal', lat: 22.5726, lng: 88.3639 },
+                ].map((item) => (
+                  <button
+                    key={item.city}
+                    type="button"
+                    onClick={() => {
+                      setLocCity(item.city);
+                      setLocState(item.state);
+                      setLocLatitude(item.lat);
+                      setLocLongitude(item.lng);
+                      setLocGoogleMapUrl(`https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}`);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                  >
+                    {item.city}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Address fields */}
+            <div className="space-y-3 pt-2 border-t border-slate-800">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
+                  Street Address / Road / Landmark
+                </label>
+                <input
+                  type="text"
+                  value={locStreet}
+                  onChange={(e) => setLocStreet(e.target.value)}
+                  placeholder="e.g. Near Hawa Mahal, Johari Bazar"
+                  className="w-full px-3 py-2 rounded-xl bg-black/50 border border-slate-700 text-xs text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">City</label>
+                  <input
+                    type="text"
+                    value={locCity}
+                    onChange={(e) => setLocCity(e.target.value)}
+                    placeholder="e.g. Jaipur"
+                    className="w-full px-3 py-2 rounded-xl bg-black/50 border border-slate-700 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">State</label>
+                  <input
+                    type="text"
+                    value={locState}
+                    onChange={(e) => setLocState(e.target.value)}
+                    placeholder="e.g. Rajasthan"
+                    className="w-full px-3 py-2 rounded-xl bg-black/50 border border-slate-700 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">Postal Code (PIN)</label>
+                  <input
+                    type="text"
+                    value={locPincode}
+                    onChange={(e) => setLocPincode(e.target.value)}
+                    placeholder="e.g. 302002"
+                    className="w-full px-3 py-2 rounded-xl bg-black/50 border border-slate-700 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">Country</label>
+                  <input
+                    type="text"
+                    value={locCountry}
+                    onChange={(e) => setLocCountry(e.target.value)}
+                    placeholder="e.g. India"
+                    className="w-full px-3 py-2 rounded-xl bg-black/50 border border-slate-700 text-xs text-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Coordinates and Google Maps Link */}
+            <div className="space-y-3 pt-2 border-t border-slate-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
+                    Latitude
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={locLatitude}
+                    onChange={(e) => {
+                      const lat = parseFloat(e.target.value) || 0;
+                      setLocLatitude(lat);
+                      setLocGoogleMapUrl(`https://www.google.com/maps/search/?api=1&query=${lat},${locLongitude}`);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-black/60 border border-slate-700 text-xs text-amber-300 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
+                    Longitude
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={locLongitude}
+                    onChange={(e) => {
+                      const lng = parseFloat(e.target.value) || 0;
+                      setLocLongitude(lng);
+                      setLocGoogleMapUrl(`https://www.google.com/maps/search/?api=1&query=${locLatitude},${lng}`);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-black/60 border border-slate-700 text-xs text-amber-300 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-slate-400 uppercase">
+                  Google Maps URL (Direct Property Search)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    value={locGoogleMapUrl || `https://www.google.com/maps/search/?api=1&query=${locLatitude},${locLongitude}`}
+                    onChange={(e) => setLocGoogleMapUrl(e.target.value)}
+                    placeholder="https://www.google.com/maps/search/?api=1&query=..."
+                    className="flex-1 px-3 py-2 rounded-xl bg-black/50 border border-slate-700 text-xs text-slate-700 dark:text-slate-300 font-mono"
+                  />
+                  <a
+                    href={locGoogleMapUrl || `https://www.google.com/maps/search/?api=1&query=${locLatitude},${locLongitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-slate-700 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-slate-800 text-xs font-bold transition flex items-center gap-1.5 shrink-0"
+                  >
+                    <span>🌐</span>
+                    <span>Open in Maps ↗</span>
+                  </a>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
+                  Location Notes / Proximity Notes
+                </label>
+                <input
+                  type="text"
+                  value={locNotes}
+                  onChange={(e) => setLocNotes(e.target.value)}
+                  placeholder="e.g. 500m geofence active, prime tourist heritage district"
+                  className="w-full px-3 py-2 rounded-xl bg-black/50 border border-slate-700 text-xs text-white"
+                />
+              </div>
+            </div>
+
+            {locSuccessMsg && (
+              <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2">
+                <span>✓</span>
+                <span>{locSuccessMsg}</span>
+              </div>
+            )}
+
+            {locErrorMsg && (
+              <div className="p-3 rounded-2xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs font-bold flex items-center gap-2">
+                <span>✕</span>
+                <span>{locErrorMsg}</span>
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setManagingLocationTenant(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSavingLocation}
+                onClick={() => void handleSaveLocation()}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white shadow-md transition disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <span>📍</span>
+                <span>{isSavingLocation ? 'Saving Location…' : 'Save Real Location & Move Pin'}</span>
               </button>
             </div>
           </div>

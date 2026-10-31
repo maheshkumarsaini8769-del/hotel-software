@@ -106,9 +106,60 @@ export const getRevenueStrategies = async (
       return;
     }
 
-    const strategies = await RevenueStrategy.find({ hotelId })
+    let strategies = await RevenueStrategy.find({ hotelId })
       .populate('roomTypeId', 'name code basePriceOvernight totalRoomsCount')
       .sort({ createdAt: -1 });
+
+    if (strategies.length === 0) {
+      let roomTypes = await RoomType.find({ hotelId });
+      if (roomTypes.length === 0) {
+        const defaultRoomTypes = [
+          { hotelId, name: 'Deluxe Heritage Room', code: 'DLX', basePriceOvernight: 3200, totalRoomsCount: 10, isActive: true },
+          { hotelId, name: 'Royal Heritage Suite', code: 'STE', basePriceOvernight: 6500, totalRoomsCount: 5, isActive: true },
+          { hotelId, name: 'Standard AC Room', code: 'STD', basePriceOvernight: 2200, totalRoomsCount: 8, isActive: true },
+        ];
+        try {
+          roomTypes = (await RoomType.insertMany(defaultRoomTypes)) as any;
+        } catch {
+          roomTypes = await RoomType.find({ hotelId });
+        }
+      }
+
+      if (roomTypes.length > 0) {
+        const defaultSurgeTiers = [
+          { tierName: 'LOW_DEMAND', minOccupancyPercent: 0, maxOccupancyPercent: 40, multiplier: 0.9, fixedAdjustment: 0 },
+          { tierName: 'STANDARD', minOccupancyPercent: 41, maxOccupancyPercent: 70, multiplier: 1.0, fixedAdjustment: 0 },
+          { tierName: 'HIGH_DEMAND', minOccupancyPercent: 71, maxOccupancyPercent: 85, multiplier: 1.25, fixedAdjustment: 0 },
+          { tierName: 'PEAK_SURGE', minOccupancyPercent: 86, maxOccupancyPercent: 100, multiplier: 1.5, fixedAdjustment: 0 },
+        ];
+
+        const toInsert = roomTypes.map((rt) => {
+          const base = rt.basePriceOvernight || 3200;
+          return {
+            hotelId,
+            roomTypeId: rt._id,
+            strategyName: `${rt.name} Dynamic Yield Strategy`,
+            isActive: true,
+            basePrice: base,
+            minPriceFloor: Math.round(base * 0.75),
+            maxPriceCeiling: Math.round(base * 2.2),
+            surgeTiers: defaultSurgeTiers,
+            weekendMultiplier: 1.15,
+            competitorBenchmarks: [
+              { competitorName: 'Taj Lake Palace Luxury', benchmarkPrice: Math.round(base * 1.3), lastUpdated: new Date() },
+              { competitorName: 'Radisson Blu City Center', benchmarkPrice: Math.round(base * 1.1), lastUpdated: new Date() },
+              { competitorName: 'Heritage Haveli Suites', benchmarkPrice: Math.round(base * 0.95), lastUpdated: new Date() },
+            ],
+            notes: 'Automated occupancy-driven yield optimization strategy',
+          };
+        });
+
+        await RevenueStrategy.insertMany(toInsert);
+        strategies = await RevenueStrategy.find({ hotelId })
+          .populate('roomTypeId', 'name code basePriceOvernight totalRoomsCount')
+          .sort({ createdAt: -1 });
+      }
+    }
 
     res.status(200).json({
       success: true,

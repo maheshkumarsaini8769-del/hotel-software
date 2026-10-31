@@ -372,9 +372,9 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
   );
 
   return (
-    <div className="min-h-screen bg-[#070b12] text-slate-100 flex flex-col font-sans select-none">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans select-none">
       {/* Top Header */}
-      <header className="sticky top-0 z-30 bg-[#0d1424]/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center font-black text-slate-950 text-xl shadow-lg shadow-amber-500/20">
             S
@@ -426,9 +426,9 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
 
         {/* Validation Error Alert */}
         {validationError && (
-          <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold flex items-center justify-between">
+          <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold flex items-center justify-between">
             <span>⚠️ {validationError}</span>
-            <button onClick={() => setValidationError(null)} className="text-rose-400 font-bold ml-2">✕</button>
+            <button onClick={() => setValidationError(null)} className="text-red-400 font-bold ml-2">✕</button>
           </div>
         )}
 
@@ -525,7 +525,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                   <button
                     type="button"
                     onClick={stopCamera}
-                    className="text-xs font-semibold text-rose-400 hover:text-rose-300 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20"
+                    className="text-xs font-semibold text-red-400 hover:text-red-300 px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/20"
                   >
                     Close Camera
                   </button>
@@ -536,7 +536,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                 <div className="relative rounded-2xl overflow-hidden bg-black aspect-video flex items-center justify-center border border-amber-500/50 shadow-inner">
                   <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                   <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-                    <div className="w-48 h-48 border-2 border-amber-400/90 rounded-2xl relative animate-pulse shadow-2xl">
+                    <div className="w-48 h-48 border-2 border-amber-400/90 rounded-2xl relative animate-pulse shadow-sm dark:shadow-none">
                       <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent top-1/2 -translate-y-1/2 shadow-lg shadow-amber-400" />
                     </div>
                     <span className="text-[11px] font-bold text-amber-200 mt-3 bg-black/60 px-3 py-1 rounded-full backdrop-blur-md">
@@ -562,7 +562,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
               )}
 
               {cameraError && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs">
                   <span className="font-bold">Camera Notice: </span>
                   {cameraError}
                 </div>
@@ -699,7 +699,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                       <button
                         type="button"
                         onClick={stopCamera}
-                        className="text-xs font-semibold text-rose-400 hover:text-rose-300 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20"
+                        className="text-xs font-semibold text-red-400 hover:text-red-300 px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/20"
                       >
                         Close Camera
                       </button>
@@ -710,7 +710,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                     <div className="relative rounded-2xl overflow-hidden bg-black aspect-video flex items-center justify-center border border-blue-500/50 shadow-inner">
                       <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                       <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-                        <div className="w-48 h-48 border-2 border-blue-400/90 rounded-2xl relative animate-pulse shadow-2xl">
+                        <div className="w-48 h-48 border-2 border-blue-400/90 rounded-2xl relative animate-pulse shadow-sm dark:shadow-none">
                           <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent top-1/2 -translate-y-1/2 shadow-lg shadow-blue-400" />
                         </div>
                         <span className="text-[11px] font-bold text-blue-200 mt-3 bg-black/60 px-3 py-1 rounded-full backdrop-blur-md">
@@ -749,7 +749,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                   </div>
 
                   {stayVerifyError && (
-                    <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex flex-col gap-2">
+                    <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex flex-col gap-2">
                       <div className="flex items-start gap-2">
                         <span>⚠️</span>
                         <span>{stayVerifyError}</span>
@@ -878,7 +878,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
         >
-          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-[#0d1424] p-6 shadow-2xl flex flex-col gap-4 max-h-[85vh]">
+          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-950 p-6 shadow-sm dark:shadow-none flex flex-col gap-4 max-h-[85vh]">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>
                 <h3 className="text-base font-black text-white">Select Hotel Property</h3>

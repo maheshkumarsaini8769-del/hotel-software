@@ -489,6 +489,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     if (user.hotelId) {
       const tenantDoc = await Tenant.findById(user.hotelId).lean();
       if (tenantDoc) {
+        if (tenantDoc.status === 'SUSPENDED' && user.role !== 'SUPERADMIN') {
+          res.status(403).json({
+            success: false,
+            errorCode: 'TENANT_SUSPENDED',
+            message: 'This hotel tenant has been suspended by the platform administrator. Access blocked.',
+          });
+          return;
+        }
         tenantData = {
           id: tenantDoc._id,
           name: tenantDoc.name,
@@ -966,12 +974,31 @@ export const sendPinOtp = async (req: Request, res: Response): Promise<void> => 
       expiresInMinutes: 10,
     });
 
+    if (!result.success) {
+      res.status(502).json({
+        success: false,
+        errorCode: 'EMAIL_DELIVERY_FAILED',
+        message: result.error || 'Failed to deliver OTP email. Please verify email service configuration.',
+      });
+      return;
+    }
+
+    const deliveredTo = result.deliveredTo || staff.email;
+    const isForwarded = Boolean(result.forwarded || (deliveredTo.toLowerCase() !== staff.email.toLowerCase()));
+
+    const message = isForwarded
+      ? `Verification OTP sent! Delivered to verified owner inbox (${deliveredTo}) for staff member ${staff.name} (${staff.email}). Please check your email inbox.`
+      : `Verification OTP sent to ${staff.email}. Valid for 10 minutes. Please check your email inbox.`;
+
     res.status(200).json({
       success: true,
-      message: `Verification OTP sent to ${staff.email}. Valid for 10 minutes. Please check your email inbox.`,
+      message,
       data: {
         email: staff.email,
         name: staff.name,
+        deliveredTo,
+        forwarded: isForwarded,
+        messageId: result.messageId,
         expiresInSeconds: 600,
       },
     });
@@ -1051,9 +1078,11 @@ export const verifyPinOtp = async (req: Request, res: Response): Promise<void> =
     // Clear used OTP
     staffPinOtpStore.delete(storeKey);
 
-    // Hash and store new verified PIN
+    // Hash and store new verified PIN (replaces previous PIN completely)
     const hashedPin = await argon2.hash(String(newPin));
+    staff.pinCode = String(newPin);
     staff.pinCodeHash = hashedPin;
+    staff.passwordHash = hashedPin;
     staff.pendingPinHash = undefined as any;
     staff.pinApprovedByAdmin = true;
     staff.pinStatus = 'ACTIVE';
@@ -1069,6 +1098,7 @@ export const verifyPinOtp = async (req: Request, res: Response): Promise<void> =
         name: staff.name,
         email: staff.email,
         role: staff.role,
+        pin: String(newPin),
         pinStatus: 'ACTIVE',
       },
     });

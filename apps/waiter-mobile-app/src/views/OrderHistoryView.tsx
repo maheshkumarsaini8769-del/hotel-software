@@ -44,7 +44,7 @@ export const OrderHistoryView: React.FC<OrderHistoryViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-5 gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold">
@@ -87,7 +87,7 @@ export const OrderHistoryView: React.FC<OrderHistoryViewProps> = ({
                 methodFilter === m
                   ? 'bg-blue-600 text-white shadow-sm'
                   : isDark
-                  ? 'bg-[#181c2b] text-slate-400 hover:text-white border border-slate-800'
+                  ? 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
               }`}
             >
@@ -112,12 +112,12 @@ export const OrderHistoryView: React.FC<OrderHistoryViewProps> = ({
 
       {/* Orders Table */}
       <div className={`flex-1 rounded-2xl border overflow-hidden flex flex-col ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="overflow-y-auto flex-1 custom-scrollbar">
           <table className="w-full text-left text-xs">
             <thead className={`sticky top-0 text-[11px] font-bold uppercase tracking-wider border-b ${
-              isDark ? 'bg-[#181c2b] border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
+              isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
             }`}>
               <tr>
                 <th className="p-3.5">Order ID</th>
@@ -143,7 +143,7 @@ export const OrderHistoryView: React.FC<OrderHistoryViewProps> = ({
                   <td className="p-3.5">
                     <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
                       row.method === 'UPI QR'
-                        ? 'bg-purple-500/20 text-purple-400'
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                         : row.method === 'Cash'
                         ? 'bg-emerald-500/20 text-emerald-400'
                         : row.method === 'Credit Card'

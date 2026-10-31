@@ -68,12 +68,12 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-[#0f131a] border border-purple-500/30 w-full max-w-3xl rounded-2xl p-6 shadow-2xl text-zinc-100 max-h-[92vh] flex flex-col">
+      <div className="bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-3xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <span className="text-purple-400">🔮</span> What-If Price Elasticity & Margin Simulator
+              <span className="text-slate-700 dark:text-slate-300">🔮</span> What-If Price Elasticity & Margin Simulator
             </h2>
             <p className="text-xs text-zinc-400 mt-0.5">
               Simulate menu price hikes, portion cost trims & customer demand elasticity before publishing menu changes.
@@ -101,7 +101,7 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
                 const found = allItems.find((i) => i.itemName === e.target.value);
                 if (found) setSelectedItem(found);
               }}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-purple-500"
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
             >
               {allItems.map((it, idx) => (
                 <option key={idx} value={it.itemName}>
@@ -117,7 +117,7 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="font-semibold text-zinc-300">Price Adjustment</span>
-                <span className={`font-mono font-bold ${priceDeltaPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <span className={`font-mono font-bold ${priceDeltaPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {priceDeltaPercent > 0 ? `+${priceDeltaPercent}%` : `${priceDeltaPercent}%`}
                 </span>
               </div>
@@ -137,7 +137,7 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="font-semibold text-zinc-300">Food Cost Trim</span>
-                <span className={`font-mono font-bold ${costDeltaPercent <= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <span className={`font-mono font-bold ${costDeltaPercent <= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {costDeltaPercent > 0 ? `+${costDeltaPercent}%` : `${costDeltaPercent}%`}
                 </span>
               </div>
@@ -208,8 +208,8 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
                 </div>
 
                 {/* Projected State */}
-                <div className="bg-purple-950/20 border border-purple-500/40 p-4 rounded-2xl space-y-2 text-xs">
-                  <span className="text-[11px] font-bold uppercase text-purple-400 block border-b border-purple-500/30 pb-1">
+                <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl space-y-2 text-xs">
+                  <span className="text-[11px] font-bold uppercase text-slate-700 dark:text-slate-300 block border-b border-slate-200 dark:border-slate-800 pb-1">
                     Projected Outcome Simulation
                   </span>
                   <div className="flex justify-between text-zinc-300">
@@ -228,13 +228,13 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
                     <span>Projected Volume:</span>
                     <strong className="font-mono text-amber-300">{simulation.projectedState.volume} units</strong>
                   </div>
-                  <div className="flex justify-between text-zinc-300 border-t border-purple-500/30 pt-1.5 font-bold">
+                  <div className="flex justify-between text-zinc-300 border-t border-slate-200 dark:border-slate-800 pt-1.5 font-bold">
                     <span>Projected Period Profit:</span>
                     <strong className="font-mono text-emerald-300">{MenuEngineeringHelper.formatCurrency(simulation.projectedState.totalProfit)}</strong>
                   </div>
                   <div className="flex justify-between items-center pt-1 text-[11px]">
                     <span className="text-zinc-400">Projected Quadrant:</span>
-                    <span className="font-bold text-purple-300">{simulation.projectedState.quadrant}</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{simulation.projectedState.quadrant}</span>
                   </div>
                 </div>
               </div>
@@ -252,7 +252,7 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
                 <div className="text-right">
                   <span
                     className={`text-2xl font-black font-mono ${
-                      simulation.impact.profitDifference >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      simulation.impact.profitDifference >= 0 ? 'text-emerald-400' : 'text-red-400'
                     }`}
                   >
                     {simulation.impact.profitDifference >= 0 ? '+' : ''}

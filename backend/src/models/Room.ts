@@ -20,6 +20,8 @@ export interface IRoom extends Document {
   currentStayId?: Types.ObjectId;
   keyCardNumber?: string;
   permanentQrCodeHash: string;
+  photos?: string[];
+  isAc?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +42,8 @@ const RoomSchema = new Schema<IRoom>(
     currentStayId: { type: Schema.Types.ObjectId, ref: 'Stay' },
     keyCardNumber: { type: String, trim: true },
     permanentQrCodeHash: { type: String, required: true },
+    photos: [{ type: String }],
+    isAc: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

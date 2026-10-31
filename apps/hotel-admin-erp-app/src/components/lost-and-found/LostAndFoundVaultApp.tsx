@@ -369,15 +369,15 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
             {metrics.highValueSecured}
           </span>
         </div>
-        <div className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-800/40 flex flex-col justify-between">
-          <span className="text-xs font-semibold text-purple-300 uppercase tracking-wider">Pending Dispatch</span>
-          <span data-testid="metric-pending-dispatch" className="text-2xl font-black text-purple-400 mt-1">
+        <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Pending Dispatch</span>
+          <span data-testid="metric-pending-dispatch" className="text-2xl font-black text-slate-700 dark:text-slate-300 mt-1">
             {metrics.pendingDispatch}
           </span>
         </div>
-        <div className="p-3.5 rounded-xl bg-cyan-950/30 border border-cyan-800/40 flex flex-col justify-between">
-          <span className="text-xs font-semibold text-cyan-300 uppercase tracking-wider">Courier Dispatched</span>
-          <span data-testid="metric-courier-dispatched" className="text-2xl font-black text-cyan-400 mt-1">
+        <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Courier Dispatched</span>
+          <span data-testid="metric-courier-dispatched" className="text-2xl font-black text-slate-700 dark:text-slate-300 mt-1">
             {metrics.courierDispatched}
           </span>
         </div>
@@ -387,9 +387,9 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
             {metrics.claimedInPerson}
           </span>
         </div>
-        <div className="p-3.5 rounded-xl bg-rose-950/30 border border-rose-800/40 flex flex-col justify-between">
-          <span className="text-xs font-semibold text-rose-300 uppercase tracking-wider">Retention Due</span>
-          <span data-testid="metric-retention-due" className="text-2xl font-black text-rose-400 mt-1">
+        <div className="p-3.5 rounded-xl bg-red-950/30 border border-red-800/40 flex flex-col justify-between">
+          <span className="text-xs font-semibold text-red-300 uppercase tracking-wider">Retention Due</span>
+          <span data-testid="metric-retention-due" className="text-2xl font-black text-red-400 mt-1">
             {metrics.retentionDueCount}
           </span>
         </div>
@@ -508,9 +508,9 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${
                           isDispatched
-                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                             : isVerified
-                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                             : isClaimed
                             ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                             : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
@@ -564,12 +564,12 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
 
                   {/* Courier Waybill Badge if Dispatched */}
                   {isDispatched && item.courierDispatch && (
-                    <div className="mb-3 p-2.5 rounded-xl bg-cyan-950/40 border border-cyan-800/60 text-xs">
-                      <div className="flex items-center justify-between text-cyan-300 font-semibold">
+                    <div className="mb-3 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs">
+                      <div className="flex items-center justify-between text-slate-700 dark:text-slate-300 font-semibold">
                         <span>🚚 {item.courierDispatch.courierPartner.replace(/_/g, ' ')}</span>
                         <span className="font-mono">{item.courierDispatch.waybillNumber}</span>
                       </div>
-                      <p className="text-[11px] text-cyan-200/80 mt-1">
+                      <p className="text-[11px] text-slate-700 dark:text-slate-300/80 mt-1">
                         To: {item.courierDispatch.recipientName} ({item.courierDispatch.shippingAddress.city})
                       </p>
                     </div>
@@ -577,12 +577,12 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
 
                   {/* Verification Badge if Verified */}
                   {isVerified && item.claimVerification && (
-                    <div className="mb-3 p-2.5 rounded-xl bg-purple-950/40 border border-purple-800/60 text-xs">
-                      <div className="flex items-center justify-between text-purple-300 font-semibold">
+                    <div className="mb-3 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs">
+                      <div className="flex items-center justify-between text-slate-700 dark:text-slate-300 font-semibold">
                         <span>✓ Verified Claimant</span>
                         <span>{item.claimVerification.matchConfidenceScore}% Match</span>
                       </div>
-                      <p className="text-[11px] text-purple-200/80 mt-1">
+                      <p className="text-[11px] text-slate-700 dark:text-slate-300/80 mt-1">
                         {item.claimVerification.claimantName} ({item.claimVerification.idProofType}{' '}
                         {item.claimVerification.idProofNumber})
                       </p>
@@ -614,7 +614,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                                 claimantName: item.guestName || '',
                               }));
                             }}
-                            className="px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs transition-colors"
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold text-xs transition-colors"
                           >
                             Verify Claim
                           </button>
@@ -630,7 +630,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                               recipientPhone: item.claimVerification?.claimantPhone || '',
                             }));
                           }}
-                          className="px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition-colors"
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-semibold text-xs transition-colors"
                         >
                           Courier
                         </button>
@@ -661,7 +661,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
       {/* MODAL 1: Log Found Asset Modal */}
       {logModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <span>🔐</span> Log Found Asset into Digital Vault
@@ -818,7 +818,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
       {/* MODAL 2: Verify Claim Modal */}
       {selectedItemForVerify && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <span>🛡️</span> Duty Manager Claim Verification
@@ -846,7 +846,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                     type="text"
                     value={verifyForm.claimantName}
                     onChange={(e) => setVerifyForm({ ...verifyForm, claimantName: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-purple-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                 </div>
                 <div>
@@ -857,7 +857,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                     type="text"
                     value={verifyForm.claimantPhone}
                     onChange={(e) => setVerifyForm({ ...verifyForm, claimantPhone: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-purple-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                 </div>
               </div>
@@ -868,7 +868,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                   <select
                     value={verifyForm.idProofType}
                     onChange={(e) => setVerifyForm({ ...verifyForm, idProofType: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-purple-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   >
                     <option value="AADHAAR">Govt Aadhaar Card</option>
                     <option value="PASSPORT">Passport</option>
@@ -885,7 +885,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                     placeholder="e.g. 4829-1029-4491"
                     value={verifyForm.idProofNumber}
                     onChange={(e) => setVerifyForm({ ...verifyForm, idProofNumber: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-purple-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                 </div>
               </div>
@@ -897,7 +897,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                   placeholder="e.g. Guest provided invoice and unlocked device with passcode."
                   value={verifyForm.verificationNotes}
                   onChange={(e) => setVerifyForm({ ...verifyForm, verificationNotes: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-purple-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                 />
               </div>
 
@@ -912,7 +912,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                 <button
                   data-testid="btn-submit-verify-claim"
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-950 transition-all"
+                  className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold text-xs shadow-lg shadow-sm transition-all"
                 >
                   Approve Verification
                 </button>
@@ -925,7 +925,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
       {/* MODAL 3: Courier Dispatch Modal */}
       {selectedItemForCourier && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <span>🚚</span> Prepare Courier Shipping Dispatch
@@ -951,7 +951,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                     data-testid="select-courier-partner"
                     value={courierForm.courierPartner}
                     onChange={(e) => setCourierForm({ ...courierForm, courierPartner: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   >
                     <option value="BLUE_DART">Blue Dart Express</option>
                     <option value="FEDEX">FedEx Express</option>
@@ -969,7 +969,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                     placeholder="e.g. BLUEDART-EXP-889912004"
                     value={courierForm.waybillNumber}
                     onChange={(e) => setCourierForm({ ...courierForm, waybillNumber: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                 </div>
               </div>
@@ -983,7 +983,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                     type="text"
                     value={courierForm.recipientName}
                     onChange={(e) => setCourierForm({ ...courierForm, recipientName: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                 </div>
                 <div>
@@ -994,7 +994,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                     type="text"
                     value={courierForm.recipientPhone}
                     onChange={(e) => setCourierForm({ ...courierForm, recipientPhone: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                 </div>
               </div>
@@ -1008,7 +1008,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                   placeholder="e.g. Penthouse 18, Worli Sea Face"
                   value={courierForm.street}
                   onChange={(e) => setCourierForm({ ...courierForm, street: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                 />
               </div>
 
@@ -1022,7 +1022,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                     placeholder="e.g. Mumbai"
                     value={courierForm.city}
                     onChange={(e) => setCourierForm({ ...courierForm, city: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                 </div>
                 <div>
@@ -1032,7 +1032,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                     placeholder="e.g. Maharashtra"
                     value={courierForm.state}
                     onChange={(e) => setCourierForm({ ...courierForm, state: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                 </div>
                 <div>
@@ -1042,7 +1042,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                     placeholder="e.g. 400018"
                     value={courierForm.pincode}
                     onChange={(e) => setCourierForm({ ...courierForm, pincode: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                 </div>
               </div>
@@ -1053,7 +1053,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                   <select
                     value={courierForm.shippingFeePaidBy}
                     onChange={(e) => setCourierForm({ ...courierForm, shippingFeePaidBy: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   >
                     <option value="GUEST">Guest Paid</option>
                     <option value="HOTEL_COMPLIMENTARY">Hotel Complimentary</option>
@@ -1067,7 +1067,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                     min="0"
                     value={courierForm.shippingFeeAmount}
                     onChange={(e) => setCourierForm({ ...courierForm, shippingFeeAmount: Number(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
                   />
                 </div>
               </div>
@@ -1083,7 +1083,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                 <button
                   data-testid="btn-submit-courier-dispatch"
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-lg shadow-cyan-950 transition-all"
+                  className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold text-xs shadow-lg shadow-sm transition-all"
                 >
                   Confirm Dispatch
                 </button>
@@ -1096,7 +1096,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
       {/* MODAL 4: In-Person Handover Modal */}
       {selectedItemForHandover && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-sm dark:shadow-none space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <span>🤝</span> Front Desk Handover
@@ -1182,7 +1182,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
       {/* MODAL 5: Custody Chain Audit Modal */}
       {selectedItemForCustody && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <span>📜</span> Chain of Custody Audit Log

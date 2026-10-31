@@ -56,7 +56,7 @@ export const DiningReservationCard: React.FC<DiningReservationCardProps> = ({
             <div className="font-bold text-amber-300 mt-0.5 flex items-center gap-1.5">
               <span>🕒 {ReservationHelper.formatTimeSlot(reservation.timeSlot)}</span>
               {isUpcoming && reservation.status === 'CONFIRMED' && (
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" title="Arrival window active"></span>
+                <span className="w-2 h-2 rounded-full bg-slate-800 animate-ping" title="Arrival window active"></span>
               )}
             </div>
           </div>
@@ -94,7 +94,7 @@ export const DiningReservationCard: React.FC<DiningReservationCardProps> = ({
             <button
               onClick={() => onCancel(reservation._id, true)}
               disabled={isLoading}
-              className="px-2.5 py-1.5 rounded-xl border border-rose-500/30 text-rose-300 hover:bg-rose-950/30 text-[11px] font-medium transition-colors cursor-pointer active:scale-95 disabled:opacity-50"
+              className="px-2.5 py-1.5 rounded-xl border border-red-500/30 text-red-300 hover:bg-red-950/30 text-[11px] font-medium transition-colors cursor-pointer active:scale-95 disabled:opacity-50"
             >
               No-Show
             </button>
@@ -129,7 +129,7 @@ export const DiningReservationCard: React.FC<DiningReservationCardProps> = ({
         )}
 
         {reservation.status === 'NO_SHOW' && (
-          <div className="w-full text-center py-1 text-xs text-rose-400 font-medium">
+          <div className="w-full text-center py-1 text-xs text-red-400 font-medium">
             Marked No-Show (Deposit Handled)
           </div>
         )}

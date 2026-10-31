@@ -75,9 +75,9 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       case 'guest_request':
         return <Users className="w-4 h-4 text-amber-400" />;
       case 'new_order':
-        return <Receipt className="w-4 h-4 text-cyan-400" />;
+        return <Receipt className="w-4 h-4 text-slate-700 dark:text-slate-300" />;
       case 'stock_alert':
-        return <AlertTriangle className="w-4 h-4 text-rose-400" />;
+        return <AlertTriangle className="w-4 h-4 text-red-400" />;
       default:
         return <Bell className="w-4 h-4 text-orange-400" />;
     }
@@ -88,7 +88,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       {/* Header */}
       <div
         className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-          isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}
       >
         <div className="flex items-center gap-3">
@@ -153,7 +153,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
               filter === f
                 ? 'bg-orange-500 text-white shadow-sm'
                 : isDark
-                ? 'bg-[#181c2b] text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                 : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
             }`}
           >
@@ -180,10 +180,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                 className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
                   !item.isRead
                     ? isDark
-                      ? 'bg-[#181c2b] border-orange-500/40 shadow-sm'
+                      ? 'bg-slate-900 border-orange-500/40 shadow-sm'
                       : 'bg-orange-50/70 border-orange-300 shadow-sm'
                     : isDark
-                    ? 'bg-[#121520] border-slate-800/80 opacity-80'
+                    ? 'bg-slate-900 border-slate-800/80 opacity-80'
                     : 'bg-white border-slate-200 opacity-80'
                 }`}
               >
@@ -195,8 +195,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                         : isReq
                         ? 'bg-amber-500/20 text-amber-400'
                         : isOrd
-                        ? 'bg-cyan-500/20 text-cyan-400'
-                        : 'bg-rose-500/20 text-rose-400'
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                        : 'bg-red-500/20 text-red-400'
                     }`}
                   >
                     {getIcon(item.type)}
@@ -237,7 +237,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
 
                   <button
                     onClick={() => handleDismiss(item.id)}
-                    className="p-1 rounded-lg text-slate-500 hover:text-rose-500 transition"
+                    className="p-1 rounded-lg text-slate-500 hover:text-red-500 transition"
                     title="Dismiss"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

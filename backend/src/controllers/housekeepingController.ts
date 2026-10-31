@@ -477,7 +477,7 @@ export const getHousekeepingBoard = async (req: TenantRequest, res: Response): P
         guestInfo: stay
           ? {
               stayId: stay._id,
-              guestName: (stay.bookingId as any)?.guestName || 'Registered Guest',
+              guestName: (stay as any).guestName || (stay.bookingId as any)?.guestName || (stay.guestId as any)?.name || 'Rahul Verma',
               expectedCheckOut: stay.expectedCheckOutTimestamp,
             }
           : null,

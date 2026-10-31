@@ -133,7 +133,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
       }`}>
         <div>
           <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -146,7 +146,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="p-2.5 rounded-xl border border-rose-900/40 bg-rose-950/20 text-rose-300 text-xs font-bold">
+          <div className="p-2.5 rounded-xl border border-red-900/40 bg-red-950/20 text-red-300 text-xs font-bold">
             <span>Today's Cash Payouts: </span>
             <strong className="text-white font-mono text-sm">₹{totalToday.toLocaleString('en-IN')}</strong>
           </div>
@@ -162,7 +162,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
           <span className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
             {error}
@@ -175,7 +175,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
       <div className="grid grid-cols-12 gap-4">
         <form onSubmit={handleAddExpense} className={`col-span-12 lg:col-span-4 p-4 rounded-2xl border space-y-3 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <h3 className="font-black text-xs text-white">Record Petty Cash Payment</h3>
 
@@ -243,7 +243,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         </form>
 
         <div className={`col-span-12 lg:col-span-8 p-4 rounded-2xl border space-y-3 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <h3 className="font-black text-xs text-white">Today's Petty Cash Outflows ({vouchers.length})</h3>
 
@@ -259,7 +259,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
           ) : (
             <div className="space-y-2">
               {vouchers.map((voucher) => (
-                <div key={voucher.id} className="p-3 rounded-xl border border-slate-800/80 bg-[#191c2b] flex items-center justify-between gap-4">
+                <div key={voucher.id} className="p-3 rounded-xl border border-slate-800/80 bg-slate-900 flex items-center justify-between gap-4">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-xs text-white">{voucher.description}</span>
@@ -272,7 +272,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="font-mono font-black text-sm text-rose-400">
+                  <div className="font-mono font-black text-sm text-red-400">
                     -₹{voucher.amount.toLocaleString('en-IN')}
                   </div>
                 </div>

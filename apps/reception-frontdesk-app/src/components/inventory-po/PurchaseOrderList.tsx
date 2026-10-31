@@ -95,7 +95,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
             return (
               <div
                 key={po._id}
-                className="bg-[#0f131a] rounded-2xl border border-zinc-800 hover:border-zinc-700 p-5 flex flex-col justify-between shadow-lg transition-all group"
+                className="bg-slate-900 rounded-2xl border border-zinc-800 hover:border-zinc-700 p-5 flex flex-col justify-between shadow-lg transition-all group"
               >
                 <div>
                   {/* Top Bar: PO # & Status */}

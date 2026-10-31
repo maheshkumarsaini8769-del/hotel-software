@@ -177,7 +177,7 @@ export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-zinc-100 flex flex-col font-sans select-none">
+    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans select-none">
       {/* Header */}
       <StoreRequisitionHeader
         metrics={metrics}
@@ -214,7 +214,7 @@ export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
         )}
 
         {activeTab === 'TRANSFERS' && (
-          <div className="bg-[#0f131a] rounded-2xl border border-zinc-800 p-5 space-y-4">
+          <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <div>
                 <h2 className="text-base font-bold text-white">Inter-Kitchen Stock Transfers</h2>

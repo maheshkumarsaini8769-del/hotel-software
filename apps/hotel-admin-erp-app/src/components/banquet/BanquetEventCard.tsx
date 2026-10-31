@@ -35,7 +35,7 @@ export const BanquetEventCard: React.FC<BanquetEventCardProps> = ({
   const balanceDue = booking.dueAmount;
 
   return (
-    <div className="bg-[#121721] rounded-2xl border border-zinc-800 hover:border-amber-500/40 p-5 transition-all shadow-lg flex flex-col justify-between">
+    <div className="bg-slate-900 rounded-2xl border border-zinc-800 hover:border-amber-500/40 p-5 transition-all shadow-lg flex flex-col justify-between">
       <div>
         {/* Top Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
@@ -97,7 +97,7 @@ export const BanquetEventCard: React.FC<BanquetEventCardProps> = ({
         </div>
 
         {/* Function Prospectus (BEO) Readiness Bar */}
-        <div className="bg-[#0b0e14] p-3 rounded-xl border border-zinc-800/80 mb-3 space-y-2">
+        <div className="bg-slate-950 p-3 rounded-xl border border-zinc-800/80 mb-3 space-y-2">
           <div className="flex items-center justify-between text-xs">
             <span className="text-zinc-400 font-medium">
               Function Prospectus (FP Checklist)
@@ -125,7 +125,7 @@ export const BanquetEventCard: React.FC<BanquetEventCardProps> = ({
         </div>
 
         {/* Financial Highlights */}
-        <div className="bg-[#0b0e14] p-3 rounded-xl border border-zinc-800/80 mb-4 grid grid-cols-2 gap-3 text-xs">
+        <div className="bg-slate-950 p-3 rounded-xl border border-zinc-800/80 mb-4 grid grid-cols-2 gap-3 text-xs">
           <div>
             <div className="text-zinc-500 font-medium">Contract Value (with GST)</div>
             <div className="text-sm font-bold text-zinc-200 mt-0.5">
@@ -177,7 +177,7 @@ export const BanquetEventCard: React.FC<BanquetEventCardProps> = ({
         {booking.status !== BanquetBookingStatus.COMPLETED && (
           <button
             onClick={() => onCompleteEvent(booking)}
-            className="py-1.5 px-2.5 rounded-xl bg-purple-950/60 hover:bg-purple-900 text-purple-300 font-medium text-xs border border-purple-800/40 transition-all text-center"
+            className="py-1.5 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-xs border border-slate-200 dark:border-slate-800 transition-all text-center"
             title="Complete event and release venue"
           >
             ✓ Complete

@@ -30,17 +30,49 @@ import {
 // 1. Get or Validate Table Session via Ephemeral QR Token
 export const accessTableByQR = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { hotelId, tableId, token } = req.query;
+    let { hotelId, tableId, token, table: queryTable, tableNumber } = req.query;
 
-    if (!hotelId || !tableId || !Types.ObjectId.isValid(hotelId as string) || !Types.ObjectId.isValid(tableId as string)) {
-      res.status(400).json({ success: false, errorCode: 'INVALID_QUERY', message: 'Missing or invalid hotelId or tableId' });
+    const tableTarget = (tableId || queryTable || tableNumber) as string;
+    if (!tableTarget) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_QUERY', message: 'Missing tableId or table identifier' });
       return;
     }
 
-    const table = await DiningTable.findOne({
-      _id: new Types.ObjectId(tableId as string),
-      hotelId: new Types.ObjectId(hotelId as string),
-    });
+    if (!hotelId || !Types.ObjectId.isValid(hotelId as string)) {
+      if (token) {
+        const found = await DiningTable.findOne({
+          $or: [{ qrTokenHash: String(token) }, { tableNumber: tableTarget }],
+        });
+        if (found) hotelId = found.hotelId.toString();
+      }
+      if (!hotelId) {
+        const found = await DiningTable.findOne({ tableNumber: tableTarget });
+        if (found) hotelId = found.hotelId.toString();
+      }
+      if (!hotelId) {
+        const defaultTenant = (await Tenant.findOne({ name: /mahesh/i })) || (await Tenant.findOne());
+        if (defaultTenant) hotelId = defaultTenant._id.toString();
+      }
+    }
+
+    if (!hotelId || !Types.ObjectId.isValid(hotelId as string)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_QUERY', message: 'Missing or invalid hotelId' });
+      return;
+    }
+
+    let table = null;
+    if (Types.ObjectId.isValid(tableTarget)) {
+      table = await DiningTable.findOne({
+        _id: new Types.ObjectId(tableTarget),
+        hotelId: new Types.ObjectId(hotelId as string),
+      });
+    }
+    if (!table) {
+      table = await DiningTable.findOne({
+        tableNumber: tableTarget,
+        hotelId: new Types.ObjectId(hotelId as string),
+      });
+    }
 
     if (!table) {
       res.status(404).json({ success: false, errorCode: 'TABLE_NOT_FOUND', message: 'Dining table does not exist' });
@@ -52,23 +84,28 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
 
     // Verify QR token if table has a registered qrTokenHash
     if (table.qrTokenHash) {
-      if (!token) {
-        res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Missing required QR security token' });
-        return;
-      }
-      const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
       const canonicalSeed = `table:${table.hotelId}:${table.tableNumber}`;
       const canonicalHash = crypto.createHash('sha256').update(canonicalSeed).digest('hex');
 
-      const matches =
-        tokenHash === table.qrTokenHash ||
-        String(token) === table.qrTokenHash ||
-        String(token) === canonicalSeed ||
-        tokenHash === canonicalHash;
+      if (token) {
+        const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
+        const matches =
+          tokenHash === table.qrTokenHash ||
+          String(token) === table.qrTokenHash ||
+          String(token) === canonicalSeed ||
+          tokenHash === canonicalHash;
 
-      if (!matches) {
-        res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Invalid or forged QR token' });
-        return;
+        if (!matches) {
+          res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Invalid or forged QR token' });
+          return;
+        }
+      } else {
+        // If token parameter is omitted from direct URL, verify against canonical table hash
+        const isCanonical = table.qrTokenHash === canonicalHash;
+        if (!isCanonical && isProduction()) {
+          res.status(403).json({ success: false, errorCode: 'INVALID_QR_TOKEN', message: 'Missing required QR security token' });
+          return;
+        }
       }
     }
 
@@ -84,14 +121,127 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
       }
     }
 
-    // Check if table currently has an active session
+    // Read optional existing session token from query or headers
+    const querySessionToken = (req.query.sessionToken || req.query.existingToken) as string;
+    const headerSessionToken = (req.headers['x-session-token'] as string) || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+    const clientSessionToken = querySessionToken || headerSessionToken;
+
+    // 1. Table operational status gating
+    if (effectiveTable.currentStatus === TableStatus.CLEANING || effectiveTable.currentStatus === TableStatus.DIRTY) {
+      res.status(409).json({
+        success: false,
+        errorCode: 'TABLE_NOT_AVAILABLE',
+        isOccupied: false,
+        isCleaning: true,
+        canOrder: false,
+        message: `Table ${effectiveTable.tableNumber} is currently undergoing sanitization/cleaning. Please select an available table or ask staff.`,
+        data: {
+          tableNumber: effectiveTable.tableNumber,
+          status: effectiveTable.currentStatus,
+          canOrder: false,
+        },
+      });
+      return;
+    }
+
+    if (effectiveTable.currentStatus === TableStatus.BILLING || effectiveTable.currentStatus === TableStatus.PAYMENT_SETTLED) {
+      res.status(409).json({
+        success: false,
+        errorCode: 'TABLE_BILLING_IN_PROGRESS',
+        isOccupied: true,
+        canOrder: false,
+        message: `Table ${effectiveTable.tableNumber} is currently settling the bill. New food orders cannot be placed.`,
+        data: {
+          tableNumber: effectiveTable.tableNumber,
+          status: effectiveTable.currentStatus,
+          canOrder: false,
+        },
+      });
+      return;
+    }
+
+    // 2. Check if table currently has an active session
     let session = null;
     if (effectiveTable.activeSessionId) {
       session = await TableSession.findById(effectiveTable.activeSessionId);
     }
+    if (!session) {
+      session = await TableSession.findOne({
+        hotelId: effectiveTable.hotelId,
+        tableId: effectiveTable._id,
+        status: SessionStatus.ACTIVE,
+      });
+    }
 
-    // If no active session, create a fresh ephemeral session token
-    if (!session || session.status === SessionStatus.CLOSED || session.status === SessionStatus.SETTLED) {
+    const tableCapacity = Number(effectiveTable.combinedCapacity || effectiveTable.capacity || 4);
+    const hasActiveSession = Boolean(session && session.status === SessionStatus.ACTIVE);
+
+    // Is the client already an authenticated member of this active session?
+    const isAuthorizedPartyMember = Boolean(
+      hasActiveSession &&
+      clientSessionToken &&
+      matchesTableSessionToken(clientSessionToken, session!)
+    );
+
+    const seatedGuests = session ? Number(session.guestCount || 0) : (effectiveTable.currentStatus === TableStatus.OCCUPIED ? tableCapacity : 0);
+    const isCapacityReached = seatedGuests >= tableCapacity && tableCapacity > 0;
+
+    // 3. Block unauthorized new device when table is full or occupied by seated guests
+    if (!isAuthorizedPartyMember && hasActiveSession && isCapacityReached) {
+      const displayCount = seatedGuests > 0 ? seatedGuests : tableCapacity;
+      res.status(409).json({
+        success: false,
+        errorCode: 'TABLE_ALREADY_OCCUPIED',
+        isOccupied: true,
+        isTableFull: true,
+        canOrder: false,
+        message: `Table ${effectiveTable.tableNumber} is currently occupied with ${displayCount} seated guests (Capacity: ${tableCapacity} seats). All seats are occupied. New food orders cannot be placed from this device.`,
+        data: {
+          isOccupied: true,
+          isTableFull: true,
+          canOrder: false,
+          tableId: effectiveTable._id.toString(),
+          tableNumber: effectiveTable.tableNumber,
+          section: effectiveTable.section,
+          capacity: tableCapacity,
+          guestCount: displayCount,
+          status: effectiveTable.currentStatus,
+          hotelId: String(effectiveTable.hotelId),
+          hotelName: hotel?.name || 'SpiceHub Hotel',
+          waiterEnabled,
+        },
+      });
+      return;
+    }
+
+    if (!isAuthorizedPartyMember && effectiveTable.currentStatus === TableStatus.OCCUPIED && !hasActiveSession) {
+      res.status(409).json({
+        success: false,
+        errorCode: 'TABLE_ALREADY_OCCUPIED',
+        isOccupied: true,
+        isTableFull: true,
+        canOrder: false,
+        message: `Table ${effectiveTable.tableNumber} is currently occupied by seated guests. New food orders cannot be placed from this device.`,
+        data: {
+          isOccupied: true,
+          isTableFull: true,
+          canOrder: false,
+          tableId: effectiveTable._id.toString(),
+          tableNumber: effectiveTable.tableNumber,
+          section: effectiveTable.section,
+          capacity: tableCapacity,
+          guestCount: tableCapacity,
+          status: effectiveTable.currentStatus,
+          hotelId: String(effectiveTable.hotelId),
+          hotelName: hotel?.name || 'SpiceHub Hotel',
+          waiterEnabled,
+        },
+      });
+      return;
+    }
+
+    // 4. If no active session, create a fresh ephemeral session token for new party
+    if (!session || session.status !== SessionStatus.ACTIVE) {
       const ephemeralRawToken = crypto.randomBytes(32).toString('hex');
       const tokenHash = crypto.createHash('sha256').update(ephemeralRawToken).digest('hex');
 
@@ -100,6 +250,7 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
         tableId: effectiveTable._id,
         sessionTokenHash: tokenHash,
         status: SessionStatus.ACTIVE,
+        guestCount: Math.min(tableCapacity, 2),
       });
 
       // Update table to OCCUPIED and bind session
@@ -129,13 +280,21 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
           }),
           sessionId: session._id,
           status: session.status,
+          guestCount: session.guestCount,
           waiterEnabled,
+          canOrder: true,
         },
       });
       return;
     }
 
-    // Join existing active table session
+    // 5. Existing active session within capacity: update guest count if companion joining
+    if (!isAuthorizedPartyMember && seatedGuests < tableCapacity) {
+      session.guestCount = Math.min(tableCapacity, (session.guestCount || 1) + 1);
+      await session.save();
+    }
+
+    // Join or resume existing active table session
     res.status(200).json({
       success: true,
       message: effectiveTable.isMerged
@@ -160,6 +319,7 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
         status: session.status,
         guestCount: session.guestCount,
         waiterEnabled,
+        canOrder: true,
       },
     });
   } catch (error: any) {
@@ -696,15 +856,24 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
     }
 
     if (!staffAuthenticated) {
-      const presentedToken = String(sessionToken || qrSessionToken || '');
+      const presentedToken = String(sessionToken || qrSessionToken || req.headers['x-session-token'] || '');
       const legacyDemoTokenAccepted =
         isDevAuthBypassEnabled() &&
         Boolean(session.sessionTokenHash) &&
         String(sessionToken || '') === String(session.sessionTokenHash);
 
-      const isInvalidToken = presentedToken && !legacyDemoTokenAccepted && !matchesTableSessionToken(presentedToken, session);
+      const isValidToken = matchesTableSessionToken(presentedToken, session) || legacyDemoTokenAccepted;
 
-      if (isInvalidToken || (!isDevAuthBypassEnabled() && process.env.NODE_ENV !== 'test' && !legacyDemoTokenAccepted && !matchesTableSessionToken(presentedToken, session))) {
+      if (process.env.NODE_ENV !== 'test') {
+        if (!isValidToken) {
+          res.status(403).json({
+            success: false,
+            errorCode: 'INVALID_QR_SESSION',
+            message: 'A valid QR table session token or staff login is required to place this order',
+          });
+          return;
+        }
+      } else if (presentedToken && !isValidToken) {
         res.status(403).json({
           success: false,
           errorCode: 'INVALID_QR_SESSION',
@@ -714,9 +883,31 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
       }
     }
 
+    // Table Status & Capacity Verification
+    const diningTable = await DiningTable.findById(session.tableId);
+    if (diningTable && (diningTable.currentStatus === TableStatus.BILLING || diningTable.currentStatus === TableStatus.PAYMENT_SETTLED)) {
+      res.status(409).json({
+        success: false,
+        errorCode: 'TABLE_BILLING_IN_PROGRESS',
+        message: `Table ${diningTable.tableNumber} is currently settling the bill or payment completed. Cannot add new food orders.`,
+      });
+      return;
+    }
+
+    const tableCapacity = Number(diningTable?.combinedCapacity || diningTable?.capacity || 4);
     const requestedGuestCount = Number(req.body?.guestCount);
-    if (Number.isInteger(requestedGuestCount) && requestedGuestCount > 0 && requestedGuestCount <= 50) {
+    if (Number.isInteger(requestedGuestCount) && requestedGuestCount > 0) {
+      if (requestedGuestCount > tableCapacity) {
+        res.status(400).json({
+          success: false,
+          errorCode: 'EXCEEDS_TABLE_CAPACITY',
+          message: `Guest count (${requestedGuestCount}) exceeds maximum table capacity of ${tableCapacity} seats.`,
+        });
+        return;
+      }
       session.guestCount = requestedGuestCount;
+    } else if (!session.guestCount) {
+      session.guestCount = Math.min(tableCapacity, 2);
     }
 
     // Authoritative Price Revalidation directly from DB
@@ -1389,6 +1580,10 @@ export const seatTableWalkIn = async (req: TenantRequest, res: Response): Promis
   }
 };
 
+// High-performance In-Memory Cache for Menu Catalog (TTL: 5 seconds)
+const menuCatalogCache = new Map<string, { timestamp: number; data: any }>();
+export const invalidateMenuCache = () => menuCatalogCache.clear();
+
 // 7. Get Dining Menu Items (Public / Protected)
 export const getDiningMenu = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -1404,6 +1599,16 @@ export const getDiningMenu = async (req: Request, res: Response): Promise<void> 
     }
 
     const { categoryId, foodType, search, inStockOnly } = req.query;
+    const cacheKey = `${hotelId}_${categoryId || ''}_${foodType || ''}_${search || ''}_${inStockOnly || ''}`;
+    const cached = menuCatalogCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 5000) {
+      res.status(200).json({
+        success: true,
+        data: cached.data,
+      });
+      return;
+    }
+
     const filter: any = { hotelId: new Types.ObjectId(hotelId as string) };
 
     if (categoryId) {
@@ -1421,9 +1626,10 @@ export const getDiningMenu = async (req: Request, res: Response): Promise<void> 
 
     const items = await MenuItem.find(filter)
       .populate('categoryId', 'name')
-      .sort({ name: 1 });
-    const formatted = items.map((i) => {
-      const category = (i as any).categoryId;
+      .sort({ name: 1 })
+      .lean();
+    const formatted = items.map((i: any) => {
+      const category = i.categoryId;
       return {
         id: i._id.toString(),
         name: i.name,
@@ -1443,6 +1649,8 @@ export const getDiningMenu = async (req: Request, res: Response): Promise<void> 
         variants: i.variants,
       };
     });
+
+    menuCatalogCache.set(cacheKey, { timestamp: Date.now(), data: formatted });
 
     res.status(200).json({
       success: true,
@@ -1690,7 +1898,9 @@ export const getKdsOrders = async (req: TenantRequest, res: Response): Promise<v
     const orders = await RestaurantOrder.find(filter)
       .populate('tableId', 'tableNumber section floor')
       .populate('roomId', 'roomNumber')
-      .sort({ placedAt: 1 });
+      .sort({ placedAt: 1 })
+      .limit(50)
+      .lean();
 
     res.status(200).json({
       success: true,
@@ -2261,3 +2471,71 @@ export const acknowledgeKitchenBuzzer = async (req: Request, res: Response): Pro
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// 13. Update Table Session Pax Count (Immediate Guest Count Confirmation)
+export const updateTableSessionPax = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { hotelId, tableId, tableSessionId, sessionToken, guestCount } = req.body;
+    if (!hotelId || (!tableId && !tableSessionId)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_REQUEST', message: 'Missing hotelId or table identifier' });
+      return;
+    }
+
+    let session = null;
+    if (tableSessionId && Types.ObjectId.isValid(tableSessionId)) {
+      session = await TableSession.findOne({
+        _id: new Types.ObjectId(tableSessionId),
+        hotelId: new Types.ObjectId(hotelId),
+        status: SessionStatus.ACTIVE,
+      });
+    }
+    if (!session && tableId && Types.ObjectId.isValid(tableId)) {
+      session = await TableSession.findOne({
+        tableId: new Types.ObjectId(tableId),
+        hotelId: new Types.ObjectId(hotelId),
+        status: SessionStatus.ACTIVE,
+      });
+    }
+
+    if (!session) {
+      res.status(404).json({ success: false, errorCode: 'SESSION_NOT_FOUND', message: 'Active table session not found' });
+      return;
+    }
+
+    const table = await DiningTable.findById(session.tableId);
+    const tableCapacity = Number(table?.combinedCapacity || table?.capacity || 4);
+
+    const paxNum = Number(guestCount);
+    if (!Number.isInteger(paxNum) || paxNum < 1) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PAX', message: 'Guest count must be a positive number' });
+      return;
+    }
+
+    session.guestCount = Math.min(tableCapacity, Math.max(1, paxNum));
+    await session.save();
+
+    const isFull = session.guestCount >= tableCapacity;
+    io.to(`${hotelId}_global`).to(`${hotelId}_pos`).to(`${hotelId}_waiters`).emit('table:pax_updated', {
+      tableId: session.tableId.toString(),
+      sessionId: session._id.toString(),
+      guestCount: session.guestCount,
+      capacity: tableCapacity,
+      isTableFull: isFull,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Table pax updated to ${session.guestCount}`,
+      data: {
+        sessionId: session._id,
+        tableId: session.tableId,
+        guestCount: session.guestCount,
+        capacity: tableCapacity,
+        isTableFull: isFull,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: err.message });
+  }
+};
+

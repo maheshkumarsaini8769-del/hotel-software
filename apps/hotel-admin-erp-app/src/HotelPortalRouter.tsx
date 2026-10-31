@@ -100,7 +100,7 @@ export const HotelPortalRouter: React.FC = () => {
         demoEmail="admin@tajgateway.com"
         demoPassword="SpiceHub@123"
       >
-        <div className="min-h-screen bg-[#07090e] flex flex-col items-center justify-center p-4">
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
           <SpiceHubPortalDirectoryModal
             isOpen={true}
             onClose={() => navigatePortal('admin')}

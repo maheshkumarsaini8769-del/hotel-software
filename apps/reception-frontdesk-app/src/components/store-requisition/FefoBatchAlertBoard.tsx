@@ -31,7 +31,7 @@ export const FefoBatchAlertBoard: React.FC<FefoBatchAlertBoardProps> = ({
         <div className="flex items-center gap-4">
           <div className="bg-black/60 px-4 py-2 rounded-xl border border-zinc-800">
             <span className="text-[10px] text-zinc-400 uppercase font-semibold block">Total At-Risk Value</span>
-            <span className="text-lg font-black font-mono text-rose-400">
+            <span className="text-lg font-black font-mono text-red-400">
               {StoreRequisitionHelper.formatCurrency(fefoMetrics.totalAtRiskValue)}
             </span>
           </div>
@@ -52,11 +52,11 @@ export const FefoBatchAlertBoard: React.FC<FefoBatchAlertBoardProps> = ({
             return (
               <div
                 key={b._id}
-                className={`p-5 rounded-2xl bg-[#0f131a] border transition-all shadow-md flex flex-col justify-between ${
+                className={`p-5 rounded-2xl bg-slate-900 border transition-all shadow-md flex flex-col justify-between ${
                   b.status === 'EXPIRING_SOON'
-                    ? 'border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                    ? 'border-amber-500/60 shadow-sm dark:shadow-none'
                     : b.status === 'EXPIRED'
-                    ? 'border-red-500/60 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                    ? 'border-red-500/60 shadow-sm dark:shadow-none'
                     : 'border-zinc-800 hover:border-zinc-700'
                 }`}
               >

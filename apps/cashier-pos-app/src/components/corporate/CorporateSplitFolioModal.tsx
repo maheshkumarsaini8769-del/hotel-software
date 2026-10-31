@@ -54,9 +54,9 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="bg-[#121721] border border-amber-500/30 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden text-xs text-zinc-300">
+      <div className="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden text-xs text-zinc-300">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-[#0b0e14]">
+        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-slate-950">
           <div>
             <div className="flex items-center gap-2">
               <span className="font-mono text-amber-400 font-bold">{group.groupBookingCode}</span>
@@ -88,7 +88,7 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
         </div>
 
         {/* View Switcher Tabs */}
-        <div className="px-6 py-2.5 bg-[#0e131d] border-b border-zinc-800/80 flex items-center gap-2">
+        <div className="px-6 py-2.5 bg-slate-950 border-b border-zinc-800/80 flex items-center gap-2">
           <button
             onClick={() => setActiveTab('SPLIT_VIEW')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
@@ -134,7 +134,7 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
               {activeTab === 'SPLIT_VIEW' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Left: Corporate B2B Account */}
-                  <div className="bg-[#0b0e14] p-5 rounded-2xl border border-zinc-800 flex flex-col justify-between">
+                  <div className="bg-slate-950 p-5 rounded-2xl border border-zinc-800 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
                         <div className="flex items-center gap-2">
@@ -163,7 +163,7 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
                       </div>
 
                       {/* Line Item Summary */}
-                      <div className="bg-[#121721] p-3.5 rounded-xl border border-zinc-800 space-y-2 mb-4">
+                      <div className="bg-slate-900 p-3.5 rounded-xl border border-zinc-800 space-y-2 mb-4">
                         <div className="flex justify-between text-zinc-400">
                           <span>Total Room Tariffs:</span>
                           <span className="text-zinc-200 font-semibold">
@@ -204,7 +204,7 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
                   </div>
 
                   {/* Right: Individual Guest Folios */}
-                  <div className="bg-[#0b0e14] p-5 rounded-2xl border border-zinc-800 flex flex-col justify-between">
+                  <div className="bg-slate-950 p-5 rounded-2xl border border-zinc-800 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
                         <div className="flex items-center gap-2">
@@ -227,7 +227,7 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
                           individualInvoices.map((inv, idx) => (
                             <div
                               key={idx}
-                              className="bg-[#121721] p-3 rounded-xl border border-zinc-800 space-y-1.5"
+                              className="bg-slate-900 p-3 rounded-xl border border-zinc-800 space-y-1.5"
                             >
                               <div className="flex items-center justify-between">
                                 <div>
@@ -283,7 +283,7 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
 
               {/* TAB 2: CORPORATE B2B INVOICE VIEW */}
               {activeTab === 'CORPORATE_B2B' && (
-                <div className="bg-[#0b0e14] p-6 rounded-2xl border border-zinc-800 space-y-4 font-sans">
+                <div className="bg-slate-950 p-6 rounded-2xl border border-zinc-800 space-y-4 font-sans">
                   <div className="flex justify-between items-start pb-4 border-b border-zinc-800">
                     <div>
                       <h2 className="text-lg font-bold text-white">TAX INVOICE (B2B)</h2>
@@ -314,7 +314,7 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
                   </div>
 
                   <table className="w-full text-left text-xs border border-zinc-800 rounded-xl overflow-hidden">
-                    <thead className="bg-[#121721] text-zinc-400 uppercase text-[10px]">
+                    <thead className="bg-slate-900 text-zinc-400 uppercase text-[10px]">
                       <tr>
                         <th className="p-3">Description</th>
                         <th className="p-3 text-right">Qty</th>
@@ -358,7 +358,7 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
               {activeTab === 'INDIVIDUAL_FOLIOS' && (
                 <div className="space-y-4">
                   {individualInvoices.map((inv, idx) => (
-                    <div key={idx} className="bg-[#0b0e14] p-4 rounded-xl border border-zinc-800">
+                    <div key={idx} className="bg-slate-950 p-4 rounded-xl border border-zinc-800">
                       <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
                         <div>
                           <span className="text-sm font-bold text-white">

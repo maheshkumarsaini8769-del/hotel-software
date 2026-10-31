@@ -57,6 +57,7 @@ const DEFAULT_MENU_ITEMS: Array<{
   isVeg: boolean;
   description: string;
 }> = [
+  { id: 'm-0', name: 'Paneer Tikka', category: 'Starters', price: 260, isVeg: true, description: 'Spiced cottage cheese cubes charred to perfection in tandoor' },
   { id: 'm-1', name: 'Paneer Butter Masala', category: 'Main Course', price: 320, isVeg: true, description: 'Cottage cheese cubes in rich spiced butter gravy' },
   { id: 'm-2', name: 'Butter Naan', category: 'Breads & Rice', price: 60, isVeg: true, description: 'Traditional clay oven tandoori bread with butter' },
   { id: 'm-3', name: 'Dal Makhani', category: 'Main Course', price: 280, isVeg: true, description: 'Slow cooked black lentils with cream and spices' },
@@ -103,23 +104,7 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
   const [mobileTab, setMobileTab] = useState<'menu' | 'cart'>('menu');
 
   // Cart state: item dictionary
-  const [cartItems, setCartItems] = useState<QuickKotPunchItem[]>([
-    // Starter default: 1 Butter Naan & 1 Dal Makhani to let waiter test quickly or edit
-    {
-      menuItemId: 'm-2',
-      name: 'Butter Naan',
-      unitPrice: 60,
-      quantity: 2,
-      isVeg: true,
-    },
-    {
-      menuItemId: 'm-3',
-      name: 'Dal Makhani',
-      unitPrice: 280,
-      quantity: 1,
-      isVeg: true,
-    },
-  ]);
+  const [cartItems, setCartItems] = useState<QuickKotPunchItem[]>([]);
 
   // Handle table switch
   const handleTableChange = (newTbl: string) => {
@@ -287,11 +272,11 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
   }, [allTables, assignedStart, assignedEnd, activeTable]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
       <div
-        className={`w-full max-w-4xl h-[92vh] max-h-[860px] rounded-2xl shadow-2xl flex flex-col overflow-hidden border transition-colors ${
+        className={`w-full max-w-2xl h-[90vh] sm:h-[85vh] max-h-[820px] rounded-t-2xl sm:rounded-2xl shadow-sm dark:shadow-none flex flex-col overflow-hidden border transition-colors ${
           isDark
-            ? 'bg-[#0f131f] border-slate-800 text-slate-100'
+            ? 'bg-slate-950 border-slate-800 text-slate-100'
             : 'bg-white border-slate-200 text-slate-900'
         }`}
       >
@@ -299,12 +284,12 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
         <div
           className={`p-3.5 sm:p-4 border-b flex flex-wrap items-center justify-between gap-3 ${
             isDark
-              ? 'bg-[#151928] border-slate-800'
+              ? 'bg-slate-900 border-slate-800'
               : 'bg-slate-50 border-slate-200'
           }`}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center shadow-md shadow-orange-500/20 text-white shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 flex items-center justify-center shadow-xs shrink-0">
               <UtensilsCrossed className="w-5 h-5" />
             </div>
             <div>
@@ -329,6 +314,7 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
                 My Table:
               </label>
               <select
+                data-testid="select-kot-table"
                 value={activeTable}
                 onChange={(e) => handleTableChange(e.target.value)}
                 className={`py-1.5 px-3 rounded-xl text-xs font-black border outline-none cursor-pointer shadow-2xs transition ${
@@ -353,11 +339,12 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
                 title="Open dedicated page to select another table outside your zone"
               >
                 <Users className="w-3.5 h-3.5" />
-                <span>Other Tables Page (दूसरी टेबल चुनें)</span>
+                <span>Other Tables Page</span>
               </button>
             )}
 
             <button
+              data-testid="btn-close-kot-modal"
               onClick={onCancel}
               className={`w-8 h-8 rounded-xl flex items-center justify-center transition border ${
                 isDark
@@ -448,6 +435,7 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
                 >
                   <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <input
+                    data-testid="input-dish-search"
                     type="text"
                     placeholder="Search dishes (Butter Naan, Dal Makhani, Paneer)..."
                     value={search}
@@ -475,7 +463,7 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
                           ? diet === 'Veg'
                             ? 'bg-emerald-600 text-white border-emerald-600'
                             : diet === 'Non-Veg'
-                            ? 'bg-rose-600 text-white border-rose-600'
+                            ? 'bg-red-600 text-white border-red-600'
                             : 'bg-orange-500 text-white border-orange-500'
                           : isDark
                           ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
@@ -531,7 +519,7 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
                           <div className="flex items-center gap-1.5">
                             <span
                               className={`w-2 h-2 rounded-full shrink-0 ${
-                                dish.isVeg ? 'bg-emerald-500' : 'bg-rose-500'
+                                dish.isVeg ? 'bg-emerald-500' : 'bg-red-500'
                               }`}
                             />
                             <h4
@@ -572,6 +560,7 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
                         {inCart ? (
                           <div className="flex items-center gap-1.5 bg-orange-500 text-white rounded-lg p-0.5 shadow-2xs">
                             <button
+                              data-testid={`btn-qty-minus-${dish.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
                               onClick={() => handleUpdateQty(dish.id, -1)}
                               className="w-5 h-5 rounded flex items-center justify-center hover:bg-orange-600 transition"
                             >
@@ -581,6 +570,7 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
                               {inCart.quantity}
                             </span>
                             <button
+                              data-testid={`btn-qty-plus-${dish.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
                               onClick={() => handleUpdateQty(dish.id, 1)}
                               className="w-5 h-5 rounded flex items-center justify-center hover:bg-orange-600 transition"
                             >
@@ -589,6 +579,7 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
                           </div>
                         ) : (
                           <button
+                            data-testid={`btn-add-dish-${dish.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
                             onClick={() => handleAddItem(dish)}
                             className="py-1 px-3 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-black text-[11px] flex items-center gap-1 shadow-2xs transition active:scale-95"
                           >
@@ -613,8 +604,9 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
             {cartItems.length > 0 && (
               <div className="p-2.5 border-t border-slate-200 dark:border-slate-800 md:hidden bg-white dark:bg-slate-900 shrink-0 shadow-lg">
                 <button
+                  data-testid="btn-review-cart"
                   onClick={() => setMobileTab('cart')}
-                  className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-black text-xs flex items-center justify-between shadow-md active:scale-98 transition"
+                  className="w-full py-2.5 px-3 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 font-bold text-xs flex items-center justify-between shadow-xs active:scale-98 transition"
                 >
                   <span className="flex items-center gap-1.5">
                     <UtensilsCrossed className="w-3.5 h-3.5" />
@@ -650,7 +642,7 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
               {cartItems.length > 0 && (
                 <button
                   onClick={() => setCartItems([])}
-                  className="text-[10px] font-bold text-rose-500 hover:underline flex items-center gap-1"
+                  className="text-[10px] font-bold text-red-500 hover:underline flex items-center gap-1"
                 >
                   <Trash2 className="w-3 h-3" />
                   <span>Clear</span>
@@ -705,7 +697,7 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
                       </button>
                       <button
                         onClick={() => handleRemoveItem(item.menuItemId)}
-                        className="w-6 h-6 rounded-lg flex items-center justify-center text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition ml-1"
+                        className="w-6 h-6 rounded-lg flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition ml-1"
                         title="Remove"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -746,6 +738,7 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
               </div>
 
               <input
+                data-testid="input-kot-notes"
                 type="text"
                 placeholder="Custom notes (e.g. Serve hot, no salt on papad)..."
                 value={instructions}
@@ -762,7 +755,7 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
             <div
               className={`p-3.5 border-t space-y-2.5 ${
                 isDark
-                  ? 'bg-[#151928] border-slate-800'
+                  ? 'bg-slate-900 border-slate-800'
                   : 'bg-slate-50 border-slate-200'
               }`}
             >
@@ -783,9 +776,10 @@ export const QuickKotPunchSheet: React.FC<QuickKotPunchSheetProps> = ({
 
               {/* Fire Button */}
               <button
+                data-testid="btn-fire-kot"
                 disabled={cartItems.length === 0 || isSubmitting}
                 onClick={handleFireKot}
-                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-orange-600 via-amber-600 to-orange-500 hover:from-orange-500 hover:to-amber-500 disabled:from-slate-400 disabled:to-slate-400 disabled:cursor-not-allowed text-white font-black text-xs sm:text-sm shadow-lg shadow-orange-900/30 flex items-center justify-center gap-2 transition active:scale-98"
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-xs sm:text-sm shadow-sm flex items-center justify-center gap-2 transition active:scale-98"
               >
                 {isSubmitting ? (
                   <>

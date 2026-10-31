@@ -126,9 +126,9 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
   const latestAudit = (history && history.length > 0 ? history[0] : null) as any;
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 p-6 space-y-6">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 space-y-6">
       {/* 5-Star Luxury Midnight Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-gradient-to-r from-[#0d121f] via-[#0f172a] to-[#0d121f] border border-amber-500/20 p-6 rounded-2xl shadow-2xl shadow-black/80 relative overflow-hidden">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-gradient-to-r from-[#0d121f] via-[#0f172a] to-[#0d121f] border border-amber-500/20 p-6 rounded-2xl shadow-sm dark:shadow-none shadow-black/80 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="space-y-2 z-10">
@@ -157,7 +157,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
 
         {/* Business Date Pill & CTA */}
         <div className="flex flex-wrap items-center gap-4 z-10">
-          <div className="px-5 py-3 bg-[#080c14]/90 border border-amber-500/30 rounded-xl flex items-center gap-3 shadow-inner">
+          <div className="px-5 py-3 bg-slate-950/90 border border-amber-500/30 rounded-xl flex items-center gap-3 shadow-inner">
             <Calendar className="w-5 h-5 text-amber-400" />
             <div>
               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Current Business Date</div>
@@ -181,7 +181,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
       {/* KPI Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Occupancy Rate */}
-        <div className="bg-[#0b0f19] border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg relative overflow-hidden">
+        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">Occupancy Rate</span>
             <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -197,10 +197,10 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
         </div>
 
         {/* Total Room Revenue */}
-        <div className="bg-[#0b0f19] border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg">
+        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">Room Revenue Pool</span>
-            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
+            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
               <Bed className="w-4 h-4" />
             </div>
           </div>
@@ -211,7 +211,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
         </div>
 
         {/* F&B Revenue */}
-        <div className="bg-[#0b0f19] border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg">
+        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">F&B Total Settled</span>
             <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
@@ -225,28 +225,28 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
         </div>
 
         {/* ADR (Average Daily Rate) */}
-        <div className="bg-[#0b0f19] border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg">
+        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">ADR (Avg Daily Rate)</span>
-            <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-cyan-400">
+          <div className="text-2xl font-black text-slate-700 dark:text-slate-300">
             {latestAudit ? NightAuditHelper.formatCurrency(latestAudit.averageDailyRate) : '—'}
           </div>
           <div className="text-xs text-slate-400">Rev / Occupied Room</div>
         </div>
 
         {/* RevPAR */}
-        <div className="bg-[#0b0f19] border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg">
+        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">RevPAR</span>
-            <div className="p-1.5 rounded-lg bg-fuchsia-500/10 text-fuchsia-400">
+            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
               <Receipt className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-fuchsia-400">
+          <div className="text-2xl font-black text-slate-700 dark:text-slate-300">
             {latestAudit ? NightAuditHelper.formatCurrency(latestAudit.revPAR) : '—'}
           </div>
           <div className="text-xs text-slate-400">Rev / Total Available Room</div>
@@ -254,7 +254,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
       </div>
 
       {/* Pre-Audit Readiness Inspection Matrix */}
-      <div className="bg-[#0b0f19] border border-amber-500/20 rounded-2xl p-6 space-y-4 shadow-xl">
+      <div className="bg-slate-950 border border-amber-500/20 rounded-2xl p-6 space-y-4 shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400">
@@ -278,7 +278,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Check 1 */}
-          <div className="p-4 bg-[#070a12] border border-slate-800/90 rounded-xl flex items-start gap-3">
+          <div className="p-4 bg-slate-950 border border-slate-800/90 rounded-xl flex items-start gap-3">
             <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg shrink-0">
               <CheckCircle2 className="w-5 h-5" />
             </div>
@@ -291,7 +291,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
           </div>
 
           {/* Check 2 */}
-          <div className="p-4 bg-[#070a12] border border-slate-800/90 rounded-xl flex items-start gap-3">
+          <div className="p-4 bg-slate-950 border border-slate-800/90 rounded-xl flex items-start gap-3">
             <div className="p-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-lg shrink-0">
               <UtensilsCrossed className="w-5 h-5" />
             </div>
@@ -304,8 +304,8 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
           </div>
 
           {/* Check 3 */}
-          <div className="p-4 bg-[#070a12] border border-slate-800/90 rounded-xl flex items-start gap-3">
-            <div className="p-2 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded-lg shrink-0">
+          <div className="p-4 bg-slate-950 border border-slate-800/90 rounded-xl flex items-start gap-3">
+            <div className="p-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-lg shrink-0">
               <Lock className="w-5 h-5" />
             </div>
             <div>
@@ -319,8 +319,8 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
       </div>
 
       {/* Historical Night Audit Sessions Table */}
-      <div className="bg-[#0b0f19] border border-amber-500/20 rounded-2xl overflow-hidden shadow-2xl">
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-[#080c14]">
+      <div className="bg-slate-950 border border-amber-500/20 rounded-2xl overflow-hidden shadow-sm dark:shadow-none">
+        <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
           <div className="flex items-center gap-2.5">
             <History className="w-5 h-5 text-amber-400" />
             <h2 className="font-bold text-white text-sm uppercase tracking-wider">
@@ -332,7 +332,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[#05070c] text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800">
+            <thead className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800">
               <tr>
                 <th className="py-3.5 px-4 font-bold">Certificate</th>
                 <th className="py-3.5 px-4 font-bold">Audit Date</th>
@@ -359,7 +359,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
                     <tr
                       key={audit._id}
                       onClick={() => setSelectedAuditReport(audit)}
-                      className="hover:bg-[#131b2e] cursor-pointer transition-colors"
+                      className="hover:bg-slate-900 cursor-pointer transition-colors"
                       data-testid={`audit-row-${audit.auditDate}`}
                     >
                       <td className="py-3.5 px-4 font-mono font-bold text-amber-400 text-xs">{cert}</td>
@@ -371,10 +371,10 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
                       <td className="py-3.5 px-4 font-bold text-amber-300">
                         {NightAuditHelper.formatCurrency(audit.totalGrossRevenue)}
                       </td>
-                      <td className="py-3.5 px-4 text-cyan-400 font-medium">
+                      <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300 font-medium">
                         {NightAuditHelper.formatCurrency(audit.averageDailyRate)}
                       </td>
-                      <td className="py-3.5 px-4 text-fuchsia-400 font-medium">
+                      <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300 font-medium">
                         {NightAuditHelper.formatCurrency(audit.revPAR)}
                       </td>
                       <td className="py-3.5 px-4">
@@ -398,7 +398,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
           className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
           data-testid="night-audit-run-modal"
         >
-          <div className="bg-[#0b0f19] border border-amber-500/30 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-6 p-6">
+          <div className="bg-slate-950 border border-amber-500/30 rounded-2xl w-full max-w-lg overflow-hidden shadow-sm dark:shadow-none space-y-6 p-6">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-gradient-to-tr from-amber-600 to-amber-400 text-slate-950 rounded-xl font-bold">
@@ -419,9 +419,9 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
               </button>
             </div>
 
-            <div className="space-y-3 bg-[#06080e] p-4 rounded-xl border border-amber-500/20 text-xs">
+            <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-amber-500/20 text-xs">
               <div className="flex justify-between text-slate-300">
-                <span className="flex items-center gap-1.5"><Bed className="w-3.5 h-3.5 text-indigo-400" /> In-House Stays to Auto-Post:</span>
+                <span className="flex items-center gap-1.5"><Bed className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" /> In-House Stays to Auto-Post:</span>
                 <span className="font-bold text-white">{preAuditStatus?.occupiedRooms || 3} Rooms</span>
               </div>
               <div className="flex justify-between text-slate-300">
@@ -429,7 +429,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
                 <span className="font-bold text-emerald-400">12% GST Applied</span>
               </div>
               <div className="flex justify-between text-slate-300">
-                <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-cyan-400" /> Target Next Business Date:</span>
+                <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" /> Target Next Business Date:</span>
                 <span className="font-bold text-emerald-400">Advance to Next Day (+1)</span>
               </div>
               <div className="flex justify-between text-slate-300">
@@ -446,7 +446,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
                 value={auditNotes}
                 onChange={(e) => setAuditNotes(e.target.value)}
                 data-testid="night-audit-notes-input"
-                className="w-full bg-[#06080e] border border-amber-500/30 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-400 resize-none h-20"
+                className="w-full bg-slate-950 border border-amber-500/30 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-amber-400 resize-none h-20"
                 placeholder="Enter audit log notes..."
               />
             </div>
@@ -488,7 +488,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
           className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4"
           data-testid="night-audit-cert-modal"
         >
-          <div className="bg-[#0b0f19] border-2 border-amber-500/50 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl relative p-8 space-y-6">
+          <div className="bg-slate-950 border-2 border-amber-500/50 rounded-3xl w-full max-w-xl overflow-hidden shadow-sm dark:shadow-none relative p-8 space-y-6">
             <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
             {/* Crest Header */}
@@ -512,7 +512,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
 
             {/* Certificate Details Matrix */}
             <div
-              className="bg-[#06080e] border border-amber-500/20 rounded-2xl p-5 space-y-3.5 text-xs font-mono"
+              className="bg-slate-950 border border-amber-500/20 rounded-2xl p-5 space-y-3.5 text-xs font-mono"
               data-testid="night-audit-certificate-card"
             >
               <div className="flex justify-between items-center text-slate-300">
@@ -543,7 +543,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
               </div>
               <div className="flex justify-between items-center text-slate-300">
                 <span className="text-slate-400">RevPAR / ADR:</span>
-                <span className="font-bold text-cyan-400">
+                <span className="font-bold text-slate-700 dark:text-slate-300">
                   {NightAuditHelper.formatCurrency(selectedAuditReport.revPAR)} / {NightAuditHelper.formatCurrency(selectedAuditReport.averageDailyRate)}
                 </span>
               </div>

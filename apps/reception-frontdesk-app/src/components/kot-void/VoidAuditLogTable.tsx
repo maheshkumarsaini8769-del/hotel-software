@@ -49,7 +49,7 @@ export const VoidAuditLogTable: React.FC<VoidAuditLogTableProps> = ({
               placeholder="Search by Item, Order #, Table, or Manager..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
             />
           </div>
         </div>
@@ -139,7 +139,7 @@ export const VoidAuditLogTable: React.FC<VoidAuditLogTableProps> = ({
                       <div className="text-[11px] text-slate-500">Qty: {log.quantity}x @ {formatCurrency(log.unitPrice)}</div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="font-bold text-rose-400 font-mono">
+                      <span className="font-bold text-red-400 font-mono">
                         {formatCurrency(log.totalVoidAmount)}
                       </span>
                     </td>

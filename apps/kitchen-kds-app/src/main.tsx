@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { KitchenKdsApp, LowStockAlertItem } from './KitchenKdsApp';
 import { Kds86DishItem } from './components/Kds86ManagerDrawer';
-import { ErrorBoundary, KdsStore, KdsOrderCardModel, StaffLoginGate } from '@spicehub/ui';
+import { ErrorBoundary, KdsStore, KdsOrderCardModel, StaffLoginGate, I18nProvider } from '@spicehub/ui';
 import { SpiceHubSocket } from '@spicehub/api-client';
 import { kdsFetch, getKdsHotelId } from './lib/kdsApi';
 
@@ -90,22 +90,40 @@ function playKitchenBuzzerSound() {
   }
 }
 
+const DEFAULT_KDS_DISHES: Kds86DishItem[] = [
+  { id: 'dish-01', name: 'Paneer Butter Masala', category: 'Main Course', stationName: 'Curry Station', isAvailable: true },
+  { id: 'dish-02', name: 'Butter Chicken Grand Trunk', category: 'Main Course', stationName: 'Curry Station', isAvailable: true },
+  { id: 'dish-03', name: 'Dal Makhani Signature', category: 'Main Course', stationName: 'Curry Station', isAvailable: true },
+  { id: 'dish-04', name: 'Tandoori Murgh (Full)', category: 'Tandoor & Grills', stationName: 'Tandoor Station', isAvailable: true },
+  { id: 'dish-05', name: 'Paneer Tikka Angara', category: 'Tandoor & Grills', stationName: 'Tandoor Station', isAvailable: true },
+  { id: 'dish-06', name: 'Garlic Butter Naan', category: 'Breads', stationName: 'Tandoor Station', isAvailable: true },
+  { id: 'dish-07', name: 'Tandoori Roti Butter', category: 'Breads', stationName: 'Tandoor Station', isAvailable: true },
+  { id: 'dish-08', name: 'Dum Handi Biryani (Hyderabadi)', category: 'Rice & Biryani', stationName: 'Curry Station', isAvailable: true },
+  { id: 'dish-09', name: 'Jeera Basmati Rice', category: 'Rice & Biryani', stationName: 'Curry Station', isAvailable: true },
+  { id: 'dish-10', name: 'Chilli Chicken Dry', category: 'Starters', stationName: 'Chinese & Wok', isAvailable: true },
+  { id: 'dish-11', name: 'Crispy Veg Spring Rolls', category: 'Starters', stationName: 'Chinese & Wok', isAvailable: true },
+  { id: 'dish-12', name: 'Fresh Lime Soda (Sweet & Salt)', category: 'Beverages', stationName: 'Kitchen Pass', isAvailable: true },
+  { id: 'dish-13', name: 'Masala Chaas', category: 'Beverages', stationName: 'Kitchen Pass', isAvailable: true },
+  { id: 'dish-14', name: 'Gulab Jamun with Rabdi', category: 'Desserts', stationName: 'Kitchen Pass', isAvailable: true },
+];
+
 export const KitchenKdsAppRoot: React.FC = () => {
   const [hotelId, setHotelId] = useState<string>(() => getKdsHotelId());
   const [stationName, setStationName] = useState<string>('All Stations');
   const [toast, setToast] = useState<string | null>(null);
   const [lowStockAlerts, setLowStockAlerts] = useState<LowStockAlertItem[]>([]);
   const [kitchenBuzzers, setKitchenBuzzers] = useState<any[]>([]);
-  const [dishes86, setDishes86] = useState<Kds86DishItem[]>([]);
+  const [dishes86, setDishes86] = useState<Kds86DishItem[]>(DEFAULT_KDS_DISHES);
   const [waiterEnabled, setWaiterEnabled] = useState<boolean>(true);
 
   const fetchDishes86 = async () => {
-    if (!hotelId) return;
+    const currentHotelId = hotelId || getKdsHotelId();
+    if (!currentHotelId) return;
     try {
-      const res = await kdsFetch(`${API_BASE_URL}/menu-catalog/items?hotelId=${encodeURIComponent(hotelId)}`);
+      const res = await kdsFetch(`${API_BASE_URL}/menu-catalog/items?hotelId=${encodeURIComponent(currentHotelId)}`);
       if (res.ok) {
         const body = await res.json();
-        if (body.success && Array.isArray(body.data)) {
+        if (body.success && Array.isArray(body.data) && body.data.length > 0) {
           setDishes86(
             body.data.map((m: any) => ({
               id: m.id || m._id,
@@ -124,11 +142,14 @@ export const KitchenKdsAppRoot: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!hotelId) return;
     fetchDishes86();
+    const interval = setInterval(() => {
+      fetchDishes86();
+    }, 15000);
     const unbind86 = socket.on('menu:item_86_toggled', () => fetchDishes86());
     const unbindCatalog = socket.on('menu:catalog_updated', () => fetchDishes86());
     return () => {
+      clearInterval(interval);
       unbind86();
       unbindCatalog();
     };
@@ -495,7 +516,7 @@ export const KitchenKdsAppRoot: React.FC = () => {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between">
       {toast && (
         <div data-testid="kds-alert-toast" className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-bounce max-w-lg w-11/12">
-          <div className="p-3.5 bg-gradient-to-r from-amber-600 to-orange-600 rounded-2xl shadow-2xl border border-amber-400 text-white font-extrabold text-sm flex items-center justify-between">
+          <div className="p-3.5 bg-amber-600 rounded-2xl shadow-sm dark:shadow-none border border-amber-400 text-white font-extrabold text-sm flex items-center justify-between">
             <span>{toast}</span>
             <button onClick={() => setToast(null)} className="text-white/80 hover:text-white font-bold ml-2">✕</button>
           </div>
@@ -631,17 +652,19 @@ if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <ErrorBoundary>
-        <StaffLoginGate
-          portalId="kds"
-          apiBaseUrl={`${API_BASE_URL}`}
-          appName="Kitchen KDS Display"
-          appSubtitle="Protected kitchen terminal for live order tickets, stations and prep tracking."
-          accent="amber"
-          demoEmail="priya@tajgateway.com"
-          demoPassword="SpiceHub@123"
-        >
-          <KitchenKdsAppRoot />
-        </StaffLoginGate>
+        <I18nProvider>
+          <StaffLoginGate
+            portalId="kds"
+            apiBaseUrl={`${API_BASE_URL}`}
+            appName="Kitchen KDS Display"
+            appSubtitle="Protected kitchen terminal for live order tickets, stations and prep tracking."
+            accent="amber"
+            demoEmail="priya@tajgateway.com"
+            demoPassword="SpiceHub@123"
+          >
+            <KitchenKdsAppRoot />
+          </StaffLoginGate>
+        </I18nProvider>
       </ErrorBoundary>
     </React.StrictMode>
   );

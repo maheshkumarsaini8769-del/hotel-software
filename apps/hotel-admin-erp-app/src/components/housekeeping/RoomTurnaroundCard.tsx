@@ -43,8 +43,8 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
         );
       case RoomStatus.CLEANING:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-800 animate-ping"></span>
             Cleaning
           </span>
         );
@@ -57,8 +57,8 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
         );
       case RoomStatus.OUT_OF_SERVICE:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-400 border border-red-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
             Out of Order
           </span>
         );
@@ -142,9 +142,9 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
                   : room.status === RoomStatus.INSPECTION
                   ? 'bg-amber-400'
                   : room.status === RoomStatus.CLEANING
-                  ? 'bg-cyan-400'
+                  ? 'bg-slate-800'
                   : room.status === RoomStatus.OUT_OF_SERVICE
-                  ? 'bg-rose-500'
+                  ? 'bg-red-500'
                   : 'bg-orange-500'
               }`}
               style={{ width: `${turnaround.percentage}%` }}
@@ -157,7 +157,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
       <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
         <button
           onClick={() => onOpenMaintenanceModal(room)}
-          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 rounded-lg transition-colors border border-transparent hover:border-rose-900/40 text-xs cursor-pointer active:scale-95"
+          className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors border border-transparent hover:border-red-900/40 text-xs cursor-pointer active:scale-95"
           title="Escalate Maintenance Work Order"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,7 +187,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
           <button
             onClick={() => onOpenCleaningModal(room)}
             disabled={isLoading}
-            className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold text-xs transition-all shadow-md shadow-cyan-950/50 active:scale-95 disabled:opacity-50 cursor-pointer text-center"
+            className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold text-xs transition-all shadow-md shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer text-center"
           >
             Audit & Complete
           </button>
@@ -210,7 +210,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
         )}
 
         {room.status === RoomStatus.OUT_OF_SERVICE && (
-          <div className="flex-1 text-center py-1 text-xs text-rose-400 font-medium">
+          <div className="flex-1 text-center py-1 text-xs text-red-400 font-medium">
             ⚠️ Maintenance Ticket Active
           </div>
         )}

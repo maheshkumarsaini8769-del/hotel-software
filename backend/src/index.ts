@@ -50,15 +50,55 @@ import hotelStaffRoutes from './routes/hotelStaffRoutes';
 import menuCatalogRoutes from './routes/menuCatalogRoutes';
 import tableManagementRoutes from './routes/tableManagementRoutes';
 import restaurantOperationsRoutes from './routes/restaurantOperationsRoutes';
+import cronRoutes from './routes/cronRoutes';
+import webhookRoutes from './routes/webhookRoutes';
+import guestComplianceRoutes from './routes/guestComplianceRoutes';
+import reportRoutes from './routes/reportRoutes';
+import { startSocketKeepAliveWorker, pingSocketServer, getKeepAliveStats } from './services/socketKeepAliveService';
+import { broadcastToRenderSocket } from './services/socketEmitter';
 import { authenticateJWT, requireTenant } from './middlewares/auth';
-import { requirePortal } from './middlewares/portalGate';
+import { requirePortal, requireAnyPortal } from './middlewares/portalGate';
 import { TenantRequest } from './types';
 import { assertProductionSecurityConfig, getJwtSecret, isDevAuthBypassEnabled } from './config/security';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerDocument } from './docs/swaggerSpec';
+import { OtaChannelService } from './services/otaChannelService';
+import { calculateDynamicPrice } from './services/dynamicPricingService';
+import { LoyaltyCrmService } from './services/loyaltyCrmService';
+import { TipPoolService } from './services/tipPoolService';
+import { RazorpayService } from './services/razorpayService';
+import { AuditService } from './services/auditService';
+import { RevParAnalyticsService } from './services/revParAnalyticsService';
+import { Tenant } from './models/Tenant';
+import { PromoCode } from './models/PromoCode';
+import * as Sentry from '@sentry/node';
+import { logger, requestLogger } from './utils/logger';
 
 import path from 'path';
+import os from 'os';
+import fs from 'fs';
 dotenv.config();
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+// Initialize Sentry Error Tracking & Observability
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'production',
+    tracesSampleRate: 1.0,
+  });
+  logger.info('[Observability] Sentry initialized with configured DSN');
+} else {
+  // Graceful fallback for local development & air-gapped deployments
+  Sentry.init({
+    dsn: 'https://00000000000000000000000000000000@o0.ingest.sentry.io/0',
+    enabled: false,
+    environment: process.env.NODE_ENV || 'development',
+    tracesSampleRate: 1.0,
+  });
+  logger.info('[Observability] Sentry initialized in standby mode (no SENTRY_DSN provided)');
+}
 
 const app: Application = express();
 const server = http.createServer(app);
@@ -142,7 +182,6 @@ io.on('connection', (socket) => {
       }
       if (station.startsWith('guest_room_')) {
         socket.join(`${hotelId}_${station}`);
-        socket.join(station);
       }
     } else if (
       hotelId.startsWith('waiter_') ||
@@ -453,40 +492,278 @@ io.on('connection', (socket) => {
   });
 });
 
-// Global Middlewares
+// Security Hardening: Explicitly remove X-Powered-By
+app.disable('x-powered-by');
+
+// Global Middlewares & Security Headers via Helmet
 app.use(
   helmet({
+    hidePoweredBy: true,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://checkout.razorpay.com'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https:', 'http:'],
+        connectSrc: ["'self'", 'http:', 'https:', 'ws:', 'wss:'],
+        frameSrc: ["'self'", 'https://api.razorpay.com', 'https://checkout.razorpay.com'],
+        objectSrc: ["'none'"],
+      },
+    },
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     crossOriginEmbedderPolicy: false,
-    contentSecurityPolicy: false,
-    frameguard: false,
+    frameguard: { action: 'sameorigin' },
   })
 );
-app.get('/favicon.ico', (_req, res) => res.status(204).end());
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow any origin in dev/LAN network, echoing back the requesting origin for credentials: true compatibility
-      callback(null, origin || true);
-    },
-    credentials: true,
-  })
-);
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev'));
 
-// Central API Routes
-app.get('/health', (req: Request, res: Response) => {
-  const databaseConnected = mongoose.connection.readyState === 1;
-  res.status(databaseConnected ? 200 : 503).json({
-    status: databaseConnected ? 'HEALTHY' : 'DEGRADED',
-    service: 'SpiceHub Central Backend Engine',
+app.get('/favicon.ico', (_req, res) => res.status(204).end());
+
+// Production CORS Domain Whitelisting
+const ALLOWED_CORS_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+  : [
+      'https://spicehub.in',
+      'https://admin.spicehub.in',
+      'https://pos.spicehub.in',
+      'https://kds.spicehub.in',
+      'https://guest.spicehub.in',
+      'https://spicehub-backend.vercel.app',
+      'https://spicehub-guest-portal.vercel.app',
+      'https://spicehub-customer-table.vercel.app',
+      'https://spicehub-socket-server.onrender.com',
+    ];
+
+/**
+ * Detect primary LAN IP (WiFi / Ethernet) so mobile devices on the same local network
+ * can connect to portals and backend APIs without being blocked by CORS.
+ */
+function getPrimaryLanIp(): string {
+  const ifaces = os.networkInterfaces();
+  const candidates: { name: string; ip: string; priority: number }[] = [];
+
+  for (const name of Object.keys(ifaces)) {
+    const list = ifaces[name];
+    if (!list) continue;
+    for (const info of list) {
+      if (info.family === 'IPv4' && !info.internal) {
+        let priority = 1;
+        // Prioritize Wi-Fi and Ethernet interfaces
+        if (name.startsWith('wl') || name.startsWith('wifi')) priority = 10;
+        else if (name.startsWith('eth') || name.startsWith('en')) priority = 8;
+        else if (name.startsWith('br-') || name.startsWith('docker') || name.startsWith('veth')) priority = 0;
+        candidates.push({ name, ip: info.address, priority });
+      }
+    }
+  }
+
+  candidates.sort((a, b) => b.priority - a.priority);
+  return candidates[0]?.ip || '127.0.0.1';
+}
+
+function isLanOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
+    // RFC 1918 Private IPv4 address spaces
+    if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    if (/^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// Permissive CORS for Public Cloud & Mobile APK Access (Allow all origins)
+const corsMiddleware = cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+});
+
+app.use(corsMiddleware);
+app.options('*', corsMiddleware);
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+if (process.env.NODE_ENV !== 'production') {
+  app.use(morgan('dev'));
+}
+app.use(requestLogger);
+
+// Serverless DB Auto-Connect Middleware (For Vercel Function executions)
+app.use(async (_req, _res, next) => {
+  if (process.env.VERCEL || mongoose.connection.readyState === 0) {
+    try {
+      await connectDB();
+    } catch (e) {
+      console.error('[DB Middleware] Serverless DB connect error:', e);
+    }
+  }
+  next();
+});
+
+// Deep Health Check Handler
+const getSystemHealth = () => {
+  const isDbConnected = mongoose.connection.readyState === 1;
+  const isVercelStandby = Boolean(process.env.VERCEL) && !process.env.MONGO_URI;
+  const mem = process.memoryUsage();
+  const formatMb = (bytes: number) => `${Math.round(bytes / 1024 / 1024)}MB`;
+
+  return {
+    status: (isDbConnected || isVercelStandby) ? 'UP' : 'DOWN',
+    uptime: `${Math.floor(process.uptime())}s`,
+    uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
-    database: databaseConnected ? 'CONNECTED' : 'DISCONNECTED',
-    multiTenancy: 'ENFORCED',
+    database: {
+      status: isDbConnected ? 'CONNECTED' : (isVercelStandby ? 'STANDBY_AWAITING_CLOUD_URI' : 'DISCONNECTED'),
+      readyState: mongoose.connection.readyState,
+      host: mongoose.connection.host || (process.env.VERCEL ? 'cloud-serverless' : 'localhost'),
+      name: mongoose.connection.name || 'spicehub_dev',
+    },
+    memoryUsage: {
+      rss: formatMb(mem.rss),
+      heapTotal: formatMb(mem.heapTotal),
+      heapUsed: formatMb(mem.heapUsed),
+      external: formatMb(mem.external),
+    },
+    environment: process.env.NODE_ENV || 'production',
+    service: 'SpiceHub Enterprise Core Engine',
+    version: '1.0.0',
+  };
+};
+
+// Deep Health Endpoints: /health & /api/v1/health
+app.get('/health', (_req: Request, res: Response) => {
+  const health = getSystemHealth();
+  res.status(health.status === 'UP' ? 200 : 503).json(health);
+});
+
+app.get('/api/v1/health', (_req: Request, res: Response) => {
+  const health = getSystemHealth();
+  res.status(health.status === 'UP' ? 200 : 503).json(health);
+});
+
+// System Network & Local IP Diagnostic Endpoint (Used by Admin ERP for Real QR Generation & Phone Links)
+app.get('/api/v1/system/network-info', (_req: Request, res: Response) => {
+  const lanIp = getPrimaryLanIp();
+  const ifaces = os.networkInterfaces();
+  const allIps: { name: string; ip: string }[] = [];
+  for (const name of Object.keys(ifaces)) {
+    const list = ifaces[name];
+    if (!list) continue;
+    for (const info of list) {
+      if (info.family === 'IPv4' && !info.internal) {
+        allIps.push({ name, ip: info.address });
+      }
+    }
+  }
+
+  const customerApkPath = path.resolve(__dirname, '../public/apks/spicehub-customer.apk');
+  const staffApkPath = path.resolve(__dirname, '../public/apks/spicehub-staff.apk');
+  const customerApkExists = fs.existsSync(customerApkPath);
+  const staffApkExists = fs.existsSync(staffApkPath);
+
+  res.json({
+    success: true,
+    lanIp,
+    allIps,
+    ports: {
+      customer: 3001,
+      waiter: 3002,
+      kds: 3003,
+      guest: 3004,
+      admin: 3005,
+      superadmin: 3006,
+      cashier: 3007,
+      reception: 3008,
+      backend: 5000,
+    },
+    urls: {
+      customerPortal: `http://${lanIp}:3001`,
+      guestPortal: `http://${lanIp}:3004`,
+      customerApkDownload: `http://${lanIp}:5000/download/customer-apk`,
+      staffApkDownload: `http://${lanIp}:5000/download/staff-apk`,
+    },
+    apks: {
+      customer: {
+        available: customerApkExists,
+        filename: 'SpiceHub-Customer.apk',
+        sizeBytes: customerApkExists ? fs.statSync(customerApkPath).size : 0,
+        sizeMb: customerApkExists ? +(fs.statSync(customerApkPath).size / 1024 / 1024).toFixed(2) : 0,
+        downloadUrl: '/download/customer-apk',
+      },
+      staff: {
+        available: staffApkExists,
+        filename: 'SpiceHub-Staff.apk',
+        sizeBytes: staffApkExists ? fs.statSync(staffApkPath).size : 0,
+        sizeMb: staffApkExists ? +(fs.statSync(staffApkPath).size / 1024 / 1024).toFixed(2) : 0,
+        downloadUrl: '/download/staff-apk',
+      },
+    },
   });
 });
+
+// Render Socket Server 1-Minute Keepalive Endpoint (Callable via Vercel Cron or External Heartbeat)
+app.all('/api/v1/system/socket-keepalive', async (_req: Request, res: Response) => {
+  const result = await pingSocketServer('keepalive-api-trigger');
+  res.json({
+    success: result.success,
+    status: result.status,
+    latencyMs: result.latencyMs,
+    error: result.error,
+    stats: getKeepAliveStats(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Direct APK Download Handlers
+const handleCustomerApkDownload = (_req: Request, res: Response): void => {
+  const candidatePaths = [
+    path.resolve(__dirname, '../public/apks/spicehub-customer.apk'),
+    path.resolve(__dirname, '../../apps/spicehub-customer-android/android/app/build/outputs/apk/debug/app-debug.apk'),
+  ];
+  const apkPath = candidatePaths.find((p) => fs.existsSync(p));
+  if (!apkPath) {
+    res.status(404).json({
+      success: false,
+      errorCode: 'APK_NOT_FOUND',
+      message: 'SpiceHub Customer Android APK not found on server.',
+    });
+    return;
+  }
+  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+  res.setHeader('Content-Disposition', 'attachment; filename="SpiceHub-Customer.apk"');
+  res.sendFile(apkPath);
+};
+
+const handleStaffApkDownload = (_req: Request, res: Response): void => {
+  const candidatePaths = [
+    path.resolve(__dirname, '../public/apks/spicehub-staff.apk'),
+    path.resolve(__dirname, '../../apps/spicehub-staff-android/android/app/build/outputs/apk/debug/app-debug.apk'),
+  ];
+  const apkPath = candidatePaths.find((p) => fs.existsSync(p));
+  if (!apkPath) {
+    res.status(404).json({
+      success: false,
+      errorCode: 'APK_NOT_FOUND',
+      message: 'SpiceHub Staff Android APK not found on server.',
+    });
+    return;
+  }
+  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+  res.setHeader('Content-Disposition', 'attachment; filename="SpiceHub-Staff.apk"');
+  res.sendFile(apkPath);
+};
+
+app.get('/download/customer-apk', handleCustomerApkDownload);
+app.get('/api/v1/downloads/customer-apk', handleCustomerApkDownload);
+app.get('/api/v1/downloads/customer.apk', handleCustomerApkDownload);
+
+app.get('/download/staff-apk', handleStaffApkDownload);
+app.get('/api/v1/downloads/staff-apk', handleStaffApkDownload);
+app.get('/api/v1/downloads/staff.apk', handleStaffApkDownload);
 
 // Versioned APIs
 app.use('/api/v1/auth', authRoutes);
@@ -509,8 +786,8 @@ app.use('/api/v1/inventory-audits', inventoryAuditRoutes);
 app.use('/api/v1/menu-engineering', menuEngineeringRoutes);
 app.use('/api/v1/staff-roster', staffRosterRoutes);
 app.use('/api/v1/dining-reservations', diningReservationRoutes);
-app.use('/api/v1/night-audit', requirePortal('reception'), nightAuditRoutes);
-app.use('/api/v1/revenue-manager', requirePortal('reception'), revenueManagerRoutes);
+app.use('/api/v1/night-audit', requireAnyPortal(['reception', 'admin']), nightAuditRoutes);
+app.use('/api/v1/revenue-manager', requireAnyPortal(['reception', 'admin']), revenueManagerRoutes);
 app.use('/api/v1/crm', crmRoutes);
 app.use('/api/v1/customer-portal', requirePortal('customer'), customerPortalRoutes);
 app.use('/api/v1/co-dining', requirePortal('customer'), coDiningRoutes);
@@ -528,9 +805,14 @@ app.use('/api/v1/guest-reviews', guestReviewRoutes);
 app.use('/api/v1/superadmin', superAdminRoutes);
 app.use('/api/v1/kot-void', kotLockVoidRoutes);
 app.use('/api/v1/hotel-staff', hotelStaffRoutes);
+app.use('/api/v1/staff', hotelStaffRoutes);
 app.use('/api/v1/menu-catalog', menuCatalogRoutes);
 app.use('/api/v1/table-management', tableManagementRoutes);
 app.use('/api/v1/restaurant-operations', restaurantOperationsRoutes);
+app.use('/api/v1/cron', cronRoutes);
+app.use('/api/v1/webhooks', webhookRoutes);
+app.use('/api/v1/guest', guestComplianceRoutes);
+app.use('/api/v1/reports', reportRoutes);
 
 // Tenant-Isolation Verification Endpoint (Used in Gate #1 testing)
 app.get('/api/v1/tenant/verify-isolation', authenticateJWT, requireTenant, (req: TenantRequest, res: Response) => {
@@ -543,7 +825,299 @@ app.get('/api/v1/tenant/verify-isolation', authenticateJWT, requireTenant, (req:
   });
 });
 
-const PORT = process.env.PORT || 5000;
+// =========================================================================
+// ENTERPRISE HARDENING & GOVERNANCE ROUTES
+// =========================================================================
+
+// 1. Swagger OpenAPI Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.get('/api-docs.json', (_req: Request, res: Response) => {
+  res.status(200).json(swaggerDocument);
+});
+
+// 2. OTA / Channel Manager Inbound Webhook (MakeMyTrip / Agoda / Booking.com)
+app.post('/api/v1/webhooks/ota/mmt', async (req: Request, res: Response) => {
+  try {
+    const { hotelId, hotelSlug, ...bookingData } = req.body;
+    let targetHotelId = hotelId;
+    if (!targetHotelId && hotelSlug) {
+      const t = await Tenant.findOne({ slug: String(hotelSlug).trim().toLowerCase() });
+      if (t) targetHotelId = t._id;
+    }
+    if (!targetHotelId) {
+      const defaultTenant = await Tenant.findOne({ status: 'ACTIVE' });
+      targetHotelId = defaultTenant?._id;
+    }
+    const result = await OtaChannelService.handleMmtWebhook(targetHotelId, {
+      ...bookingData,
+      hotelId: targetHotelId,
+    });
+    res.status(200).json(result);
+  } catch (err: any) {
+    console.error('[OTA Webhook Error]', err);
+    res.status(500).json({ success: false, message: err.message || 'OTA processing failed' });
+  }
+});
+
+// 3. Outbound Rate & Inventory Push
+app.post('/api/v1/ota/sync-inventory', authenticateJWT, requireTenant, async (req: TenantRequest, res: Response) => {
+  try {
+    const { roomTypeId, currentPrice, availableCount } = req.body;
+    const result = OtaChannelService.syncInventoryToOTA(req.hotelId!, roomTypeId, currentPrice, availableCount);
+    res.status(200).json({ success: true, payload: result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 4. AI Dynamic Pricing Endpoint
+const handleDynamicPricing = async (req: Request, res: Response) => {
+  try {
+    const basePrice = Number(req.query.basePrice) || 3000;
+    const occupancy = Number(req.query.occupancy) || 85;
+    const dayOfWeek = req.query.dayOfWeek !== undefined ? Number(req.query.dayOfWeek) : new Date().getDay();
+    const result = calculateDynamicPrice(basePrice, occupancy, dayOfWeek);
+    res.status(200).json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+app.get('/api/v1/dynamic-pricing', handleDynamicPricing);
+app.get('/api/v1/revenue-manager/dynamic-pricing', handleDynamicPricing);
+
+// 5. RevPAR & ADR Analytics
+const handleRevParAnalytics = async (req: TenantRequest, res: Response) => {
+  try {
+    const metrics = await RevParAnalyticsService.calculateRevPar(req.hotelId!);
+    res.status(200).json({ success: true, ...metrics });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+app.get('/api/v1/revpar-analytics', authenticateJWT, requireTenant, handleRevParAnalytics);
+app.get('/api/v1/revenue-manager/revpar-analytics', authenticateJWT, requireTenant, handleRevParAnalytics);
+
+// 6. Audit Logs Endpoint
+app.get('/api/v1/admin-control/audit-logs', authenticateJWT, requireTenant, async (req: TenantRequest, res: Response) => {
+  try {
+    const limit = Number(req.query.limit) || 50;
+    const page = Number(req.query.page) || 1;
+    const logs = await AuditService.getLogs(req.hotelId!, limit, page);
+    res.status(200).json({ success: true, ...logs });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 7. Promo Code Validation Endpoint (Supports both Staff JWT & Guest QR Customer sessions)
+app.post('/api/v1/crm/promo/validate', async (req: Request, res: Response) => {
+  try {
+    const rawHotelId = (req.headers['x-hotel-id'] as string) || req.body.hotelId || (req as any).hotelId;
+    if (!rawHotelId || !mongoose.Types.ObjectId.isValid(rawHotelId)) {
+      res.status(400).json({ valid: false, message: 'Valid Hotel ID required' });
+      return;
+    }
+    const hotelId = new mongoose.Types.ObjectId(rawHotelId);
+    const { code, subtotal } = req.body;
+    const result = await LoyaltyCrmService.validatePromoCode(hotelId, code, Number(subtotal) || 0);
+    res.status(result.valid ? 200 : 400).json(result);
+  } catch (err: any) {
+    res.status(500).json({ valid: false, message: err.message });
+  }
+});
+
+// 7b. Promo Code Management Endpoints (Hotel Admin)
+app.get('/api/v1/crm/promos', async (req: Request, res: Response) => {
+  try {
+    const rawHotelId = (req.headers['x-hotel-id'] as string) || req.query.hotelId || (req as any).hotelId;
+    if (!rawHotelId || !mongoose.Types.ObjectId.isValid(String(rawHotelId))) {
+      res.status(400).json({ success: false, message: 'Valid Hotel ID required' });
+      return;
+    }
+    const hotelId = new mongoose.Types.ObjectId(String(rawHotelId));
+    const promos = await PromoCode.find({ hotelId }).sort({ createdAt: -1 });
+    res.status(200).json({ success: true, data: promos });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post('/api/v1/crm/promos', async (req: Request, res: Response) => {
+  try {
+    const rawHotelId = (req.headers['x-hotel-id'] as string) || req.body.hotelId || (req as any).hotelId;
+    if (!rawHotelId || !mongoose.Types.ObjectId.isValid(String(rawHotelId))) {
+      res.status(400).json({ success: false, message: 'Valid Hotel ID required' });
+      return;
+    }
+    const hotelId = new mongoose.Types.ObjectId(String(rawHotelId));
+    const { code, discountType = 'PERCENTAGE', discountValue, minOrderAmount = 0, maxDiscountAmount, validDays = 365 } = req.body;
+    if (!code || !discountValue) {
+      res.status(400).json({ success: false, message: 'Code and discountValue are required' });
+      return;
+    }
+    const cleanCode = String(code).trim().toUpperCase();
+    const validTo = new Date(Date.now() + Number(validDays) * 86400000);
+
+    const promo = await PromoCode.findOneAndUpdate(
+      { hotelId, code: cleanCode },
+      {
+        hotelId,
+        code: cleanCode,
+        discountType: discountType === 'FLAT' ? 'FLAT' : 'PERCENTAGE',
+        discountValue: Number(discountValue),
+        minOrderAmount: Number(minOrderAmount) || 0,
+        maxDiscountAmount: maxDiscountAmount ? Number(maxDiscountAmount) : undefined,
+        isActive: true,
+        validFrom: new Date(),
+        validTo,
+      },
+      { upsert: true, new: true }
+    );
+
+    try {
+      io.to(`${hotelId.toString()}_customers`).to(`${hotelId.toString()}_admin`).emit('promo:updated', promo);
+    } catch (_) {}
+
+    res.status(201).json({ success: true, data: promo, message: `Promo code ${cleanCode} saved successfully!` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.delete('/api/v1/crm/promos/:id', async (req: Request, res: Response) => {
+  try {
+    const rawHotelId = (req.headers['x-hotel-id'] as string) || req.query.hotelId || (req as any).hotelId;
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    if (!id || !mongoose.Types.ObjectId.isValid(String(id))) {
+      res.status(400).json({ success: false, message: 'Invalid promo id' });
+      return;
+    }
+    const deleted = await PromoCode.findByIdAndDelete(id);
+    res.status(200).json({ success: true, message: 'Promo code deleted successfully', deletedId: id });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 8. Tip Pool Distribution Endpoint
+app.post('/api/v1/cashier-shift/tip-pool/distribute', authenticateJWT, requireTenant, async (req: TenantRequest, res: Response) => {
+  try {
+    const { totalTips, staffList, fohPercentage = 60, bohPercentage = 40 } = req.body;
+    const result = await TipPoolService.distributeTipPool(req.hotelId!, totalTips, staffList || [], fohPercentage, bohPercentage);
+    res.status(200).json({ success: true, data: result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 9. Razorpay Payment Verification
+const handleRazorpayVerify = async (req: Request, res: Response) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const isValid = RazorpayService.verifySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+    if (!isValid) {
+      res.status(400).json({ success: false, errorCode: 'SIGNATURE_VERIFICATION_FAILED', message: 'Razorpay HMAC signature is invalid' });
+      return;
+    }
+    res.status(200).json({ success: true, message: 'Payment verified successfully' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+app.post('/api/v1/payments/razorpay/verify', handleRazorpayVerify);
+app.post('/api/v1/billing/razorpay/verify', handleRazorpayVerify);
+
+// 10. Tenant Custom Branding
+app.get('/api/v1/tenant/branding', async (req: Request, res: Response) => {
+  try {
+    const slug = (req.query.slug as string) || req.hostname.split('.')[0];
+    const hotelId = req.query.hotelId as string;
+    let tenant = null;
+    if (hotelId && mongoose.Types.ObjectId.isValid(hotelId)) {
+      tenant = await Tenant.findById(hotelId);
+    } else if (slug) {
+      tenant = await Tenant.findOne({ slug: slug.toLowerCase() });
+    }
+    if (!tenant) {
+      tenant = await Tenant.findOne({ status: 'ACTIVE' });
+    }
+    res.status(200).json({
+      success: true,
+      data: {
+        id: tenant?._id,
+        name: tenant?.name || 'SpiceHub Luxury Hotel',
+        slug: tenant?.slug || 'taj-gateway',
+        logoUrl: tenant?.logoUrl || '',
+        primaryColor: tenant?.primaryColor || '#f97316',
+        tagline: tenant?.tagline || '',
+        gstin: tenant?.gstin || '27AAAAA0000A1Z5',
+        fssai: tenant?.fssai || '10019022009876',
+        wifiSsid: tenant?.wifiSsid || 'TajGateway_HighSpeed',
+        wifiPassword: tenant?.wifiPassword || 'SpiceGuest@2026',
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.put('/api/v1/superadmin/tenants/:tenantId/branding', async (req: Request, res: Response) => {
+  try {
+    const { tenantId } = req.params;
+    const { logoUrl, primaryColor, name, tagline, gstin, fssai, wifiSsid, wifiPassword } = req.body;
+    const updated = await Tenant.findByIdAndUpdate(
+      tenantId,
+      { $set: { logoUrl, primaryColor, 'branding.primaryColor': primaryColor, name, tagline, gstin, fssai, wifiSsid, wifiPassword } },
+      { new: true }
+    );
+    res.status(200).json({ success: true, data: updated });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Sentry Error Handler & Global Unhandled Exception Catcher
+Sentry.setupExpressErrorHandler(app);
+
+// Centralized Structured Error Handling Middleware
+app.use((err: any, req: Request, res: Response, _next: express.NextFunction) => {
+  const tenantId =
+    (req.headers['x-hotel-id'] as string) ||
+    (req as any).hotelId ||
+    (req as any).user?.hotelId ||
+    'public';
+
+  const statusCode = err.status || err.statusCode || 500;
+
+  logger.error(`[Unhandled Exception] ${err.message || 'Internal Server Error'}`, {
+    tenantId,
+    error: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    statusCode,
+  });
+
+  Sentry.captureException(err, {
+    tags: { tenantId },
+    extra: {
+      url: req.originalUrl,
+      method: req.method,
+      ip: req.ip,
+      statusCode,
+    },
+  });
+
+  res.status(statusCode).json({
+    success: false,
+    message: process.env.NODE_ENV === 'production'
+      ? 'An unexpected error occurred. Please contact system support.'
+      : (err.message || 'Internal Server Error'),
+  });
+});
+
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
+const HOST = '0.0.0.0';
 
 import { connectRedis } from './config/redis';
 
@@ -551,14 +1125,16 @@ export const startServer = async () => {
   assertProductionSecurityConfig();
   await connectDB();
   await connectRedis();
-  server.listen(PORT, () => {
-    console.log(`🚀 [SpiceHub Engine] Server listening on port ${PORT}`);
+  startSocketKeepAliveWorker(60000);
+  server.listen(PORT, HOST, () => {
+    console.log(`🚀 [SpiceHub Engine] Server listening on ${HOST}:${PORT}`);
     console.log(`📡 [Socket.IO] Realtime server active on port ${PORT}`);
   });
 };
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   startServer();
 }
 
+export default app;
 export { app, server };

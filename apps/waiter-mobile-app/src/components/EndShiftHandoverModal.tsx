@@ -62,28 +62,28 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-fadeIn">
       <div
-        className={`w-full max-w-lg rounded-2xl border shadow-2xl overflow-hidden transition-all duration-200 transform scale-100 ${
+        className={`w-full max-w-lg rounded-2xl border shadow-sm dark:shadow-none overflow-hidden transition-all duration-200 transform scale-100 ${
           isDark
-            ? 'bg-[#121520] border-rose-500/40 text-slate-100'
-            : 'bg-white border-rose-200 text-slate-800'
+            ? 'bg-slate-900 border-red-500/40 text-slate-100'
+            : 'bg-white border-red-200 text-slate-800'
         }`}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-rose-900 via-slate-900 to-rose-950 p-4 text-white flex items-center justify-between border-b border-rose-800/40">
+        <div className="bg-slate-900 p-4 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-black text-xl">
-              <LogOut className="w-5 h-5 text-rose-400" />
+            <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center font-black text-xl">
+              <LogOut className="w-5 h-5 text-red-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base sm:text-lg font-black tracking-tight">
                   End Shift & Handover
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/30 text-rose-300 border border-rose-500/40">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/30 text-red-300 border border-red-500/40">
                   Clock-Out
                 </span>
               </div>
-              <p className="text-xs text-rose-200/80">
+              <p className="text-xs text-red-200/80">
                 Shift conclusion & buddy handover protocol
               </p>
             </div>
@@ -107,7 +107,7 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 text-white font-black flex items-center justify-center text-xs shadow-xs">
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-black flex items-center justify-center text-xs shadow-xs">
                 {staffName.slice(0, 2).toUpperCase()}
               </div>
               <div>
@@ -188,15 +188,15 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
               <div
                 className={`p-2.5 rounded-xl border flex flex-col justify-between ${
                   isDark
-                    ? 'bg-purple-950/20 border-purple-800/40 text-purple-300'
-                    : 'bg-purple-50 border-purple-200 text-purple-900'
+                    ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                    : 'bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
                 }`}
               >
                 <div className="text-[10px] font-bold text-slate-400">Cash Float</div>
-                <div className="text-xl font-black text-purple-400 my-0.5">
+                <div className="text-xl font-black text-slate-700 dark:text-slate-300 my-0.5">
                   ₹{cashFloatBalance}
                 </div>
-                <div className="text-[10px] font-medium text-purple-400 flex items-center gap-1">
+                <div className="text-[10px] font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">
                   <Banknote className="w-3 h-3" /> Ready for Drop
                 </div>
               </div>
@@ -206,12 +206,12 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
           {/* Handover Buddy Selection */}
           <div>
             <label className="block text-xs font-black uppercase tracking-wider mb-1.5 text-slate-400">
-              Select Handover Buddy (अगली शिफ्ट का साथी)
+              Select Handover Buddy
             </label>
             <select
               value={buddyWaiter}
               onChange={(e) => setBuddyWaiter(e.target.value)}
-              className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-rose-500 transition cursor-pointer ${
+              className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-red-500 transition cursor-pointer ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-white'
                   : 'bg-white border-slate-300 text-slate-900'
@@ -228,14 +228,14 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
           {/* Handover Notes */}
           <div>
             <label className="block text-xs font-black uppercase tracking-wider mb-1.5 text-slate-400">
-              Handover Remarks / Table Notes (हैंडओवर नोट्स)
+              Handover Remarks / Table Notes
             </label>
             <textarea
               rows={2}
               placeholder="e.g. Table 2 waiting for dessert, Table 3 requested split bill. All guests satisfied."
               value={handoverNotes}
               onChange={(e) => setHandoverNotes(e.target.value)}
-              className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-rose-500 transition ${
+              className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-red-500 transition ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500'
                   : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
@@ -271,7 +271,7 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
         {/* Footer Actions */}
         <div
           className={`p-4 border-t flex items-center justify-between gap-3 ${
-            isDark ? 'bg-[#0f121b] border-slate-800' : 'bg-slate-50 border-slate-200'
+            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}
         >
           <button
@@ -294,7 +294,7 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
                 cashDropConfirmed,
               });
             }}
-            className="px-5 py-2.5 rounded-xl font-black text-xs text-white bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 hover:to-red-500 shadow-lg shadow-rose-950/50 flex items-center gap-2 transition transform hover:scale-102"
+            className="px-5 py-2.5 rounded-xl font-black text-xs text-white bg-red-600 hover:bg-red-700 shadow-sm flex items-center gap-2 transition"
           >
             <LogOut className="w-4 h-4" />
             <span>Confirm End Shift & Clock Out</span>

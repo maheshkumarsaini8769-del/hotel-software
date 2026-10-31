@@ -160,8 +160,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
     }
   };
 
-  const cardClass = isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm';
-  const headingClass = isDark ? 'text-white' : 'text-slate-900';
+  const cardClass = isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs';
+  const headingClass = isDark ? 'text-white' : 'text-slate-800';
   const mutedClass = isDark ? 'text-slate-400' : 'text-slate-500';
 
   return (
@@ -203,7 +203,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
           <span className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
             {error}
@@ -223,7 +223,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
         </div>
         <div className={`p-3 rounded-xl border ${cardClass}`}>
           <span className={`text-[11px] font-bold ${mutedClass}`}>Overdue SLA</span>
-          <div className="text-xl font-black text-rose-400 font-mono">{summary?.overdueCount ?? '—'}</div>
+          <div className="text-xl font-black text-red-400 font-mono">{summary?.overdueCount ?? '—'}</div>
         </div>
         <div className={`p-3 rounded-xl border ${cardClass}`}>
           <span className={`text-[11px] font-bold ${mutedClass}`}>Resolved</span>
@@ -237,7 +237,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
         </div>
         <div className={`p-3 rounded-xl border ${cardClass}`}>
           <span className={`text-[11px] font-bold ${mutedClass}`}>Repair Spend</span>
-          <div className="text-xl font-black text-white font-mono">
+          <div className={`text-xl font-black font-mono ${isDark ? 'text-white' : 'text-slate-800'}`}>
             ₹{Number(summary?.totalRepairExpenses || 0).toLocaleString('en-IN')}
           </div>
         </div>
@@ -343,10 +343,10 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
                 <th className="py-3 px-4 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className={`divide-y ${isDark ? 'divide-slate-800/60' : 'divide-slate-100'}`}>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400">
+                  <td colSpan={7} className={`py-10 text-center ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     Loading live maintenance tickets…
                   </td>
                 </tr>
@@ -360,23 +360,29 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
                 tickets.map((ticket) => {
                   const overdue = ticket.slaDeadline ? new Date(ticket.slaDeadline) < new Date() : false;
                   return (
-                    <tr key={ticket._id} className="hover:bg-slate-800/20 transition">
-                      <td className="py-3 px-4 font-mono font-bold text-amber-400">
+                    <tr key={ticket._id} className={`transition ${isDark ? 'hover:bg-slate-800/20' : 'hover:bg-slate-50'}`}>
+                      <td className="py-3 px-4 font-mono font-bold text-amber-500">
                         {ticket.ticketNumber}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-bold text-white">{ticket.title}</div>
-                        <div className="text-[10px] text-slate-400">{ticket.description}</div>
+                        <div className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>{ticket.title}</div>
+                        <div className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{ticket.description}</div>
                       </td>
                       <td className="py-3 px-4">{ticket.category}</td>
                       <td className="py-3 px-4">
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                             ticket.priority === 'CRITICAL'
-                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                              ? isDark
+                                ? 'bg-red-500/20 text-red-300 border-red-500/30'
+                                : 'bg-red-50 text-red-800 border-red-200'
                               : ticket.priority === 'HIGH'
-                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                                : 'bg-slate-800 text-slate-300 border-slate-700'
+                                ? isDark
+                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                  : 'bg-amber-50 text-amber-800 border-amber-200'
+                                : isDark
+                                  ? 'bg-slate-800 text-slate-300 border-slate-700'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200'
                           }`}
                         >
                           {ticket.priority}
@@ -385,11 +391,11 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
                       <td className="py-3 px-4">{String(ticket.status || '').replace(/_/g, ' ')}</td>
                       <td className="py-3 px-4">
                         {overdue ? (
-                          <span className="flex items-center gap-1 text-rose-300 font-bold">
+                          <span className={`flex items-center gap-1 font-bold ${isDark ? 'text-red-300' : 'text-red-700'}`}>
                             <AlertTriangle className="w-3.5 h-3.5" /> Overdue
                           </span>
                         ) : (
-                          <span className="flex items-center gap-1 text-slate-300">
+                          <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                             <Clock className="w-3.5 h-3.5" /> On track
                           </span>
                         )}
@@ -398,7 +404,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
                         <button
                           type="button"
                           onClick={() => void handleResolve(ticket)}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold inline-flex items-center gap-1"
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold inline-flex items-center gap-1 shadow-xs"
                         >
                           <CheckCircle2 className="w-3 h-3" /> Resolve
                         </button>

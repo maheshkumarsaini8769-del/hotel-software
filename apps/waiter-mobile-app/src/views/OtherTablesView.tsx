@@ -77,7 +77,7 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
     });
   }, [otherTables, filter, search]);
 
-  const khaliCount = otherTables.filter((t) => t.status === 'Available').length;
+  const availableCount = otherTables.filter((t) => t.status === 'Available').length;
   const occupiedCount = otherTables.filter((t) => t.status === 'Occupied' || t.status === 'My Table').length;
   const cleaningCount = otherTables.filter((t) => t.status === 'Cleaning').length;
 
@@ -96,7 +96,7 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
       {/* Header Banner */}
       <div
         className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-          isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}
       >
         <div className="flex items-center gap-3">
@@ -106,7 +106,7 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                Other Floor Tables — Select Another Table (दूसरी टेबल चुनें)
+                Other Floor Tables — Select Another Table
               </h2>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
                 Cross-Zone Assist Page
@@ -128,12 +128,12 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
             }`}
           >
             <ArrowLeft className="w-3.5 h-3.5 text-orange-400" />
-            <span>Back to My Tables (मेरी टेबल)</span>
+            <span>Back to My Tables</span>
           </button>
           <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            🟢 Khali: {khaliCount}
+            🟢 Available: {availableCount}
           </span>
-          <span className="px-3 py-1.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+          <span className="px-3 py-1.5 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20">
             🔴 Occupied: {occupiedCount}
           </span>
         </div>
@@ -143,7 +143,7 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
       <div
         className={`p-3 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
           isDark
-            ? 'bg-gradient-to-r from-amber-950/30 via-slate-900 to-orange-950/20 border-amber-500/30'
+            ? 'bg-slate-900 border-amber-500/30'
             : 'bg-amber-50 border-amber-200'
         }`}
       >
@@ -163,7 +163,7 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {[
             { id: 'All', label: 'All Other Tables', count: otherTables.length },
-            { id: 'Available', label: '🟢 Khali (Vacant)', count: khaliCount },
+            { id: 'Available', label: '🟢 Available (Vacant)', count: availableCount },
             { id: 'Occupied', label: '🔴 Occupied', count: occupiedCount },
             { id: 'Cleaning', label: '🟡 Cleaning', count: cleaningCount },
           ].map((tab) => {
@@ -176,7 +176,7 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
                   active
                     ? 'bg-amber-600 text-white shadow-sm'
                     : isDark
-                    ? 'bg-[#181c2b] text-slate-400 hover:text-slate-200 border border-slate-800'
+                    ? 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
                     : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
@@ -195,7 +195,7 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
 
         <div
           className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border w-full sm:w-64 ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
           }`}
         >
           <Search className="w-4 h-4 text-slate-400" />
@@ -230,14 +230,14 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
               className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 transition-all hover:scale-[1.01] ${
                 isOccupied
                   ? isDark
-                    ? 'bg-gradient-to-br from-slate-900 to-[#181c2b] border-amber-500/40 shadow-md'
-                    : 'bg-amber-50/40 border-amber-300 shadow-sm'
+                    ? 'bg-slate-900 border-amber-500/40 shadow-xs'
+                    : 'bg-amber-50/40 border-amber-300 shadow-xs'
                   : isAvailable
                   ? isDark
-                    ? 'bg-[#121622] border-emerald-500/30'
+                    ? 'bg-slate-800 border-emerald-500/30'
                     : 'bg-white border-emerald-200 shadow-2xs'
                   : isDark
-                  ? 'bg-[#141824] border-slate-800'
+                  ? 'bg-slate-900 border-slate-800'
                   : 'bg-slate-50 border-slate-200'
               }`}
             >
@@ -251,13 +251,13 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
                     <span
                       className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
                         isOccupied
-                          ? 'bg-rose-600 text-white'
+                          ? 'bg-red-600 text-white'
                           : isAvailable
                           ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                           : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                       }`}
                     >
-                      {isAvailable ? '🟢 Khali (Vacant)' : isOccupied ? '🔴 Occupied' : '🟡 Cleaning'}
+                      {isAvailable ? '🟢 Available (Vacant)' : isOccupied ? '🔴 Occupied' : '🟡 Cleaning'}
                     </span>
                   </div>
                 </div>
@@ -308,7 +308,7 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
                 >
                   <div className="flex justify-between">
                     <span className="text-slate-400">Table Status:</span>
-                    <span className="font-black text-emerald-400">🟢 Khali (Vacant)</span>
+                    <span className="font-black text-emerald-400">🟢 Available (Vacant)</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Seated Guests:</span>
@@ -359,7 +359,7 @@ export const OtherTablesView: React.FC<OtherTablesViewProps> = ({
                   }`}
                 >
                   <Bell className="w-3 h-3 text-amber-400" />
-                  <span>Notify {colleague.name.split(' ')[0]} (कॉल भेजें)</span>
+                  <span>Notify {colleague.name.split(' ')[0]} (Send Call)</span>
                 </button>
               </div>
             </div>

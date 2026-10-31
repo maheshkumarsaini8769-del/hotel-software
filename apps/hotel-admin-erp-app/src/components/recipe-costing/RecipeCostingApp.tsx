@@ -182,7 +182,7 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
   });
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-zinc-100 flex flex-col font-sans select-none">
+    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans select-none">
       {/* Header */}
       <RecipeCostingHeader
         metrics={metrics}

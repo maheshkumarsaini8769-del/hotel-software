@@ -15,6 +15,10 @@ import {
   getGuestRoomCatalog,
   bookAndCheckInGuest,
   approveGuestCheckIn,
+  rejectGuestCheckIn,
+  sendGuestPhoneOtp,
+  verifyGuestPhoneOtp,
+  getBookingStatus,
   recalculateDynamicCheckoutBill,
   updateOrderWaiterEta,
   extendStayDates,
@@ -26,7 +30,13 @@ const router = Router();
 // In-Room Guest Portal Routes
 router.get('/rooms/catalog', getGuestRoomCatalog);
 router.post('/rooms/book-and-checkin', bookAndCheckInGuest);
-router.post('/rooms/approve-checkin', approveGuestCheckIn);
+// SECURITY: check-in approval mutates inventory + creates a folio, so it must be
+// a staff-only operation. The reception front-desk app sends a staff JWT here.
+router.post('/rooms/approve-checkin', authenticateJWT, requireTenant, approveGuestCheckIn);
+router.post('/rooms/reject-checkin', authenticateJWT, requireTenant, rejectGuestCheckIn);
+router.post('/rooms/send-phone-otp', sendGuestPhoneOtp);
+router.post('/rooms/verify-phone-otp', verifyGuestPhoneOtp);
+router.get('/rooms/booking-status/:bookingNumber', getBookingStatus);
 router.post('/stay/recalculate-checkout-bill', recalculateDynamicCheckoutBill);
 router.post('/orders/:orderId/waiter-eta', updateOrderWaiterEta);
 router.post('/stay/extend-dates', extendStayDates);

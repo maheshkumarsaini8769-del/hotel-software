@@ -91,7 +91,7 @@ export const WaiterCashFloatCard: React.FC<WaiterCashFloatCardProps> = ({
         </div>
         <div>
           <p className="text-[10px] text-zinc-500 uppercase font-semibold">Change Given</p>
-          <p className="text-xs font-bold text-rose-400 mt-0.5">
+          <p className="text-xs font-bold text-red-400 mt-0.5">
             -₹{float.totalChangeGiven.toFixed(0)}
           </p>
         </div>
@@ -122,7 +122,7 @@ export const WaiterCashFloatCard: React.FC<WaiterCashFloatCardProps> = ({
       {/* Cash Drop Modal */}
       {isDropModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-800 p-6 shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-800 p-6 shadow-sm dark:shadow-none">
             <h4 className="text-base font-bold text-white mb-1">
               Cash Handover Drop
             </h4>

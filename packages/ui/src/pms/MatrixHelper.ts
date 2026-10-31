@@ -102,11 +102,11 @@ export class MatrixHelper {
       case 'CANCELLED':
       case 'NO_SHOW':
         return {
-          bg: 'bg-rose-950/40 opacity-50',
-          border: 'border-rose-900 line-through',
-          text: 'text-rose-400',
-          badge: 'bg-rose-900/40 text-rose-300 border-rose-800',
-          glow: 'ring-1 ring-rose-900/30',
+          bg: 'bg-red-950/40 opacity-50',
+          border: 'border-red-900 line-through',
+          text: 'text-red-400',
+          badge: 'bg-red-900/40 text-red-300 border-red-800',
+          glow: 'ring-1 ring-red-900/30',
         };
       default:
         return {

@@ -1,0 +1,11 @@
+node_modules
+.git
+tests
+coverage
+src
+!dist
+!dist/**
+!public
+!public/**
+!api
+!api/**

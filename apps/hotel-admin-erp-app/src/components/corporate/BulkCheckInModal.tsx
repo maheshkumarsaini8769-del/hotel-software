@@ -63,9 +63,9 @@ export const BulkCheckInModal: React.FC<BulkCheckInModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-[#121721] border border-amber-500/30 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-xs text-zinc-300">
+      <div className="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden text-xs text-zinc-300">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-[#0b0e14]">
+        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-slate-950">
           <div>
             <div className="flex items-center gap-2">
               <span className="font-mono text-amber-400 font-bold">{group.groupBookingCode}</span>
@@ -86,7 +86,7 @@ export const BulkCheckInModal: React.FC<BulkCheckInModalProps> = ({
 
         {/* Modal Content */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
-          <div className="bg-[#0b0e14] p-3.5 rounded-xl border border-zinc-800 flex items-center justify-between">
+          <div className="bg-slate-950 p-3.5 rounded-xl border border-zinc-800 flex items-center justify-between">
             <div>
               <div className="font-bold text-zinc-200">{group.groupName}</div>
               <div className="text-zinc-400 text-[11px]">
@@ -106,7 +106,7 @@ export const BulkCheckInModal: React.FC<BulkCheckInModalProps> = ({
               return (
                 <div
                   key={room._id || idx}
-                  className="bg-[#0b0e14] p-4 rounded-xl border border-zinc-800 space-y-2"
+                  className="bg-slate-950 p-4 rounded-xl border border-zinc-800 space-y-2"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -130,7 +130,7 @@ export const BulkCheckInModal: React.FC<BulkCheckInModalProps> = ({
                       required
                       value={assignedPhysical}
                       onChange={(e) => room._id && handleRoomSelect(room._id, e.target.value)}
-                      className="w-full bg-[#121721] border border-zinc-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500 font-medium"
+                      className="w-full bg-slate-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500 font-medium"
                     >
                       <option value="">-- Select Clean Available Room --</option>
                       {availableRooms.map((ar) => (
@@ -146,7 +146,7 @@ export const BulkCheckInModal: React.FC<BulkCheckInModalProps> = ({
           </div>
 
           {availableRooms.length === 0 && (
-            <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/40 text-rose-300 text-xs">
+            <div className="p-3 rounded-xl bg-red-950/40 border border-red-800/40 text-red-300 text-xs">
               ⚠️ Warning: No clean available rooms found in system. Please release or inspect rooms in Housekeeping before check-in.
             </div>
           )}

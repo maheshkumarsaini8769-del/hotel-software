@@ -19,8 +19,8 @@ export const RecipeSopViewModal: React.FC<RecipeSopViewModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-amber-500/40 bg-[#0f131a] text-zinc-100 shadow-2xl">
-        <div className="flex items-start justify-between border-b border-zinc-800 bg-[#121620] px-6 py-4">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-amber-500/40 bg-slate-900 text-zinc-100 shadow-sm dark:shadow-none">
+        <div className="flex items-start justify-between border-b border-zinc-800 bg-slate-900 px-6 py-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xl">📖</span>

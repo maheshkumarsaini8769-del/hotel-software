@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { Types } from 'mongoose';
 import { TableSession, SessionStatus } from '../models/TableSession';
 import { DiningTable, TableStatus } from '../models/DiningTable';
@@ -6,10 +7,13 @@ import { RestaurantOrder, OverallOrderStatus } from '../models/RestaurantOrder';
 import { RestaurantBill, BillStatus, DiscountType } from '../models/RestaurantBill';
 import { Payment, PaymentMode, PaymentStatus } from '../models/Payment';
 import { ShiftReconciliation } from '../models/ShiftReconciliation';
+import { CashierShiftFloat, CashierShiftStatus } from '../models/CashierShiftFloat';
 import { TaxRule, TaxApplicability } from '../models/TaxRule';
 import { TenantRequest } from '../types';
 import { io } from '../index';
 import { isDevAuthBypassEnabled } from '../config/security';
+import { AuditService } from '../services/auditService';
+import { sendWhatsApp } from '../services/notificationService';
 
 // 1. Authoritative Bill Generation & Snapshot Locking
 export const generateTableBill = async (req: Request, res: Response): Promise<void> => {
@@ -156,6 +160,9 @@ export const generateTableBill = async (req: Request, res: Response): Promise<vo
     session.discountAmount = discountAmount;
     session.taxAmount = totalTax;
     session.finalAmount = grandTotal;
+    if (!session.sessionTokenHash) {
+      session.sessionTokenHash = crypto.createHash('sha256').update(String(session._id)).digest('hex');
+    }
     await session.save();
 
     await DiningTable.findByIdAndUpdate(session.tableId, { currentStatus: TableStatus.BILLING });
@@ -366,12 +373,24 @@ export const processBillPayment = async (req: Request, res: Response): Promise<v
       }
     }
 
-    if (!bill || bill.billStatus === BillStatus.PAID) {
-      res.status(400).json({ success: false, errorCode: 'INVALID_BILL', message: 'Bill is already paid or not found' });
+    if (!bill) {
+      res.status(404).json({ success: false, errorCode: 'BILL_NOT_FOUND', message: 'Bill not found' });
       return;
     }
 
-    const payAmount = amount !== undefined ? Number(amount) : bill.dueAmount;
+    if (bill.billStatus === BillStatus.PAID) {
+      res.status(400).json({ success: false, errorCode: 'ALREADY_PAID', message: 'Bill is already paid' });
+      return;
+    }
+
+    // Overpayment clamp: payAmount never exceeds outstanding dueAmount
+    let payAmount = amount !== undefined ? Number(amount) : bill.dueAmount;
+    let effectiveCashReceived = cashReceived !== undefined ? Number(cashReceived) : undefined;
+    if (paymentMode === PaymentMode.CASH && payAmount > bill.dueAmount) {
+      // If cashier entered cash received in the amount field or cashReceived is greater
+      if (!effectiveCashReceived) effectiveCashReceived = payAmount;
+      payAmount = bill.dueAmount;
+    }
 
     if (!Number.isFinite(payAmount) || payAmount <= 0) {
       res.status(400).json({ success: false, errorCode: 'INVALID_AMOUNT', message: 'Payment amount must be greater than zero' });
@@ -389,11 +408,12 @@ export const processBillPayment = async (req: Request, res: Response): Promise<v
 
     let changeReturned = 0;
     if (paymentMode === PaymentMode.CASH) {
-      if (!cashReceived || cashReceived < payAmount) {
+      const effectiveCash = Number(effectiveCashReceived || payAmount);
+      if (effectiveCash < payAmount) {
         res.status(400).json({ success: false, errorCode: 'INSUFFICIENT_CASH', message: 'Cash received is less than payment amount' });
         return;
       }
-      changeReturned = cashReceived - payAmount;
+      changeReturned = Math.max(0, effectiveCash - payAmount);
     }
 
     // Create Payment Record
@@ -426,7 +446,72 @@ export const processBillPayment = async (req: Request, res: Response): Promise<v
     if (bill.billStatus === BillStatus.PAID) {
       await DiningTable.findByIdAndUpdate(bill.tableId, { currentStatus: TableStatus.PAYMENT_SETTLED });
       await TableSession.findByIdAndUpdate(bill.tableSessionId, { status: SessionStatus.SETTLED });
+
+      // Trigger WhatsApp Bill Receipt Notification (Mock Service)
+      const recipientPhone = req.body.customerPhone || (bill as any).customerPhone || (bill as any).phone;
+      if (recipientPhone) {
+        sendWhatsApp(recipientPhone, 'bill_receipt', {
+          billNumber: bill.billNumber,
+          amount: payAmount,
+          paymentMode,
+          settledAt: bill.settledAt || new Date(),
+        }).catch((err) => console.error('[Billing] WhatsApp receipt notification failed:', err.message));
+      }
     }
+
+    // Automatically synchronize payment with the active CashierShiftFloat drawer
+    if (paymentMode === PaymentMode.CASH) {
+      await CashierShiftFloat.findOneAndUpdate(
+        { hotelId: bill.hotelId, status: CashierShiftStatus.OPEN },
+        {
+          $inc: {
+            totalCashCollected: Number(effectiveCashReceived || payAmount),
+            totalChangeReturned: changeReturned,
+            expectedCashInDrawer: payAmount,
+            settlementCount: 1,
+          },
+        }
+      );
+    } else if (paymentMode === PaymentMode.UPI) {
+      await CashierShiftFloat.findOneAndUpdate(
+        { hotelId: bill.hotelId, status: CashierShiftStatus.OPEN },
+        {
+          $inc: {
+            totalUpiCollected: payAmount,
+            settlementCount: 1,
+          },
+        }
+      );
+    } else if (paymentMode === PaymentMode.CARD) {
+      await CashierShiftFloat.findOneAndUpdate(
+        { hotelId: bill.hotelId, status: CashierShiftStatus.OPEN },
+        {
+          $inc: {
+            totalCardCollected: payAmount,
+            settlementCount: 1,
+          },
+        }
+      );
+    }
+
+    // Audit Log recording
+    await AuditService.log({
+      hotelId: bill.hotelId,
+      userId: (req as any).user?._id || (req as any).user?.id,
+      userEmail: (req as any).user?.email || 'cashier@pos',
+      userName: (req as any).user?.name || 'Cashier Terminal',
+      action: 'PAYMENT_SETTLED',
+      entity: 'RestaurantBill',
+      entityId: String(bill._id),
+      newValue: {
+        paidAmount: payAmount,
+        paymentMode,
+        changeReturned,
+        billNumber: bill.billNumber,
+      },
+      details: `Settled payment of ₹${payAmount} via ${paymentMode}. Change returned: ₹${changeReturned}`,
+      ipAddress: req.ip,
+    });
 
     // Broadcast Real-time event
     const activeHotelId = bill.hotelId.toString();

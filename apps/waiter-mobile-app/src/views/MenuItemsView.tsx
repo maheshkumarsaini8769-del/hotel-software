@@ -371,10 +371,10 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-5 gap-3.5 sm:gap-4">
       {/* 1. Header Banner & Live Stock Control */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-3.5 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
       }`}>
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-black shadow-md shadow-orange-500/20">
+          <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black shadow-xs">
             <Package className="w-5 h-5" />
           </div>
           <div>
@@ -403,7 +403,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
                   ? diet === 'Veg'
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : diet === 'Non-Veg'
-                    ? 'bg-rose-600 text-white shadow-sm'
+                    ? 'bg-red-600 text-white shadow-sm'
                     : 'bg-orange-500 text-white shadow-sm'
                   : isDark
                   ? 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
@@ -411,7 +411,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
               }`}
             >
               {diet === 'Veg' && <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />}
-              {diet === 'Non-Veg' && <span className="w-2 h-2 rounded-full bg-rose-400 inline-block" />}
+              {diet === 'Non-Veg' && <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />}
               <span>{diet === 'Veg' ? 'Veg Only' : diet === 'Non-Veg' ? 'Non-Veg' : 'All Diet'}</span>
             </button>
           ))}
@@ -427,7 +427,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
               ? 'ring-2 ring-orange-500 shadow-md'
               : ''
           } ${
-            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
           }`}
         >
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
@@ -484,26 +484,26 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
           onClick={() => setActiveStockFilter('86 Out')}
           className={`p-3 rounded-2xl border text-left transition-all ${
             activeStockFilter === '86 Out'
-              ? 'ring-2 ring-rose-500 shadow-md'
+              ? 'ring-2 ring-red-500 shadow-md'
               : ''
           } ${
-            isDark ? 'bg-rose-950/20 border-rose-900/40' : 'bg-rose-50/80 border-rose-200 shadow-2xs'
+            isDark ? 'bg-red-950/20 border-red-900/40' : 'bg-red-50/80 border-red-200 shadow-2xs'
           }`}
         >
-          <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider flex items-center justify-between">
+          <div className="text-[10px] font-bold text-red-600 uppercase tracking-wider flex items-center justify-between">
             <span>86'd (Out of Stock)</span>
-            <X className="w-3.5 h-3.5 text-rose-500" />
+            <X className="w-3.5 h-3.5 text-red-500" />
           </div>
-          <div className="text-xl font-black text-rose-600 mt-1">
+          <div className="text-xl font-black text-red-600 mt-1">
             {outOfStockCount}
           </div>
-          <div className="text-[10px] text-rose-700/80 font-medium mt-0.5">Disabled on QR/POS</div>
+          <div className="text-[10px] text-red-700/80 font-medium mt-0.5">Disabled on QR/POS</div>
         </button>
       </div>
 
       {/* 3. Target Table Selector Bar */}
       <div className={`p-3 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-colors ${
-        isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
       }`}>
         <div className="flex items-center gap-2">
           <span className="text-xs font-black uppercase text-orange-500 tracking-wider">
@@ -560,7 +560,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
                 activeCategory === c
                   ? 'bg-orange-500 text-white shadow-sm'
                   : isDark
-                  ? 'bg-[#181c2b] text-slate-400 hover:text-white border border-slate-800'
+                  ? 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                   : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 shadow-2xs'
               }`}
             >
@@ -587,7 +587,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
       <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-28 lg:pb-8">
         {filteredItems.length === 0 ? (
           <div className={`text-center py-16 rounded-2xl border ${
-            isDark ? 'bg-[#181c2b] border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500 shadow-2xs'
+            isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500 shadow-2xs'
           }`}>
             <Package className="w-10 h-10 mx-auto mb-2 opacity-40 text-orange-500" />
             <div className="font-black text-sm">No dishes matched current filters</div>
@@ -601,14 +601,14 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
                 className={`p-3.5 sm:p-4 rounded-2xl border flex flex-col justify-between gap-3 transition-all hover:shadow-lg ${
                   !item.isAvailable
                     ? isDark
-                      ? 'bg-rose-950/10 border-rose-900/30 opacity-80'
-                      : 'bg-rose-50/50 border-rose-200 opacity-85'
+                      ? 'bg-red-950/10 border-red-900/30 opacity-80'
+                      : 'bg-red-50/50 border-red-200 opacity-85'
                     : item.isLowStock
                     ? isDark
                       ? 'bg-amber-950/10 border-amber-900/40'
                       : 'bg-amber-50/40 border-amber-200'
                     : isDark
-                    ? 'bg-[#181c2b] border-slate-800'
+                    ? 'bg-slate-900 border-slate-800'
                     : 'bg-white border-slate-200 shadow-2xs'
                 }`}
               >
@@ -626,7 +626,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
                           }`}
                         />
                         {!item.isAvailable && (
-                          <div className="absolute inset-0 bg-rose-950/70 flex items-center justify-center text-[10px] font-black text-white">
+                          <div className="absolute inset-0 bg-red-950/70 flex items-center justify-center text-[10px] font-black text-white">
                             86'D
                           </div>
                         )}
@@ -638,10 +638,10 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
                         <div className="flex items-center gap-1.5 min-w-0">
                           {/* FSSAI Veg / Non-Veg Indicator */}
                           <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
-                            item.isVeg ? 'border-emerald-600' : 'border-rose-600'
+                            item.isVeg ? 'border-emerald-600' : 'border-red-600'
                           }`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${
-                              item.isVeg ? 'bg-emerald-600' : 'bg-rose-600'
+                              item.isVeg ? 'bg-emerald-600' : 'bg-red-600'
                             }`} />
                           </span>
 
@@ -702,7 +702,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
                         </span>
                       )
                     ) : (
-                      <span className="px-2 py-0.5 rounded-md font-black bg-rose-500/20 text-rose-500 border border-rose-500/30">
+                      <span className="px-2 py-0.5 rounded-md font-black bg-red-500/20 text-red-500 border border-red-500/30">
                         0 Portions (Out of Stock)
                       </span>
                     )}
@@ -710,7 +710,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
 
                   {/* 86 Reason note if item is out of stock */}
                   {!item.isAvailable && item.outOfStockReason && (
-                    <div className="mt-1.5 text-[10px] text-rose-500 font-bold bg-rose-500/10 p-1.5 rounded-lg border border-rose-500/20">
+                    <div className="mt-1.5 text-[10px] text-red-500 font-bold bg-red-500/10 p-1.5 rounded-lg border border-red-500/20">
                       Reason: {item.outOfStockReason}
                     </div>
                   )}
@@ -729,7 +729,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
                           ? isDark
                             ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30'
                             : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
-                          : 'bg-rose-600 hover:bg-rose-500 text-white shadow-sm'
+                          : 'bg-red-600 hover:bg-red-500 text-white shadow-sm'
                       }`}
                     >
                       {item.isAvailable ? (
@@ -752,7 +752,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
                     onClick={() => onPunchKot(currentTargetTable, item)}
                     className={`w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition ${
                       item.isAvailable
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-sm active:scale-98'
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs active:scale-98'
                         : isDark
                         ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/30'
                         : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
@@ -775,12 +775,12 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
       {/* 6. Reason Confirmation Modal for 86ing an Item */}
       {pending86Item && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className={`max-w-md w-full rounded-2xl border p-5 space-y-4 shadow-2xl ${
-            isDark ? 'bg-[#181c2b] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          <div className={`max-w-md w-full rounded-2xl border p-5 space-y-4 shadow-sm dark:shadow-none ${
+            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-500 flex items-center justify-center font-bold">
+                <div className="w-9 h-9 rounded-xl bg-red-500/20 text-red-500 flex items-center justify-center font-bold">
                   <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div>
@@ -796,7 +796,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
               </button>
             </div>
 
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-500 leading-relaxed font-semibold">
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-500 leading-relaxed font-semibold">
               ⚠️ Warning: Marking this dish 86 will immediately block orders across <strong>Customer Table QR</strong>, <strong>Kitchen KDS</strong>, and <strong>Cashier POS</strong>!
             </div>
 
@@ -810,7 +810,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
                     onClick={() => setSelectedReason(reason)}
                     className={`w-full text-left p-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between ${
                       selectedReason === reason
-                        ? 'bg-rose-600 text-white shadow-sm'
+                        ? 'bg-red-600 text-white shadow-sm'
                         : isDark
                         ? 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
@@ -836,7 +836,7 @@ export const MenuItemsView: React.FC<MenuItemsViewProps> = ({
               <button
                 type="button"
                 onClick={confirmMark86}
-                className="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-md transition"
+                className="px-4 py-2 rounded-xl text-xs font-black bg-red-600 hover:bg-red-500 text-white shadow-md transition"
               >
                 Confirm 86 (Out of Stock)
               </button>

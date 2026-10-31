@@ -69,8 +69,8 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             onClick={() => setQuadrantFilter('PUZZLE')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               quadrantFilter === 'PUZZLE'
-                ? 'bg-purple-500 text-white'
-                : 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20'
+                ? 'bg-slate-800 dark:bg-slate-200 text-white'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800'
             }`}
           >
             🧩 Puzzles
@@ -80,8 +80,8 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             onClick={() => setQuadrantFilter('DOG')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               quadrantFilter === 'DOG'
-                ? 'bg-rose-500 text-white'
-                : 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20'
+                ? 'bg-red-500 text-white'
+                : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
             }`}
           >
             🐕 Dogs
@@ -103,7 +103,7 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="bg-[#0e121a] text-zinc-400 font-semibold border-b border-zinc-800 uppercase tracking-wider text-[11px]">
+          <thead className="bg-slate-900 text-zinc-400 font-semibold border-b border-zinc-800 uppercase tracking-wider text-[11px]">
             <tr>
               <th className="px-4 py-3">Menu Item</th>
               <th className="px-4 py-3">Quadrant</th>
@@ -187,7 +187,7 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
                       <button
                         type="button"
                         onClick={() => onSimulateItem(item)}
-                        className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-purple-600/30 text-purple-300 text-[11px] font-bold border border-zinc-700 hover:border-purple-500/40 transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold border border-zinc-700 hover:border-slate-200 dark:border-slate-800 transition-all"
                       >
                         🔮 Test
                       </button>

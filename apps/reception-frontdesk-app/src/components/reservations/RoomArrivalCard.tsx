@@ -41,7 +41,7 @@ export const RoomArrivalCard: React.FC<RoomArrivalCardProps> = ({
 
           <div>
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${badge.bg} ${badge.text} border ${badge.border}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${isCheckedIn ? 'bg-emerald-400' : isAssigned ? 'bg-amber-400' : 'bg-rose-400 animate-pulse'}`}></span>
+              <span className={`w-1.5 h-1.5 rounded-full ${isCheckedIn ? 'bg-emerald-400' : isAssigned ? 'bg-amber-400' : 'bg-red-400 animate-pulse'}`}></span>
               {badge.label}
             </span>
           </div>
@@ -79,7 +79,7 @@ export const RoomArrivalCard: React.FC<RoomArrivalCardProps> = ({
                 Room {booking.allocatedRoomId?.roomNumber} (Floor {booking.allocatedRoomId?.floorNumber})
               </span>
             ) : (
-              <span className="text-rose-400 font-semibold text-[11px]">Not Yet Assigned</span>
+              <span className="text-red-400 font-semibold text-[11px]">Not Yet Assigned</span>
             )}
           </div>
 

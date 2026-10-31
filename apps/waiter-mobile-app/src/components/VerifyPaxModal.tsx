@@ -56,14 +56,14 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-fadeIn">
       <div
-        className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden transition-all duration-200 transform scale-100 ${
+        className={`w-full max-w-md rounded-2xl border shadow-sm dark:shadow-none overflow-hidden transition-all duration-200 transform scale-100 ${
           isDark
-            ? 'bg-[#121520] border-amber-500/40 text-slate-100'
+            ? 'bg-slate-900 border-amber-500/40 text-slate-100'
             : 'bg-white border-amber-300 text-slate-800'
         }`}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 p-4 text-white flex items-center justify-between shadow-md">
+        <div className="bg-amber-600 p-4 text-white flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center font-black text-xl shadow-inner">
               <Users className="w-5 h-5 text-white" />
@@ -98,19 +98,19 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
             <div
               className={`p-3 rounded-xl border flex flex-col justify-between ${
                 isDark
-                  ? 'bg-purple-950/20 border-purple-800/40 text-purple-300'
-                  : 'bg-purple-50 border-purple-200 text-purple-900'
+                  ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                  : 'bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
               }`}
             >
               <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
-                <Smartphone className="w-3.5 h-3.5 text-purple-400" />
+                <Smartphone className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
                 <span>Customer Entered on QR</span>
               </div>
               <div className="my-1">
-                <span className="text-2xl font-black text-purple-400">{customerClaimed}</span>
+                <span className="text-2xl font-black text-slate-700 dark:text-slate-300">{customerClaimed}</span>
                 <span className="text-xs ml-1 font-bold text-slate-400">Guests</span>
               </div>
-              <div className="text-[10px] text-purple-400 font-medium">
+              <div className="text-[10px] text-slate-700 dark:text-slate-300 font-medium">
                 Entered on mobile menu
               </div>
             </div>
@@ -140,7 +140,7 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
           {/* Actual Seated Guests (Pax / Covers) Stepper */}
           <div className="space-y-2">
             <label className="block text-xs font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
-              <span>Actual Customers Physically Seated (वास्तविक संख्या)</span>
+              <span>Actual Customers Physically Seated</span>
               <span className="text-orange-500 font-bold font-mono">{actualPax} Pax</span>
             </label>
 
@@ -215,7 +215,7 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
               <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
               <div className="text-[11px] leading-relaxed">
                 <strong className="block text-amber-400 font-bold mb-0.5">
-                  ⚠️ Pax Discrepancy Detected (संख्या मिसमैच):
+                  ⚠️ Pax Discrepancy Detected:
                 </strong>
                 Customer entered <strong>{customerClaimed} guests</strong> on mobile, but you are verifying <strong>{actualPax} guests</strong>. Setting {actualPax} will correct billing covers, thali counts, and service charges.
               </div>
@@ -238,7 +238,7 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
           {/* Reason Selection */}
           <div>
             <label className="block text-xs font-black uppercase tracking-wider mb-1.5 text-slate-400">
-              Correction Reason (सुधार का कारण)
+              Correction Reason
             </label>
             <select
               value={reason}
@@ -261,7 +261,7 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
         {/* Footer Actions */}
         <div
           className={`p-4 border-t flex items-center justify-between gap-3 ${
-            isDark ? 'bg-[#0f121b] border-slate-800' : 'bg-slate-50 border-slate-200'
+            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}
         >
           <button
@@ -278,7 +278,7 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
           <button
             type="button"
             onClick={() => onSavePax(table.id, actualPax, reason)}
-            className="px-5 py-2.5 rounded-xl font-black text-xs text-white bg-gradient-to-r from-orange-600 via-amber-600 to-orange-700 hover:from-orange-500 hover:to-amber-500 shadow-md shadow-orange-950/40 flex items-center gap-1.5 transition transform hover:scale-102"
+            className="px-5 py-2.5 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-700 shadow-xs flex items-center gap-1.5 transition"
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>Confirm & Update {actualPax} Seated Guests</span>

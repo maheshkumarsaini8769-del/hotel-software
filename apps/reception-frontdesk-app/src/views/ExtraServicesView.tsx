@@ -100,25 +100,29 @@ export const ExtraServicesView: React.FC<ExtraServicesViewProps> = ({ isDark = t
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
       }`}>
         <div>
-          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
             <Sparkles className="w-5 h-5 text-amber-500" />
             <span>Extra Guest Services & Concierge Amenities</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             Book transfers, wellness, dining and convenience services directly to a live in-house folio.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 font-bold">Charge to Room:</span>
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Charge to Room:</span>
           <select
             value={selectedRoom}
             onChange={(event) => setSelectedRoom(event.target.value)}
             disabled={loading || activeStays.length === 0}
-            className="px-3 py-1.5 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white font-bold focus:outline-none disabled:opacity-50"
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold focus:outline-none disabled:opacity-50 transition ${
+              isDark
+                ? 'bg-slate-900 border-slate-800 text-white'
+                : 'bg-slate-50 border-slate-200 text-slate-800'
+            }`}
           >
             {activeStays.length === 0 ? (
               <option value="">No occupied rooms</option>
@@ -133,7 +137,11 @@ export const ExtraServicesView: React.FC<ExtraServicesViewProps> = ({ isDark = t
           <button
             onClick={() => void loadStays()}
             disabled={loading}
-            className="p-2 rounded-xl border border-slate-700 bg-slate-900 text-slate-300 hover:text-white disabled:opacity-50"
+            className={`p-2 rounded-xl border transition disabled:opacity-50 ${
+              isDark
+                ? 'border-slate-700 bg-slate-900 text-slate-300 hover:text-white'
+                : 'border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900'
+            }`}
             title="Refresh occupied rooms"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -142,7 +150,7 @@ export const ExtraServicesView: React.FC<ExtraServicesViewProps> = ({ isDark = t
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
           <span className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
             {error}
@@ -158,26 +166,30 @@ export const ExtraServicesView: React.FC<ExtraServicesViewProps> = ({ isDark = t
           <div
             key={service.id}
             className={`p-4 rounded-2xl border flex flex-col justify-between gap-4 transition ${
-              isDark ? 'bg-[#141620] border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 shadow-sm'
+              isDark ? 'bg-slate-900 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 shadow-2xs hover:border-slate-300'
             }`}
           >
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-2xl">{service.icon}</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                  isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-200'
+                }`}>
                   {service.category}
                 </span>
               </div>
               <div>
-                <h3 className="font-bold text-sm text-white">{service.name}</h3>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">{service.description}</p>
+                <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-800'}`}>{service.name}</h3>
+                <p className={`text-xs mt-1 leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{service.description}</p>
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
+            <div className={`pt-2 border-t flex items-center justify-between gap-2 ${
+              isDark ? 'border-slate-800/80' : 'border-slate-100'
+            }`}>
               <div>
-                <span className="text-[10px] text-slate-400 block">{service.duration}</span>
-                <span className="text-base font-black text-emerald-400 tabular-nums">
+                <span className={`text-[10px] block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{service.duration}</span>
+                <span className={`text-base font-black tabular-nums ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                   ₹{service.price.toLocaleString('en-IN')}
                 </span>
               </div>

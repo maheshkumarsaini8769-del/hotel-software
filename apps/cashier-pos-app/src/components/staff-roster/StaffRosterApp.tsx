@@ -143,7 +143,7 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#06080d] text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans">
       {/* Header */}
       <StaffRosterHeader
         metrics={state.metrics}
@@ -252,7 +252,7 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
                       </div>
                       <div className="bg-zinc-800/60 p-2 rounded-xl">
                         <span className="text-zinc-500 text-[10px] block">Total Hours</span>
-                        <strong className="text-cyan-400">{session.totalEligibleHours}h</strong>
+                        <strong className="text-slate-700 dark:text-slate-300">{session.totalEligibleHours}h</strong>
                       </div>
                     </div>
                   </div>

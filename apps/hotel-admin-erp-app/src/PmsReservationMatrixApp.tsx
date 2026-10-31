@@ -130,7 +130,7 @@ export const PmsReservationMatrixApp: React.FC<PmsReservationMatrixAppProps> = (
   const allRoomTypes = calendarData?.roomTypes || [];
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col font-sans select-none overflow-x-hidden text-white">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans select-none overflow-x-hidden text-slate-900">
       {/* Top Luxury PMS Matrix Header */}
       <PmsMatrixHeader
         startDate={startDate}
@@ -155,10 +155,10 @@ export const PmsReservationMatrixApp: React.FC<PmsReservationMatrixAppProps> = (
       {/* Main Calendar Matrix Grid */}
       <main className="flex-1 flex flex-col relative overflow-hidden">
         {isLoading && (
-          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center">
-            <div className="flex items-center space-x-3 bg-slate-900 border border-slate-800 px-5 py-3 rounded-2xl shadow-xl">
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-xs z-50 flex items-center justify-center">
+            <div className="flex items-center space-x-3 bg-white border border-slate-200 px-5 py-3 rounded-2xl shadow-lg">
               <span className="text-xl animate-spin">⏳</span>
-              <span className="text-xs font-bold text-amber-300">Synchronizing Live Matrix...</span>
+              <span className="text-xs font-bold text-slate-700">Synchronizing Live Matrix...</span>
             </div>
           </div>
         )}
@@ -172,9 +172,9 @@ export const PmsReservationMatrixApp: React.FC<PmsReservationMatrixAppProps> = (
             onQuickReserveCell={handleQuickReserveCell}
           />
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-32">
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 py-32">
             <span className="text-5xl mb-3">🏨</span>
-            <p className="text-sm font-semibold text-slate-300">No rooms configured or matrix not initialized.</p>
+            <p className="text-sm font-semibold text-slate-700">No rooms configured or matrix not initialized.</p>
           </div>
         )}
       </main>

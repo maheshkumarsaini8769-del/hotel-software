@@ -23,7 +23,7 @@ export const TableActionDrawer: React.FC<TableActionDrawerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm transition-opacity">
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 h-full shadow-2xl p-6 flex flex-col justify-between overflow-y-auto">
+      <div className="w-full max-w-md bg-white dark:bg-slate-900 h-full shadow-sm dark:shadow-none p-6 flex flex-col justify-between overflow-y-auto">
         <div>
           <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
             <div>
@@ -91,7 +91,7 @@ export const TableActionDrawer: React.FC<TableActionDrawerProps> = ({
             {table.currentStatus === TableStatus.RESERVED && (
               <button
                 onClick={() => onAction({ tableId: table.id, action: 'SEAT_RESERVATION' })}
-                className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg shadow-sm transition"
+                className="w-full py-2.5 px-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 text-white font-medium rounded-lg shadow-sm transition"
               >
                 🪑 Seat Reserved Guest
               </button>

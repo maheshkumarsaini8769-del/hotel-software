@@ -13,6 +13,7 @@ import { KeycardVoidAudit, KeycardVoidReason } from '../models/KeycardVoidAudit'
 import { RestaurantOrder, OverallOrderStatus, OrderType } from '../models/RestaurantOrder';
 import { TenantRequest } from '../types';
 import { io } from '../index';
+import { sendWhatsApp } from '../services/notificationService';
 
 // 1. Search Room Availability & Calculate Authoritative Tariff
 export const searchAvailableRooms = async (req: Request, res: Response): Promise<void> => {
@@ -299,7 +300,7 @@ export const receptionCheckIn = async (req: TenantRequest, res: Response): Promi
       });
 
       // 3. Open Master Folio #F-<roomNumber>
-      const folioNumber = `FOLIO-${room.roomNumber}-${Date.now().toString().slice(-4)}`;
+      const folioNumber = `FOLIO-${room.roomNumber}-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
       const netPayable = Math.max(0, booking.grandTotal - booking.advancePaymentAmount);
       const masterFolio = await MasterFolio.create({
         hotelId,
@@ -325,13 +326,24 @@ export const receptionCheckIn = async (req: TenantRequest, res: Response): Promi
       }
       await room.save();
 
-    // Broadcast Real-time room status update to Front Desk Tape Chart
-    io.to(`${hotelId}_admin`).emit('room:status_changed', {
-      roomId: room._id,
-      roomNumber: room.roomNumber,
-      status: RoomStatus.OCCUPIED,
-      stayId: stay._id,
-    });
+      // Broadcast Real-time room status update to Front Desk Tape Chart
+      io.to(`${hotelId}_admin`).emit('room:status_changed', {
+        roomId: room._id,
+        roomNumber: room.roomNumber,
+        status: RoomStatus.OCCUPIED,
+        stayId: stay._id,
+      });
+
+      // Trigger WhatsApp Booking Confirmation Notification (Mock Service)
+      if (booking.guestPhone) {
+        sendWhatsApp(booking.guestPhone, 'booking_confirmed', {
+          guestName: booking.guestName,
+          roomNumber: room.roomNumber,
+          checkInDate: booking.checkInDate,
+          checkOutDate: booking.checkOutDate,
+          folioNumber: masterFolio.folioNumber,
+        }).catch((err) => console.error('[PMS Check-In] WhatsApp alert failed:', err.message));
+      }
 
       res.status(200).json({
         success: true,

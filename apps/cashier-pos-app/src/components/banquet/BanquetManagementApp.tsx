@@ -204,7 +204,7 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#080b10] text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans">
       <BanquetHeader
         metrics={metrics}
         filterStatus={filterStatus}
@@ -225,7 +225,7 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
             <div className="text-zinc-500 text-xs mt-3">Loading banquet functions...</div>
           </div>
         ) : bookings.length === 0 ? (
-          <div className="py-20 text-center bg-[#0e131d] rounded-2xl border border-zinc-800 p-8 max-w-xl mx-auto">
+          <div className="py-20 text-center bg-slate-950 rounded-2xl border border-zinc-800 p-8 max-w-xl mx-auto">
             <span className="text-4xl">🏛️</span>
             <h3 className="text-lg font-bold text-white mt-3">No Banquet Bookings Found</h3>
             <p className="text-zinc-400 text-xs mt-1 mb-5">

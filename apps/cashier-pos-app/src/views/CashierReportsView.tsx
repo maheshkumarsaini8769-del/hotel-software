@@ -83,7 +83,7 @@ export const CashierReportsView: React.FC<CashierReportsViewProps> = ({
   return (
     <div className="space-y-4 max-w-6xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
       }`}>
         <div>
           <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -105,14 +105,14 @@ export const CashierReportsView: React.FC<CashierReportsViewProps> = ({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#141620]">
+        <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900">
           <span className="text-xs text-slate-400 font-bold">Shift Revenue</span>
           <div className="text-2xl font-black text-white font-mono mt-1">
             ₹{Number(drawerBalance.totalSales || 0).toLocaleString('en-IN')}
           </div>
           <span className="text-[10px] text-slate-500 mt-1 block">All tender types today</span>
         </div>
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#141620]">
+        <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900">
           <span className="text-xs text-slate-400 font-bold">Tender Collections</span>
           <div className="text-2xl font-black text-emerald-400 font-mono mt-1">
             ₹{tenderTotal.toLocaleString('en-IN')}
@@ -123,7 +123,7 @@ export const CashierReportsView: React.FC<CashierReportsViewProps> = ({
             {Number(drawerBalance.cardSales || 0).toLocaleString('en-IN')}
           </span>
         </div>
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#141620]">
+        <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900">
           <span className="text-xs text-slate-400 font-bold">Open Bill Exposure</span>
           <div className="text-2xl font-black text-amber-400 font-mono mt-1">
             ₹{totalOpenValue.toLocaleString('en-IN')}
@@ -132,9 +132,9 @@ export const CashierReportsView: React.FC<CashierReportsViewProps> = ({
             {openBills.length} unpaid or partially paid bill{openBills.length === 1 ? '' : 's'}
           </span>
         </div>
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#141620]">
+        <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900">
           <span className="text-xs text-slate-400 font-bold">Petty Cash Paid</span>
-          <div className="text-2xl font-black text-rose-400 font-mono mt-1">
+          <div className="text-2xl font-black text-red-400 font-mono mt-1">
             ₹{Number(drawerBalance.pettyCash || 0).toLocaleString('en-IN')}
           </div>
           <span className="text-[10px] text-slate-500 mt-1 block">
@@ -144,7 +144,7 @@ export const CashierReportsView: React.FC<CashierReportsViewProps> = ({
       </div>
 
       <div className={`p-4 rounded-2xl border space-y-3 ${
-        isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <h3 className="font-black text-xs text-white flex items-center gap-2">
           <Receipt className="w-4 h-4 text-emerald-500" />
@@ -186,7 +186,7 @@ export const CashierReportsView: React.FC<CashierReportsViewProps> = ({
       </div>
 
       <div className={`p-4 rounded-2xl border flex items-start gap-3 ${
-        isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
         <div className="text-xs text-slate-400">

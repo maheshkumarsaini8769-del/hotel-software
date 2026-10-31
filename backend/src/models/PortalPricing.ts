@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import { PortalKey, DEFAULT_PORTAL_CATALOG } from '@spicehub/shared-types';
+import { PortalKey, DEFAULT_PORTAL_CATALOG } from '../types/sharedTypes';
 
 export interface IPortalPricing extends Document {
   portalKey: PortalKey;

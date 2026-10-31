@@ -15,9 +15,11 @@ export interface IRoomType extends Document {
   basePriceHourly: number;
   amenities: string[];
   images: string[];
+  photos?: string[];
   description?: string;
   totalRoomsCount: number;
   isActive: boolean;
+  isAc?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,8 +40,10 @@ const RoomTypeSchema = new Schema<IRoomType>(
     basePriceHourly: { type: Number, default: 0, min: 0 },
     amenities: [{ type: String }],
     images: [{ type: String }],
+    photos: [{ type: String }],
     description: { type: String },
     totalRoomsCount: { type: Number, default: 10, min: 1 },
+    isAc: { type: Boolean, default: true },
     isActive: { type: Boolean, default: true, index: true },
   },
   { timestamps: true }

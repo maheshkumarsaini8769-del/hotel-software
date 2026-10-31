@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import axios from 'axios';
-import { ErrorBoundary } from '@spicehub/ui';
+import { ErrorBoundary, I18nProvider } from '@spicehub/ui';
 import { HotelPortalRouter } from './HotelPortalRouter';
 import { API_ORIGIN, getApiAuthHeaders } from './config/api';
 import './index.css';
@@ -21,7 +21,9 @@ if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <ErrorBoundary>
-        <HotelPortalRouter />
+        <I18nProvider>
+          <HotelPortalRouter />
+        </I18nProvider>
       </ErrorBoundary>
     </React.StrictMode>
   );

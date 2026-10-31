@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../config/api';
-import { waiterFetch } from '../lib/waiterApi';
+import { waiterFetch, getWaiterHotelId } from '../lib/waiterApi';
 
 export interface BillItem {
   name: string;
@@ -99,7 +99,9 @@ export const fetchTableOrdersFromApi = async (
   const tFormat = `T-${String(cleanNum).padStart(2, '0')}`;
 
   try {
-    const res = await waiterFetch(`${API_BASE_URL}/pos/table/orders?tableNumber=${encodeURIComponent(tFormat)}`);
+    const hId = getWaiterHotelId();
+    const queryUrl = `${API_BASE_URL}/pos/table/orders?tableNumber=${encodeURIComponent(tFormat)}${hId ? `&hotelId=${encodeURIComponent(hId)}` : ''}`;
+    const res = await waiterFetch(queryUrl);
     if (res.ok) {
       const body = await res.json();
       if (body.success && Array.isArray(body.data) && body.data.length > 0) {

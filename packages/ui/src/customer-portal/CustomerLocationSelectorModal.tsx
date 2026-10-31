@@ -83,6 +83,41 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
     }
   };
 
+  useEffect(() => {
+    let animId: number | null = null;
+    let detector: any = null;
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+      try {
+        detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+      } catch {}
+    }
+
+    const checkFrame = async () => {
+      if (!isScanning) return;
+      const video = videoRef.current;
+      if (video && video.readyState >= 2 && detector) {
+        try {
+          const codes = await detector.detect(video);
+          if (codes && codes.length > 0 && codes[0].rawValue) {
+            handleScannedResult(codes[0].rawValue);
+            return;
+          }
+        } catch {}
+      }
+      if (isScanning) {
+        animId = requestAnimationFrame(checkFrame);
+      }
+    };
+
+    if (isScanning) {
+      animId = requestAnimationFrame(checkFrame);
+    }
+
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, [isScanning]);
+
   const stopCameraScanner = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -181,14 +216,14 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
   const handleVerifyResidentStay = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const rNum = roomNumberInput.trim();
-    const phone = phoneInput.trim();
+    const phoneOrName = phoneInput.trim();
 
     if (!rNum) {
       setResidentError('Please enter your room number.');
       return;
     }
-    if (!phone) {
-      setResidentError('Please enter your registered mobile number.');
+    if (!phoneOrName) {
+      setResidentError('Please enter your registered mobile number or guest last name.');
       return;
     }
 
@@ -197,13 +232,15 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
       setResidentError(null);
 
       const base = apiBaseUrl.replace(/\/api\/v1\/?$/, '');
+      const isDigitsOnly = /^[0-9+\s()-]+$/.test(phoneOrName);
       const res = await fetch(`${base}/api/v1/guest-portal/stay/verify-resident`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           hotelId: hotelId || 'demo-hotel-id',
           roomNumber: rNum,
-          guestPhone: phone,
+          guestPhone: isDigitsOnly ? phoneOrName : undefined,
+          lastName: phoneOrName,
         }),
       });
 
@@ -225,7 +262,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
       } else {
         setResidentError(
           json.message ||
-            `No active check-in found for Room ${rNum} with mobile ${phone}. If you wish to stay, please book a room from our catalog.`
+            `No active check-in found for Room ${rNum} with credentials ${phoneOrName}. If you wish to stay, please book a room from our catalog.`
         );
       }
     } catch (err: any) {
@@ -250,7 +287,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
       data-testid="customer-location-modal"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 overflow-y-auto"
     >
-      <div className="w-full max-w-lg my-auto rounded-3xl border border-slate-800 bg-[#0c101a] p-5 sm:p-7 shadow-2xl text-slate-100 flex flex-col gap-5">
+      <div className="w-full max-w-lg my-auto rounded-3xl border border-slate-800 bg-slate-950 p-5 sm:p-7 shadow-sm dark:shadow-none text-slate-100 flex flex-col gap-5">
         {/* Header */}
         <div className="text-center flex flex-col items-center gap-2">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
@@ -282,7 +319,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
         </div>
 
         {validationError && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold">
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold">
             ⚠️ {validationError}
           </div>
         )}
@@ -341,7 +378,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
               <button
                 type="button"
                 onClick={stopCameraScanner}
-                className="text-[11px] font-bold text-rose-400 px-2 py-0.5 rounded-lg bg-rose-500/10 border border-rose-500/20"
+                className="text-[11px] font-bold text-red-400 px-2 py-0.5 rounded-lg bg-red-500/10 border border-red-500/20"
               >
                 Close Camera
               </button>
@@ -378,7 +415,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
           )}
 
           {cameraError && (
-            <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[11px]">
+            <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-[11px]">
               {cameraError}
             </div>
           )}
@@ -444,7 +481,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
             {roomFlow === 'resident' ? (
               <form onSubmit={handleVerifyResidentStay} className="flex flex-col gap-2.5">
                 {residentError && (
-                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+                  <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs">
                     ⚠️ {residentError}
                   </div>
                 )}
@@ -455,6 +492,7 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
                     </label>
                     <input
                       id="room-number-input"
+                      data-testid="input-unlock-room"
                       type="text"
                       value={roomNumberInput}
                       onChange={(e) => setRoomNumberInput(e.target.value)}
@@ -464,23 +502,25 @@ export const CustomerLocationSelectorModal: React.FC<CustomerLocationSelectorMod
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                      Registered Mobile:
+                      Last Name / Mobile:
                     </label>
                     <input
-                      type="tel"
+                      data-testid="input-unlock-name"
+                      type="text"
                       value={phoneInput}
                       onChange={(e) => setPhoneInput(e.target.value)}
-                      placeholder="e.g. 9820011223"
+                      placeholder="e.g. Verma or 9820011223"
                       className="w-full min-h-[42px] rounded-xl bg-slate-900 border border-slate-700 px-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
                 <button
                   type="submit"
+                  data-testid="btn-unlock-room"
                   disabled={isVerifyingResident}
                   className="min-h-[44px] px-5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shrink-0 flex items-center justify-center gap-2 mt-1"
                 >
-                  {isVerifyingResident ? 'Verifying Stay...' : 'Verify Stay & Enter Room'}
+                  {isVerifyingResident ? 'Verifying Stay...' : 'Unlock Room & Enter'}
                 </button>
               </form>
             ) : (

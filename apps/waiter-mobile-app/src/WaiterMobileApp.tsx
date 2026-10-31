@@ -1,5 +1,5 @@
 import { API_BASE_URL } from './config/api';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   LayoutDashboard,
   Grid,
@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   Printer,
   ChevronRight,
+  ChevronDown,
   ExternalLink,
   CheckCircle2,
   Check,
@@ -47,7 +48,8 @@ import {
   DraftOrderItem,
   WaiterCashFloatDto,
   DynamicUpiQrDto,
-  FoodPickupTicketDTO
+  FoodPickupTicketDTO,
+  useTranslation,
 } from '@spicehub/ui';
 import { ShiftStatus, MenuItemDTO } from '@spicehub/shared-types';
 import { QuickKotPunchSheet } from './components/QuickKotPunchSheet';
@@ -276,6 +278,118 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
   const [crossTableCourtesyNote, setCrossTableCourtesyNote] = useState<string | undefined>(undefined);
   const [actionToast, setActionToast] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close profile dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        setIsProfileDropdownOpen(false);
+      }
+    };
+    if (isProfileDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProfileDropdownOpen]);
+
+  // Network State & Offline KOT Queue (localStorage with auto-sync)
+  const [isNetworkOnline, setIsNetworkOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [offlineKotQueue, setOfflineKotQueue] = useState<any[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('spicehub_waiter_offline_orders');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Universal Hindi / English i18n State
+  const { locale, setLocale, toggleLocale, t: translate } = useTranslation();
+  const language: 'en' | 'hi' = locale === 'hi' ? 'hi' : 'en';
+  const toggleLanguage = toggleLocale;
+
+  const t = useCallback(
+    (key: string, defaultText?: string): string => {
+      return translate(key, defaultText);
+    },
+    [translate]
+  );
+
+  // Sync queued offline orders when online
+  const syncOfflineOrders = useCallback(async () => {
+    if (typeof window === 'undefined' || !navigator.onLine) return;
+    const raw = localStorage.getItem('spicehub_waiter_offline_orders');
+    if (!raw) return;
+    let queue: any[] = [];
+    try {
+      queue = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (!queue || queue.length === 0) return;
+
+    let synced = 0;
+    const remaining: any[] = [];
+
+    for (const ord of queue) {
+      try {
+        if (onFireKot) {
+          await onFireKot(ord.tableToUse, ord.items, ord.instructions);
+          synced++;
+        }
+      } catch (err) {
+        console.warn('Failed to sync offline KOT:', ord, err);
+        remaining.push(ord);
+      }
+    }
+
+    setOfflineKotQueue(remaining);
+    localStorage.setItem('spicehub_waiter_offline_orders', JSON.stringify(remaining));
+
+    if (synced > 0) {
+      triggerToast(
+        language === 'hi'
+          ? `✅ ${synced} ऑफलाइन KOT सफलतापूर्वक सिंक हो गए!`
+          : `✅ Synced ${synced} offline KOT orders to Kitchen KDS!`
+      );
+    }
+  }, [onFireKot, language]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsNetworkOnline(true);
+      triggerToast(language === 'hi' ? '🌐 नेटवर्क वापस आ गया - ऑनलाइन' : '🌐 Network restored - Online');
+      syncOfflineOrders();
+    };
+    const handleOffline = () => {
+      setIsNetworkOnline(false);
+      triggerToast(
+        language === 'hi'
+          ? '⚠️ ऑफलाइन मोड सक्रिय - ऑर्डर स्थानीय रूप से सुरक्षित होंगे'
+          : '⚠️ Offline mode active - orders will be queued locally'
+      );
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial sync check on mount if online
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      syncOfflineOrders();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [language, syncOfflineOrders]);
 
   // Dynamic Real Table Bill & UPI QR State (Zero Hardcoded Amounts)
   const [activeDynamicUpiQr, setActiveDynamicUpiQr] = useState<DynamicUpiQrDto | null>(null);
@@ -551,11 +665,16 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
     }
   }, [readyOrderAlert]);
 
-  // Check if a table is strictly assigned to this waiter
+  // Check if a table or room is assigned to this waiter
   const isTableAssignedToMe = useCallback(
     (targetTable: string | number | undefined): boolean => {
       if (!targetTable) return false;
-      const numOnly = parseInt(String(targetTable).replace(/[^0-9]/g, ''), 10);
+      const str = String(targetTable).trim();
+      if (/room/i.test(str)) {
+        // Room Service delivery requests are visible to on-duty stewards/waiters
+        return true;
+      }
+      const numOnly = parseInt(str.replace(/[^0-9]/g, ''), 10);
       if (isNaN(numOnly)) return false;
       return numOnly >= currentStaff.assignedTableStart && numOnly <= currentStaff.assignedTableEnd;
     },
@@ -646,7 +765,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
         if (!body.success || !Array.isArray(body.data)) return;
         const rows = body.data
           .filter((order: any) =>
-            ['PLACED', 'ACCEPTED', 'PREPARING', 'READY'].includes(
+            ['PLACED', 'ACCEPTED', 'PREPARING'].includes(
               String(order.orderStatus || '').toUpperCase()
             )
           )
@@ -717,9 +836,9 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
     if (onShiftChange) onShiftChange(nextStatus);
     playAudioChime();
     if (nextStatus === ShiftStatus.BUSY) {
-      triggerToast('🟡 Status set to BUSY (व्यस्त). You can delegate requests to colleagues.');
+      triggerToast('🟡 Status set to BUSY. You can delegate requests to colleagues.');
     } else {
-      triggerToast('🟢 Status set to ON DUTY (उपलब्ध). Ready to take orders & serve tables.');
+      triggerToast('🟢 Status set to ON DUTY. Ready to take orders & serve tables.');
     }
   };
 
@@ -801,7 +920,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
           id: r.id,
           table: r.tableNumber || `Table ${currentStaff.assignedTableStart}`,
           timeAgo: formatAge(r.createdAt),
-          request: formatType(r.requestType || (r as any).type),
+          request: (r as any).notes || formatType(r.requestType || (r as any).type),
         }))
       );
     };
@@ -834,12 +953,12 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
     if (typeof document !== 'undefined') {
       if (theme === 'dark') {
         document.documentElement.classList.add('dark');
-        document.body.classList.remove('bg-[#f4f5f8]', 'text-slate-900');
-        document.body.classList.add('bg-[#090b10]', 'text-slate-100');
+        document.body.classList.remove('bg-slate-50', 'text-slate-900');
+        document.body.classList.add('bg-slate-950', 'text-slate-100');
       } else {
         document.documentElement.classList.remove('dark');
-        document.body.classList.remove('bg-[#090b10]', 'text-slate-100', 'bg-slate-950');
-        document.body.classList.add('bg-[#f4f5f8]', 'text-slate-900');
+        document.body.classList.remove('bg-slate-950', 'text-slate-100', 'bg-slate-950');
+        document.body.classList.add('bg-slate-50', 'text-slate-900');
       }
     }
   }, [theme]);
@@ -970,7 +1089,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
     }>
       {/* Card 1: My Assigned Tables */}
       <div className={`p-3 rounded-2xl border flex items-center gap-3 transition-colors ${
-        isDark ? 'bg-orange-950/20 border-orange-800/40 text-orange-300' : 'bg-[#fff7ed] border-orange-300 text-orange-950 shadow-2xs'
+        isDark ? 'bg-orange-950/20 border-orange-800/40 text-orange-300' : 'bg-white border-orange-300 text-orange-950 shadow-2xs'
       }`}>
         <div className="w-9 h-9 rounded-xl bg-orange-500/20 text-orange-600 flex items-center justify-center font-black shrink-0">
           <Grid className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
@@ -988,7 +1107,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
       {/* Card 2: Kitchen Food Pickups (Hot Pass) */}
       <div className={`p-3 rounded-2xl border flex items-center gap-3 transition-colors ${
-        isDark ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300' : 'bg-[#ecfdf5] border-emerald-300 text-emerald-950 shadow-2xs'
+        isDark ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300' : 'bg-white border-emerald-300 text-emerald-950 shadow-2xs'
       }`}>
         <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-600 flex items-center justify-center font-black shrink-0">
           <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
@@ -1002,7 +1121,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
       {/* Card 3: Kitchen Cooking */}
       <div className={`p-3 rounded-2xl border flex items-center gap-3 transition-colors ${
-        isDark ? 'bg-amber-950/20 border-amber-800/40 text-amber-300' : 'bg-[#fefce8] border-amber-300 text-amber-950 shadow-2xs'
+        isDark ? 'bg-amber-950/20 border-amber-800/40 text-amber-300' : 'bg-white border-amber-300 text-amber-950 shadow-2xs'
       }`}>
         <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center font-black shrink-0">
           <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
@@ -1016,7 +1135,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
       {/* Card 4: Served to Table */}
       <div className={`p-3 rounded-2xl border flex items-center gap-3 transition-colors ${
-        isDark ? 'bg-blue-950/20 border-blue-800/40 text-blue-300' : 'bg-[#eff6ff] border-blue-300 text-blue-950 shadow-2xs'
+        isDark ? 'bg-blue-950/20 border-blue-800/40 text-blue-300' : 'bg-white border-blue-300 text-blue-950 shadow-2xs'
       }`}>
         <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-600 flex items-center justify-center font-black shrink-0">
           <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
@@ -1034,27 +1153,27 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
       <div className={`p-3 rounded-2xl border flex items-center gap-3 transition-colors ${
         isMobileLayout ? 'col-span-2 sm:col-span-1' : ''
       } ${
-        isDark ? 'bg-purple-950/20 border-purple-800/40 text-purple-300' : 'bg-[#faf5ff] border-purple-300 text-purple-950 shadow-2xs'
+        isDark ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300' : 'bg-white border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 shadow-2xs'
       }`}>
-        <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-600 flex items-center justify-center font-black shrink-0">
-          <Users className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+        <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-black shrink-0">
+          <Users className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700 dark:text-slate-300" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className={`text-[10px] sm:text-[11px] font-bold truncate ${isDark ? 'text-purple-300' : 'text-purple-900'}`}>Guest Requests</div>
+          <div className={`text-[10px] sm:text-[11px] font-bold truncate ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>Guest Requests</div>
           <div className={`text-lg sm:text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{myGuestRequests.length}</div>
-          <div className={`text-[9px] sm:text-[10px] font-bold truncate ${isDark ? 'text-purple-400' : 'text-purple-800'}`}>Water, Spoon, Bill</div>
+          <div className={`text-[9px] sm:text-[10px] font-bold truncate ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>Water, Spoon, Bill</div>
         </div>
       </div>
     </div>
   );
 
   return (
-    <div className={`flex h-screen w-screen overflow-hidden font-sans select-none antialiased transition-colors duration-200 ${
-      isDark ? 'bg-[#090b10] text-slate-100' : 'bg-[#f4f5f8] text-slate-800'
+    <div className={`flex h-screen w-full max-w-full overflow-x-hidden font-sans select-none antialiased transition-colors duration-200 ${
+      isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'
     }`}>
       {/* Toast Notification */}
       {actionToast && (
-        <div className="fixed top-5 right-5 z-50 bg-orange-600 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce">
+        <div className="fixed top-5 right-5 z-50 bg-orange-600 text-white px-5 py-3 rounded-xl shadow-sm dark:shadow-none flex items-center gap-3 animate-bounce">
           <CheckCircle2 className="w-6 h-6 text-orange-200" />
           <span className="font-bold text-sm">{actionToast}</span>
         </div>
@@ -1071,14 +1190,14 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
       {/* ======================================================== */}
       {/* LEFT SIDEBAR: Responsive Drawer on Mobile, Fixed on Desktop */}
       {/* ======================================================== */}
-      <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#121319] text-slate-300 flex flex-col justify-between shrink-0 border-r border-slate-800/80 shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${
+      <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-950 text-slate-300 flex flex-col justify-between shrink-0 border-r border-slate-800/80 shadow-sm dark:shadow-none transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:flex lg:w-64 lg:flex-col ${
         isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <div className="flex flex-col h-full overflow-hidden">
           {/* Logo & Header */}
           <div className="p-4 flex items-center justify-between border-b border-slate-800/80">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-orange-500 flex items-center justify-center text-white shadow-md shadow-orange-950/40">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xs">
                 <ChefHat className="w-5 h-5 text-white" />
               </div>
               <div>
@@ -1095,6 +1214,38 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
             >
               <X className="w-4 h-4" />
             </button>
+          </div>
+
+          {/* Mobile Quick Controls Row: Language + Theme + Online Status */}
+          <div className="px-4 py-2.5 border-b border-slate-800/60 bg-slate-900/50 flex items-center justify-between gap-2 text-xs">
+            {/* Language Toggle */}
+            <button
+              onClick={toggleLanguage}
+              className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-orange-400 font-bold hover:bg-slate-700 transition"
+              title="Toggle Language"
+            >
+              {language === 'en' ? '🇮🇳 हिन्दी' : '🌐 English'}
+            </button>
+
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-amber-400 font-bold hover:bg-slate-700 transition flex items-center gap-1.5"
+              title="Toggle Theme"
+            >
+              {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+              <span>{isDark ? 'Light' : 'Dark'}</span>
+            </button>
+
+            {/* Connection Status Pill */}
+            <div className={`px-2 py-1 rounded-lg text-[10px] font-bold border flex items-center gap-1 ${
+              isNetworkOnline
+                ? 'bg-emerald-950/60 border-emerald-800 text-emerald-400'
+                : 'bg-red-950/60 border-red-800 text-red-400 animate-pulse'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${isNetworkOnline ? 'bg-emerald-400' : 'bg-red-500'}`} />
+              <span>{isNetworkOnline ? 'Online' : 'Offline'}</span>
+            </div>
           </div>
 
           {/* Nav Items List (Streamlined to 8 Essential Waiter Operations) */}
@@ -1141,6 +1292,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                   return (
                     <button
                       key={item.label}
+                      data-testid={`nav-item-${item.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
                       onClick={() => {
                         setActiveSidebarItem(item.label);
                         setIsMobileMenuOpen(false);
@@ -1152,7 +1304,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                       }`}
                     >
                       <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate">{t(item.label)}</span>
                       {item.badge && (
                         <span
                           className={`ml-auto px-1.5 py-0.5 min-w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center ${
@@ -1170,7 +1322,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
           </nav>
 
           {/* Waiter User Profile Card with End Shift & Assigned Tables */}
-          <div className="p-3 border-t border-slate-800/80 bg-[#0c0d12]">
+          <div className="p-3 border-t border-slate-800/80 bg-slate-950">
             <div className="flex items-center gap-3 mb-2.5">
               <div className="relative shrink-0">
                 <img
@@ -1228,7 +1380,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                 }}
                 className={`w-full py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 ${
                   isOnTeaBreak
-                    ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white animate-pulse'
+                    ? 'bg-amber-600 text-white'
                     : 'bg-amber-900/40 hover:bg-amber-800 border border-amber-700/60 text-amber-200'
                 }`}
               >
@@ -1242,7 +1394,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
               <button
                 onClick={() => setIsEndShiftModalOpen(true)}
-                className="w-full py-2 rounded-xl text-xs font-bold bg-[#881337] hover:bg-rose-700 text-white transition-all shadow-sm flex items-center justify-center gap-1.5"
+                className="w-full py-2 rounded-xl text-xs font-bold bg-red-700 hover:bg-red-700 text-white transition-all shadow-sm flex items-center justify-center gap-1.5"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>End Shift & Handover</span>
@@ -1256,198 +1408,269 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
       {/* MAIN VIEWPORT: WAITER TERMINAL INTERFACE                 */}
       {/* ======================================================== */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Top Header Bar */}
-        <header className={`px-3 sm:px-5 py-2 sm:py-2.5 border-b flex items-center justify-between shrink-0 shadow-xs z-10 transition-colors ${
-          isDark ? 'bg-[#10131d] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
+        {/* Top Header Bar - Streamlined, Soft Typography & Low Clutter */}
+        <header className={`px-3 sm:px-4 py-2 border-b flex items-center justify-between shrink-0 shadow-xs z-20 transition-colors ${
+          isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
         }`}>
-          {/* Left Header: Contextual Back or Waiter Profile Avatar + Mobile Brand + Desktop Search */}
-          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 mr-2 sm:mr-4">
+          {/* Left Header: Contextual Back or Brand + Search */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 mr-2 sm:mr-3">
             {activeSidebarItem !== 'Dashboard' ? (
               <button
                 onClick={() => setActiveSidebarItem('Dashboard')}
                 className={`px-2.5 py-1.5 rounded-xl transition shrink-0 flex items-center gap-1.5 font-bold text-xs shadow-xs ${
                   isDark
-                    ? 'text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30'
-                    : 'text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200'
+                    ? 'text-slate-300 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80'
+                    : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200'
                 }`}
                 title="Back to Dashboard"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span className="font-extrabold text-[11px]">Dashboard</span>
+                <span className="font-bold text-xs">Dashboard</span>
               </button>
             ) : (
               <div className="flex items-center gap-2 shrink-0">
-                <img
-                  src={currentStaff.avatar}
-                  alt={currentStaff.name}
-                  className="w-8 h-8 rounded-full object-cover border-2 border-orange-500 shadow-xs"
-                />
-                <div className="hidden xs:flex flex-col">
-                  <span className={`text-xs font-black leading-tight truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    {currentStaff.name}
-                  </span>
-                  <span className="text-[10px] text-orange-500 font-bold leading-tight">
-                    {currentStaff.role}
-                  </span>
-                </div>
+                <span className="font-black text-sm text-amber-500 tracking-tight">SpiceHub</span>
+                <span className="text-[11px] font-semibold text-slate-400">Waiter</span>
+                <span className={`hidden sm:inline text-[10px] px-2 py-0.5 rounded-lg border font-mono font-bold ${
+                  isDark ? 'bg-slate-800/80 border-slate-700 text-amber-300' : 'bg-slate-100 border-slate-200 text-slate-700'
+                }`}>
+                  T-{String(currentStaff.assignedTableStart).padStart(2, '0')}-T-{String(currentStaff.assignedTableEnd).padStart(2, '0')}
+                </span>
               </div>
             )}
 
-            {/* Mobile Brand Title */}
-            <div className="flex sm:hidden items-center gap-1.5 truncate">
-              <span className="font-black text-sm text-orange-500 tracking-tight">SpiceHub</span>
-              <span className="text-[10px] font-bold text-slate-400">Waiter</span>
-            </div>
-
             {/* Tablet & Desktop Search Bar */}
-            <div className="hidden sm:block relative w-full max-w-xs md:max-w-md">
+            <div className="hidden sm:block relative w-full max-w-xs md:max-w-sm">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
-                placeholder="Search table, item, order, guest..."
+                placeholder="Search table, item, order..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full pl-8 pr-3 py-1.5 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 transition-colors ${
-                  isDark ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-800'
+                className={`w-full pl-8 pr-3 py-1.5 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 transition-colors ${
+                  isDark ? 'bg-slate-800/60 border-slate-700/80 text-slate-100 placeholder:text-slate-500' : 'bg-slate-100/80 border-slate-200 text-slate-800 placeholder:text-slate-400'
                 }`}
               />
             </div>
           </div>
 
-          {/* Right Header Controls */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            {/* Desktop / Tablet Quick Take Order Button */}
+          {/* Right Header: Streamlined Controls with Unified Profile Dropdown & Logout */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Quick Take Order (Tablet/Desktop) */}
             <button
               onClick={() => setIsPunchKotOpen(true)}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-black text-xs shadow-md shadow-orange-500/30 active:scale-95 transition"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition shadow-xs"
               title="Punch New Order (Quick KOT)"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>+ Take Order</span>
             </button>
 
-            {/* Mobile Search Toggle Icon */}
-            <button
-              onClick={() => setIsMobileSearchOpen((prev) => !prev)}
-              className={`sm:hidden p-2 rounded-xl transition ${
-                isMobileSearchOpen
-                  ? 'bg-orange-500 text-white'
-                  : isDark ? 'bg-slate-800/80 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-700 hover:text-slate-900'
-              }`}
-              title="Search"
-            >
-              <Search className="w-4 h-4" />
-            </button>
+            {/* Offline Alert (Shown only when disconnected) */}
+            {!isNetworkOnline && (
+              <div
+                className="flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg border text-red-300 bg-red-950/80 border-red-800"
+                title="Device offline - orders saved locally"
+              >
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                <span>Offline</span>
+              </div>
+            )}
 
-            {/* Theme Toggle Button */}
-            <button
-              onClick={toggleTheme}
-              className={`p-2 rounded-xl transition ${
-                isDark ? 'bg-slate-800/80 hover:bg-slate-700 text-amber-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-              }`}
-              title="Toggle Bright / Dark Mode"
-            >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
+            {offlineKotQueue.length > 0 && isNetworkOnline && (
+              <button
+                onClick={syncOfflineOrders}
+                className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-xl border text-amber-300 bg-amber-950/80 border-amber-700 hover:bg-amber-900 transition shadow-xs"
+                title="Click to sync queued offline orders to Kitchen KDS"
+              >
+                <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                <span>Sync ({offlineKotQueue.length})</span>
+              </button>
+            )}
 
-            {/* Bell with Real-time Badge & Notification Center Trigger */}
+            {/* Notification Bell */}
             <button
               onClick={() => setIsNotificationCenterOpen(true)}
               className={`relative p-2 rounded-xl transition border ${
                 isDark ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700/80' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
               }`}
-              title="Live Real-time Notifications"
+              title="Notifications"
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center animate-pulse shadow-xs">
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center animate-pulse">
                   {unreadCount}
                 </span>
               )}
             </button>
 
-            {/* Wifi Online Status: Compact Dot on Mobile, Pill on Tablet/Desktop */}
-            <div className={`flex items-center gap-1.5 text-xs font-bold px-2 sm:px-2.5 py-1.5 rounded-xl border ${
-              isDark ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800' : 'text-emerald-700 bg-emerald-50 border-emerald-300'
-            }`}>
-              <Wifi className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Online</span>
-            </div>
-
-            {/* Live Clock (Desktop only) */}
-            <div className={`hidden xl:flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-xl border ${
-              isDark ? 'text-slate-300 bg-slate-800 border-slate-700' : 'text-slate-700 bg-slate-100 border-slate-200 font-medium'
-            }`}>
-              <Clock className={`w-3.5 h-3.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
-              <span>Tue, 24 Oct 2026 | 02:15 PM</span>
-            </div>
-
-            {/* Assigned Tables Allocation Badge (Tablet/Desktop) */}
-            <div className={`hidden md:flex items-center gap-2 px-3 py-1 rounded-xl border text-xs font-semibold ${
-              isDark ? 'bg-slate-800/80 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-800'
-            }`}>
-              <Grid className="w-3.5 h-3.5 text-orange-500" />
-              <span>Zone:</span>
-              <strong className={`px-1.5 py-0.5 rounded font-mono ${isDark ? 'text-orange-300 bg-orange-500/20' : 'text-orange-800 bg-orange-100 border border-orange-200'}`}>
-                T-{String(currentStaff.assignedTableStart).padStart(2, '0')}-T-{String(currentStaff.assignedTableEnd).padStart(2, '0')}
-              </strong>
-            </div>
-
-            {/* Waiter Status: Busy (व्यस्त) / On Duty Toggle */}
+            {/* Duty Status Badge Toggle */}
             <button
               data-testid="status-busy-toggle"
               onClick={handleToggleBusy}
-              className={`p-2 sm:px-2.5 sm:py-1.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 transition ${
+              className={`px-2.5 py-1.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 transition ${
                 isBusy
-                  ? 'bg-amber-500/20 border-amber-500/80 text-amber-300 animate-pulse shadow-md shadow-amber-950/40'
+                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
                   : isDark
-                  ? 'bg-slate-800/80 hover:bg-slate-700/80 border-slate-700 text-slate-300 hover:text-white'
-                  : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 shadow-2xs'
+                  ? 'bg-slate-800/60 hover:bg-slate-700/60 border-slate-700/80 text-slate-300'
+                  : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
               }`}
-              title={isBusy ? 'Click to set status to On Duty' : 'Click to set status to Busy'}
+              title={isBusy ? 'Status: Busy (Click for On Duty)' : 'Status: On Duty (Click for Busy)'}
             >
-              <span className={`w-2 h-2 rounded-full ${isBusy ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`} />
-              <span className="hidden xs:inline">{isBusy ? 'Busy (व्यस्त)' : 'On Duty'}</span>
+              <span className={`w-2 h-2 rounded-full ${isBusy ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+              <span className="hidden xs:inline">{isBusy ? 'Busy' : 'Duty'}</span>
             </button>
 
-            {/* Tea Break Button */}
-            <button
-              onClick={() => {
-                if (isOnTeaBreak) {
-                  handleResumeDuty();
-                } else {
-                  setIsTeaBreakModalOpen(true);
-                }
-              }}
-              className={`p-2 sm:px-2.5 sm:py-1.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 transition ${
-                isOnTeaBreak
-                  ? 'bg-gradient-to-r from-amber-600 to-orange-600 border-amber-400 text-white animate-pulse shadow-md shadow-amber-900/30'
-                  : isDark
-                  ? 'bg-amber-950/40 hover:bg-amber-900/60 border-amber-800/60 text-amber-300 hover:text-white'
-                  : 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-800 hover:text-amber-900 shadow-2xs'
-              }`}
-              title={isOnTeaBreak ? 'Click to Resume Floor Duty' : 'Take a Tea Break'}
-            >
-              <Coffee className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">
-                {isOnTeaBreak
-                  ? `☕ Break (${Math.floor(breakTimerSeconds / 60)}:${String(breakTimerSeconds % 60).padStart(2, '0')})`
-                  : 'Tea Break'}
-              </span>
-            </button>
+            {/* Profile Dropdown Trigger & Unified Logout Menu */}
+            <div className="relative" ref={profileDropdownRef}>
+              <button
+                data-testid="navbar-profile-btn"
+                onClick={() => setIsProfileDropdownOpen((prev) => !prev)}
+                className={`flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-xl border transition ${
+                  isProfileDropdownOpen
+                    ? isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-100 border-slate-300 text-slate-900'
+                    : isDark ? 'bg-slate-800/60 hover:bg-slate-800 border-slate-700/80 text-slate-200' : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                }`}
+                title="Staff Profile & Logout"
+              >
+                <div className="relative shrink-0">
+                  <img
+                    src={currentStaff.avatar}
+                    alt={currentStaff.name}
+                    className="w-7 h-7 rounded-lg object-cover border border-slate-700/80"
+                  />
+                  <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-900 ${
+                    isBusy ? 'bg-amber-400' : isOnTeaBreak ? 'bg-orange-400' : 'bg-emerald-400'
+                  }`} />
+                </div>
+                <div className="hidden md:flex flex-col text-left">
+                  <span className="text-xs font-bold leading-tight truncate max-w-[100px]">{currentStaff.name}</span>
+                  <span className="text-[10px] text-slate-400 leading-tight">{currentStaff.role}</span>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
+              </button>
 
-            {/* End Shift Button */}
+              {/* Profile Dropdown Popup Menu */}
+              {isProfileDropdownOpen && (
+                <div className={`absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl border shadow-sm dark:shadow-none z-50 p-3.5 space-y-3 animate-in fade-in zoom-in-95 ${
+                  isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800 shadow-slate-300/40'
+                }`}>
+                  {/* User Profile Card */}
+                  <div className="flex items-center gap-3 pb-3 border-b border-slate-800/80">
+                    <img
+                      src={currentStaff.avatar}
+                      alt={currentStaff.name}
+                      className="w-11 h-11 rounded-xl object-cover border border-slate-700/80 shadow-xs shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-black text-sm truncate">{currentStaff.name}</div>
+                      <div className="text-xs text-slate-400 flex items-center gap-1.5">
+                        <span>{currentStaff.role}</span>
+                        <span>•</span>
+                        <span className="font-mono text-amber-500 font-bold">{currentStaff.staffId}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                        Zone: Tables T-{String(currentStaff.assignedTableStart).padStart(2, '0')}-T-{String(currentStaff.assignedTableEnd).padStart(2, '0')}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Shift / Break Action */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setIsProfileDropdownOpen(false);
+                        if (isOnTeaBreak) {
+                          handleResumeDuty();
+                        } else {
+                          setIsTeaBreakModalOpen(true);
+                        }
+                      }}
+                      className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition ${
+                        isOnTeaBreak
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                          : isDark
+                          ? 'bg-slate-800/60 border-slate-700 text-slate-300 hover:text-white'
+                          : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Coffee className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{isOnTeaBreak ? 'Resume Floor Duty' : 'Take Tea Break'}</span>
+                    </button>
+                  </div>
+
+                  {/* Navigation Links */}
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => {
+                        setActiveSidebarItem('My Profile');
+                        setIsProfileDropdownOpen(false);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2.5 hover:bg-slate-800/60 text-slate-300 hover:text-white transition"
+                    >
+                      <User className="w-4 h-4 text-amber-500" />
+                      <span>My Profile & Change Photo</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        toggleLanguage();
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between hover:bg-slate-800/60 text-slate-300 hover:text-white transition"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <span className="text-xs">🌐</span>
+                        <span>Language</span>
+                      </span>
+                      <span className="text-xs font-bold text-amber-400">{language === 'en' ? 'हिन्दी' : 'English'}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        toggleTheme();
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between hover:bg-slate-800/60 text-slate-300 hover:text-white transition"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-400" />}
+                        <span>Theme</span>
+                      </span>
+                      <span className="text-xs font-bold text-slate-400">{isDark ? 'Dark' : 'Light'}</span>
+                    </button>
+                  </div>
+
+                  {/* Unified Logout Button */}
+                  <div className="pt-2 border-t border-slate-800/80">
+                    <button
+                      data-testid="navbar-logout-btn"
+                      onClick={() => {
+                        setIsProfileDropdownOpen(false);
+                        if (onLogout) {
+                          onLogout();
+                        } else {
+                          setIsEndShiftModalOpen(true);
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 flex items-center justify-center gap-2 transition"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Log Out / Conclude Shift</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile Hamburger Drawer Menu Toggle (Mobile Only) */}
             <button
-              onClick={() => setIsEndShiftModalOpen(true)}
-              className={`p-2 sm:px-2.5 sm:py-1.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 transition ${
+              data-testid="btn-mobile-drawer-toggle"
+              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+              className={`lg:hidden p-2 rounded-xl border transition ${
                 isDark
-                  ? 'bg-rose-950/40 hover:bg-rose-900/60 border-rose-800/60 text-rose-300 hover:text-white'
-                  : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700 hover:text-rose-900 shadow-2xs'
+                  ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white'
+                  : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
               }`}
-              title="End Shift & Handover Protocol"
+              title="Menu Drawer"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">End Shift</span>
+              <Menu className="w-4 h-4" />
             </button>
           </div>
         </header>
@@ -1458,7 +1681,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
             <div className="flex items-center gap-2 min-w-0">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
               <div className="truncate">
-                <strong>Status: BUSY (व्यस्त):</strong> Handling Tables T-{String(currentStaff.assignedTableStart).padStart(2, '0')}-T-{String(currentStaff.assignedTableEnd).padStart(2, '0')}. Need help with requests or pickups?
+                <strong>Status: BUSY:</strong> Handling Tables T-{String(currentStaff.assignedTableStart).padStart(2, '0')}-T-{String(currentStaff.assignedTableEnd).padStart(2, '0')}. Need help with requests or pickups?
               </div>
             </div>
             <button
@@ -1478,14 +1701,14 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
         {/* Persistent Tea Break Active Banner with Live Countdown */}
         {isOnTeaBreak && (
-          <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white px-3 sm:px-5 py-2 sm:py-2.5 border-b border-amber-500/60 shadow-md flex items-center justify-between shrink-0 z-20 animate-fadeIn">
+          <div className="bg-amber-600 text-white px-3 sm:px-5 py-2 sm:py-2.5 border-b border-amber-500/60 shadow-md flex items-center justify-between shrink-0 z-20 animate-fadeIn">
             <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-base shrink-0 font-black animate-pulse shadow-inner">
                 ☕
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-black text-xs sm:text-sm">Tea Break Active (चाय ब्रेक चालू)</span>
+                  <span className="font-black text-xs sm:text-sm">Tea Break Active</span>
                   <span className="font-mono font-black text-xs px-2 py-0.5 rounded-full bg-white/25 shadow-2xs">
                     ⏳ {Math.floor(breakTimerSeconds / 60)}:{String(breakTimerSeconds % 60).padStart(2, '0')} remaining
                   </span>
@@ -1507,7 +1730,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                 className="px-3.5 sm:px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs shadow-md flex items-center gap-1.5 transition transform hover:scale-105"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Resume Floor Duty (ड्यूटी पर लौटें)</span>
+                <span>Resume Floor Duty</span>
               </button>
             </div>
           </div>
@@ -1548,7 +1771,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
           <div className={`px-3 sm:px-5 py-1.5 border-b flex items-center justify-between text-xs transition-colors ${
             isDark
               ? 'bg-amber-950/30 border-amber-800/60 text-amber-200'
-              : 'bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border-orange-200 text-orange-950'
+              : 'bg-amber-50 border-amber-200 text-amber-900'
           }`}>
             <div className="flex items-center gap-2 font-bold min-w-0 flex-1 mr-2">
               <Zap className="w-4 h-4 text-orange-400 animate-pulse shrink-0" />
@@ -1558,7 +1781,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className={`font-mono font-black px-2 py-0.5 rounded border ${
-                isDark ? 'text-rose-400 bg-slate-900 border-rose-800' : 'text-rose-600 bg-white border-rose-300'
+                isDark ? 'text-red-400 bg-slate-900 border-red-800' : 'text-red-600 bg-white border-red-300'
               }`}>
                 00:{slaCountdown < 10 ? `0${slaCountdown}` : slaCountdown}s
               </span>
@@ -1614,7 +1837,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
             {/* Box 1: Kitchen Food Pickups (Hot Pass) */}
             <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-3 transition-colors ${
-              isDark ? 'bg-[#121520] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+              isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               <div className="flex items-center justify-between">
                 <div className={`flex items-center gap-2 text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -1636,7 +1859,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                 ) : (
                   myKitchenPickups.map((kp) => (
                     <div key={kp.id} className={`p-2.5 rounded-xl border space-y-2 transition-colors ${
-                      isDark ? 'bg-[#181c2b] border-emerald-500/30 shadow-xs' : 'bg-emerald-50/70 border-emerald-300 shadow-2xs'
+                      isDark ? 'bg-slate-900 border-emerald-500/30 shadow-xs' : 'bg-emerald-50/70 border-emerald-300 shadow-2xs'
                     }`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
@@ -1700,7 +1923,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                         </button>
                         <button
                           onClick={() => handleServePickup(kp.id, kp.orderNumber, kp.destination)}
-                          className="flex-1 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
+                          className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>Pick Up & Serve</span>
@@ -1714,7 +1937,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
             {/* Box 2: My Tables Quick Status */}
             <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-2.5 transition-colors ${
-              isDark ? 'bg-[#121520] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+              isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               <div className="flex items-center justify-between">
                 <div className={`flex items-center gap-2 text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -1734,7 +1957,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                 <span className={`px-2 py-0.5 rounded-md border ${
                   isDark ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
                 }`}>
-                  🟢 Khali: {myAssignedTables.filter(t => t.status === 'Available').length}
+                  🟢 Available: {myAssignedTables.filter(t => t.status === 'Available').length}
                 </span>
                 <span className={`px-2 py-0.5 rounded-md border ${
                   isDark ? 'bg-blue-950/40 border-blue-800/60 text-blue-300' : 'bg-blue-50 border-blue-300 text-blue-800'
@@ -1787,7 +2010,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                               ? isDark ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-blue-100 text-blue-800 border border-blue-300'
                               : isDark ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-amber-100 text-amber-800 border border-amber-300'
                           }`}>
-                            {isFree ? '🟢 KHALI (Available)' : isBusy ? '🔴 OCCUPIED' : '🟡 CLEANING'}
+                            {isFree ? '🟢 AVAILABLE' : isBusy ? '🔴 OCCUPIED' : '🟡 CLEANING'}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 mt-1 text-[10px]">
@@ -1825,7 +2048,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
           {/* ======================================================== */}
           <div className="w-full lg:w-80 flex flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1 shrink-0">
             <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-3 h-full transition-colors ${
-              isDark ? 'bg-[#121520] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+              isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               <div className="flex items-center justify-between">
                 <div className={`flex items-center gap-2 text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -1861,7 +2084,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
               <div className="space-y-3">
                 {myKitchenCooking.map((kc) => (
                   <div key={kc.id} className={`p-3 rounded-xl border space-y-2 transition-colors ${
-                    isDark ? 'bg-[#181c2b] border-slate-700/60' : 'bg-slate-50/80 border-slate-200 shadow-2xs'
+                    isDark ? 'bg-slate-900 border-slate-700/60' : 'bg-slate-50/80 border-slate-200 shadow-2xs'
                   }`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
@@ -1934,7 +2157,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
           <div className="w-full lg:flex-1 lg:min-w-[280px] flex flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1 shrink-0">
             {/* Box 1: Table Layout Map (Strictly Hotel Admin Assigned Tables) */}
             <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-3 transition-colors ${
-              isDark ? 'bg-[#121520] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+              isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               <div className="flex items-center justify-between">
                 <div className={`flex items-center gap-2 text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -1949,21 +2172,21 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                     onClick={() => setActiveSidebarItem('Other Tables')}
                     className={`text-[10px] font-black px-2 py-0.5 rounded border flex items-center gap-1 transition cursor-pointer ${
                       isDark
-                        ? 'bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border-purple-500/40'
-                        : 'bg-purple-100 hover:bg-purple-200 text-purple-900 border-purple-300'
+                        ? 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                        : 'bg-slate-800 hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
                     }`}
                   >
-                    <ArrowRightLeft className="w-2.5 h-2.5 text-purple-400" />
+                    <ArrowRightLeft className="w-2.5 h-2.5 text-slate-700 dark:text-slate-300" />
                     <span>Other Tables</span>
                   </button>
                 </div>
               </div>
 
-              {/* Table Vacancy Filter Tabs (🟢 Khali vs 🔴 Occupied) */}
+              {/* Table Vacancy Filter Tabs (🟢 Available vs 🔴 Occupied) */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-[11px] font-bold">
                 {[
                   { id: 'All', label: `All (${myAssignedTables.length})` },
-                  { id: 'Available', label: `🟢 Khali (${myAssignedTables.filter(t => t.status === 'Available').length})` },
+                  { id: 'Available', label: `🟢 Available (${myAssignedTables.filter(t => t.status === 'Available').length})` },
                   { id: 'Occupied', label: `🔴 Occupied (${myAssignedTables.filter(t => t.status === 'Occupied' || t.status === 'My Table').length})` },
                   { id: 'Cleaning', label: `🟡 Clean (${myAssignedTables.filter(t => t.status === 'Cleaning').length})` },
                 ].map((f) => {
@@ -1987,9 +2210,12 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
               </div>
 
               {/* Strict Visual Grid: ONLY Waiter's Assigned Tables */}
-              <div className={`grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-2.5 rounded-2xl border transition-colors ${
-                isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-slate-50/80 border-slate-200'
-              }`}>
+              <div
+                data-testid="my-assigned-tables-grid"
+                className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-3 rounded-2xl border transition-colors ${
+                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
                 {myAssignedTables
                   .filter((t) => {
                     if (dashboardTableFilter === 'Available') return t.status === 'Available';
@@ -2006,62 +2232,48 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                     return (
                       <button
                         key={t.id}
+                        data-testid={`card-waiter-table-${t.name}`}
                         onClick={() => {
                           setSelectedTableForOrder(`Table ${t.name}`);
                           setIsPunchKotOpen(true);
                         }}
-                        className={`p-2.5 rounded-xl border text-left transition hover:scale-[1.02] flex flex-col justify-between gap-1 shadow-2xs relative ${
+                        className={`p-4 rounded-xl border aspect-square text-left transition hover:scale-[1.02] flex flex-col justify-between shadow-sm relative ${
                           isAvailable
-                            ? isDark
-                              ? 'bg-emerald-950/30 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/40'
-                              : 'bg-emerald-50/90 text-emerald-900 border-emerald-300 hover:bg-emerald-100 font-bold'
+                            ? 'bg-white dark:bg-slate-900 border-emerald-500/40 text-slate-900 dark:text-white'
                             : isOccupied
-                            ? isDark
-                              ? 'bg-blue-950/30 text-blue-300 border-blue-700/60 hover:bg-blue-900/40'
-                              : 'bg-blue-50/90 text-blue-950 border-blue-300 hover:bg-blue-100 font-bold'
-                            : isCleaning
-                            ? isDark
-                              ? 'bg-amber-950/30 text-amber-300 border-amber-700/60 hover:bg-amber-900/40'
-                              : 'bg-amber-50/90 text-amber-950 border-amber-300 hover:bg-amber-100 font-bold'
-                            : isDark
-                            ? 'bg-purple-950/30 text-purple-300 border-purple-700/60'
-                            : 'bg-purple-50 text-purple-900 border-purple-300 font-bold'
+                            ? 'bg-white dark:bg-slate-900 border-red-500/40 text-slate-900 dark:text-white'
+                            : 'bg-white dark:bg-slate-900 border-amber-500/40 text-slate-900 dark:text-white'
                         }`}
                       >
                         <div className="flex items-center justify-between w-full">
-                          <span className="text-sm font-black leading-tight flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full ${isAvailable ? 'bg-emerald-500 animate-pulse' : isOccupied ? 'bg-blue-500' : 'bg-amber-500'}`} />
-                            T-{t.name}
-                          </span>
-                          <span className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded border ${
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                             isAvailable
-                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                               : isOccupied
-                              ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
-                              : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                              ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                           }`}>
-                            {isAvailable ? '🟢 Khali' : isOccupied ? '🔴 Busy' : '🟡 Clean'}
+                            {isAvailable ? 'Available' : isOccupied ? 'Occupied' : 'Billing'}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {t.actualGuests || t.guests || 4} Pax
                           </span>
                         </div>
 
-                        {/* Seated Guests Count */}
-                        <div className="flex items-center gap-1 text-[10px] font-semibold opacity-90 mt-0.5">
-                          <Users className="w-3 h-3 text-orange-500 shrink-0" />
-                          <span>
-                            {isAvailable
-                              ? `0 Seated • ${t.guests || 4} Chairs`
-                              : `${t.actualGuests || t.guests || 2} Pax Seated`}
-                          </span>
+                        <div className="text-center my-auto">
+                          <div className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white">
+                            T-{t.name}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            {isAvailable ? 'Ready for Guests' : isOccupied ? (bill?.grandTotal ? `₹${bill.grandTotal}` : 'Active Order') : 'Cleaning'}
+                          </div>
                         </div>
 
-                        {/* Order Running Amount */}
-                        <div className={`mt-1 pt-1 border-t text-[10.5px] font-black flex items-center justify-between w-full ${
-                          isDark ? 'border-slate-700/40' : 'border-slate-200'
+                        <div className={`pt-2 border-t text-[11px] font-medium flex items-center justify-between w-full ${
+                          isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-600'
                         }`}>
-                          <span className="text-[9px] font-semibold opacity-75">Order:</span>
-                          <span className={isAvailable ? (isDark ? 'text-slate-400' : 'text-slate-500') : (isDark ? 'text-emerald-400' : 'text-emerald-700 font-extrabold')}>
-                            {isAvailable ? '₹0 (Khali)' : `₹${bill?.grandTotal || 0}`}
-                          </span>
+                          <span>{isAvailable ? 'Take Order' : 'View KOT'}</span>
+                          <span className="font-bold">→</span>
                         </div>
                       </button>
                     );
@@ -2071,11 +2283,11 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
             {/* Live Guest Assistance Calls */}
             <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-2.5 transition-colors ${
-              isDark ? 'bg-[#121520] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+              isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               <div className="flex items-center justify-between">
                 <div className={`flex items-center gap-1.5 text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  <Users className="w-3.5 h-3.5 text-purple-600" />
+                  <Users className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
                   <span>Guest Assistance Calls ({myGuestRequests.length})</span>
                 </div>
                 <button
@@ -2094,14 +2306,14 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                 ) : (
                   myGuestRequests.slice(0, 5).map((gr) => (
                     <div key={gr.id} className={`p-2 rounded-xl flex items-center justify-between text-xs transition-colors ${
-                      isDark ? 'bg-[#181c2b] text-slate-100' : 'bg-purple-50/70 border border-purple-200 text-slate-900'
+                      isDark ? 'bg-slate-900 text-slate-100' : 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-900'
                     }`}>
                       <div className="min-w-0 flex-1 mr-2">
                         <div className="flex items-center gap-2">
                           <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{gr.table}</span>
                           <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{gr.timeAgo}</span>
                         </div>
-                        <div className={`font-semibold text-[11px] truncate ${isDark ? 'text-slate-300' : 'text-purple-950'}`}>{gr.request}</div>
+                        <div className={`font-semibold text-[11px] truncate ${isDark ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>{gr.request}</div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
@@ -2142,7 +2354,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
           <div className="w-full lg:w-64 flex flex-col gap-3 lg:overflow-y-auto pl-0 lg:pl-1 shrink-0">
             {/* Box 1: Quick Actions */}
             <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-2.5 transition-colors ${
-              isDark ? 'bg-[#121520] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+              isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               <h3 className={`font-black text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>Quick Actions</h3>
 
@@ -2161,7 +2373,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                 {/* Cross-Table Guest Assist for Non-Tech / Verbal Calls */}
                 <button
                   onClick={() => setIsCrossTableAssistOpen(true)}
-                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs shadow-md shadow-orange-950/40 flex items-center justify-center gap-2 transition"
+                  className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-2 transition"
                   title="Assist non-tech or walk-in guests at another table"
                 >
                   <Users className="w-4 h-4 text-amber-200" />
@@ -2184,7 +2396,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                       onClick={act.action}
                       className={`w-full p-2 rounded-xl border font-bold text-xs flex items-center gap-2 transition text-left ${
                         isDark
-                          ? 'bg-[#181c2b] border-slate-700/60 hover:bg-slate-800 text-slate-200'
+                          ? 'bg-slate-900 border-slate-700/60 hover:bg-slate-800 text-slate-200'
                           : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-800 shadow-2xs'
                       }`}
                     >
@@ -2198,7 +2410,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
             {/* Box 2: Recent Completed Orders */}
             <div className={`p-3 rounded-2xl border shadow-2xs space-y-2 transition-colors ${
-              isDark ? 'bg-[#121520] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+              isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               <div className="flex items-center justify-between">
                 <h3 className={`font-black text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>Recent Completed</h3>
@@ -2213,14 +2425,14 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
               <div className="space-y-1.5 text-xs">
                 {recentOrders.length === 0 ? (
                   <div className={`p-3 rounded-lg text-[10px] text-center ${
-                    isDark ? 'bg-[#181c2b] text-slate-400' : 'bg-slate-50 border border-slate-200/60 text-slate-500'
+                    isDark ? 'bg-slate-900 text-slate-400' : 'bg-slate-50 border border-slate-200/60 text-slate-500'
                   }`}>
                     No served orders yet. Completed orders appear here as the kitchen serves them.
                   </div>
                 ) : (
                   recentOrders.map((rc) => (
                     <div key={rc.id} className={`p-1.5 rounded-lg flex items-center justify-between text-[11px] transition-colors ${
-                      isDark ? 'bg-[#181c2b]' : 'bg-slate-50 border border-slate-200/60'
+                      isDark ? 'bg-slate-900' : 'bg-slate-50 border border-slate-200/60'
                     }`}>
                       <div>
                         <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{rc.orderNumber}</span>
@@ -2492,8 +2704,31 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
           }}
           onFireKot={async (targetTable, items, instructions) => {
             const tableToUse = targetTable || selectedTableForOrder;
-            if (onFireKot) {
-              await onFireKot(tableToUse, items, instructions);
+            let fireSucceeded = false;
+
+            if (isNetworkOnline && onFireKot) {
+              try {
+                await onFireKot(tableToUse, items, instructions);
+                fireSucceeded = true;
+              } catch (err) {
+                console.warn('Network call failed, queueing KOT locally:', err);
+              }
+            }
+
+            if (!fireSucceeded) {
+              // Queue order in localStorage for auto-sync
+              const queuedOrder = {
+                id: `offline-kot-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+                tableToUse,
+                items,
+                instructions,
+                timestamp: new Date().toISOString(),
+              };
+              setOfflineKotQueue((prev) => {
+                const nextQueue = [...prev, queuedOrder];
+                localStorage.setItem('spicehub_waiter_offline_orders', JSON.stringify(nextQueue));
+                return nextQueue;
+              });
             }
 
             // Immediately create active cooking order in local state so Waiter Live Orders reflects it!
@@ -2531,9 +2766,11 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
             const tableNumOnly = parseInt(tableToUse.replace(/[^0-9]/g, ''), 10) || 1;
             const isAssigned = tableNumOnly >= currentStaff.assignedTableStart && tableNumOnly <= currentStaff.assignedTableEnd;
-            const msg = isAssigned
-              ? `🔥 KOT fired for ${tableToUse}! Direct route to Kitchen KDS.`
-              : `🤝 Courtesy KOT fired for ${tableToUse}! Sent to Kitchen KDS & assigned waiter notified.`;
+            const msg = fireSucceeded
+              ? isAssigned
+                ? `🔥 KOT fired for ${tableToUse}! Direct route to Kitchen KDS.`
+                : `🤝 Courtesy KOT fired for ${tableToUse}! Sent to Kitchen KDS & assigned waiter notified.`
+              : `📦 ${tableToUse} KOT queued in offline storage! Will auto-sync when online.`;
             triggerToast(msg);
           }}
           onCancel={() => {
@@ -2647,7 +2884,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
 
       {isCashFloatModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-sm dark:shadow-none border border-slate-200 space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-200">
               <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
                 <Banknote className="w-5 h-5 text-emerald-600" />
@@ -2760,75 +2997,74 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
       {/* Mobile Bottom Navigation Bar (Thumb-friendly, hidden on lg+ screens) */}
       <nav
         aria-label="Mobile Navigation"
-        className={`fixed bottom-0 inset-x-0 z-40 lg:hidden border-t px-3 pt-2 pb-3 flex items-center justify-around shadow-2xl backdrop-blur-xl transition-colors ${
+        className={`fixed bottom-0 inset-x-0 z-40 lg:hidden border-t px-3 pt-2 pb-3 flex items-center justify-around shadow-sm dark:shadow-none backdrop-blur-xl transition-colors ${
           isDark
-            ? 'bg-[#10131d]/98 border-slate-800 text-slate-400'
+            ? 'bg-slate-900/98 border-slate-800 text-slate-400'
             : 'bg-white/98 border-slate-200 text-slate-600'
         }`}
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 12px))' }}
       >
         <button
+          data-testid="bottom-nav-dashboard"
           onClick={() => setActiveSidebarItem('Dashboard')}
-          className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition ${
+          className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition ${
             activeSidebarItem === 'Dashboard'
-              ? 'text-orange-500 font-black scale-105'
+              ? isDark ? 'text-blue-400 font-semibold' : 'text-blue-600 font-semibold'
               : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <LayoutDashboard className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5 font-bold">Dashboard</span>
+          <span className="text-[11px] mt-0.5 font-medium">{t('Dashboard')}</span>
         </button>
 
         <button
+          data-testid="bottom-nav-tables"
           onClick={() => setActiveSidebarItem('My Tables')}
-          className={`relative flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition ${
+          className={`min-h-[48px] min-w-[48px] relative flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition ${
             activeSidebarItem === 'My Tables'
-              ? 'text-orange-500 font-black scale-105'
+              ? isDark ? 'text-blue-400 font-semibold' : 'text-blue-600 font-semibold'
               : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <Grid className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5 font-bold">Tables</span>
+          <span className="text-[11px] mt-0.5 font-medium">{t('Tables', 'Tables')}</span>
           {tablesList.filter(t => t.status === 'My Table').length > 0 && (
-            <span className="absolute -top-0.5 right-1 px-1 min-w-3.5 h-3.5 rounded-full bg-orange-500 text-white text-[8px] font-black flex items-center justify-center shadow-xs">
+            <span className="absolute 1 right-1 px-1 min-w-3.5 h-3.5 rounded-full bg-blue-600 text-white text-[8px] font-bold flex items-center justify-center shadow-xs">
               {tablesList.filter(t => t.status === 'My Table').length}
             </span>
           )}
         </button>
 
-        {/* Quick Order Center Action Button - HIGH CONTRAST, ELEVATED, NEVER TRANSPARENT */}
+        {/* Quick Order Center Action Button - CLEAN ROYAL BLUE ELEVATED */}
         <button
           data-testid="bottom-quick-order-btn"
           onClick={() => setIsPunchKotOpen(true)}
-          className="-mt-7 flex flex-col items-center justify-center group focus:outline-none shrink-0"
+          className="-mt-6 flex flex-col items-center justify-center group focus:outline-none shrink-0"
           title="Take New Order (Quick KOT)"
         >
           <div
-            className="w-14 h-14 rounded-full text-white flex items-center justify-center shadow-2xl shadow-orange-500/60 ring-4 ring-white dark:ring-[#10131d] group-active:scale-90 group-hover:scale-105 transition-all"
-            style={{
-              background: 'linear-gradient(135deg, #ea580c 0%, #f59e0b 50%, #ea580c 100%)',
-              boxShadow: '0 10px 25px -3px rgba(234, 88, 12, 0.55), 0 4px 6px -4px rgba(234, 88, 12, 0.4)'
-            }}
+            className="w-13 h-13 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md ring-4 ring-white dark:ring-slate-900 group-active:scale-95 group-hover:bg-blue-700 transition-all"
           >
-            <Plus className="w-7 h-7 stroke-[3] text-white drop-shadow-sm" />
+            <Plus className="w-6 h-6 stroke-[2.5] text-white" />
           </div>
-          <span className="text-[10.5px] font-black mt-1 text-orange-600 dark:text-orange-400 tracking-tight whitespace-nowrap">
-            + Take Order
+          <span className="text-[11px] font-semibold mt-1 text-blue-600 dark:text-blue-400 tracking-tight whitespace-nowrap">
+            {t('+ Take Order')}
           </span>
         </button>
 
         <button
+          data-testid="bottom-nav-live-kot"
           onClick={() => setActiveSidebarItem('Live Orders & KOT')}
-          className={`relative flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition ${
+          className={`min-h-[48px] min-w-[48px] relative flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition ${
             activeSidebarItem === 'Live Orders & KOT'
-              ? 'text-orange-500 font-black scale-105'
+              ? isDark ? 'text-blue-400 font-semibold' : 'text-blue-600 font-semibold'
               : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <Flame className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5 font-bold">Live KOT</span>
+          <span className="text-[11px] mt-0.5 font-medium">{t('Live Orders & KOT', 'Live KOT')}</span>
           {(myKitchenPickups.length + myKitchenCooking.length) > 0 && (
-            <span className="absolute -top-0.5 right-1 px-1 min-w-3.5 h-3.5 rounded-full bg-red-600 text-white text-[8px] font-black flex items-center justify-center shadow-xs">
+            <span className="absolute 1 right-1 px-1 min-w-3.5 h-3.5 rounded-full bg-red-600 text-white text-[8px] font-bold flex items-center justify-center shadow-xs">
               {myKitchenPickups.length + myKitchenCooking.length}
             </span>
           )}
@@ -2837,13 +3073,13 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
         <button
           data-testid="bottom-more-nav-btn"
           onClick={() => setIsMobileMenuOpen(true)}
-          className={`relative flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition ${
+          className={`min-h-[48px] min-w-[48px] relative flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition ${
             isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
           }`}
           title="Open Full Navigation Drawer"
         >
           <Menu className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5 font-bold">More</span>
+          <span className="text-[10px] mt-0.5 font-bold">{t('More', 'More')}</span>
           {unreadCount > 0 ? (
             <span className="absolute -top-0.5 right-1 px-1 min-w-3.5 h-3.5 rounded-full bg-red-600 text-white text-[8px] font-black flex items-center justify-center animate-pulse shadow-xs">
               {unreadCount}

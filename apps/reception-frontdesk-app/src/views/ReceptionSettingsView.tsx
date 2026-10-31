@@ -62,14 +62,14 @@ export const ReceptionSettingsView: React.FC<ReceptionSettingsViewProps> = ({ is
     <div className="space-y-4 max-w-4xl mx-auto pb-8">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
       }`}>
         <div>
-          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
             <Settings className="w-5 h-5 text-blue-500" />
             <span>Front Desk & Hotel Operational Settings</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             Configure this terminal's check-in/out schedules, late check-out policy, keycard encoder and legal details.
             These preferences are stored locally on this browser profile.
           </p>
@@ -79,39 +79,45 @@ export const ReceptionSettingsView: React.FC<ReceptionSettingsViewProps> = ({ is
       <form onSubmit={handleSave} className="space-y-4">
         {/* Section 1: Check-in & Departure Policies */}
         <div className={`p-5 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
         }`}>
-          <h3 className="font-black text-sm text-white flex items-center gap-2">
+          <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
             <Clock className="w-4 h-4 text-amber-500" />
             <span>Check-in & Departure Timings</span>
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="text-xs text-slate-400 font-bold block mb-1">Standard Check-In Time</label>
+              <label className={`text-xs font-bold block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Standard Check-In Time</label>
               <input
                 type="time"
                 value={checkInTime}
                 onChange={e => setCheckInTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white font-mono"
+                className={`w-full px-3 py-2 rounded-xl border text-xs font-mono transition ${
+                  isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
               />
             </div>
             <div>
-              <label className="text-xs text-slate-400 font-bold block mb-1">Standard Check-Out Time</label>
+              <label className={`text-xs font-bold block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Standard Check-Out Time</label>
               <input
                 type="time"
                 value={checkOutTime}
                 onChange={e => setCheckOutTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white font-mono"
+                className={`w-full px-3 py-2 rounded-xl border text-xs font-mono transition ${
+                  isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
               />
             </div>
             <div>
-              <label className="text-xs text-slate-400 font-bold block mb-1">Grace Period (Minutes)</label>
+              <label className={`text-xs font-bold block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Grace Period (Minutes)</label>
               <input
                 type="number"
                 value={gracePeriod}
                 onChange={e => setGracePeriod(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white font-mono"
+                className={`w-full px-3 py-2 rounded-xl border text-xs font-mono transition ${
+                  isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
               />
             </div>
           </div>
@@ -119,20 +125,22 @@ export const ReceptionSettingsView: React.FC<ReceptionSettingsViewProps> = ({ is
 
         {/* Section 2: Keycard & Hardware Integration */}
         <div className={`p-5 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
         }`}>
-          <h3 className="font-black text-sm text-white flex items-center gap-2">
+          <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
             <KeyRound className="w-4 h-4 text-emerald-500" />
             <span>Keycard Encoder & Front Desk Hardware</span>
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-slate-400 font-bold block mb-1">RFID Door Lock Encoder Port</label>
+              <label className={`text-xs font-bold block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>RFID Door Lock Encoder Port</label>
               <select
                 value={encoderPort}
                 onChange={e => setEncoderPort(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white font-mono"
+                className={`w-full px-3 py-2 rounded-xl border text-xs font-mono transition ${
+                  isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
               >
                 <option value="COM1">COM1 (Standard Serial)</option>
                 <option value="COM3">COM3 (USB Emulation Encoder)</option>
@@ -140,12 +148,14 @@ export const ReceptionSettingsView: React.FC<ReceptionSettingsViewProps> = ({ is
               </select>
             </div>
             <div>
-              <label className="text-xs text-slate-400 font-bold block mb-1">Advance Deposit Requirement (%)</label>
+              <label className={`text-xs font-bold block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Advance Deposit Requirement (%)</label>
               <input
                 type="number"
                 value={advanceDeposit}
                 onChange={e => setAdvanceDeposit(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white font-mono"
+                className={`w-full px-3 py-2 rounded-xl border text-xs font-mono transition ${
+                  isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
               />
             </div>
           </div>
@@ -153,30 +163,34 @@ export const ReceptionSettingsView: React.FC<ReceptionSettingsViewProps> = ({ is
 
         {/* Section 3: Legal & Hotel Tax Info */}
         <div className={`p-5 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
         }`}>
-          <h3 className="font-black text-sm text-white flex items-center gap-2">
+          <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
             <Building className="w-4 h-4 text-blue-500" />
             <span>Hotel Profile & Government GSTIN</span>
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-slate-400 font-bold block mb-1">Hotel GSTIN Number</label>
+              <label className={`text-xs font-bold block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Hotel GSTIN Number</label>
               <input
                 type="text"
                 value={gstin}
                 onChange={e => setGstin(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white font-mono"
+                className={`w-full px-3 py-2 rounded-xl border text-xs font-mono transition ${
+                  isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
               />
             </div>
             <div>
-              <label className="text-xs text-slate-400 font-bold block mb-1">Front Desk Direct Helpline</label>
+              <label className={`text-xs font-bold block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Front Desk Direct Helpline</label>
               <input
                 type="text"
                 value={hotelPhone}
                 onChange={e => setHotelPhone(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white font-mono"
+                className={`w-full px-3 py-2 rounded-xl border text-xs font-mono transition ${
+                  isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
               />
             </div>
           </div>

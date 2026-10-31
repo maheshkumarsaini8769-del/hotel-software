@@ -39,7 +39,7 @@ export const WeeklyRosterCalendarView: React.FC<WeeklyRosterCalendarViewProps> =
               onClick={() => onDepartmentChange(dept.id)}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                 selectedDepartment === dept.id
-                  ? 'bg-cyan-500 text-zinc-900 shadow-md shadow-cyan-950/40'
+                  ? 'bg-slate-800 dark:bg-slate-200 text-zinc-900 shadow-md shadow-sm'
                   : 'bg-zinc-800 text-zinc-400 hover:text-white'
               }`}
             >
@@ -51,7 +51,7 @@ export const WeeklyRosterCalendarView: React.FC<WeeklyRosterCalendarViewProps> =
         <button
           type="button"
           onClick={onNewShiftClick}
-          className="px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-cyan-400 border border-cyan-500/30 text-xs font-semibold rounded-xl"
+          className="px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-xl"
         >
           + Add Staff Shift
         </button>
@@ -100,14 +100,14 @@ export const WeeklyRosterCalendarView: React.FC<WeeklyRosterCalendarViewProps> =
                   </span>
                 </div>
 
-                <div className="bg-[#0c0f16] border border-zinc-800 rounded-xl p-2.5 flex items-center justify-between text-xs font-mono">
+                <div className="bg-slate-950 border border-zinc-800 rounded-xl p-2.5 flex items-center justify-between text-xs font-mono">
                   <div className="flex items-center gap-1.5 text-zinc-300">
                     <span>⏰</span>
                     <span>
                       {shift.plannedStartTime} - {shift.plannedEndTime}
                     </span>
                   </div>
-                  <span className="text-cyan-400 font-bold">{shift.plannedHours}h</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-bold">{shift.plannedHours}h</span>
                 </div>
 
                 <div className="flex items-center justify-between text-[11px] pt-1 border-t border-zinc-800/80">

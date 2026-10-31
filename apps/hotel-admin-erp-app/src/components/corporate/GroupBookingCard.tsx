@@ -40,7 +40,7 @@ export const GroupBookingCard: React.FC<GroupBookingCardProps> = ({
   const hasActiveStays = checkedInRooms > 0;
 
   return (
-    <div className="bg-[#121721] rounded-2xl border border-zinc-800 hover:border-amber-500/40 p-5 transition-all shadow-lg flex flex-col justify-between">
+    <div className="bg-slate-900 rounded-2xl border border-zinc-800 hover:border-amber-500/40 p-5 transition-all shadow-lg flex flex-col justify-between">
       <div>
         {/* Top Header: Code, Policy, Status */}
         <div className="flex items-start justify-between gap-3 mb-3">
@@ -120,7 +120,7 @@ export const GroupBookingCard: React.FC<GroupBookingCardProps> = ({
         </div>
 
         {/* Financial Highlights */}
-        <div className="bg-[#0b0e14] p-3 rounded-xl border border-zinc-800/80 mb-4 grid grid-cols-2 gap-3 text-xs">
+        <div className="bg-slate-950 p-3 rounded-xl border border-zinc-800/80 mb-4 grid grid-cols-2 gap-3 text-xs">
           <div>
             <div className="text-zinc-500 font-medium">Total Contract Tariff</div>
             <div className="text-sm font-bold text-zinc-200">
@@ -182,7 +182,7 @@ export const GroupBookingCard: React.FC<GroupBookingCardProps> = ({
         {hasActiveStays && (
           <button
             onClick={() => onBulkCheckout(group)}
-            className="py-1.5 px-2.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 font-medium text-xs border border-rose-800/40 transition-all text-center"
+            className="py-1.5 px-2.5 rounded-xl bg-red-950/60 hover:bg-red-900 text-red-300 font-medium text-xs border border-red-800/40 transition-all text-center"
             title="Checkout all in-house rooms"
           >
             🚪 Group Checkout

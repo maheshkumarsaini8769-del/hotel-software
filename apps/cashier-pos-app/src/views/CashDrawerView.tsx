@@ -102,7 +102,7 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
       }`}>
         <div>
           <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -149,7 +149,7 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#141620]">
+        <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900">
           <span className="text-[11px] text-slate-400 font-bold block">Opening Cash Float</span>
           <span className="text-xl font-black text-white font-mono mt-1 block">
             ₹{Number(drawerBalance.openingFloat || 0).toLocaleString('en-IN')}
@@ -157,7 +157,7 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
           <span className="text-[10px] text-slate-500">Live shift opening float</span>
         </div>
 
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#141620]">
+        <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900">
           <span className="text-[11px] text-emerald-400 font-bold block">+ Cash Collected</span>
           <span className="text-xl font-black text-emerald-400 font-mono mt-1 block">
             ₹{Number(drawerBalance.cashSales || 0).toLocaleString('en-IN')}
@@ -165,12 +165,12 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
           <span className="text-[10px] text-emerald-500">Live cash tender collections</span>
         </div>
 
-        <div className="p-4 rounded-2xl border border-slate-800 bg-[#141620]">
-          <span className="text-[11px] text-rose-400 font-bold block">- Petty Cash Paid</span>
-          <span className="text-xl font-black text-rose-400 font-mono mt-1 block">
+        <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900">
+          <span className="text-[11px] text-red-400 font-bold block">- Petty Cash Paid</span>
+          <span className="text-xl font-black text-red-400 font-mono mt-1 block">
             ₹{Number(drawerBalance.pettyCash || 0).toLocaleString('en-IN')}
           </span>
-          <span className="text-[10px] text-rose-500">
+          <span className="text-[10px] text-red-500">
             {Number(drawerBalance.pettyCashCount || 0)} voucher{Number(drawerBalance.pettyCashCount || 0) === 1 ? '' : 's'} today
           </span>
         </div>
@@ -186,7 +186,7 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
 
       <div className="grid grid-cols-12 gap-4">
         <div className={`col-span-12 lg:col-span-8 p-4 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <h3 className="font-black text-xs text-white flex items-center justify-between">
             <span className="flex items-center gap-1.5">
@@ -201,7 +201,7 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
               const count = denominations[value] || 0;
               const subtotal = value * count;
               return (
-                <div key={value} className="p-2.5 rounded-xl border border-slate-800/80 bg-[#191c2b] flex items-center justify-between gap-4">
+                <div key={value} className="p-2.5 rounded-xl border border-slate-800/80 bg-slate-900 flex items-center justify-between gap-4">
                   <div className="w-24 font-black text-sm text-white flex items-center gap-2">
                     <span className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 font-mono text-xs border border-slate-700">
                       ₹{value}
@@ -241,12 +241,12 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
         </div>
 
         <div className={`col-span-12 lg:col-span-4 p-4 rounded-2xl border flex flex-col justify-between space-y-4 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <div className="space-y-4">
             <h3 className="font-black text-xs text-white">Drawer Balance Verification</h3>
 
-            <div className="p-3.5 rounded-xl border border-slate-800 bg-[#191c2b] space-y-2">
+            <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-900 space-y-2">
               <div className="flex justify-between text-xs text-slate-400">
                 <span>Total Counted:</span>
                 <span className="font-bold text-white font-mono">₹{totalCalculatedFromNotes.toLocaleString('en-IN')}</span>
@@ -257,7 +257,7 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
               </div>
               <div className="pt-2 border-t border-slate-800 flex justify-between text-xs font-bold">
                 <span>Variance:</span>
-                <span className={`font-mono font-black ${!hasCountedNotes ? 'text-slate-400' : variance === 0 ? 'text-emerald-400' : variance > 0 ? 'text-blue-400' : 'text-rose-400'}`}>
+                <span className={`font-mono font-black ${!hasCountedNotes ? 'text-slate-400' : variance === 0 ? 'text-emerald-400' : variance > 0 ? 'text-blue-400' : 'text-red-400'}`}>
                   {!hasCountedNotes ? 'Not counted yet' : variance === 0 ? '₹0 (PERFECT MATCH)' : `${variance > 0 ? '+' : ''}₹${variance.toLocaleString('en-IN')}`}
                 </span>
               </div>

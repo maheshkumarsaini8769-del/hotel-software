@@ -48,20 +48,20 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           <div
             data-testid="floating-cart-bar"
             onClick={onOpen}
-            className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 p-3.5 sm:p-4 rounded-2xl shadow-2xl flex items-center justify-between cursor-pointer active:scale-98 transition transform border border-amber-200 shadow-amber-500/30"
+            className="bg-blue-600 text-white p-3.5 sm:p-4 rounded-2xl shadow-sm flex items-center justify-between cursor-pointer active:scale-98 transition transform border border-blue-500"
           >
             <div className="flex items-center space-x-3">
-              <span className="w-8 h-8 bg-slate-950 text-amber-400 rounded-full flex items-center justify-center font-black text-xs shadow-sm">
+              <span className="w-8 h-8 bg-slate-950 text-white rounded-full flex items-center justify-center font-bold text-xs shadow-sm">
                 {pricing.itemCount}
               </span>
               <div>
-                <div className="text-[10px] font-extrabold text-slate-900/80 uppercase tracking-wider">Your Dining Tab</div>
-                <div className="font-black text-base sm:text-lg text-slate-950 leading-tight">
+                <div className="text-[10px] font-bold text-blue-100 uppercase tracking-wider">Your Dining Tab</div>
+                <div className="font-bold text-base sm:text-lg text-white leading-tight">
                   {formatCurrency(pricing.totalAmount)}
                 </div>
               </div>
             </div>
-            <div className="font-black text-xs uppercase tracking-wider bg-slate-950 text-amber-400 hover:text-white px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-md transition">
+            <div className="font-bold text-xs uppercase tracking-wider bg-slate-950 text-white hover:text-white px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-sm transition">
               <span>View Order</span>
               <span>➔</span>
             </div>
@@ -72,7 +72,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       {/* Slide-Up Cart Sheet (When Open) */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-t-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl max-h-[85vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden">
             {/* Header */}
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div>
@@ -89,7 +89,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
             {/* Out of Stock Alert Banner */}
             {hasOutOfStockWarnings && (
-              <div className="bg-rose-500 text-white text-xs p-3 font-semibold flex items-center justify-between">
+              <div className="bg-red-500 text-white text-xs p-3 font-semibold flex items-center justify-between">
                 <span>⚠️ Some items in your cart became unavailable (Item 86). Please remove them before ordering.</span>
               </div>
             )}
@@ -103,7 +103,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     key={item.menuItemId}
                     className={`flex items-center justify-between p-3 rounded-xl border ${
                       isItemWarned
-                        ? 'border-rose-400 bg-rose-50/50 dark:bg-rose-950/20'
+                        ? 'border-red-400 bg-red-50/50 dark:bg-red-950/20'
                         : 'border-slate-200 dark:border-slate-800'
                     }`}
                   >
@@ -113,7 +113,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           {item.name}
                         </span>
                         {isItemWarned && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-rose-600 text-white rounded font-bold">
+                          <span className="text-[10px] px-1.5 py-0.5 bg-red-600 text-white rounded font-bold">
                             Out of Stock
                           </span>
                         )}
@@ -166,6 +166,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     {formatCurrency(pricing.subtotal)}
                   </span>
                 </div>
+                {Boolean(pricing.discountAmount && pricing.discountAmount > 0) && (
+                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
+                    <span>Coupon Discount {pricing.promoCode ? `(${pricing.promoCode})` : ''}</span>
+                    <span>-{formatCurrency(pricing.discountAmount!)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>5% GST Snapshot</span>
                   <span className="font-medium text-slate-700 dark:text-slate-300">
@@ -187,7 +193,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 data-testid="confirm-order-button"
                 disabled={items.length === 0 || isSubmitting || hasOutOfStockWarnings}
                 onClick={handleSubmit}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-slate-950 font-black text-sm sm:text-base rounded-2xl shadow-xl shadow-amber-500/20 transition active:scale-98 flex items-center justify-center space-x-2"
+                className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold text-sm sm:text-base rounded-2xl shadow-sm transition active:scale-98 flex items-center justify-center space-x-2"
               >
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">

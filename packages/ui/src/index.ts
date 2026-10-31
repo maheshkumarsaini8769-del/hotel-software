@@ -7,6 +7,12 @@ export type { ErrorBoundaryProps } from './ErrorBoundary';
 export { StaffLoginGate } from './StaffLoginGate';
 export type { StaffLoginGateProps, StaffSessionUser } from './StaffLoginGate';
 
+// Bilingual i18n
+export { translations } from './i18n/translations';
+export type { Locale } from './i18n/translations';
+export { I18nProvider, useTranslation, LanguageToggle, I18N_STORAGE_KEY } from './i18n/I18nContext';
+export type { I18nContextType, LanguageToggleProps } from './i18n/I18nContext';
+
 // Currency Formatter
 export const formatCurrency = (amount: number, currency = 'INR'): string => {
   if (currency === 'INR') {
@@ -17,32 +23,32 @@ export const formatCurrency = (amount: number, currency = 'INR'): string => {
 
 // Visual Status Colors
 export const TableStatusColorMap: Record<TableStatus, { bg: string; text: string; border: string; label: string }> = {
-  [TableStatus.AVAILABLE]: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30', label: 'Available' },
-  [TableStatus.OCCUPIED]: { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/30', label: 'Occupied' },
-  [TableStatus.BILLING]: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30', label: 'Billing' },
-  [TableStatus.PAYMENT_SETTLED]: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/30', label: 'Payment Settled' },
-  [TableStatus.DIRTY]: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/30', label: 'Dirty' },
-  [TableStatus.CLEANING]: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/30', label: 'Cleaning' },
-  [TableStatus.RESERVED]: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/30', label: 'Reserved' },
-  [TableStatus.PARTIALLY_OCCUPIED]: { bg: 'bg-indigo-500/10', text: 'text-indigo-400', border: 'border-indigo-500/30', label: 'Partially Occupied' },
-  [TableStatus.MERGED]: { bg: 'bg-violet-500/10', text: 'text-violet-400', border: 'border-violet-500/30', label: 'Merged Tab' },
+  [TableStatus.AVAILABLE]: { bg: 'bg-emerald-500/10', text: 'text-emerald-500 dark:text-emerald-400', border: 'border-emerald-500/30', label: 'Available' },
+  [TableStatus.OCCUPIED]: { bg: 'bg-red-500/10', text: 'text-red-500 dark:text-red-400', border: 'border-red-500/30', label: 'Occupied' },
+  [TableStatus.BILLING]: { bg: 'bg-amber-500/10', text: 'text-amber-500 dark:text-amber-400', border: 'border-amber-500/30', label: 'Billing' },
+  [TableStatus.PAYMENT_SETTLED]: { bg: 'bg-blue-500/10', text: 'text-blue-500 dark:text-blue-400', border: 'border-blue-500/30', label: 'Payment Settled' },
+  [TableStatus.DIRTY]: { bg: 'bg-amber-500/10', text: 'text-amber-500 dark:text-amber-400', border: 'border-amber-500/30', label: 'Dirty' },
+  [TableStatus.CLEANING]: { bg: 'bg-amber-500/10', text: 'text-amber-500 dark:text-amber-400', border: 'border-amber-500/30', label: 'Cleaning' },
+  [TableStatus.RESERVED]: { bg: 'bg-blue-500/10', text: 'text-blue-500 dark:text-blue-400', border: 'border-blue-500/30', label: 'Reserved' },
+  [TableStatus.PARTIALLY_OCCUPIED]: { bg: 'bg-slate-500/10', text: 'text-slate-600 dark:text-slate-400', border: 'border-slate-500/30', label: 'Partially Occupied' },
+  [TableStatus.MERGED]: { bg: 'bg-slate-500/10', text: 'text-slate-600 dark:text-slate-400', border: 'border-slate-500/30', label: 'Merged Tab' },
 };
 
 export const RoomStatusColorMap: Record<RoomStatus, { bg: string; text: string; label: string }> = {
-  [RoomStatus.AVAILABLE]: { bg: 'bg-emerald-500', text: 'text-white', label: 'Available' },
-  [RoomStatus.RESERVED]: { bg: 'bg-purple-500', text: 'text-white', label: 'Reserved' },
-  [RoomStatus.OCCUPIED]: { bg: 'bg-rose-500', text: 'text-white', label: 'Occupied' },
-  [RoomStatus.DIRTY]: { bg: 'bg-orange-500', text: 'text-white', label: 'Dirty' },
-  [RoomStatus.CLEANING]: { bg: 'bg-cyan-500', text: 'text-white', label: 'Cleaning' },
-  [RoomStatus.INSPECTION]: { bg: 'bg-amber-500', text: 'text-white', label: 'Inspection' },
-  [RoomStatus.OUT_OF_SERVICE]: { bg: 'bg-zinc-700', text: 'text-zinc-300', label: 'Out of Order' },
+  [RoomStatus.AVAILABLE]: { bg: 'bg-emerald-600', text: 'text-white', label: 'Available' },
+  [RoomStatus.RESERVED]: { bg: 'bg-blue-600', text: 'text-white', label: 'Reserved' },
+  [RoomStatus.OCCUPIED]: { bg: 'bg-red-600', text: 'text-white', label: 'Occupied' },
+  [RoomStatus.DIRTY]: { bg: 'bg-amber-600', text: 'text-white', label: 'Dirty' },
+  [RoomStatus.CLEANING]: { bg: 'bg-amber-500', text: 'text-white', label: 'Cleaning' },
+  [RoomStatus.INSPECTION]: { bg: 'bg-amber-600', text: 'text-white', label: 'Inspection' },
+  [RoomStatus.OUT_OF_SERVICE]: { bg: 'bg-slate-600', text: 'text-slate-200', label: 'Out of Order' },
 };
 
 export const FoodTypeBadge: Record<FoodType, { icon: string; color: string; label: string }> = {
-  [FoodType.VEG]: { icon: '🟢', color: 'border-emerald-600 text-emerald-600', label: 'Veg' },
-  [FoodType.NON_VEG]: { icon: '🔴', color: 'border-rose-600 text-rose-600', label: 'Non-Veg' },
-  [FoodType.EGG]: { icon: '🟡', color: 'border-amber-600 text-amber-600', label: 'Egg' },
-  [FoodType.BEVERAGE]: { icon: '🔵', color: 'border-sky-600 text-sky-600', label: 'Beverage' },
+  [FoodType.VEG]: { icon: '🟢', color: 'border-emerald-600 text-emerald-600 dark:text-emerald-400', label: 'Veg' },
+  [FoodType.NON_VEG]: { icon: '🔴', color: 'border-red-600 text-red-600 dark:text-red-400', label: 'Non-Veg' },
+  [FoodType.EGG]: { icon: '🟡', color: 'border-amber-600 text-amber-600 dark:text-amber-400', label: 'Egg' },
+  [FoodType.BEVERAGE]: { icon: '🔵', color: 'border-blue-600 text-blue-600 dark:text-blue-400', label: 'Beverage' },
 };
 
 export type AudioOscillatorType = 'sine' | 'square' | 'sawtooth' | 'triangle' | 'custom';
@@ -206,6 +212,10 @@ export * from './pms/QuickPolicyReferenceModal';
 
 // Unified Portal Directory & Workstation Launcher
 export * from './launcher';
+
+// Internationalization (i18n) Universal Hindi / English Exports
+export * from './i18n/I18nContext';
+export * from './i18n/translations';
 
 
 

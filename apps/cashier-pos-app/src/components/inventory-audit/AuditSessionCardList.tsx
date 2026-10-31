@@ -87,7 +87,7 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
               </div>
 
               {/* Financial Metrics Box */}
-              <div className="bg-[#0c0f16] border border-zinc-800/80 rounded-xl p-3 mb-4 space-y-1.5 text-xs">
+              <div className="bg-slate-950 border border-zinc-800/80 rounded-xl p-3 mb-4 space-y-1.5 text-xs">
                 <div className="flex justify-between text-zinc-400">
                   <span>Discrepant Lines:</span>
                   <span className={discrepantCount > 0 ? 'text-amber-400 font-bold' : 'text-zinc-300'}>
@@ -96,7 +96,7 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
                 </div>
                 <div className="flex justify-between text-zinc-400">
                   <span>Shortage Loss:</span>
-                  <span className="text-rose-400 font-bold">
+                  <span className="text-red-400 font-bold">
                     {InventoryAuditHelper.formatCurrency(session.totalShortageValue)}
                   </span>
                 </div>
@@ -111,7 +111,7 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
                   <span
                     className={
                       session.netDiscrepancyValue < 0
-                        ? 'text-rose-400'
+                        ? 'text-red-400'
                         : session.netDiscrepancyValue > 0
                         ? 'text-emerald-400'
                         : 'text-zinc-300'
@@ -145,7 +145,7 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
                     e.stopPropagation();
                     onOpenReconcileModal(session);
                   }}
-                  className="flex-1 py-1.5 rounded-lg bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 text-xs font-bold transition-all text-center"
+                  className="flex-1 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 text-xs font-bold transition-all text-center"
                 >
                   ⚖️ Reconcile
                 </button>

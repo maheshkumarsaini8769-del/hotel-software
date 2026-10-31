@@ -83,7 +83,7 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
                     e.stopPropagation();
                     onSimulateItem(item);
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-purple-600/30 text-purple-300 hover:text-purple-200 text-[11px] font-semibold border border-zinc-700 hover:border-purple-500/40 transition-all"
+                  className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-700 dark:text-slate-300 text-[11px] font-semibold border border-zinc-700 hover:border-slate-200 dark:border-slate-800 transition-all"
                   title="Simulate Price Elasticity"
                 >
                   🔮 Test Price
@@ -114,10 +114,10 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
           'High profitability, but lower guest order frequency.',
           puzzles,
           {
-            border: 'border-purple-500/30',
-            bg: 'bg-purple-950/10',
-            headerBg: 'bg-purple-900/20',
-            titleColor: 'text-purple-400',
+            border: 'border-slate-200 dark:border-slate-800',
+            bg: 'bg-slate-100 dark:bg-slate-800',
+            headerBg: 'bg-slate-100 dark:bg-slate-800',
+            titleColor: 'text-slate-700 dark:text-slate-300',
             icon: '🧩',
             advice: 'Upsell via staff & menu redesign',
           }
@@ -144,10 +144,10 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
           'Low profitability and infrequent customer orders.',
           dogs,
           {
-            border: 'border-rose-500/30',
-            bg: 'bg-rose-950/10',
-            headerBg: 'bg-rose-900/20',
-            titleColor: 'text-rose-400',
+            border: 'border-red-500/30',
+            bg: 'bg-red-950/10',
+            headerBg: 'bg-red-900/20',
+            titleColor: 'text-red-400',
             icon: '🐕',
             advice: 'Phase-out or overhaul recipe',
           }

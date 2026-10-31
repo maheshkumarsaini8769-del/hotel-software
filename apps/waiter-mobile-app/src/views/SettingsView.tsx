@@ -36,7 +36,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-5 gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-500 flex items-center justify-center font-bold">
@@ -65,7 +65,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-4">
         {/* Section 1: Display & Theme */}
         <div className={`p-5 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
             <span>Display & Visual Theme</span>
@@ -97,7 +97,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         {/* Section 2: Audio & Alerts */}
         <div className={`p-5 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
             <Volume2 className="w-4 h-4 text-orange-500" />
@@ -143,7 +143,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         {/* Section 3: Thermal Printer */}
         <div className={`p-5 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
             <Printer className="w-4 h-4 text-orange-500" />
@@ -200,7 +200,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         {/* Section 4: Language */}
         <div className={`p-5 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
             <Globe className="w-4 h-4 text-orange-500" />

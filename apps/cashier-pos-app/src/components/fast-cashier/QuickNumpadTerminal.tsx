@@ -64,7 +64,7 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
   ];
 
   return (
-    <div className="bg-[#0f131a] rounded-2xl border border-zinc-800 p-5 flex flex-col gap-5 shadow-2xl">
+    <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 flex flex-col gap-5 shadow-sm dark:shadow-none">
       {/* Barcode & 10-Key Code Input Header */}
       <div className="flex flex-col gap-2">
         <label className="text-xs font-semibold uppercase tracking-wider text-amber-400/90 flex items-center justify-between">
@@ -90,7 +90,7 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
             type="button"
             onClick={handleEnter}
             disabled={!codeBuffer.trim() || loading}
-            className="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 text-black disabled:text-zinc-600 font-bold text-sm tracking-wide transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)] disabled:shadow-none flex items-center gap-1.5"
+            className="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 text-black disabled:text-zinc-600 font-bold text-sm tracking-wide transition-all shadow-sm dark:shadow-none disabled:shadow-none flex items-center gap-1.5"
           >
             <span>ENTER</span>
             <span>↵</span>
@@ -126,7 +126,7 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
                 onClick={() => setActiveQty(qty)}
                 className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border ${
                   activeQty === qty
-                    ? 'bg-amber-500 text-black border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                    ? 'bg-amber-500 text-black border-amber-400 shadow-sm dark:shadow-none'
                     : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-700'
                 }`}
               >
@@ -168,7 +168,7 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
             type="button"
             onClick={handleEnter}
             disabled={!codeBuffer.trim() || loading}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:from-zinc-800 disabled:to-zinc-800 text-black disabled:text-zinc-600 font-black text-sm uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(245,158,11,0.25)] disabled:shadow-none flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-800 text-white disabled:text-zinc-600 font-bold text-sm uppercase tracking-wider transition-all shadow-sm disabled:shadow-none flex items-center justify-center gap-2"
           >
             <span>PUNCH CODE (ENTER)</span>
             <span>↵</span>

@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
-import { KotVoidReason, WasteDisposition } from '@spicehub/shared-types';
+import { KotVoidReason, WasteDisposition } from '../types/sharedTypes';
 
 export { KotVoidReason, WasteDisposition };
 

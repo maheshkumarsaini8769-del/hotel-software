@@ -33,9 +33,9 @@ export class ReservationHelper {
         };
       case 'NO_SHOW':
         return {
-          bg: 'bg-rose-500/10',
-          text: 'text-rose-400',
-          border: 'border-rose-500/30',
+          bg: 'bg-red-500/10',
+          text: 'text-red-400',
+          border: 'border-red-500/30',
           label: 'No-Show',
         };
       default:
@@ -59,9 +59,9 @@ export class ReservationHelper {
     }
     if (depositStatus === 'FORFEITED') {
       return {
-        bg: 'bg-rose-950/40',
-        text: 'text-rose-300',
-        border: 'border-rose-600/30',
+        bg: 'bg-red-950/40',
+        text: 'text-red-300',
+        border: 'border-red-600/30',
         label: `₹${amount} Forfeited`,
       };
     }
@@ -85,9 +85,9 @@ export class ReservationHelper {
     if (booking.bookingStatus === 'CONFIRMED') {
       if (!booking.allocatedRoomId) {
         return {
-          bg: 'bg-rose-500/10',
-          text: 'text-rose-400',
-          border: 'border-rose-500/30',
+          bg: 'bg-red-500/10',
+          text: 'text-red-400',
+          border: 'border-red-500/30',
           label: 'Room Unassigned (Action Req.)',
         };
       }

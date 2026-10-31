@@ -20,9 +20,9 @@ export const TakeawayCallingBoard: React.FC<TakeawayCallingBoardProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
-      <div className="bg-[#0b0e14] border-2 border-amber-500/40 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.9)] animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-slate-950 border-2 border-amber-500/40 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95 duration-200">
         {/* Calling Board Top Banner */}
-        <div className="bg-[#121620] border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
+        <div className="bg-slate-900 border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="flex h-4 w-4 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -117,7 +117,7 @@ export const TakeawayCallingBoard: React.FC<TakeawayCallingBoardProps> = ({
                 queue.readyQueue.map((ord: ITakeawayOrderUI) => (
                   <div
                     key={ord._id}
-                    className="p-4 rounded-2xl bg-zinc-900/90 border-2 border-emerald-500/60 flex flex-col items-center justify-center gap-2 shadow-[0_0_20px_rgba(52,211,153,0.2)] animate-pulse"
+                    className="p-4 rounded-2xl bg-zinc-900/90 border-2 border-emerald-500/60 flex flex-col items-center justify-center gap-2 shadow-sm dark:shadow-none animate-pulse"
                   >
                     <span className="text-[11px] text-emerald-400 uppercase font-black tracking-wider">
                       READY TO COLLECT
@@ -144,7 +144,7 @@ export const TakeawayCallingBoard: React.FC<TakeawayCallingBoardProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="bg-[#121620] border-t border-zinc-800 px-6 py-3 flex items-center justify-between text-xs text-zinc-500">
+        <div className="bg-slate-900 border-t border-zinc-800 px-6 py-3 flex items-center justify-between text-xs text-zinc-500">
           <span>SpiceHub Express KDS Sync Active</span>
           <button
             type="button"

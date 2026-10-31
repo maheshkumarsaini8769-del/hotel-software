@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { API_ORIGIN } from './config/api';
+import { io } from 'socket.io-client';
+import { API_ORIGIN, SOCKET_URL } from './config/api';
 
 const API_BASE = API_ORIGIN;
 import {
@@ -41,7 +42,7 @@ import {
   ShieldCheck,
   ChefHat
 } from 'lucide-react';
-import { MenuCartStore } from '@spicehub/ui';
+import { MenuCartStore, useTranslation } from '@spicehub/ui';
 
 export type CustomerRequestType = 'WATER' | 'CALL_WAITER' | 'BILL' | 'CUTLERY' | 'CLEANING' | 'OTHER';
 
@@ -80,6 +81,9 @@ export interface CustomerMenuAppProps {
   initialGuestCount?: number;
   hotelId?: string;
   waiterEnabled?: boolean;
+  canOrder?: boolean;
+  isReadOnly?: boolean;
+  occupiedWarning?: string;
 }
 
 interface CartItem {
@@ -122,6 +126,9 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   initialGuestCount = 4,
   hotelId,
   waiterEnabled = true,
+  canOrder = true,
+  isReadOnly = false,
+  occupiedWarning,
 }) => {
   // Navigation State with Session Persistence (Refresh Resilient)
   const [currentTab, setCurrentTabState] = useState<'home' | 'menu' | 'cart' | 'orders' | 'waiter' | 'split' | 'payment'>(() => {
@@ -187,7 +194,9 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
     return 'ALL';
   });
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedLanguage, setSelectedLanguage] = useState<'EN' | 'HI'>('EN');
+  const { locale, toggleLocale, t } = useTranslation();
+  const selectedLanguage: 'EN' | 'HI' = locale === 'hi' ? 'HI' : 'EN';
+  const toggleCustomerLanguage = toggleLocale;
 
   useEffect(() => {
     const handleSetCategory = (e: any) => {
@@ -204,6 +213,21 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
     };
   }, []);
 
+  // Intrusive permission popups eliminated on entrance as requested
+  useEffect(() => {
+    // Proactive Notification and Geolocation prompts removed to prevent intrusive popups on opening dining
+  }, []);
+
+  // Smart App Download Banner & Modal States
+  const [isAppDownloadModalOpen, setIsAppDownloadModalOpen] = useState(false);
+  const [isAppBannerDismissed, setIsAppBannerDismissed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('spicehub_app_banner_dismissed') === 'true';
+    }
+    return false;
+  });
+  const customerApkUrl = `${API_BASE}/download/customer-apk`;
+
   // Dynamic Categories & Food Items (Admin Managed & KDS Synced)
   const [dynamicCategories, setDynamicCategories] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -218,7 +242,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
         }
       } catch {}
     }
-    return ['All', 'Starters', 'Mains', 'Breads', 'Desserts', 'Beverages'];
+    return ['All', 'Starters', 'Main Course', 'Beverages', 'Breads', 'Desserts'];
   });
 
   const [dishesList, setDishesList] = useState<MenuItemData[]>([]);
@@ -230,7 +254,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       if (!hotelId) return;
       try {
         const res = await fetch(
-          `${API_BASE}/api/v1/pos/menu?hotelId=${encodeURIComponent(hotelId)}&inStockOnly=true`
+          `${API_BASE}/api/v1/pos/menu?hotelId=${encodeURIComponent(hotelId)}`,
+          { cache: 'no-store' }
         );
         const body = await res.json().catch(() => null);
         if (!res.ok || !body?.success || !Array.isArray(body.data) || !isMounted) return;
@@ -250,7 +275,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           isAvailable: it.isAvailable !== false,
         }));
 
-        setDynamicCategories(['All', 'Starters', 'Mains', 'Breads', 'Desserts', 'Beverages']);
+        const uniqueCats = Array.from(new Set(mappedItems.map((it) => it.category).filter(Boolean)));
+        setDynamicCategories(['All', ...(uniqueCats.length > 0 ? uniqueCats : ['Starters', 'Main Course', 'Beverages', 'Breads', 'Desserts'])]);
         if (mappedItems.length > 0) {
           setDishesList(mappedItems);
           try {
@@ -263,15 +289,82 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
     };
 
     fetchCatalog();
-    const handleMenuSync = () => {
+
+    const handleMenuSync = (e?: any) => {
+      const detail = e?.detail;
+      if (detail && detail.itemId !== undefined) {
+        setDishesList((prev) =>
+          prev.map((dish) => {
+            if (dish.id === detail.itemId || String(dish.id) === String(detail.itemId)) {
+              return { ...dish, isAvailable: detail.isAvailable };
+            }
+            return dish;
+          })
+        );
+      }
       fetchCatalog();
     };
     window.addEventListener('spicehub:menu_updated', handleMenuSync);
+
+    const effectiveSocketUrl = SOCKET_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+    const socket = io(effectiveSocketUrl, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 10,
+      timeout: 10000,
+    });
+
+    socket.on('connect', () => {
+      if (hotelId) {
+        socket.emit('join:room', `${hotelId}_customers`);
+        socket.emit('join:room', `${hotelId}_global`);
+      }
+    });
+
+    socket.on('menu:item_86_toggled', (payload: any) => {
+      if (!payload?.itemId) return;
+      setDishesList((prev) =>
+        prev.map((dish) => {
+          if (dish.id === payload.itemId || String(dish.id) === String(payload.itemId)) {
+            return { ...dish, isAvailable: payload.isAvailable };
+          }
+          return dish;
+        })
+      );
+      if (payload.isAvailable === false) {
+        showToast(`⚠️ "${payload.name || 'Dish'}" is now 86 (Sold Out in kitchen)!`);
+      } else {
+        showToast(`✅ "${payload.name || 'Dish'}" is back in stock!`);
+      }
+    });
+
+    socket.on('menu:catalog_updated', () => {
+      fetchCatalog();
+    });
+
+    socket.on('menu:item_updated', (updatedItem: any) => {
+      if (!updatedItem?.id) return;
+      setDishesList((prev) =>
+        prev.map((dish) => {
+          if (dish.id === updatedItem.id || String(dish.id) === String(updatedItem.id)) {
+            return {
+              ...dish,
+              name: updatedItem.name ?? dish.name,
+              price: Number(updatedItem.price ?? updatedItem.basePrice ?? dish.price),
+              isAvailable: updatedItem.isAvailable !== false,
+              description: updatedItem.description ?? dish.description,
+            };
+          }
+          return dish;
+        })
+      );
+    });
+
     const poller = setInterval(fetchCatalog, 15000);
 
     return () => {
       isMounted = false;
       window.removeEventListener('spicehub:menu_updated', handleMenuSync);
+      socket.disconnect();
       clearInterval(poller);
     };
   }, [hotelId]);
@@ -279,6 +372,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   // Customization Modal State
   const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
   const [customizingDish, setCustomizingDish] = useState<MenuItemData | null>(null);
+  const [modalQty, setModalQty] = useState<number>(1);
   const [spiceLevel, setSpiceLevel] = useState<'Mild' | 'Medium' | 'Spicy' | 'Extra Spicy'>('Medium');
   const [selectedAddons, setSelectedAddons] = useState<{ [key: string]: boolean }>({});
   const [selectedCustomizations, setSelectedCustomizations] = useState<string[]>([]);
@@ -297,24 +391,18 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Theme State
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('spicehub_customer_theme');
-      if (saved === 'light' || saved === 'dark') return saved;
-    }
-    return 'dark';
-  });
+  // Theme State: strictly Bright Mode (Light Theme) per system standard
+  const [theme] = useState<'light'>('light');
+  const toggleTheme = () => {};
+  const isDark = false;
 
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('spicehub_customer_theme', next);
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.remove('dark');
+      document.body.style.backgroundColor = '#f8fafc';
+      document.body.style.color = '#0f172a';
     }
-  };
-
-  const isDark = theme === 'dark';
+  }, []);
 
   // Active Placed Orders State (Refresh Resilient & Kitchen KDS Synced)
   const [internalActiveOrders, setInternalActiveOrders] = useState<PlacedOrder[]>(() => {
@@ -381,11 +469,103 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
     settledAt: string;
   } | null>(null);
 
-  // Cart Calculations
+  // Coupon & Promo Code State
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<{
+    code: string;
+    discountAmount: number;
+    discountType: string;
+    discountValue: number;
+    minOrderAmount?: number;
+    maxDiscountAmount?: number;
+  } | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [isApplyingPromo, setIsApplyingPromo] = useState(false);
+
+  // Cart Subtotal Calculation
   const cartSubtotal = useMemo(() => cartItems.reduce((acc, it) => acc + it.price * it.qty, 0), [cartItems]);
-  const gstAmount = Math.round(cartSubtotal * 0.05);
+
+  // Dynamic Discount Calculation based on current cart subtotal
+  const calculatedDiscount = useMemo(() => {
+    if (!appliedPromo) return 0;
+    if (appliedPromo.minOrderAmount && cartSubtotal < appliedPromo.minOrderAmount) {
+      return 0; // Below minimum order threshold
+    }
+    if (appliedPromo.discountType === 'PERCENTAGE') {
+      const disc = Math.round((cartSubtotal * appliedPromo.discountValue) / 100);
+      if (appliedPromo.maxDiscountAmount && disc > appliedPromo.maxDiscountAmount) {
+        return appliedPromo.maxDiscountAmount;
+      }
+      return disc;
+    }
+    return Math.min(cartSubtotal, appliedPromo.discountValue);
+  }, [appliedPromo, cartSubtotal]);
+
+  const promoThresholdWarning = useMemo(() => {
+    if (appliedPromo && appliedPromo.minOrderAmount && cartSubtotal < appliedPromo.minOrderAmount) {
+      return `⚠️ Min order ₹${appliedPromo.minOrderAmount} required for coupon "${appliedPromo.code}". Add ₹${appliedPromo.minOrderAmount - cartSubtotal} more to activate discount!`;
+    }
+    return null;
+  }, [appliedPromo, cartSubtotal]);
+
+  const handleApplyPromo = async () => {
+    if (!promoCodeInput.trim()) {
+      setPromoError('Please enter a promo code');
+      return;
+    }
+    if (cartSubtotal <= 0) {
+      setPromoError('Please add items to your cart before applying a promo code');
+      return;
+    }
+    setIsApplyingPromo(true);
+    setPromoError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/crm/promo/validate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hotel-id': hotelId || '',
+        },
+        body: JSON.stringify({
+          hotelId,
+          code: promoCodeInput.trim().toUpperCase(),
+          subtotal: cartSubtotal,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.valid) {
+        setAppliedPromo({
+          code: data.promoCode || promoCodeInput.trim().toUpperCase(),
+          discountAmount: Number(data.discountAmount) || 0,
+          discountType: data.discountType || 'PERCENTAGE',
+          discountValue: Number(data.discountValue) || 0,
+          minOrderAmount: Number(data.minOrderAmount) || 0,
+          maxDiscountAmount: data.maxDiscountAmount ? Number(data.maxDiscountAmount) : undefined,
+        });
+        setPromoError(null);
+        showToast(`🎉 Coupon "${data.promoCode || promoCodeInput.toUpperCase()}" applied successfully!`);
+      } else {
+        setPromoError(data?.message || 'Invalid coupon code or minimum order amount not met');
+      }
+    } catch (err: any) {
+      setPromoError(err?.message || 'Error validating promo code');
+    } finally {
+      setIsApplyingPromo(false);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoCodeInput('');
+    setPromoError(null);
+    showToast('Coupon removed');
+  };
+
+  // Cart Calculations with Coupon Discount applied before 5% GST
+  const discountedSubtotal = Math.max(0, cartSubtotal - calculatedDiscount);
+  const gstAmount = Math.round(discountedSubtotal * 0.05);
   const serviceCharge = 0;
-  const grandTotal = cartSubtotal + gstAmount + serviceCharge;
+  const grandTotal = discountedSubtotal + gstAmount + serviceCharge;
   const totalCartCount = useMemo(() => cartItems.reduce((acc, it) => acc + it.qty, 0), [cartItems]);
 
   // Active Orders Running Grand Total (from kitchen placed orders)
@@ -445,6 +625,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
   // Handlers
   const handleUpdateQty = (id: string, delta: number) => {
+    if ((canOrder === false || isReadOnly) && delta > 0) {
+      showToast(occupiedWarning || `Table ${tableNumber} is occupied. Food ordering is disabled.`);
+      return;
+    }
     updateCartItems((prev) =>
       prev
         .map((it) => {
@@ -458,11 +642,15 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
     );
   };
 
-  const handleAddDish = (dish: { id: string; name: string; price: number; image?: string; isVeg?: boolean }) => {
+  const handleAddDish = (dish: { id: string; name: string; price: number; image?: string; isVeg?: boolean }, addQty = 1) => {
+    if (canOrder === false || isReadOnly) {
+      showToast(occupiedWarning || `Table ${tableNumber} is occupied. Food ordering is disabled for this device.`);
+      return;
+    }
     updateCartItems((prev) => {
       const existing = prev.find((i) => i.name === dish.name);
       if (existing) {
-        return prev.map((i) => (i.name === dish.name ? { ...i, qty: i.qty + 1 } : i));
+        return prev.map((i) => (i.name === dish.name ? { ...i, qty: i.qty + addQty } : i));
       }
       return [
         ...prev,
@@ -470,7 +658,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           id: dish.id,
           name: dish.name,
           price: dish.price,
-          qty: 1,
+          qty: addQty,
           image: dish.image,
           isVeg: dish.isVeg,
         },
@@ -480,11 +668,16 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   };
 
   const openCustomizeModal = (dish: MenuItemData) => {
+    if (canOrder === false || isReadOnly) {
+      showToast(occupiedWarning || `Table ${tableNumber} is occupied. Customization is disabled in view-only mode.`);
+      return;
+    }
     setCustomizingDish(dish);
     setSelectedAddons({});
     setSelectedCustomizations([]);
     setSpiceLevel(dish.spicy ? 'Spicy' : 'Medium');
     setCustomInstructions('');
+    setModalQty(1);
     setIsCustomizeModalOpen(true);
   };
 
@@ -496,6 +689,11 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   };
 
   const handleCheckout = async () => {
+    if (canOrder === false || isReadOnly) {
+      showToast(occupiedWarning || `Table ${tableNumber} is occupied. Orders cannot be placed from this device.`);
+      return;
+    }
+
     if (cartItems.length === 0) {
       showToast('Your cart is empty');
       return;
@@ -534,6 +732,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
     updateCartItems([]);
     setCartSpecialInstructions('');
+    setAppliedPromo(null);
+    setPromoCodeInput('');
     try {
       store.clearCart();
     } catch (e) {}
@@ -581,14 +781,49 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   const CATEGORIES = dynamicCategories;
 
   return (
-    <div className={`min-h-screen w-full max-w-full overflow-x-hidden font-sans select-none antialiased flex flex-col transition-colors duration-200 ${
-      isDark ? 'bg-[#0a0b10] text-slate-100' : 'bg-[#f8f9fa] text-slate-900'
-    }`}>
+    <div className={`min-h-screen w-full flex justify-center ${isDark ? 'bg-slate-950' : 'bg-slate-200/70'}`}>
+      <div className={`max-w-3xl w-full mx-auto min-h-screen overflow-x-hidden font-sans select-none antialiased flex flex-col transition-colors duration-200 relative shadow-2xl border-x ${
+        isDark ? 'bg-slate-950 text-slate-100 border-slate-800' : 'bg-slate-50 text-slate-900 border-slate-200'
+      }`}>
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-[#ea580c] text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce border border-orange-400/40">
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-5 py-3 rounded-2xl shadow-sm dark:shadow-none flex items-center gap-3 animate-bounce border border-orange-400/40">
           <CheckCircle2 className="w-5 h-5 text-amber-200" />
           <span className="font-bold text-xs sm:text-sm">{toastMessage}</span>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 0. SMART APP DOWNLOAD BANNER (Fast APK Access for Android Guests)        */}
+      {/* ========================================================================= */}
+      {!isAppBannerDismissed && (
+        <div className="bg-slate-900 text-white dark:bg-slate-950 border-b border-slate-800 px-3 sm:px-4 py-2 text-xs flex items-center justify-between relative z-50">
+          <div className="flex items-center gap-2 truncate">
+            <span className="text-base">📱</span>
+            <span className="font-semibold truncate">
+              <span className="font-black">SpiceHub Android App:</span> 3x faster ordering & offline digital menu!
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsAppDownloadModalOpen(true)}
+              className="px-2.5 py-1 rounded-lg bg-black/40 hover:bg-black/60 text-white font-bold text-[11px] border border-white/20 transition flex items-center gap-1 shadow-xs"
+            >
+              <span>⬇️ Get App (.apk)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsAppBannerDismissed(true);
+                sessionStorage.setItem('spicehub_app_banner_dismissed', 'true');
+              }}
+              className="text-white/80 hover:text-white p-1 font-bold text-sm"
+              title="Dismiss banner"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
@@ -596,7 +831,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {/* 1. TOP HEADER (100% Full-Width Responsive Bar)                           */}
       {/* ========================================================================= */}
       <header className={`sticky top-0 z-40 w-full border-b backdrop-blur-md transition-colors ${
-        isDark ? 'bg-[#11131c]/90 border-slate-800/80 text-white' : 'bg-white/95 border-slate-200 text-slate-900 shadow-xs'
+        isDark ? 'bg-slate-950/90 border-slate-800/80 text-white' : 'bg-white/95 border-slate-200 text-slate-900 shadow-xs'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
           {/* Left: Brand Logo & Dining Table Session Pill */}
@@ -605,17 +840,17 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               onClick={() => setCurrentTab('home')}
               className="flex items-center gap-2 group text-left"
             >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-600 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-950/30 group-hover:scale-105 transition">
+              <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center shadow-xs transition">
                 <UtensilsCrossed className="w-5 h-5" />
               </div>
               <div>
-                <div className="font-black text-base sm:text-lg tracking-tight flex items-center gap-1.5 leading-none">
+                <div className="font-bold text-base sm:text-lg tracking-tight flex items-center gap-1.5 leading-none text-slate-900 dark:text-white">
                   SpiceHub
-                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                     Dine-In
                   </span>
                 </div>
-                <p className="text-[10px] text-amber-500 font-semibold mt-0.5 truncate max-w-[130px] sm:max-w-none">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate max-w-[130px] sm:max-w-none">
                   {hotelName}
                 </p>
               </div>
@@ -701,11 +936,11 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                 onClick={() => setDietaryFilter('NON_VEG')}
                 className={`px-2 py-1 rounded-lg flex items-center gap-1 transition ${
                   dietaryFilter === 'NON_VEG'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'text-rose-500 hover:text-rose-400'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-red-500 hover:text-red-400'
                 }`}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
                 <span>Non-Veg</span>
               </button>
             </div>
@@ -717,38 +952,40 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
             {waiterEnabled && (
               <button
                 onClick={() => setCurrentTab('waiter')}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:brightness-110 text-white text-xs font-bold shadow-md shadow-orange-950/20 transition"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 text-xs font-semibold shadow-xs transition"
               >
                 <Bell className="w-3.5 h-3.5" />
                 <span>Call Waiter</span>
               </button>
             )}
 
-            {/* Bright / Dark Theme Switcher */}
+            {/* Get App Action Button */}
             <button
-              data-testid="theme-toggle-btn"
-              onClick={toggleTheme}
-              className={`p-2 rounded-xl border transition flex items-center justify-center ${
+              type="button"
+              onClick={() => setIsAppDownloadModalOpen(true)}
+              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition ${
                 isDark
-                  ? 'bg-slate-900 border-slate-700 text-amber-400 hover:bg-slate-800'
-                  : 'bg-slate-100 border-slate-200 text-amber-600 hover:bg-slate-200'
+                  ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/40'
+                  : 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100 shadow-2xs'
               }`}
-              title={isDark ? 'Switch to Bright Light Mode' : 'Switch to Dark Mode'}
+              title="Download SpiceHub Android App (.apk)"
             >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              <span>📲</span>
+              <span className="hidden sm:inline">Get App</span>
             </button>
 
-            {/* Language Pill */}
+            {/* Bilingual English / Hindi Language Pill */}
             <button
-              onClick={() => setSelectedLanguage(selectedLanguage === 'EN' ? 'HI' : 'EN')}
-              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 transition ${
+              onClick={toggleCustomerLanguage}
+              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition ${
                 isDark
                   ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
-                  : 'bg-slate-100 border-slate-200 text-slate-800 hover:bg-slate-200'
+                  : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-100 shadow-2xs'
               }`}
+              title={selectedLanguage === 'EN' ? 'हिन्दी में बदलें' : 'Switch to English'}
             >
               <Globe className="w-3.5 h-3.5 text-orange-500" />
-              <span>{selectedLanguage}</span>
+              <span>{selectedLanguage === 'EN' ? 'हिन्दी' : 'English'}</span>
             </button>
 
             {/* Cart Button */}
@@ -778,7 +1015,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
-              placeholder="Search dishes, curries, drinks..."
+              placeholder={selectedLanguage === 'HI' ? 'व्यंजन, भोजन, पेय खोजें...' : 'Search dishes, curries, drinks...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={`w-full pl-8 pr-3 py-1.5 rounded-xl text-xs border focus:outline-none ${
@@ -796,57 +1033,82 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               onClick={() => setDietaryFilter('ALL')}
               className={`px-2 py-1 rounded-lg ${dietaryFilter === 'ALL' ? (isDark ? 'bg-slate-800 text-white' : 'bg-white text-slate-900') : 'text-slate-400'}`}
             >
-              All
+              {selectedLanguage === 'HI' ? 'सभी' : 'All'}
             </button>
             <button
               onClick={() => setDietaryFilter('VEG')}
               className={`px-2 py-1 rounded-lg ${dietaryFilter === 'VEG' ? 'bg-emerald-600 text-white' : 'text-emerald-500'}`}
             >
-              Veg
+              {selectedLanguage === 'HI' ? 'शाकाहारी' : 'Veg'}
             </button>
             <button
               onClick={() => setDietaryFilter('NON_VEG')}
-              className={`px-2 py-1 rounded-lg ${dietaryFilter === 'NON_VEG' ? 'bg-rose-600 text-white' : 'text-rose-500'}`}
+              className={`px-2 py-1 rounded-lg ${dietaryFilter === 'NON_VEG' ? 'bg-red-600 text-white' : 'text-red-500'}`}
             >
-              Non-Veg
+              {selectedLanguage === 'HI' ? 'मांसाहारी' : 'Non-Veg'}
             </button>
           </div>
         </div>
       </header>
 
+      {/* Occupied Table View-Only Banner */}
+      {(canOrder === false || isReadOnly) && (
+        <div
+          data-testid="occupied-table-warning-banner"
+          className="w-full bg-slate-900 border-b border-slate-800 px-4 py-2.5 text-slate-200 text-xs shadow-xs"
+        >
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="text-base">🔒</span>
+              <div>
+                <span className="font-bold text-white mr-2">
+                  {selectedLanguage === 'HI' ? 'केवल मेनू देखें • मेज पहले से भरी हुई है' : 'VIEW-ONLY MENU • Table Currently Occupied'}
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  {occupiedWarning || `Table ${tableNumber} is currently occupied with seated guests. Food ordering is disabled from this device.`}
+                </span>
+              </div>
+            </div>
+            <span className="shrink-0 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black uppercase tracking-wider">
+              Ordering Disabled
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* 2. MAIN BODY: RESPONSIVE MULTI-COLUMN WORKSPACE                          */}
       {/* ========================================================================= */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6 min-w-0">
+      <div className="flex-1 w-full max-w-4xl mx-auto p-3 sm:p-4 pb-32 flex flex-col gap-4 min-w-0">
         
         {/* ======================================================================= */}
         {/* LEFT / CENTER: MENU CATALOG & DISHES BROWSER                           */}
         {/* ======================================================================= */}
-        <div className={`flex-1 min-w-0 flex flex-col space-y-6 ${currentTab !== 'home' && currentTab !== 'menu' ? 'hidden lg:flex' : 'flex'}`}>
+        <div className={`flex-1 min-w-0 flex flex-col space-y-4 ${currentTab !== 'home' && currentTab !== 'menu' ? 'hidden' : 'flex'}`}>
           
           {/* Active Live Order Tracker Banner (If any active orders) */}
           {activeOrders.length > 0 && (
             <div 
               onClick={() => setCurrentTab('orders')}
-              className="cursor-pointer p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-orange-600 via-amber-600 to-rose-600 text-white shadow-lg hover:shadow-orange-500/20 border border-orange-400/40 flex items-center justify-between transition-all transform hover:-translate-y-0.5"
+              className="cursor-pointer p-4 rounded-xl bg-slate-900 text-white border border-slate-800 flex items-center justify-between shadow-sm"
             >
               <div className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl animate-pulse">
+                <span className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center text-lg">
                   🍳
                 </span>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider bg-white/25 px-2 py-0.5 rounded-md">
+                    <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider bg-slate-800 px-2 py-0.5 rounded">
                       {activeOrders.length} Active {activeOrders.length === 1 ? 'Order' : 'Orders'}
                     </span>
-                    <span className="text-[11px] sm:text-xs opacity-90 font-medium">Table {tableNumber}</span>
+                    <span className="text-xs text-slate-300 font-medium">Table {tableNumber}</span>
                   </div>
-                  <p className="text-xs sm:text-sm font-black mt-0.5">
+                  <p className="text-xs sm:text-sm font-semibold mt-0.5">
                     Latest: #{activeOrders[activeOrders.length - 1].orderNumber} • Status: {activeOrders[activeOrders.length - 1].orderStatus}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 text-xs font-black bg-white text-orange-700 px-3 py-1.5 rounded-xl shadow-xs">
+              <div className="flex items-center gap-1.5 text-xs font-semibold bg-white text-slate-900 px-3 py-1.5 rounded-lg shadow-xs">
                 <span>Track Live</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
@@ -854,24 +1116,24 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           )}
 
           {/* Hero Banner: Dining Atmosphere & Quick Call Waiter Chips */}
-          <div data-testid="welcome-hero-banner" className="relative rounded-3xl overflow-hidden shadow-xl border border-white/10 min-h-[220px] sm:min-h-[200px] bg-gradient-to-r from-orange-950 via-slate-900 to-black flex items-end p-4 sm:p-7">
+          <div data-testid="welcome-hero-banner" className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-900 min-h-[180px] flex items-end p-5 shadow-sm">
             <img
               src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80"
               alt="Restaurant Dining"
-              className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-50"
+              className="absolute inset-0 w-full h-full object-cover opacity-25"
             />
-            <div className="relative z-10 w-full flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-4">
+            <div className="relative z-10 w-full flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] sm:text-xs font-bold mb-2">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/10 text-slate-200 text-xs font-medium mb-2">
                   <span>🍽️ Freshly Prepared Food</span>
                   <span>•</span>
                   <span>Instant Table Ordering</span>
                 </div>
-                <h1 className="text-xl sm:text-3xl font-black text-white tracking-tight leading-tight">
+                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                   Welcome to {hotelName}
                 </h1>
-                <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-lg">
-                  Order appetizers, main courses & beverages directly to <strong data-testid="badge-table-number" className="text-amber-400 font-bold px-1.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30">{tableNumber}</strong> without waiting.
+                <p className="text-xs text-slate-300 mt-1 max-w-lg">
+                  Order appetizers, main courses & beverages directly to <strong data-testid="badge-table-number" className="text-white font-semibold px-1.5 py-0.5 rounded bg-white/10">{tableNumber}</strong> without waiting.
                 </p>
                 <div className="mt-3 flex items-center gap-2">
                   <button
@@ -881,9 +1143,9 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                       setSelectedCategory('All');
                       setCurrentTab('menu');
                     }}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-500 text-white font-black text-xs shadow-lg shadow-orange-950/40 hover:scale-105 transition flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-lg bg-white text-slate-900 font-semibold text-xs shadow-xs hover:bg-slate-100 transition flex items-center gap-1.5"
                   >
-                    <span>📖 Browse Menu</span>
+                    <span>Browse Menu</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -927,7 +1189,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
           {/* Horizontal Category Navigation Bar */}
           <div className="sticky top-16 z-30 py-2 backdrop-blur-md">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
+            <div className="overflow-x-auto flex gap-2 pb-1 custom-scrollbar">
               {CATEGORIES.map((cat) => {
                 const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
                 const dishCount = cat === 'All'
@@ -941,16 +1203,16 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                       setSelectedCategory(cat);
                       if (currentTab !== 'menu' && currentTab !== 'home') setCurrentTab('menu');
                     }}
-                    className={`px-4 py-2 rounded-2xl text-xs font-black whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                    className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors flex items-center gap-1.5 border font-medium ${
                       isSelected
-                        ? 'bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-lg shadow-orange-950/30 scale-105'
+                        ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white shadow-xs'
                         : isDark
-                        ? 'bg-[#151722] text-slate-300 border border-slate-800 hover:bg-slate-800 hover:text-white'
-                        : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100 hover:text-slate-900 shadow-2xs'
+                        ? 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800 hover:text-white'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900 shadow-2xs'
                     }`}
                   >
-                    <span>{cat}</span>
-                    <span className="text-[10px] opacity-75">({dishCount})</span>
+                    <span>{selectedLanguage === 'HI' ? (cat === 'All' ? 'सभी' : cat === 'Starters' ? 'स्टार्टर्स' : cat === 'Main Course' ? 'मेन कोर्स' : cat === 'Breads' ? 'रोटी व नान' : cat === 'Desserts' ? 'मिठाई' : cat === 'Beverages' ? 'पेय' : cat) : cat}</span>
+                    <span className="text-xs opacity-75">({dishCount})</span>
                   </button>
                 );
               })}
@@ -961,7 +1223,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className={`font-black text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                <h2 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {selectedCategory === 'All' ? 'All Dishes & Specialties' : `${selectedCategory}`}
                 </h2>
                 <p className="text-xs text-slate-400">
@@ -972,7 +1234,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               {dietaryFilter !== 'ALL' && (
                 <button
                   onClick={() => setDietaryFilter('ALL')}
-                  className="text-xs text-orange-500 font-bold hover:underline"
+                  className="text-xs text-slate-600 dark:text-slate-300 font-semibold hover:underline"
                 >
                   Clear filter ({dietaryFilter})
                 </button>
@@ -980,11 +1242,11 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
             </div>
 
             {filteredDishes.length === 0 ? (
-              <div className={`p-12 text-center rounded-3xl border ${
-                isDark ? 'bg-[#151722] border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'
+              <div className={`p-12 text-center rounded-xl border ${
+                isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'
               }`}>
                 <UtensilsCrossed className="w-10 h-10 mx-auto text-slate-400 mb-3 opacity-50" />
-                <h3 className="font-bold text-sm">No dishes found matching your criteria</h3>
+                <h3 className="font-semibold text-sm">No dishes found matching your criteria</h3>
                 <p className="text-xs mt-1">Try resetting the search or selecting another category.</p>
                 <button
                   onClick={() => {
@@ -992,13 +1254,13 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                     setSelectedCategory('All');
                     setDietaryFilter('ALL');
                   }}
-                  className="mt-4 px-4 py-2 rounded-xl bg-orange-600 text-white font-bold text-xs"
+                  className="mt-4 px-4 py-2 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-semibold text-xs"
                 >
                   View Full Menu
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredDishes.map((dish) => {
                   const cartItem = cartItems.find((c) => c.name === dish.name);
                   const inCartQty = cartItem ? cartItem.qty : 0;
@@ -1008,47 +1270,42 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                       key={dish.id}
                       data-testid={`dish-card-${dish.name.toLowerCase().replace(/\s+/g, '-')}`}
                       onClick={() => openCustomizeModal(dish)}
-                      className={`rounded-2xl border p-3 flex flex-col justify-between transition-all hover:shadow-xl group cursor-pointer ${
-                        isDark
-                          ? 'bg-[#141620] border-slate-800 hover:border-slate-700'
-                          : 'bg-white border-slate-200 hover:border-orange-200 shadow-2xs'
-                      }`}
+                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 h-full flex flex-col justify-between shadow-xs transition-colors hover:border-slate-300 dark:hover:border-slate-700 group cursor-pointer"
                     >
                       <div>
                         {/* Food Image with Badges */}
-                        <div className="relative rounded-xl overflow-hidden h-40 bg-slate-800 mb-3">
+                        <div className="relative rounded-lg overflow-hidden h-32 bg-slate-100 dark:bg-slate-800 mb-3">
                           <img
                             src={dish.image}
                             alt={dish.name}
-                            className={`w-full h-full object-cover group-hover:scale-105 transition duration-500 ${
+                            className={`w-full h-full object-cover group-hover:scale-105 transition duration-300 ${
                               dish.isAvailable === false ? 'grayscale opacity-50' : ''
                             }`}
                           />
                           
                           {/* 86 Sold Out Badge or Promotional Badge */}
                           {dish.isAvailable === false ? (
-                            <span className="absolute top-2.5 left-2.5 z-10 px-2.5 py-1 rounded-full text-[10px] font-black tracking-wide bg-rose-600 text-white shadow-lg flex items-center gap-1 border border-rose-400">
-                              <span>🚫 86 Sold Out</span>
+                            <span className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide bg-red-600 text-white flex items-center gap-1">
+                              <span>Sold Out</span>
                             </span>
                           ) : dish.badge ? (
-                            <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md">
-                              ★ {dish.badge}
+                            <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-900/80 text-white backdrop-blur-xs">
+                              {dish.badge}
                             </span>
                           ) : null}
 
                           {/* Veg / Non-Veg Indicator */}
-                          <span className={`absolute top-2.5 right-2.5 w-6 h-6 rounded-lg backdrop-blur-md flex items-center justify-center border shadow-xs ${
+                          <span className={`absolute top-2 right-2 w-5 h-5 rounded-md backdrop-blur-xs flex items-center justify-center border ${
                             dish.isVeg
                               ? 'bg-emerald-950/80 border-emerald-500 text-emerald-400'
-                              : 'bg-rose-950/80 border-rose-500 text-rose-400'
+                              : 'bg-red-950/80 border-red-500 text-red-400'
                           }`}>
-                            <span className={`w-2.5 h-2.5 rounded-full ${dish.isVeg ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                            <span className={`w-2 h-2 rounded-full ${dish.isVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
                           </span>
 
                           {/* Rating Pill */}
-                          <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-black bg-black/70 backdrop-blur-md text-amber-300 flex items-center gap-1">
-                            <span>⭐ {dish.rating}</span>
-                            <span className="text-white/60 text-[9px]">({dish.ratingCount})</span>
+                          <span className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-black/70 backdrop-blur-xs text-amber-300 flex items-center gap-1">
+                            <span>★ {dish.rating}</span>
                           </span>
 
                           {/* Quick Customize Button */}
@@ -1059,9 +1316,9 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                                 e.stopPropagation();
                                 openCustomizeModal(dish);
                               }}
-                              className="absolute bottom-2 right-2 px-2 py-1 rounded-md bg-black/70 hover:bg-black text-white text-[10px] font-bold backdrop-blur-md flex items-center gap-1 transition"
+                              className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/70 hover:bg-black text-white text-[10px] font-medium backdrop-blur-xs flex items-center gap-1 transition"
                             >
-                              <SlidersHorizontal className="w-3 h-3 text-orange-400" />
+                              <SlidersHorizontal className="w-3 h-3 text-slate-200" />
                               <span>Customize</span>
                             </button>
                           )}
@@ -1069,42 +1326,41 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
                         {/* Title & Description */}
                         <div>
-                          <h3 className={`font-black text-sm line-clamp-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                          <h3 className="font-semibold text-base text-slate-900 dark:text-white line-clamp-1">
                             {dish.name}
                           </h3>
-                          <p className={`text-xs mt-1 line-clamp-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
                             {dish.description}
                           </p>
                         </div>
                       </div>
 
                       {/* Price & Add to Cart Stepper */}
-                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-700/30">
-                        <div>
-                          <div className={`text-base font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-base font-semibold text-slate-900 dark:text-white">
                             ₹{dish.price}
-                          </div>
-                          <div className="text-[10px] text-slate-400">Taxes inclusive</div>
+                          </span>
+                          <span className="text-[10px] text-slate-400">Taxes inclusive</span>
                         </div>
 
                         {dish.isAvailable === false ? (
-                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-950/70 border border-rose-700/60 text-rose-300 text-xs font-black shadow-xs">
-                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                            <span>Sold Out (86)</span>
+                          <div className="h-9 w-full rounded-md bg-slate-100 dark:bg-slate-800 text-slate-400 text-xs font-medium flex items-center justify-center">
+                            Sold Out
                           </div>
                         ) : inCartQty > 0 ? (
-                          <div className="flex items-center border border-orange-500 rounded-xl overflow-hidden bg-orange-600 text-white font-black text-xs shadow-md">
+                          <div className="h-9 w-full flex items-center justify-between border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold text-sm">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleUpdateQty(cartItem!.id, -1);
                               }}
-                              className="px-2.5 py-1.5 hover:bg-orange-700 transition"
+                              className="h-full px-3 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center justify-center"
                             >
-                              <Minus className="w-3.5 h-3.5" />
+                              <Minus className="w-4 h-4" />
                             </button>
-                            <span className="px-2">{inCartQty}</span>
+                            <span>{inCartQty}</span>
                             <button
                               type="button"
                               data-testid={`btn-plus-${dish.name.toLowerCase().replace(/\s+/g, '-')}`}
@@ -1112,9 +1368,9 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                                 e.stopPropagation();
                                 handleUpdateQty(cartItem!.id, 1);
                               }}
-                              className="px-2.5 py-1.5 hover:bg-orange-700 transition"
+                              className="h-full px-3 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center justify-center"
                             >
-                              <Plus className="w-3.5 h-3.5" />
+                              <Plus className="w-4 h-4" />
                             </button>
                           </div>
                         ) : (
@@ -1125,10 +1381,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                               e.stopPropagation();
                               handleAddDish(dish);
                             }}
-                            className="px-4 py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500 text-orange-500 hover:text-white border border-orange-500/30 font-black text-xs flex items-center gap-1.5 transition shadow-xs"
+                            className="h-9 w-full bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-md text-sm font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition active:scale-[0.98]"
                           >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>ADD</span>
+                            <Plus className="w-4 h-4" />
+                            <span>Add</span>
                           </button>
                         )}
                       </div>
@@ -1141,50 +1397,72 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
         </div>
 
         {/* ======================================================================= */}
-        {/* RIGHT COLUMN (DESKTOP) / ACTIVE SCREEN (MOBILE): CART, ORDERS, BILL     */}
+        {/* RIGHT COLUMN (DRAWER ON TABLET/DESKTOP, BOTTOM SHEET ON MOBILE)        */}
         {/* ======================================================================= */}
-        <div className={`w-full lg:w-96 shrink-0 flex flex-col space-y-4 ${
-          currentTab !== 'home' && currentTab !== 'menu' ? 'flex' : 'hidden lg:flex'
+        {currentTab !== 'home' && currentTab !== 'menu' && (
+          <div
+            onClick={() => setCurrentTab('menu')}
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 transition-opacity"
+          />
+        )}
+
+        <div className={`shrink-0 flex flex-col space-y-4 ${
+          currentTab !== 'home' && currentTab !== 'menu'
+            ? 'fixed inset-x-0 bottom-0 max-h-[85vh] bg-white dark:bg-slate-900 rounded-t-2xl border-t border-slate-200 dark:border-slate-800 z-50 p-4 shadow-2xl overflow-y-auto md:max-h-none md:rounded-none md:border-t-0 md:inset-x-auto md:right-0 md:top-0 md:w-96 md:h-full md:border-l md:border-slate-200 md:dark:border-slate-800 md:flex'
+            : 'hidden'
         }`}>
+          {/* Drawer Header with Close Button */}
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="font-bold text-slate-900 dark:text-white text-base">
+              {currentTab === 'cart' ? 'Cart & Order' : currentTab === 'orders' ? 'Live Order Status' : 'Bill & Payment'}
+            </h2>
+            <button
+              onClick={() => setCurrentTab('menu')}
+              className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
           
           {/* Panel Header Switcher (Cart | Live Order | Split/Pay | Waiter) */}
-          <div className={`p-1.5 rounded-2xl border flex items-center gap-1 text-xs font-bold ${
-            isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+          <div className={`p-1 rounded-xl border flex items-center gap-1 text-xs font-semibold ${
+            isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'
           }`}>
             <button
               onClick={() => setCurrentTab('cart')}
-              className={`flex-1 py-2 px-1 rounded-xl flex items-center justify-center gap-1 transition ${
+              className={`flex-1 py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 transition ${
                 currentTab === 'cart'
-                  ? 'bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-md'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
                   : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <ShoppingCart className="w-3.5 h-3.5" />
-              <span>Cart ({totalCartCount})</span>
+              <span>{selectedLanguage === 'HI' ? 'कार्ट' : 'Cart'} ({totalCartCount})</span>
             </button>
 
             <button
               onClick={() => setCurrentTab('orders')}
-              className={`flex-1 py-2 px-1 rounded-xl flex items-center justify-center gap-1 transition ${
+              className={`flex-1 py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 transition ${
                 currentTab === 'orders'
-                  ? 'bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-md'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
                   : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
-              <span>Orders {activeOrders.length > 0 ? `(${activeOrders.length})` : ''}</span>
+              <span>{selectedLanguage === 'HI' ? 'आर्डर' : 'Orders'} {activeOrders.length > 0 ? `(${activeOrders.length})` : ''}</span>
             </button>
 
             <button
               onClick={() => setCurrentTab('payment')}
-              className={`flex-1 py-2 px-1 rounded-xl flex items-center justify-center gap-1 transition ${
+              className={`flex-1 py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 transition ${
                 currentTab === 'payment' || currentTab === 'split'
-                  ? 'bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-md'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
                   : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <CreditCard className="w-3.5 h-3.5" />
-              <span>Pay ₹{currentPayableTotal}</span>
+              <span>{selectedLanguage === 'HI' ? 'भुगतान' : 'Pay'} ₹{currentPayableTotal}</span>
             </button>
           </div>
 
@@ -1195,7 +1473,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
             <div
               data-testid="cart-drawer-container"
               className={`p-4 rounded-2xl border flex flex-col justify-between space-y-4 shadow-sm ${
-                isDark ? 'bg-[#141620] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+                isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
               }`}
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-700/30">
@@ -1233,7 +1511,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                       key={it.id}
                       data-testid={`cart-item-${it.name.toLowerCase().replace(/\s+/g, '-')}`}
                       className={`p-2.5 rounded-xl border flex flex-col gap-2 ${
-                        isDark ? 'bg-[#1c1f2e] border-slate-800' : 'bg-slate-50 border-slate-200'
+                        isDark ? 'bg-slate-800 border-slate-800' : 'bg-slate-50 border-slate-200'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -1250,17 +1528,23 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                         </div>
 
                         {/* Stepper */}
-                        <div className="flex items-center border border-slate-700/50 rounded-lg overflow-hidden bg-black/20 text-xs font-black shrink-0">
+                        <div className={`flex items-center border rounded-lg overflow-hidden text-xs font-black shrink-0 ${
+                          isDark ? 'border-slate-700/50 bg-black/20' : 'border-slate-300 bg-slate-100'
+                        }`}>
                           <button
                             onClick={() => handleUpdateQty(it.id, -1)}
-                            className="px-2 py-1 hover:bg-orange-500/20 text-slate-400 hover:text-white"
+                            className={`px-2 py-1 transition ${
+                              isDark ? 'hover:bg-orange-500/20 text-slate-400 hover:text-white' : 'hover:bg-orange-100 text-slate-600 hover:text-slate-900'
+                            }`}
                           >
                             -
                           </button>
-                          <span className="px-2 text-white">{it.qty}</span>
+                          <span className={`px-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>{it.qty}</span>
                           <button
                             onClick={() => handleUpdateQty(it.id, 1)}
-                            className="px-2 py-1 hover:bg-orange-500/20 text-slate-400 hover:text-white"
+                            className={`px-2 py-1 transition ${
+                              isDark ? 'hover:bg-orange-500/20 text-slate-400 hover:text-white' : 'hover:bg-orange-100 text-slate-600 hover:text-slate-900'
+                            }`}
                           >
                             +
                           </button>
@@ -1376,48 +1660,141 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                 />
               </div>
 
+              {/* Restaurant Offers & Coupon Codes */}
+              <div className={`p-3.5 rounded-2xl border space-y-2 text-xs ${
+                isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-amber-50/50 border-amber-200/80'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1.5 text-amber-500">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Restaurant Offers & Coupons</span>
+                  </span>
+                  {appliedPromo && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold">
+                      Applied ({appliedPromo.code})
+                    </span>
+                  )}
+                </div>
+
+                {appliedPromo ? (
+                  <div className="flex items-center justify-between bg-emerald-950/30 border border-emerald-500/40 rounded-xl p-2.5 text-xs text-emerald-300">
+                    <div>
+                      <div className="font-bold flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Code: {appliedPromo.code}</span>
+                      </div>
+                      <div className="text-[10px] text-emerald-400/80 mt-0.5">
+                        {appliedPromo.discountType === 'PERCENTAGE' ? `${appliedPromo.discountValue}% OFF` : `₹${appliedPromo.discountValue} OFF`}
+                        {appliedPromo.minOrderAmount ? ` (Min. Bill ₹${appliedPromo.minOrderAmount})` : ''}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemovePromo}
+                      className="px-2 py-1 text-[10px] font-bold bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg transition"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Enter Promo Code (e.g. WELCOME10)"
+                        value={promoCodeInput}
+                        onChange={(e) => {
+                          setPromoCodeInput(e.target.value.toUpperCase());
+                          setPromoError(null);
+                        }}
+                        className={`flex-1 px-3 py-2 rounded-xl text-xs uppercase font-mono tracking-wider border focus:outline-none focus:ring-1 focus:ring-amber-500 ${
+                          isDark ? 'bg-slate-950 border-slate-700 text-white placeholder:text-slate-600' : 'bg-white border-slate-300 text-slate-900'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        disabled={isApplyingPromo || !promoCodeInput.trim()}
+                        onClick={handleApplyPromo}
+                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs transition"
+                      >
+                        {isApplyingPromo ? 'Checking...' : 'Apply'}
+                      </button>
+                    </div>
+                    {promoError && (
+                      <div className="text-[11px] text-red-400 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>{promoError}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {promoThresholdWarning && (
+                  <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{promoThresholdWarning}</span>
+                  </div>
+                )}
+              </div>
+
               {/* Statutory GST Tax Box */}
               <div
                 data-testid="statutory-gst-calculation-box"
-                className={`p-3.5 rounded-2xl border space-y-2 text-xs ${
+                className={`p-3.5 rounded-xl border space-y-2 text-xs ${
                   isDark
-                    ? 'bg-gradient-to-br from-[#1c1f2e] to-blue-950/20 border-blue-500/30 text-slate-300'
-                    : 'bg-blue-50/50 border-blue-200 text-slate-700'
+                    ? 'bg-slate-900 border-slate-800 text-slate-300'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 shadow-xs'
                 }`}
               >
-                <div className="flex items-center justify-between border-b border-slate-700/30 pb-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
+                <div className={`flex items-center justify-between border-b pb-1.5 ${
+                  isDark ? 'border-slate-800' : 'border-slate-200'
+                }`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                    isDark ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
                     Statutory Tax Engine (SAC 9963)
                   </span>
-                  <span className="text-[10px] font-mono text-slate-400">5% Food GST Slab</span>
+                  <span className={`text-[10px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>5% Food GST Slab</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Food Subtotal</span>
-                  <span className="font-bold font-mono text-white">₹{cartSubtotal}</span>
+                  <span className={`font-bold font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>₹{cartSubtotal}</span>
                 </div>
-                <div className="flex justify-between text-slate-400 text-[11px]">
+                {calculatedDiscount > 0 && (
+                  <div className={`flex justify-between font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                    <span>Coupon Discount ({appliedPromo?.code})</span>
+                    <span className="font-mono">-₹{calculatedDiscount}</span>
+                  </div>
+                )}
+                <div className={`flex justify-between text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  <span>Taxable Amount</span>
+                  <span className="font-mono">₹{discountedSubtotal}</span>
+                </div>
+                <div className={`flex justify-between text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                   <span>CGST (2.5% SAC 9963)</span>
-                  <span className="font-mono">₹{(cartSubtotal * 0.025).toFixed(2)}</span>
+                  <span className="font-mono">₹{(discountedSubtotal * 0.025).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-slate-400 text-[11px]">
+                <div className={`flex justify-between text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                   <span>SGST (2.5% SAC 9963)</span>
-                  <span className="font-mono">₹{(cartSubtotal * 0.025).toFixed(2)}</span>
+                  <span className="font-mono">₹{(discountedSubtotal * 0.025).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between font-semibold pt-1 border-t border-slate-700/40 text-amber-300">
+                <div className={`flex justify-between font-semibold pt-1 border-t ${
+                  isDark ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-700'
+                }`}>
                   <span>Total Statutory GST (5%)</span>
                   <span className="font-mono">₹{gstAmount}</span>
                 </div>
-                <div className="flex justify-between text-slate-400 text-[11px]">
+                <div className={`flex justify-between text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                   <span>Service Charge</span>
-                  <span className="font-bold text-emerald-400">₹0 (Free)</span>
+                  <span className={`font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>₹0 (Free)</span>
                 </div>
                 <div
-                  className={`flex justify-between font-black text-sm pt-2 border-t ${
+                  className={`flex justify-between font-bold text-sm pt-2 border-t ${
                     isDark ? 'border-slate-800 text-white' : 'border-slate-200 text-slate-900'
                   }`}
                 >
                   <span>Grand Total</span>
-                  <span className="text-orange-500 font-mono text-base">₹{grandTotal}</span>
+                  <span className="font-mono text-base font-bold text-slate-900 dark:text-white">₹{grandTotal}</span>
                 </div>
               </div>
 
@@ -1425,12 +1802,18 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               <button
                 type="button"
                 data-testid="btn-place-order"
-                disabled={cartItems.length === 0}
+                disabled={cartItems.length === 0 || canOrder === false || isReadOnly}
                 onClick={handleCheckout}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-500 hover:brightness-110 disabled:opacity-50 text-white font-black text-xs shadow-lg shadow-orange-950/30 flex items-center justify-center gap-2 transition"
+                className={`w-full h-12 rounded-lg font-semibold text-sm shadow-xs flex items-center justify-center gap-2 transition mb-24 ${
+                  canOrder === false || isReadOnly
+                    ? 'bg-slate-300 text-slate-500 dark:bg-slate-800 dark:text-slate-500 cursor-not-allowed'
+                    : 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 disabled:opacity-50'
+                }`}
               >
                 <ChefHat className="w-4 h-4" />
-                <span>Place Order • ₹{grandTotal}</span>
+                <span>
+                  {canOrder === false || isReadOnly ? '🔒 Ordering Disabled (Table Occupied)' : `Place Order • ₹${grandTotal}`}
+                </span>
               </button>
             </div>
           )}
@@ -1440,7 +1823,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {/* --------------------------------------------------------------------- */}
           {currentTab === 'orders' && (
             <div className={`p-4 rounded-2xl border space-y-4 shadow-sm ${
-              isDark ? 'bg-[#141620] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               {activeOrders.length === 0 ? (
                 <div className="py-12 px-4 text-center space-y-4">
@@ -1455,7 +1838,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   </div>
                   <button
                     onClick={() => setCurrentTab('menu')}
-                    className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 text-white font-black text-xs shadow-lg transition hover:scale-105"
+                    className="px-6 py-2.5 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-semibold shadow-xs transition hover:opacity-90"
                   >
                     Browse Menu & Order
                   </button>
@@ -1498,7 +1881,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                         <div
                           key={order.orderNumber || oIdx}
                           className={`p-3.5 rounded-2xl border space-y-3 transition ${
-                            isDark ? 'bg-[#181c2b] border-slate-800' : 'bg-slate-50 border-slate-200'
+                            isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
                           }`}
                         >
                           {/* Order Header */}
@@ -1601,7 +1984,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
                   {/* Summary & Actions */}
                   <div className={`p-3.5 rounded-2xl border space-y-2.5 ${
-                    isDark ? 'bg-[#121520] border-slate-800' : 'bg-slate-50 border-slate-200'
+                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
                   }`}>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-400">Total Running Bill:</span>
@@ -1636,7 +2019,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {/* --------------------------------------------------------------------- */}
           {currentTab === 'split' && (
             <div className={`p-4 rounded-2xl border space-y-4 shadow-sm ${
-              isDark ? 'bg-[#141620] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               <div className="flex items-center justify-between pb-3 border-b border-slate-700/30">
                 <div>
@@ -1698,7 +2081,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                     <label
                       key={it.name}
                       className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer text-xs ${
-                        isDark ? 'bg-[#1c1f2e] border-slate-800' : 'bg-slate-50 border-slate-200'
+                        isDark ? 'bg-slate-800 border-slate-800' : 'bg-slate-50 border-slate-200'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -1744,7 +2127,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {/* --------------------------------------------------------------------- */}
           {currentTab === 'payment' && (
             <div data-testid="provisional-bill-panel" className={`p-4 rounded-2xl border space-y-4 shadow-sm ${
-              isDark ? 'bg-[#141620] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               <div className="flex items-center justify-between pb-3 border-b border-slate-700/30">
                 <div>
@@ -1769,7 +2152,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   </div>
 
                   <div className={`p-3 rounded-xl border text-left text-xs space-y-1.5 ${
-                    isDark ? 'bg-[#1c1f2e] border-slate-800' : 'bg-white border-slate-200'
+                    isDark ? 'bg-slate-800 border-slate-800' : 'bg-white border-slate-200'
                   }`}>
                     <div className="flex justify-between text-slate-400">
                       <span>Table Number:</span>
@@ -1812,7 +2195,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                 <div className="space-y-4">
                   {/* Amount Pill */}
                   <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
-                    isDark ? 'bg-[#1c1f2e] border-slate-800' : 'bg-slate-50 border-slate-200'
+                    isDark ? 'bg-slate-800 border-slate-800' : 'bg-slate-50 border-slate-200'
                   }`}>
                     <div>
                       <div className="text-[10px] text-slate-400 uppercase font-bold">Provisional Bill Total</div>
@@ -1823,7 +2206,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
                   {/* Provisional Bill Itemized Breakdown with Statutory Taxes */}
                   <div className={`p-3.5 rounded-2xl border space-y-2 text-xs ${
-                    isDark ? 'bg-[#1a1d2d] border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                    isDark ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
                   }`}>
                     <div className="flex items-center justify-between border-b border-slate-700/40 pb-2">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
@@ -1903,7 +2286,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                           className={`w-full p-2.5 rounded-xl border flex items-center justify-between text-xs transition ${
                             isSelected
                               ? 'bg-orange-500/15 border-orange-500 text-orange-400 font-bold'
-                              : isDark ? 'bg-[#1c1f2e] border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                              : isDark ? 'bg-slate-800 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
                           }`}
                         >
                           <div className="flex items-center gap-2">
@@ -1923,7 +2306,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   {/* UPI QR Display */}
                   {selectedPaymentMethod === 'upi' && (
                     <div className={`p-4 rounded-xl border flex flex-col items-center text-center space-y-2.5 ${
-                      isDark ? 'bg-[#1c1f2e] border-slate-800' : 'bg-slate-50 border-slate-200'
+                      isDark ? 'bg-slate-800 border-slate-800' : 'bg-slate-50 border-slate-200'
                     }`}>
                       <div className="font-bold text-xs flex items-center gap-1.5 text-orange-400">
                         <QrCode className="w-4 h-4" />
@@ -1943,8 +2326,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   )}
 
                   <button
+                    type="button"
+                    data-testid="btn-complete-settlement"
                     onClick={handleProcessPayment}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-600 to-orange-500 hover:brightness-110 text-white font-black text-xs shadow-lg shadow-orange-950/30 transition flex items-center justify-center gap-1.5"
+                    className="w-full h-12 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 font-semibold text-xs shadow-xs transition flex items-center justify-center gap-1.5 mb-24"
                   >
                     <span>Complete Settlement (₹{currentPayableTotal})</span>
                   </button>
@@ -1958,7 +2343,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {/* --------------------------------------------------------------------- */}
           {waiterEnabled && currentTab === 'waiter' && (
             <div className={`p-4 rounded-2xl border space-y-4 shadow-sm ${
-              isDark ? 'bg-[#141620] border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}>
               <div className="flex items-center justify-between pb-3 border-b border-slate-700/30">
                 <div>
@@ -1996,7 +2381,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                     onClick={() => handleSendServiceCall(s.type as CustomerRequestType, s.label)}
                     className={`p-3 rounded-xl border flex flex-col items-center text-center gap-1.5 transition hover:scale-105 ${
                       isDark
-                        ? 'bg-[#1c1f2e] border-slate-800 hover:border-orange-500/50'
+                        ? 'bg-slate-800 border-slate-800 hover:border-orange-500/50'
                         : 'bg-slate-50 border-slate-200 hover:border-orange-300 shadow-2xs'
                     }`}
                   >
@@ -2016,22 +2401,22 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {/* 3. MOBILE STICKY FLOATING BOTTOM ACTION & NAVIGATION BAR                 */}
       {/* ========================================================================= */}
       
-      {/* Floating Cart Pill on Mobile if cart has items and not on cart tab */}
+      {/* Mobile Sticky Bottom 'View Cart' Button */}
       {totalCartCount > 0 && currentTab !== 'cart' && currentTab !== 'payment' && (
-        <div className="lg:hidden fixed bottom-16 left-4 right-4 z-40 animate-slideUp">
+        <div className="fixed bottom-16 inset-x-0 md:hidden z-40">
           <button
             type="button"
             data-testid="btn-floating-view-cart"
             onClick={() => setCurrentTab('cart')}
-            className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-500 text-white font-black text-xs sm:text-sm shadow-2xl flex items-center justify-between"
+            className="h-14 w-full bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-t-xl px-4 flex items-center justify-between font-semibold shadow-lg active:opacity-90 transition"
           >
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-black/20 flex items-center justify-center text-xs">
+              <span className="w-6 h-6 rounded-full bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 text-xs flex items-center justify-center font-bold">
                 {totalCartCount}
               </span>
-              <span>Items in Cart • ₹{grandTotal}</span>
+              <span>{totalCartCount === 1 ? '1 item' : `${totalCartCount} items`} • ₹{grandTotal}</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 text-sm font-semibold">
               <span>View Cart</span>
               <ChevronRight className="w-4 h-4" />
             </div>
@@ -2039,9 +2424,9 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
         </div>
       )}
 
-      {/* Bottom Sticky Tab Navigation (Mobile < lg) */}
-      <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t py-1.5 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center justify-around backdrop-blur-md transition-colors ${
-        isDark ? 'bg-[#11131c]/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
+      {/* Bottom Sticky Tab Navigation */}
+      <nav className={`fixed bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:max-w-3xl z-40 border-t py-1.5 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center justify-around backdrop-blur-md transition-colors ${
+        isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
       }`}>
         {[
           { id: 'home', label: 'Home', icon: UtensilsCrossed },
@@ -2058,16 +2443,16 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               key={tab.id}
               data-testid={`tab-${tab.id}`}
               onClick={() => setCurrentTab(tab.id as any)}
-              className={`flex flex-col items-center gap-0.5 relative py-1 px-2 rounded-xl transition ${
+              className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center gap-0.5 relative py-1 px-2.5 rounded-xl transition ${
                 isActive
-                  ? 'text-orange-500 font-black scale-105'
+                  ? isDark ? 'text-blue-400 font-semibold' : 'text-blue-600 font-semibold'
                   : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              <Icon className="w-4 h-4" />
-              <span className="text-[10px]">{tab.label}</span>
+              <Icon className="w-5 h-5" />
+              <span className="text-[11px] font-medium">{t(tab.label)}</span>
               {tab.badge && tab.badge > 0 ? (
-                <span className="absolute -top-0.5 right-1.5 w-4 h-4 rounded-full bg-orange-600 text-white text-[9px] font-black flex items-center justify-center">
+                <span className="absolute 1 right-1.5 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center shadow-xs">
                   {tab.badge}
                 </span>
               ) : null}
@@ -2081,8 +2466,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {/* ========================================================================= */}
       {isCustomizeModalOpen && customizingDish && (
         <div data-testid="item-detail-modal" className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className={`rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border transition-colors ${
-            isDark ? 'bg-[#151722] text-slate-100 border-slate-800' : 'bg-white text-slate-900 border-slate-200'
+          <div className={`rounded-3xl max-w-md w-full overflow-hidden shadow-sm dark:shadow-none border transition-colors ${
+            isDark ? 'bg-slate-900 text-slate-100 border-slate-800' : 'bg-white text-slate-900 border-slate-200'
           }`}>
             <div className="relative h-48 bg-slate-900">
               <img
@@ -2104,7 +2489,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
             <div className="p-5 space-y-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${customizingDish.isVeg ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                  <span className={`w-2.5 h-2.5 rounded-full ${customizingDish.isVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
                   <h3 className="font-black text-base">{customizingDish.name}</h3>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">{customizingDish.description}</p>
@@ -2212,10 +2597,11 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
               {/* Instructions */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400">Cooking Notes</label>
+                <label className="text-xs font-bold text-slate-400">Cooking Notes / Special Instructions</label>
                 <input
                   type="text"
-                  placeholder="e.g. less oil, extra crispy..."
+                  data-testid="modal-special-instructions-input"
+                  placeholder="e.g. Please make it less spicy, less oil..."
                   value={customInstructions}
                   onChange={(e) => setCustomInstructions(e.target.value)}
                   className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none focus:ring-1 focus:ring-orange-500 ${
@@ -2224,17 +2610,44 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                 />
               </div>
 
+              {/* Quantity Stepper */}
+              <div className="flex items-center justify-between py-1">
+                <label className="text-xs font-bold text-slate-400">Quantity</label>
+                <div className="flex items-center gap-3 bg-slate-900/60 p-1.5 rounded-xl border border-slate-700/60">
+                  <button
+                    type="button"
+                    data-testid="btn-modal-decrease-qty"
+                    onClick={() => setModalQty(q => Math.max(1, q - 1))}
+                    className="w-7 h-7 rounded-lg border border-slate-700 flex items-center justify-center font-bold text-slate-300 hover:bg-slate-800 transition"
+                  >
+                    -
+                  </button>
+                  <span data-testid="modal-dish-qty" className="w-6 text-center font-bold font-mono text-sm text-amber-400">{modalQty}</span>
+                  <button
+                    type="button"
+                    data-testid="btn-modal-increase-qty"
+                    onClick={() => setModalQty(q => q + 1)}
+                    className="w-7 h-7 rounded-lg border border-orange-500/50 flex items-center justify-center font-bold text-orange-400 hover:bg-orange-950/40 transition"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
               {/* Add to Cart button */}
               <button
                 type="button"
-                data-testid="btn-modal-add-to-cart"
+                data-testid="modal-add-to-cart-btn"
                 onClick={() => {
-                  handleAddDish(customizingDish);
+                  if (customInstructions.trim()) {
+                    setCartSpecialInstructions(prev => prev ? `${prev}, ${customInstructions.trim()}` : customInstructions.trim());
+                  }
+                  handleAddDish(customizingDish, modalQty);
                   setIsCustomizeModalOpen(false);
                 }}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-600 to-orange-500 hover:brightness-110 text-white font-black text-xs shadow-lg transition"
+                className="w-full h-11 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 font-semibold text-xs shadow-xs transition"
               >
-                Add Customized Dish to Cart • ₹{customizingDish.price}
+                Add to Cart • ₹{customizingDish.price * modalQty}
               </button>
             </div>
           </div>
@@ -2244,7 +2657,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {/* 5. ORDER CONFIRMATION MODAL */}
       {placedOrderConfirmation && (
         <div data-testid="order-confirmation-modal" className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#151722] border border-emerald-500/40 rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl">
+          <div className="bg-slate-900 border border-emerald-500/40 rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-sm dark:shadow-none">
             <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto text-2xl font-black">
               ✓
             </div>
@@ -2271,6 +2684,118 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* NATIVE ANDROID APP (.APK) DOWNLOAD & OPEN MODAL                          */}
+      {/* ========================================================================= */}
+      {isAppDownloadModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className={`w-full max-w-md rounded-3xl p-6 shadow-sm dark:shadow-none border flex flex-col relative animate-in fade-in zoom-in duration-150 ${
+            isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setIsAppDownloadModalOpen(false)}
+              className={`absolute top-4 right-4 p-2 rounded-full border transition ${
+                isDark ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white' : 'bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* App Icon & Header */}
+            <div className="flex items-center gap-3.5 mb-4">
+              <div className="w-14 h-14 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 flex items-center justify-center text-2xl font-bold shadow-xs">
+                📱
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-black tracking-tight">SpiceHub App</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
+                    Native Android
+                  </span>
+                </div>
+                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Direct APK Download • v1.0.4 • 5.5 MB</p>
+              </div>
+            </div>
+
+            {/* Feature Perks */}
+            <div className={`p-3.5 rounded-2xl border space-y-2 mb-4 text-xs ${
+              isDark ? 'bg-slate-950/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+            }`}>
+              <div className="flex items-center gap-2 font-medium">
+                <span className="text-emerald-500 font-black">✓</span>
+                <span><strong>No App Store required:</strong> Direct instant install on any Android phone.</span>
+              </div>
+              <div className="flex items-center gap-2 font-medium">
+                <span className="text-emerald-500 font-black">✓</span>
+                <span><strong>3x Faster Performance:</strong> Instant local caching & offline digital menu.</span>
+              </div>
+              <div className="flex items-center gap-2 font-medium">
+                <span className="text-emerald-500 font-black">✓</span>
+                <span><strong>Real-Time Live Updates:</strong> Sound chime when kitchen accepts your order.</span>
+              </div>
+            </div>
+
+            {/* Scannable QR Code for Desktop/Tablet Guests */}
+            <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 mb-4 text-center">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(customerApkUrl)}`}
+                alt="Scan to Download APK"
+                className="w-32 h-32 object-contain bg-white p-2 rounded-xl border border-slate-200 shadow-xs"
+              />
+              <span className="mt-2 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                Scan with your phone camera or click below to download
+              </span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              <a
+                href={customerApkUrl}
+                download="SpiceHub-Customer.apk"
+                className="w-full h-11 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition hover:opacity-90 text-center"
+              >
+                <span>⬇️</span>
+                <span>Download Android APK (5.5 MB)</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  // Attempt custom URI intent to launch installed app if present
+                  const tableParam = tableNumber ? `&table=${encodeURIComponent(tableNumber)}` : '';
+                  const hotelParam = hotelId ? `&hotelId=${encodeURIComponent(hotelId)}` : '';
+                  window.location.href = `intent://customer-table?${tableParam}${hotelParam}#Intent;scheme=spicehub;package=com.spicehub.customer;end`;
+                  setTimeout(() => {
+                    setIsAppDownloadModalOpen(false);
+                  }, 1200);
+                }}
+                className={`w-full py-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  isDark
+                    ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
+                    : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                }`}
+              >
+                <span>🚀</span>
+                <span>Already Installed? Open App Directly</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsAppDownloadModalOpen(false)}
+                className={`w-full py-2 text-xs font-semibold text-center transition ${
+                  isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                Continue in Browser
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
     </div>
   );
 };

@@ -71,14 +71,14 @@ export class CorporateHelper {
       case GroupBookingStatus.COMPLETED:
         return {
           label: 'Completed / Settled',
-          badgeClass: 'bg-purple-950/60 text-purple-400 border-purple-500/40',
-          dotColor: 'bg-purple-400',
+          badgeClass: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800',
+          dotColor: 'bg-slate-800',
         };
       case GroupBookingStatus.CANCELLED:
         return {
           label: 'Cancelled',
-          badgeClass: 'bg-rose-950/60 text-rose-400 border-rose-500/40',
-          dotColor: 'bg-rose-400',
+          badgeClass: 'bg-red-950/60 text-red-400 border-red-500/40',
+          dotColor: 'bg-red-400',
         };
       default:
         return {

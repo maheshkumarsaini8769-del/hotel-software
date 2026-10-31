@@ -186,24 +186,24 @@ export const GuestManagementView: React.FC<GuestManagementViewProps> = ({ isDark
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div
         className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
         }`}
       >
         <div>
           <h2
             className={`text-lg font-black tracking-tight flex items-center gap-2 ${
-              isDark ? 'text-white' : 'text-slate-900'
+              isDark ? 'text-white' : 'text-slate-800'
             }`}
           >
             <Users className="w-5 h-5 text-blue-500" />
             <span>Guest Profile & Master Directory</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             Live CRM guest profiles with VIP tier, KYC status, lifetime spend and loyalty balance.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
             <input
@@ -211,20 +211,28 @@ export const GuestManagementView: React.FC<GuestManagementViewProps> = ({ isDark
               placeholder="Search by name, phone or email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white focus:outline-none"
+              className={`pl-8 pr-3 py-1.5 rounded-xl border text-xs focus:outline-none transition ${
+                isDark
+                  ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500'
+                  : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
+              }`}
             />
           </div>
           <button
             onClick={() => void loadGuests()}
             disabled={loading}
-            className="p-2 rounded-xl border border-slate-700 bg-slate-900 text-slate-300 hover:text-white disabled:opacity-50"
+            className={`p-2 rounded-xl border transition disabled:opacity-50 ${
+              isDark
+                ? 'border-slate-700 bg-slate-900 text-slate-300 hover:text-white'
+                : 'border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900'
+            }`}
             title="Refresh guest directory"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md transition flex items-center gap-1.5"
+            className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md transition flex items-center gap-1.5 whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
             <span>Add Guest</span>
@@ -241,7 +249,7 @@ export const GuestManagementView: React.FC<GuestManagementViewProps> = ({ isDark
               selectedTier === t
                 ? 'bg-blue-600 text-white shadow-md'
                 : isDark
-                  ? 'bg-[#141620] border border-slate-800 text-slate-400 hover:text-white'
+                  ? 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
                   : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -251,7 +259,7 @@ export const GuestManagementView: React.FC<GuestManagementViewProps> = ({ isDark
       </div>
 
       {error && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
           <span className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
             {error}
@@ -270,7 +278,7 @@ export const GuestManagementView: React.FC<GuestManagementViewProps> = ({ isDark
       ) : filtered.length === 0 ? (
         <div
           className={`rounded-2xl border px-6 py-14 text-center ${
-            isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
           }`}
         >
           <Users className="w-9 h-9 text-slate-500 mx-auto mb-3" />
@@ -287,54 +295,64 @@ export const GuestManagementView: React.FC<GuestManagementViewProps> = ({ isDark
             <div
               key={g.id}
               className={`p-4 rounded-2xl border space-y-3 transition ${
-                isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
               }`}
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-sm text-white">{g.name}</h3>
-                  <span className="text-[10px] text-slate-400 font-mono">{g.id.slice(-8)}</span>
+                  <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-800'}`}>{g.name}</h3>
+                  <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'} font-mono`}>{g.id.slice(-8)}</span>
                 </div>
                 <span
                   className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide border ${
                     g.tier.includes('Platinum')
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      ? isDark
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                        : 'bg-amber-50 text-amber-800 border-amber-200'
                       : g.tier.includes('Gold')
-                        ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
-                        : 'bg-slate-700/40 text-slate-300 border-slate-600'
+                        ? isDark
+                          ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
+                          : 'bg-yellow-50 text-yellow-800 border-yellow-200'
+                        : isDark
+                          ? 'bg-slate-700/40 text-slate-300 border-slate-600'
+                          : 'bg-slate-100 text-slate-700 border-slate-200'
                   }`}
                 >
                   ★ {g.tier}
                 </span>
               </div>
 
-              <div className="space-y-1 text-xs text-slate-300">
+              <div className={`space-y-1 text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                 <div className="flex items-center gap-2">
-                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <span>{g.phone}</span>
                 </div>
                 <div className="flex items-center gap-2 truncate">
-                  <Mail className="w-3.5 h-3.5 text-slate-400" />
+                  <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <span className="truncate">{g.email}</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-1.5 p-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-[10px]">
+              <div className={`grid grid-cols-3 gap-1.5 p-2 rounded-xl border text-[10px] ${
+                isDark ? 'bg-slate-900/60 border-slate-800/80' : 'bg-slate-50 border-slate-200/80'
+              }`}>
                 <div>
-                  <span className="text-slate-400 block">Stays</span>
-                  <span className="font-bold text-white text-xs">{g.totalStays}</span>
+                  <span className={`block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Stays</span>
+                  <span className={`font-bold text-xs ${isDark ? 'text-white' : 'text-slate-800'}`}>{g.totalStays}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Lifetime</span>
-                  <span className="font-bold text-emerald-400 text-xs">
+                  <span className={`block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Lifetime</span>
+                  <span className={`font-bold text-xs ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                     ₹{g.totalSpend.toLocaleString('en-IN')}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">KYC</span>
+                  <span className={`block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>KYC</span>
                   <span
                     className={`font-bold text-[9px] ${
-                      g.kycStatus === 'VERIFIED' ? 'text-emerald-400' : 'text-amber-400'
+                      g.kycStatus === 'VERIFIED'
+                        ? isDark ? 'text-emerald-400' : 'text-emerald-700'
+                        : isDark ? 'text-amber-400' : 'text-amber-700'
                     }`}
                   >
                     {g.kycStatus}
@@ -342,14 +360,16 @@ export const GuestManagementView: React.FC<GuestManagementViewProps> = ({ isDark
                 </div>
               </div>
 
-              <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-800/60 flex items-center justify-between gap-2">
+              <div className={`text-[11px] pt-1 border-t flex items-center justify-between gap-2 ${
+                isDark ? 'border-slate-800/60 text-slate-400' : 'border-slate-100 text-slate-500'
+              }`}>
                 <span className="truncate">
-                  Last stay: <strong className="text-blue-300">{g.lastVisit}</strong>
+                  Last stay: <strong className={isDark ? 'text-blue-300' : 'text-blue-700'}>{g.lastVisit}</strong>
                 </span>
                 <button
                   onClick={() => void openHistory(g)}
                   disabled={historyLoading}
-                  className="text-blue-400 hover:underline font-bold text-[10px] whitespace-nowrap disabled:opacity-50"
+                  className="text-blue-500 hover:text-blue-600 font-bold text-[10px] whitespace-nowrap disabled:opacity-50"
                 >
                   View 360 →
                 </button>
@@ -361,55 +381,76 @@ export const GuestManagementView: React.FC<GuestManagementViewProps> = ({ isDark
 
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#141620] border border-slate-800 text-white rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+          <div className={`border rounded-2xl max-w-md w-full p-5 space-y-4 shadow-sm dark:shadow-none ${
+            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-800'
+          }`}>
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-black">Register New Guest Profile</h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-white">
+              <h3 className={`text-base font-black ${isDark ? 'text-white' : 'text-slate-800'}`}>Register New Guest Profile</h3>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className={`transition ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <form onSubmit={handleCreateGuest} className="space-y-3">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Full Name</label>
+                <label className={`text-xs block mb-1 font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Full Name</label>
                 <input
                   type="text"
                   placeholder="e.g. Anjali Nair"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white focus:outline-none"
+                  className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none transition ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500'
+                      : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
+                  }`}
                   required
                 />
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Mobile Number</label>
+                <label className={`text-xs block mb-1 font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Mobile Number</label>
                 <input
                   type="text"
                   placeholder="+91 98765 00000"
                   value={newPhone}
                   onChange={(e) => setNewPhone(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white focus:outline-none"
+                  className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none transition ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500'
+                      : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
+                  }`}
                   required
                 />
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Email Address</label>
+                <label className={`text-xs block mb-1 font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Email Address</label>
                 <input
                   type="email"
                   placeholder="guest@example.com"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white focus:outline-none"
+                  className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none transition ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500'
+                      : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Guest Tier</label>
+                <label className={`text-xs block mb-1 font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Guest Tier</label>
                 <select
                   value={newTier}
                   onChange={(e) => setNewTier(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border text-xs bg-slate-900 border-slate-800 text-white focus:outline-none"
+                  className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none transition ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-white'
+                      : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
                 >
                   <option value="SILVER">Silver Regular</option>
                   <option value="GOLD">Gold VIP</option>
@@ -422,7 +463,11 @@ export const GuestManagementView: React.FC<GuestManagementViewProps> = ({ isDark
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="flex-1 py-2 rounded-xl border border-slate-700 text-slate-300 font-bold text-xs"
+                  className={`flex-1 py-2 rounded-xl border font-bold text-xs transition ${
+                    isDark
+                      ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
                 >
                   Cancel
                 </button>
@@ -441,56 +486,77 @@ export const GuestManagementView: React.FC<GuestManagementViewProps> = ({ isDark
 
       {history && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#141620] border border-slate-800 text-white rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
+          <div className={`border rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-sm dark:shadow-none max-h-[85vh] overflow-y-auto ${
+            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-800'
+          }`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-base font-black flex items-center gap-2">
-                  <Star className="w-4 h-4 text-amber-400" />
+                <h3 className={`text-base font-black flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                  <Star className="w-4 h-4 text-amber-500" />
                   {history.profile.name}
                 </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                   {history.profile.phone} • {history.profile.email || 'No email'}
                 </p>
               </div>
-              <button onClick={() => setHistory(null)} className="text-slate-400 hover:text-white">
+              <button
+                onClick={() => setHistory(null)}
+                className={`transition ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="grid grid-cols-3 gap-2 text-xs">
-              <div className="rounded-xl bg-slate-900/70 border border-slate-800 p-2.5">
-                <span className="text-[10px] text-slate-400 block">Visits</span>
-                <strong>{history.profile.totalVisits || 0}</strong>
+              <div className={`rounded-xl border p-2.5 ${
+                isDark ? 'bg-slate-900/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <span className={`text-[10px] block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Visits</span>
+                <strong className={isDark ? 'text-white' : 'text-slate-800'}>{history.profile.totalVisits || 0}</strong>
               </div>
-              <div className="rounded-xl bg-slate-900/70 border border-slate-800 p-2.5">
-                <span className="text-[10px] text-slate-400 block">Lifetime Spend</span>
-                <strong>₹{Number(history.profile.totalLifetimeSpend || 0).toLocaleString('en-IN')}</strong>
+              <div className={`rounded-xl border p-2.5 ${
+                isDark ? 'bg-slate-900/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <span className={`text-[10px] block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Lifetime Spend</span>
+                <strong className={isDark ? 'text-emerald-400' : 'text-emerald-700'}>
+                  ₹{Number(history.profile.totalLifetimeSpend || 0).toLocaleString('en-IN')}
+                </strong>
               </div>
-              <div className="rounded-xl bg-slate-900/70 border border-slate-800 p-2.5">
-                <span className="text-[10px] text-slate-400 block">Loyalty Points</span>
-                <strong>{history.profile.loyaltyPointsBalance || 0}</strong>
+              <div className={`rounded-xl border p-2.5 ${
+                isDark ? 'bg-slate-900/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <span className={`text-[10px] block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Loyalty Points</span>
+                <strong className={isDark ? 'text-amber-400' : 'text-amber-700'}>
+                  {history.profile.loyaltyPointsBalance || 0}
+                </strong>
               </div>
             </div>
 
             <div>
-              <h4 className="text-xs font-black text-slate-200 mb-2">Recent Stays</h4>
+              <h4 className={`text-xs font-black mb-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Recent Stays</h4>
               {history.recentStays && history.recentStays.length > 0 ? (
                 <div className="space-y-1.5">
                   {history.recentStays.map((stay, index) => (
                     <div
                       key={stay._id || index}
-                      className="rounded-xl border border-slate-800 bg-slate-900/60 p-2.5 text-[11px] flex items-center justify-between"
+                      className={`rounded-xl border p-2.5 text-[11px] flex items-center justify-between ${
+                        isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200 bg-slate-50'
+                      }`}
                     >
-                      <span className="font-bold">Room {stay.roomId?.roomNumber || '—'}</span>
-                      <span className="text-slate-400">
+                      <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                        Room {stay.roomId?.roomNumber || '—'}
+                      </span>
+                      <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
                         {formatDate(stay.checkInTimestamp)} → {formatDate(stay.expectedCheckOutTimestamp)}
                       </span>
-                      <span className="text-emerald-300">{stay.stayStatus || '—'}</span>
+                      <span className={`font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                        {stay.stayStatus || '—'}
+                      </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-[11px] text-slate-500">No stay history recorded yet.</p>
+                <p className="text-[11px] text-slate-400">No stay history recorded yet.</p>
               )}
             </div>
 

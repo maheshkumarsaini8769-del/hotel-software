@@ -34,12 +34,36 @@ public class MainActivity extends BridgeActivity {
             controller.setAppearanceLightNavigationBars(true);
         }
 
-        // Request runtime Camera permission if not yet granted
+        // Enable Geolocation in WebView
+        try {
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                getBridge().getWebView().getSettings().setGeolocationEnabled(true);
+            }
+        } catch (Exception ignored) {}
+
+        // Request runtime Camera, Location and Notification permissions if not yet granted
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            java.util.List<String> permissionsNeeded = new java.util.ArrayList<>();
+
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                permissionsNeeded.add(Manifest.permission.CAMERA);
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                permissionsNeeded.add(Manifest.permission.ACCESS_FINE_LOCATION);
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                permissionsNeeded.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+            }
+            if (Build.VERSION.SDK_INT >= 33) {
+                if (ContextCompat.checkSelfPermission(this, "android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                    permissionsNeeded.add("android.permission.POST_NOTIFICATIONS");
+                }
+            }
+
+            if (!permissionsNeeded.isEmpty()) {
                 ActivityCompat.requestPermissions(
                     this,
-                    new String[]{Manifest.permission.CAMERA},
+                    permissionsNeeded.toArray(new String[0]),
                     CAMERA_PERMISSION_CODE
                 );
             }

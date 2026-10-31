@@ -69,8 +69,8 @@ export const DynamicUpiQrModal: React.FC<DynamicUpiQrModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-800 p-6 shadow-2xl flex flex-col items-center">
+    <div data-testid="dynamic-upi-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-800 p-6 shadow-sm dark:shadow-none flex flex-col items-center">
         {/* Header */}
         <div className="w-full flex items-center justify-between pb-3 border-b border-zinc-800">
           <div>
@@ -81,12 +81,21 @@ export const DynamicUpiQrModal: React.FC<DynamicUpiQrModalProps> = ({
               Table {currentQr.tableNumber} • Bill #{String(currentQr.billId).slice(-6)}
             </p>
           </div>
-          <span
-            className={`px-3 py-1 text-xs font-semibold rounded-full border ${badge.bg} ${badge.text} ${badge.border} flex items-center gap-1.5`}
-          >
-            <span>{badge.icon}</span>
-            <span>{badge.label}</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`px-3 py-1 text-xs font-semibold rounded-full border ${badge.bg} ${badge.text} ${badge.border} flex items-center gap-1.5`}
+            >
+              <span>{badge.icon}</span>
+              <span>{badge.label}</span>
+            </span>
+            <button
+              data-testid="btn-close-upi-modal"
+              onClick={onClose}
+              className="text-zinc-400 hover:text-white p-1 rounded-lg text-sm font-bold"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Amount Display (Locked) */}
@@ -112,8 +121,8 @@ export const DynamicUpiQrModal: React.FC<DynamicUpiQrModalProps> = ({
             </div>
           ) : isExpired ? (
             <div className="flex flex-col items-center justify-center text-center p-2">
-              <span className="text-4xl text-rose-500 mb-2">⏰</span>
-              <p className="text-rose-600 font-bold text-sm">QR Code Expired</p>
+              <span className="text-4xl text-red-500 mb-2">⏰</span>
+              <p className="text-red-600 font-bold text-sm">QR Code Expired</p>
               <p className="text-zinc-500 text-xs mt-1">Please regenerate fresh QR</p>
             </div>
           ) : isCancelled ? (

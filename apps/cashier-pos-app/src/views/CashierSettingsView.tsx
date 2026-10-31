@@ -58,7 +58,7 @@ export const CashierSettingsView: React.FC<CashierSettingsViewProps> = ({ isDark
     <div className="space-y-4 max-w-4xl mx-auto pb-8">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
       }`}>
         <div>
           <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -75,7 +75,7 @@ export const CashierSettingsView: React.FC<CashierSettingsViewProps> = ({ isDark
       <form onSubmit={handleSave} className="space-y-4">
         {/* Printer & Hardware */}
         <div className={`p-5 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <h3 className="font-black text-sm text-white flex items-center gap-2">
             <Printer className="w-4 h-4 text-emerald-500" />
@@ -138,7 +138,7 @@ export const CashierSettingsView: React.FC<CashierSettingsViewProps> = ({ isDark
 
         {/* Tax Slab Configuration */}
         <div className={`p-5 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-[#141620] border-slate-800' : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}>
           <h3 className="font-black text-sm text-white flex items-center gap-2">
             <Sliders className="w-4 h-4 text-blue-500" />

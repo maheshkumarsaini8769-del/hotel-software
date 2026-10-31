@@ -59,9 +59,9 @@ export const InterKitchenTransferModal: React.FC<InterKitchenTransferModalProps>
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-[#0f131a] border-2 border-blue-500/40 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_0_50px_rgba(59,130,246,0.25)] animate-in fade-in zoom-in-95">
+      <div className="bg-slate-900 border-2 border-blue-500/40 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
         {/* Header */}
-        <div className="bg-[#10141e] px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <div className="bg-slate-900 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-xl">🔄</span>
             <div>
@@ -210,7 +210,7 @@ export const InterKitchenTransferModal: React.FC<InterKitchenTransferModalProps>
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
             >
               {loading ? 'Dispatching...' : 'Dispatch Transfer'}
             </button>

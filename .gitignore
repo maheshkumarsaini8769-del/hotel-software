@@ -101,3 +101,5 @@ qa-runs/
 verification_screenshots/
 screenshots_verification/
 .logs/
+*.apk
+.vercel/

@@ -36,7 +36,7 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
       case 'CLEANING':
         return 'bg-orange-400';
       case 'OUT_OF_SERVICE':
-        return 'bg-rose-500';
+        return 'bg-red-500';
       case 'AVAILABLE':
       default:
         return 'bg-emerald-400';
@@ -60,15 +60,15 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
   const CELL_WIDTH_PX = 60; // 60px per day column
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-950 overflow-hidden select-none">
+    <div className="flex-1 flex flex-col bg-slate-50 overflow-hidden select-none">
       <div className="flex-1 overflow-auto relative">
         <table className="border-collapse table-fixed w-full min-w-max">
           {/* Header Row */}
           <thead>
-            <tr className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 shadow-md">
+            <tr className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
               {/* Sticky Top-Left Room Header */}
-              <th className="sticky left-0 z-40 bg-slate-900 border-r border-slate-800 w-48 min-w-[192px] px-4 py-3 text-left">
-                <span className="text-xs font-black tracking-wider text-amber-300 uppercase">
+              <th className="sticky left-0 z-40 bg-white border-r border-slate-200 w-48 min-w-[192px] px-4 py-3 text-left">
+                <span className="text-xs font-black tracking-wider text-slate-900 uppercase">
                   Physical Rooms
                 </span>
               </th>
@@ -78,13 +78,13 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
                 <th
                   key={d.date}
                   style={{ width: `${CELL_WIDTH_PX}px` }}
-                  className={`text-center py-2 px-1 border-r border-slate-800/60 font-mono transition ${
-                    d.isWeekend ? 'bg-amber-950/20 text-amber-200' : 'text-slate-300'
+                  className={`text-center py-2 px-1 border-r border-slate-200 font-mono transition ${
+                    d.isWeekend ? 'bg-slate-100 text-slate-900' : 'text-slate-700'
                   }`}
                 >
-                  <div className="text-[10px] uppercase font-bold text-slate-400">{d.dayName}</div>
-                  <div className="text-sm font-extrabold text-white">{d.dayNumber}</div>
-                  <div className="text-[9px] text-slate-400">{d.monthName}</div>
+                  <div className="text-[10px] uppercase font-semibold text-slate-500">{d.dayName}</div>
+                  <div className="text-sm font-extrabold text-slate-900">{d.dayNumber}</div>
+                  <div className="text-[9px] text-slate-500">{d.monthName}</div>
                 </th>
               ))}
             </tr>
@@ -95,13 +95,13 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
             {roomTypes.map((category) => (
               <React.Fragment key={category.id}>
                 {/* Category Header Row */}
-                <tr className="bg-slate-900/70 border-b border-slate-800">
+                <tr className="bg-slate-100 border-b border-slate-200">
                   <td
                     colSpan={dates.length + 1}
-                    className="px-4 py-2 text-xs font-bold text-amber-400 tracking-wide uppercase bg-gradient-to-r from-slate-900 to-slate-950"
+                    className="px-4 py-2 text-xs font-bold text-slate-800 tracking-wide uppercase bg-slate-100"
                   >
                     <span>🏷️ {category.name}</span>
-                    <span className="text-[10px] text-slate-400 ml-2 font-normal">
+                    <span className="text-[10px] text-slate-500 ml-2 font-normal">
                       ({category.rooms.length} Rooms Available)
                     </span>
                   </td>
@@ -114,21 +114,21 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
                   return (
                     <tr
                       key={room.id}
-                      className="border-b border-slate-850/80 hover:bg-slate-900/40 transition group"
+                      className="border-b border-slate-200 hover:bg-blue-50/40 transition group"
                     >
                       {/* Sticky Left Room Name & Status */}
-                      <td className="sticky left-0 z-20 bg-slate-950 group-hover:bg-slate-900/90 border-r border-slate-800/80 px-4 py-3">
+                      <td className="sticky left-0 z-20 bg-white group-hover:bg-blue-50/60 border-r border-slate-200 px-4 py-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
                             <span
                               className={`w-2 h-2 rounded-full ${getRoomStatusDot(room.status)} shadow-sm`}
                               title={`Status: ${room.status}`}
                             />
-                            <span className="font-mono font-bold text-sm text-slate-100">
+                            <span className="font-mono font-bold text-sm text-slate-900">
                               {room.roomNumber}
                             </span>
                           </div>
-                          <span className="text-[10px] text-slate-400 font-medium">
+                          <span className="text-[10px] text-slate-500 font-medium">
                             F{room.floorNumber}
                           </span>
                         </div>
@@ -150,12 +150,12 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
                                   d.date
                                 )
                               }
-                              className={`border-r border-slate-850/40 h-full flex items-center justify-center transition cursor-pointer hover:bg-amber-500/10 group/cell ${
-                                d.isWeekend ? 'bg-amber-950/5' : ''
+                              className={`border-r border-slate-200 h-full flex items-center justify-center transition cursor-pointer hover:bg-blue-50 group/cell ${
+                                d.isWeekend ? 'bg-slate-50/80' : 'bg-white'
                               }`}
                               title={`Click to reserve ${room.roomNumber} starting ${d.date}`}
                             >
-                              <span className="opacity-0 group-hover/cell:opacity-100 text-[10px] font-bold text-amber-400 bg-slate-900/90 px-1 py-0.5 rounded border border-amber-500/30 transition">
+                              <span className="opacity-0 group-hover/cell:opacity-100 text-[10px] font-bold text-blue-600 bg-white px-1 py-0.5 rounded border border-blue-200 shadow-xs transition">
                                 +
                               </span>
                             </div>

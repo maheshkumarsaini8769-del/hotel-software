@@ -48,9 +48,9 @@ export class DynamicUpiHelper {
         };
       case UpiQrStatus.EXPIRED:
         return {
-          bg: 'bg-rose-500/20',
-          text: 'text-rose-400',
-          border: 'border-rose-500/40',
+          bg: 'bg-red-500/20',
+          text: 'text-red-400',
+          border: 'border-red-500/40',
           label: 'QR EXPIRED',
           icon: '⏰',
         };

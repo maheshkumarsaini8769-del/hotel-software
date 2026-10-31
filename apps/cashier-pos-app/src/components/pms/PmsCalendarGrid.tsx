@@ -36,7 +36,7 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
       case 'CLEANING':
         return 'bg-orange-400';
       case 'OUT_OF_SERVICE':
-        return 'bg-rose-500';
+        return 'bg-red-500';
       case 'AVAILABLE':
       default:
         return 'bg-emerald-400';

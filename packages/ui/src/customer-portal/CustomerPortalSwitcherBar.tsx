@@ -56,12 +56,12 @@ export const CustomerPortalSwitcherBar: React.FC<CustomerPortalSwitcherBarProps>
     <aside
       data-testid="customer-switcher-bar"
       aria-label="Portal Mode Switcher"
-      className="w-full max-w-full box-border border-b border-slate-800 bg-[#0d121f]/95 backdrop-blur-md text-slate-200 px-3 py-1.5 sm:px-4 z-40 relative flex items-center justify-between gap-2 overflow-x-hidden"
+      className="w-full max-w-full box-border border-b border-slate-800 bg-slate-950/95 backdrop-blur-md text-slate-200 px-3 py-1.5 sm:px-4 z-40 relative flex items-center justify-between gap-2 overflow-x-hidden"
     >
-      <div className="flex items-center gap-2 min-w-0 flex-1">
+      <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
         <span className="text-sm shrink-0">{isCustomer ? '🍽️' : '🛎️'}</span>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
-          <span className="text-xs font-semibold text-slate-300 truncate">
+        <div className="flex items-center gap-x-2 min-w-0 flex-1 overflow-hidden">
+          <span className="text-xs font-semibold text-slate-300 shrink-0">
             {isCustomer ? 'Dine-In' : 'In-Room'}
             {currentLocationName ? ` · ${currentLocationName}` : ''}
           </span>
@@ -69,7 +69,7 @@ export const CustomerPortalSwitcherBar: React.FC<CustomerPortalSwitcherBarProps>
           <a
             data-testid="switcher-action-link"
             href={destinationUrl}
-            className="min-h-[44px] inline-flex items-center text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline transition shrink-0"
+            className="min-h-[44px] inline-flex items-center text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline transition truncate min-w-0 flex-1"
           >
             {actionText}
           </a>

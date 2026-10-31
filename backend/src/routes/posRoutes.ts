@@ -21,6 +21,7 @@ import {
   mergeDiningTables,
   splitDiningTables,
   getTableSessionOrders,
+  updateTableSessionPax,
   postKitchenBuzzer,
   getKitchenBuzzers,
   acknowledgeKitchenBuzzer,
@@ -83,6 +84,7 @@ export const authenticatePosTerminal = async (
 router.get('/demo-context', getDemoContext);
 router.get('/table/qr-entry', accessTableByQR);
 router.post('/orders/place', placeRestaurantOrder);
+router.patch('/table-session/pax', updateTableSessionPax);
 router.get('/table-session/:tableSessionId/orders', getTableSessionOrders);
 router.get('/table-session/orders', getTableSessionOrders);
 router.get('/table/orders', getTableSessionOrders);

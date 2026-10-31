@@ -21,12 +21,12 @@ export const InventoryPoHeader: React.FC<InventoryPoHeaderProps> = ({
   loading,
 }) => {
   return (
-    <div className="bg-[#0b0e14] border-b border-amber-500/20 px-6 py-6 text-zinc-100 shadow-xl">
+    <div className="bg-slate-950 border-b border-amber-500/20 px-6 py-6 text-zinc-100 shadow-xl">
       {/* Title & Actions */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <span className="h-3 w-3 rounded-full bg-amber-400 animate-pulse shadow-[0_0_12px_rgba(245,158,11,0.8)]" />
+            <span className="h-3 w-3 rounded-full bg-amber-400 animate-pulse shadow-sm dark:shadow-none" />
             <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
               Central Store Purchase Orders & GRN Receiving
             </h1>
@@ -60,7 +60,7 @@ export const InventoryPoHeader: React.FC<InventoryPoHeaderProps> = ({
           <button
             type="button"
             onClick={onNewPoClick}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)] flex items-center gap-2"
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-2"
           >
             <span>+</span>
             <span>Raise Purchase Order</span>

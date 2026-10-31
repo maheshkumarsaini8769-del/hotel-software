@@ -93,5 +93,7 @@ const MenuItemSchema = new Schema<IMenuItem>(
 );
 
 MenuItemSchema.index({ hotelId: 1, name: 1 }, { unique: true });
+MenuItemSchema.index({ hotelId: 1, isAvailable: 1 });
+MenuItemSchema.index({ hotelId: 1, createdAt: -1 });
 
 export const MenuItem = mongoose.model<IMenuItem>('MenuItem', MenuItemSchema);

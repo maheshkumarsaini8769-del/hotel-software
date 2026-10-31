@@ -120,9 +120,9 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-[#121721] border border-amber-500/30 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+      <div className="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-[#0b0e14]">
+        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-slate-950">
           <div className="flex items-center gap-3">
             <span className="h-3 w-3 rounded-full bg-amber-400" />
             <h2 className="text-xl font-bold text-white">Create Group & Corporate Booking</h2>
@@ -151,7 +151,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                   placeholder="e.g. Acme Annual Conference"
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -163,7 +163,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                   placeholder="e.g. Rahul Sharma"
                   value={organizerName}
                   onChange={(e) => setOrganizerName(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -175,7 +175,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                   placeholder="e.g. 9876543210"
                   value={organizerPhone}
                   onChange={(e) => setOrganizerPhone(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -186,7 +186,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                   placeholder="e.g. Acme Technologies Ltd"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -197,7 +197,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                   placeholder="e.g. 27AABCA1234F1Z0"
                   value={companyGst}
                   onChange={(e) => setCompanyGst(e.target.value.toUpperCase())}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -208,7 +208,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                   placeholder="organizer@company.com"
                   value={organizerEmail}
                   onChange={(e) => setOrganizerEmail(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
                 />
               </div>
             </div>
@@ -227,7 +227,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                   required
                   value={checkInDate}
                   onChange={(e) => setCheckInDate(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -238,7 +238,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                   required
                   value={checkOutDate}
                   onChange={(e) => setCheckOutDate(e.target.value)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -247,7 +247,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                 <select
                   value={splitBillingPolicy}
                   onChange={(e) => setSplitBillingPolicy(e.target.value as SplitBillingPolicy)}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 >
                   <option value={SplitBillingPolicy.MASTER_PAYS_ROOM_ONLY}>
                     Company Pays Room Only (Guests Pay Incidentals)
@@ -268,7 +268,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                   min="0"
                   value={advanceDepositPaid}
                   onChange={(e) => setAdvanceDepositPaid(Number(e.target.value))}
-                  className="w-full bg-[#0b0e14] border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
             </div>
@@ -293,7 +293,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
               {rooms.map((room, idx) => (
                 <div
                   key={idx}
-                  className="bg-[#0b0e14] p-3 rounded-xl border border-zinc-800 grid grid-cols-12 gap-2 items-center"
+                  className="bg-slate-950 p-3 rounded-xl border border-zinc-800 grid grid-cols-12 gap-2 items-center"
                 >
                   <div className="col-span-1 text-center font-bold text-zinc-500">
                     #{idx + 1}
@@ -302,7 +302,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                     <select
                       value={room.roomTypeId}
                       onChange={(e) => handleRoomChange(idx, 'roomTypeId', e.target.value)}
-                      className="w-full bg-[#121721] border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-amber-500"
+                      className="w-full bg-slate-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-amber-500"
                     >
                       {roomTypes.map((rt) => (
                         <option key={rt._id} value={rt._id}>
@@ -317,7 +317,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                       placeholder="Primary Guest Name"
                       value={room.primaryGuestName}
                       onChange={(e) => handleRoomChange(idx, 'primaryGuestName', e.target.value)}
-                      className="w-full bg-[#121721] border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white text-xs placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                      className="w-full bg-slate-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white text-xs placeholder-zinc-600 focus:outline-none focus:border-amber-500"
                     />
                   </div>
                   <div className="col-span-3">
@@ -326,7 +326,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                       placeholder="Guest Mobile"
                       value={room.primaryGuestPhone}
                       onChange={(e) => handleRoomChange(idx, 'primaryGuestPhone', e.target.value)}
-                      className="w-full bg-[#121721] border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white text-xs placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                      className="w-full bg-slate-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white text-xs placeholder-zinc-600 focus:outline-none focus:border-amber-500"
                     />
                   </div>
                   <div className="col-span-1 text-right">
@@ -334,7 +334,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
                       type="button"
                       disabled={rooms.length <= 1}
                       onClick={() => handleRemoveRoomRow(idx)}
-                      className="text-zinc-500 hover:text-rose-400 font-bold p-1 disabled:opacity-20"
+                      className="text-zinc-500 hover:text-red-400 font-bold p-1 disabled:opacity-20"
                       title="Remove Room"
                     >
                       ✕
@@ -346,7 +346,7 @@ export const NewGroupBookingModal: React.FC<NewGroupBookingModalProps> = ({
           </div>
 
           {/* Section 4: Live Estimated Financial Breakdown */}
-          <div className="bg-[#0b0e14] p-4 rounded-xl border border-amber-500/20 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-slate-950 p-4 rounded-xl border border-amber-500/20 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <div className="text-zinc-500 text-[11px] uppercase font-bold">Total Rooms × Nights</div>
               <div className="text-base font-bold text-white mt-0.5">

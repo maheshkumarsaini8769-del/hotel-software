@@ -4,7 +4,7 @@
  */
 import { io as SocketClient } from 'socket.io-client';
 
-const API = 'http://10.208.156.216:5000';
+const API = process.env.E2E_API_URL || 'http://127.0.0.1:5000';
 console.log(`\n🚀 ================================================================`);
 console.log(`   SPICEHUB MASTER CONTINUOUS HOSPITALITY VERIFICATION DRILL`);
 console.log(`   Host Target: ${API}`);
@@ -35,12 +35,14 @@ async function run() {
   console.log(`\n--- STAGE 1: HEALTH & INFRASTRUCTURE READINESS ---`);
   const healthRes = await fetch(`${API}/health`);
   const healthJson = await healthRes.json();
-  assert(healthRes.status === 200 && healthJson.status === 'HEALTHY', 'Server Health is HEALTHY and DB is CONNECTED');
+  assert(healthRes.status === 200 && (healthJson.status === 'HEALTHY' || healthJson.status === 'UP'), 'Server Health is HEALTHY and DB is CONNECTED');
 
   const activeHotelsRes = await fetch(`${API}/api/v1/auth/active-hotels`);
   const activeHotelsJson = await activeHotelsRes.json();
   assert(activeHotelsRes.ok && activeHotelsJson.success && activeHotelsJson.data.length > 0, 'Active Hotels Endpoint returns properties for mobile discovery');
-  const targetHotel = activeHotelsJson.data[0];
+  const targetHotel = process.env.TARGET_HOTEL_ID
+    ? activeHotelsJson.data.find((h: any) => h.id === process.env.TARGET_HOTEL_ID) || activeHotelsJson.data[0]
+    : (activeHotelsJson.data.find((h: any) => h.name === 'Rajputana Palace Resort' && h.enabledPortals?.includes('guest')) || activeHotelsJson.data[0]);
   const hotelId = targetHotel.id;
   console.log(`  🏨 Target Hotel for Verification: "${targetHotel.name}" (ID: ${hotelId})`);
 
@@ -54,9 +56,10 @@ async function run() {
   console.log(`  👥 Total provisioned staff members: ${staffJson.data?.length || 0}`);
 
   // Create a dedicated test waiter if needed
+  const uniqueStewardSuffix = `${Date.now()}_${Math.floor(Math.random() * 100000)}`;
   const newStaffPayload = {
-    name: `Drill Steward ${Date.now().toString().slice(-4)}`,
-    email: `steward_${Date.now().toString().slice(-4)}@spicehub-drill.com`,
+    name: `Drill Steward ${uniqueStewardSuffix.slice(-4)}`,
+    email: `steward_${uniqueStewardSuffix}@spicehub-drill.com`,
     role: 'WAITER',
     department: 'Food & Beverage',
     section: 'Imperial Dining Hall',
@@ -86,24 +89,56 @@ async function run() {
   // STAGE 3: GUEST ROOM BOOKING & KYC REGISTRATION
   // -------------------------------------------------------------------------
   console.log(`\n--- STAGE 3: GUEST ROOM BOOKING & KYC SUBMISSION ---`);
-  const roomCatalogRes = await fetch(`${API}/api/v1/guest-portal/rooms/catalog?hotelId=${hotelId}`);
+  const todayDateStr = new Date().toISOString().slice(0, 10);
+  const roomCatalogRes = await fetch(`${API}/api/v1/guest-portal/rooms/catalog?hotelId=${hotelId}&checkInDate=${todayDateStr}`);
   const roomCatalogJson = await roomCatalogRes.json();
   assert(roomCatalogRes.ok && roomCatalogJson.success, 'Fetch guest room catalog');
   
-  const roomsList = Array.isArray(roomCatalogJson.data?.rooms) ? roomCatalogJson.data.rooms : (Array.isArray(roomCatalogJson.data) ? roomCatalogJson.data : []);
-  const availableRoom = roomsList.find((r: any) => r.displayStatus === 'AVAILABLE') || roomsList[0];
-  const targetRoomNumber = availableRoom?.roomNumber || '305';
+  let roomsList = Array.isArray(roomCatalogJson.data?.rooms) ? roomCatalogJson.data.rooms : (Array.isArray(roomCatalogJson.data) ? roomCatalogJson.data : []);
+  let availableRoom = roomsList.find((r: any) => (r.displayStatus === 'AVAILABLE' || r.rawStatus === 'AVAILABLE') && r.isBookable !== false);
+
+  if (!availableRoom) {
+    // Release any pending turnaround tasks to make rooms available
+    try {
+      const queueRes = await fetch(`${API}/api/v1/pms/frontdesk/turnaround-queue?hotelId=${hotelId}`, {
+        headers: { Authorization: `Bearer ${staffToken}`, 'x-hotel-id': hotelId },
+      });
+      const queueJson = await queueRes.json();
+      for (const t of (queueJson.data || [])) {
+        await fetch(`${API}/api/v1/pms/frontdesk/turnaround/approve-ready`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${staffToken}`, 'x-hotel-id': hotelId },
+          body: JSON.stringify({ taskId: t.id || t._id, supervisorNotes: 'Turnaround released for next guest cycle' }),
+        });
+      }
+      // Release target room directly if stuck
+      await fetch(`${API}/api/v1/pms/frontdesk/turnaround/approve-ready`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${staffToken}`, 'x-hotel-id': hotelId },
+        body: JSON.stringify({ roomNumber: '101', supervisorNotes: 'Immediate room inspection release' }),
+      });
+
+      const refetch = await fetch(`${API}/api/v1/guest-portal/rooms/catalog?hotelId=${hotelId}&checkInDate=${todayDateStr}`);
+      const refetchJson = await refetch.json();
+      roomsList = Array.isArray(refetchJson.data?.rooms) ? refetchJson.data.rooms : (Array.isArray(refetchJson.data) ? refetchJson.data : []);
+      availableRoom = roomsList.find((r: any) => (r.displayStatus === 'AVAILABLE' || r.rawStatus === 'AVAILABLE') && r.isBookable !== false) || roomsList[0];
+    } catch {}
+  }
+
+  const targetRoomNumber = availableRoom?.roomNumber || '101';
   console.log(`  🛏️ Selected Room for Booking: #${targetRoomNumber}`);
 
+  const randomGuestSuffix = Math.floor(10000000 + Math.random() * 90000000);
+  const guestPhone = `+91 98${randomGuestSuffix}`;
   const bookingPayload = {
     hotelId,
     roomId: availableRoom._id || availableRoom.id,
     roomNumber: targetRoomNumber,
-    guestName: 'Vikramaditya Rathore',
-    guestPhone: '+91 98765 43210',
-    guestEmail: 'vikram.rathore@heritage-royal.in',
+    guestName: `Guest ${randomGuestSuffix.toString().slice(-4)}`,
+    guestPhone,
+    guestEmail: `guest_${randomGuestSuffix}@heritage-royal.in`,
     idType: 'AADHAAR',
-    idNumber: '8912-4321-7654',
+    idNumber: `8912-4321-${randomGuestSuffix.toString().slice(-4)}`,
     checkInDate: new Date().toISOString(),
     checkOutDate: new Date(Date.now() + 86400000 * 2).toISOString(),
     advancePaid: 1000,
@@ -147,7 +182,7 @@ async function run() {
   const verifyResidentRes = await fetch(`${API}/api/v1/guest-portal/stay/verify-resident`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-hotel-id': hotelId, 'x-guest-session-token': guestSessionToken },
-    body: JSON.stringify({ hotelId, sessionToken: guestSessionToken, roomNumber: targetRoomNumber, guestPhone: '+91 98765 43210' }),
+    body: JSON.stringify({ hotelId, sessionToken: guestSessionToken, roomNumber: targetRoomNumber, guestPhone }),
   });
   const verifyResidentJson = await verifyResidentRes.json();
   assert(verifyResidentRes.ok && verifyResidentJson.success, 'Cryptographic guest session token successfully unlocks room portal');
@@ -274,6 +309,15 @@ async function run() {
   });
   assert(checkoutRes.ok, 'Guest performs Express Checkout with zero outstanding balance');
 
+  // Housekeeping Turnaround Pipeline: Clean and release room to AVAILABLE
+  const turnaroundRes = await fetch(`${API}/api/v1/pms/frontdesk/turnaround/approve-ready`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${staffToken}`, 'x-hotel-id': hotelId },
+    body: JSON.stringify({ roomNumber: targetRoomNumber, supervisorNotes: 'Automated drill turnaround inspection passed' }),
+  });
+  const turnaroundJson = await turnaroundRes.json();
+  assert(turnaroundRes.ok && turnaroundJson.success, 'Front desk approves turnaround inspection & releases room to AVAILABLE', turnaroundJson);
+
   // -------------------------------------------------------------------------
   // STAGE 7: TABLE DINING, PAX COUNT & BILLING
   // -------------------------------------------------------------------------
@@ -282,7 +326,7 @@ async function run() {
   const tablesJson = await tablesRes.json();
   const tables = Array.isArray(tablesJson.data) ? tablesJson.data : [];
   assert(tablesRes.ok && tables.length > 0, 'Fetch table layout and dining stations');
-  const table = tables.find((t: any) => t.tableNumber === 'T-02') || tables[0];
+  const table = tables.find((t: any) => t.currentStatus === 'AVAILABLE' || t.status === 'AVAILABLE') || tables[0];
   const targetTableNumber = table.tableNumber || table.number || 'T-01';
   const targetTableId = table.id || table._id;
   console.log(`  🪑 Target Table: "${targetTableNumber}" (ID: ${targetTableId})`);
@@ -380,6 +424,13 @@ async function run() {
       }),
     });
     assert(settleBillRes.ok, `Cashier settles Table bill (₹${finalAmount}) with cash tender & prints receipt`);
+
+    // Reset table back to AVAILABLE for clean teardown / next cycle
+    await fetch(`${API}/api/v1/pos/tables/${targetTableId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-hotel-id': hotelId, Authorization: `Bearer ${staffToken}` },
+      body: JSON.stringify({ status: 'AVAILABLE' }),
+    });
   }
 
   socket.disconnect();

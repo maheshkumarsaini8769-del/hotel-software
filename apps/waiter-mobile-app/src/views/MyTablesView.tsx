@@ -67,7 +67,7 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
 
   const statuses = [
     { id: 'All', label: 'All', count: myAssignedTables.length },
-    { id: 'Available', label: '🟢 Khali (Available)', count: availableCount },
+    { id: 'Available', label: '🟢 Available', count: availableCount },
     { id: 'Occupied', label: '🔴 Occupied', count: occupiedCount },
     { id: 'Cleaning', label: '🟡 Cleaning', count: cleaningCount },
   ];
@@ -85,7 +85,7 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-5 gap-3 sm:gap-4">
       {/* Top Header & Summary Bar */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-[#121520] border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
         <div>
           <div className="flex items-center gap-2">
@@ -116,7 +116,7 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
             Available: <span className="font-black">{availableCount}</span>
           </span>
           <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${
-            isDark ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' : 'bg-rose-100 border-rose-300 text-rose-800'
+            isDark ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-red-100 border-red-300 text-red-800'
           }`}>
             Occupied: <span className="font-black">{occupiedCount}</span>
           </span>
@@ -127,7 +127,7 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
           </span>
           {reservedCount > 0 && (
             <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${
-              isDark ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'bg-purple-100 border-purple-300 text-purple-800'
+              isDark ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300' : 'bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
             }`}>
               Reserved: <span className="font-black">{reservedCount}</span>
             </span>
@@ -136,10 +136,10 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
       </div>
 
       {/* Prominent Allocated Table Range by Hotel Admin ERP */}
-      <div className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md ${
+      <div className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm ${
         isDark
-          ? 'bg-gradient-to-r from-orange-950/40 via-slate-900 to-[#181c2b] border-orange-500/40'
-          : 'bg-gradient-to-r from-orange-50 via-amber-50 to-orange-100/70 border-orange-200'
+          ? 'bg-slate-900 border-slate-800'
+          : 'bg-white border-slate-200'
       }`}>
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold ${
@@ -172,12 +172,12 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
               onClick={onOpenOtherTablesPage}
               className={`px-3 py-1.5 rounded-xl border font-black text-xs flex items-center gap-1.5 transition cursor-pointer ${
                 isDark
-                  ? 'bg-purple-600/20 hover:bg-purple-600/30 border-purple-500/40 text-purple-300'
-                  : 'bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-900'
+                  ? 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                  : 'bg-slate-800 hover:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
               }`}
             >
-              <ArrowRightLeft className="w-3.5 h-3.5 text-purple-400" />
-              <span>Other Tables Page (दूसरी टेबल चुनें)</span>
+              <ArrowRightLeft className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
+              <span>Other Tables Page</span>
             </button>
           )}
         </div>
@@ -193,9 +193,9 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
               onClick={() => setStatusFilter(st.id)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
                 statusFilter === st.id
-                  ? 'bg-orange-500 text-white shadow-sm shadow-orange-950/40'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
                   : isDark
-                  ? 'bg-[#181c2b] text-slate-400 hover:text-white border border-slate-800'
+                  ? 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
               }`}
             >
@@ -222,16 +222,16 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
             onChange={(e) => setSearchTable(e.target.value)}
             placeholder="Search table #..."
             className={`w-full pl-9 pr-3 py-1.5 rounded-xl text-xs font-medium border focus:outline-none ${
-              isDark ? 'bg-[#181c2b] border-slate-800 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'
+              isDark ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'
             }`}
           />
         </div>
       </div>
 
 
-      {/* Visual Tables Grid */}
+      {/* Visual Tables Grid: Mobile 2-cols, Tablet 3-cols, Desktop 4-cols */}
       <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-32 lg:pb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredTables.map((t) => {
             const isAvailable = t.status === 'Available';
             const isOccupied = t.status === 'Occupied';
@@ -242,26 +242,11 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
             return (
               <div
                 key={t.id}
-                className={`p-4 rounded-2xl border transition-all hover:shadow-lg flex flex-col justify-between gap-3 ${
-                  isMyTable
-                    ? isDark
-                      ? 'bg-blue-950/20 border-blue-500/50 shadow-blue-950/20'
-                      : 'bg-blue-50/80 border-blue-300 shadow-2xs'
-                    : isAvailable
-                    ? isDark
-                      ? 'bg-emerald-950/20 border-emerald-500/40'
-                      : 'bg-white border-emerald-300 shadow-2xs'
-                    : isOccupied
-                    ? isDark
-                      ? 'bg-rose-950/20 border-rose-500/40'
-                      : 'bg-rose-50/60 border-rose-300 shadow-2xs'
-                    : isCleaning
-                    ? isDark
-                      ? 'bg-amber-950/20 border-amber-500/40'
-                      : 'bg-amber-50/60 border-amber-300 shadow-2xs'
-                    : isDark
-                    ? 'bg-purple-950/20 border-purple-500/40'
-                    : 'bg-purple-50/60 border-purple-300 shadow-2xs'
+                data-testid={`card-table-${t.name}`}
+                data-table-code={t.name.startsWith('T-') ? t.name : `T-${t.name.toString().padStart(2, '0')}`}
+                onClick={() => onTakeOrder(`Table ${t.name}`)}
+                className={`p-4 rounded-xl border transition-all hover:border-slate-400 dark:hover:border-slate-600 flex flex-col justify-between gap-3 cursor-pointer shadow-sm relative ${
+                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
                 }`}
               >
                 {/* Header info */}
@@ -269,20 +254,16 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                        Table {t.name}
+                        Table {t.name.startsWith('T-') ? t.name : `T-${t.name.toString().padStart(2, '0')}`}
                       </span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                        isMyTable
-                          ? 'bg-blue-500 text-white'
-                          : isAvailable
-                          ? isDark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                          : isOccupied
-                          ? isDark ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-rose-100 text-rose-800 border border-rose-300'
-                          : isCleaning
-                          ? isDark ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-amber-100 text-amber-800 border border-amber-300'
-                          : isDark ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-100 text-purple-800 border border-purple-300'
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        isAvailable
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800'
+                          : isOccupied || isMyTable
+                          ? 'bg-red-100 text-red-800 border border-red-300 dark:bg-red-950 dark:text-red-300 dark:border-red-800'
+                          : 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'
                       }`}>
-                        {isAvailable ? '🟢 KHALI (Available)' : isOccupied || isMyTable ? '🔴 OCCUPIED' : t.status}
+                        {isAvailable ? '🟢 AVAILABLE' : isOccupied || isMyTable ? '🔴 OCCUPIED' : t.status}
                       </span>
                     </div>
                     <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'} mt-0.5 flex items-center gap-1.5 font-medium`}>
@@ -300,14 +281,14 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
                   )}
                 </div>
 
-                {/* Available / Khali Table Details Box */}
+                {/* Available Table Details Box */}
                 {isAvailable && (
                   <div className={`p-2.5 rounded-xl border space-y-1.5 text-xs ${
                     isDark ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300' : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
                   }`}>
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="opacity-80">Table Status:</span>
-                      <span className="font-black text-emerald-400">🟢 Khali (Vacant)</span>
+                      <span className="font-black text-emerald-400">🟢 Available (Vacant)</span>
                     </div>
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="opacity-80">Seated Guests:</span>
@@ -315,7 +296,7 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
                     </div>
                     <div className="flex items-center justify-between text-[11px] border-t pt-1 border-emerald-500/20">
                       <span className="opacity-80">Order Amount:</span>
-                      <span className="font-black text-sm">₹0 (Khali / No Order)</span>
+                      <span className="font-black text-sm">₹0 (No Active Order)</span>
                     </div>
                   </div>
                 )}
@@ -406,8 +387,12 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
                 <div className={`pt-2 border-t space-y-2 ${isDark ? 'border-slate-700/20' : 'border-slate-200'}`}>
                   {isAvailable && (
                     <button
-                      onClick={() => onTakeOrder(`Table ${t.name}`)}
-                      className="w-full py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+                      data-testid={`btn-take-kot-${t.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTakeOrder(`Table ${t.name}`);
+                      }}
+                      className="w-full py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
                     >
                       <Plus className="w-4 h-4" />
                       <span>+ Take Order (KOT)</span>
@@ -418,7 +403,9 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
                     <div className="space-y-2">
                       {/* 1-Tap Table Served Primary Action */}
                       <button
-                        onClick={() => {
+                        data-testid={`btn-serve-table-${t.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (onMarkTableServed) {
                             onMarkTableServed(t.id, t.name);
                           } else {
@@ -434,26 +421,37 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
                         }`}
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>{t.servedStatus === 'SERVED' ? 'Dishes Served to Guests ✓' : '✓ Mark Table Served (खाना परोस दिया)'}</span>
+                        <span>{t.servedStatus === 'SERVED' ? 'Dishes Served to Guests ✓' : '✓ Mark Table Served'}</span>
                       </button>
 
                       <div className="grid grid-cols-2 gap-2">
                         <button
-                          onClick={() => onTakeOrder(`Table ${t.name}`)}
-                          className="py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs transition flex items-center justify-center gap-1"
+                          data-testid={`btn-take-kot-${t.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onTakeOrder(`Table ${t.name}`);
+                          }}
+                          className="py-1.5 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 font-bold text-xs transition flex items-center justify-center gap-1"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>Add KOT</span>
                         </button>
                         <button
-                          onClick={() => onBillTable(`Table ${t.name}`)}
-                          className="py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition flex items-center justify-center gap-1"
+                          data-testid={`btn-bill-table-${t.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onBillTable(`Table ${t.name}`);
+                          }}
+                          className="py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-bold text-xs transition flex items-center justify-center gap-1"
                         >
                           <CreditCard className="w-3.5 h-3.5" />
                           <span>Billing</span>
                         </button>
                         <button
-                          onClick={() => onOpenPaxModal && onOpenPaxModal(t)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenPaxModal && onOpenPaxModal(t);
+                          }}
                           className={`py-1.5 rounded-xl font-bold text-xs transition border flex items-center justify-center gap-1 ${
                             t.customerClaimedGuests && t.customerClaimedGuests !== (t.actualGuests || t.guests)
                               ? 'bg-amber-500/20 border-amber-500/60 text-amber-300 hover:bg-amber-500/30 animate-pulse'
@@ -510,7 +508,7 @@ export const MyTablesView: React.FC<MyTablesViewProps> = ({
                         onUpdateTableStatus(t.id, 'Occupied');
                         triggerToast(`Reserved guests seated at Table ${t.name}.`);
                       }}
-                      className="w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+                      className="w-full py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
                     >
                       <Users className="w-4 h-4" />
                       <span>Seat Reserved Guests</span>

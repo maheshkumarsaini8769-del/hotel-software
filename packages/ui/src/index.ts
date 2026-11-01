@@ -7,6 +7,14 @@ export type { ErrorBoundaryProps } from './ErrorBoundary';
 export { StaffLoginGate } from './StaffLoginGate';
 export type { StaffLoginGateProps, StaffSessionUser } from './StaffLoginGate';
 
+// Apple Human Interface Guidelines (HIG) Design Tokens
+export {
+  AppleColorTokens,
+  AppleFontStack,
+  AppleTypeScale,
+  AppleSpacingGrid,
+} from './theme/appleHigTokens';
+
 // Bilingual i18n
 export { translations } from './i18n/translations';
 export type { Locale } from './i18n/translations';

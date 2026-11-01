@@ -2,54 +2,118 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
-}
+@layer base {
+  :root {
+    color-scheme: light dark;
+    --apple-bg: #FBFBFD;
+    --apple-text: #1D1D1F;
+    --apple-secondary: #86868B;
+    --apple-accent: #007AFF;
+    --apple-destructive: #FF3B30;
+    --apple-border: #D2D2D7;
+    --apple-card: #FFFFFF;
+  }
 
-html,
-body,
-#root {
-  height: 100%;
-  min-height: 100%;
-}
+  .dark {
+    --apple-bg: #000000;
+    --apple-text: #F5F5F7;
+    --apple-secondary: #86868B;
+    --apple-accent: #0A84FF;
+    --apple-destructive: #FF453A;
+    --apple-border: #38383A;
+    --apple-card: #1C1C1E;
+  }
 
-body {
-  margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
+  html,
+  body,
+  #root {
+    height: 100%;
+    min-height: 100%;
+  }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-}
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
 
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+  body {
+    margin: 0;
+    background-color: var(--apple-bg);
+    color: var(--apple-text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Inter, sans-serif;
+    letter-spacing: -0.01em;
+  }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+  h1, h2, h3, h4, h5, h6 {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Plus Jakarta Sans", sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.2);
-  border-radius: 9999px;
-}
+  /* Apple HIG Dynamic Type System Classes */
+  .type-large-title {
+    font-size: 34px;
+    line-height: 41px;
+    font-weight: 700;
+    letter-spacing: 0.37px;
+  }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.35);
-}
+  .type-title {
+    font-size: 28px;
+    line-height: 34px;
+    font-weight: 600;
+    letter-spacing: 0.36px;
+  }
 
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
+  .type-headline {
+    font-size: 17px;
+    line-height: 22px;
+    font-weight: 600;
+    letter-spacing: -0.41px;
+  }
 
-::selection {
-  background: rgba(217, 119, 6, 0.3);
-  color: #ffffff;
+  .type-body {
+    font-size: 17px;
+    line-height: 22px;
+    font-weight: 400;
+    letter-spacing: -0.41px;
+  }
+
+  .type-callout {
+    font-size: 16px;
+    line-height: 21px;
+    font-weight: 400;
+    letter-spacing: -0.32px;
+  }
+
+  .type-caption {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 400;
+    letter-spacing: 0px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(134, 134, 139, 0.25);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(134, 134, 139, 0.45);
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
 }

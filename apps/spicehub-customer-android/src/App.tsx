@@ -738,6 +738,7 @@ export const App: React.FC = () => {
   // Active embedded portal iframe
   const [activePortalUrl, setActivePortalUrl] = useState<string | null>(null);
   const [activeSessionLabel, setActiveSessionLabel] = useState<string>('');
+  const [showActiveStayModal, setShowActiveStayModal] = useState(false);
   const [settingsPage, setSettingsPage] = useState<'MAIN' | 'RESERVATION' | 'SUPPORT' | 'SESSION'>('MAIN');
 
   // Real-time Socket Connection for Reception Approval Events
@@ -746,6 +747,7 @@ export const App: React.FC = () => {
   // 0. Capacitor Physical Android Back Button Event Handling
   const backStackRef = useRef({
     activePortalUrl,
+    showActiveStayModal,
     isHotelModalOpen,
     bookingConfirmation,
     isBookingModalOpen,
@@ -758,6 +760,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     backStackRef.current = {
       activePortalUrl,
+      showActiveStayModal,
       isHotelModalOpen,
       bookingConfirmation,
       isBookingModalOpen,
@@ -768,6 +771,7 @@ export const App: React.FC = () => {
     };
   }, [
     activePortalUrl,
+    showActiveStayModal,
     isHotelModalOpen,
     bookingConfirmation,
     isBookingModalOpen,
@@ -797,6 +801,10 @@ export const App: React.FC = () => {
           }
 
           // 2. Close active modals/drawers in strict top-down z-index order
+          if (s.showActiveStayModal) {
+            setShowActiveStayModal(false);
+            return;
+          }
           if (s.isHotelModalOpen) {
             setIsHotelModalOpen(false);
             return;
@@ -2575,55 +2583,19 @@ export const App: React.FC = () => {
             <div className="flex flex-col gap-2.5">
               <div className="flex items-center justify-between px-1">
                 <div>
-                  <h2 className={`text-sm font-black uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
-                    {activeReservation ? `Resident Suite • Room ${activeReservation.roomNumber}` : 'Guest Experiences'}
+                  <h2 className="text-sm font-black uppercase tracking-wider text-slate-800">
+                    Guest Experiences
                   </h2>
-                  <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {activeReservation ? 'Active Stay Verified & Digital Keycard Ready' : 'Choose your personalized hospitality service'}
+                  <p className="text-[11px] text-slate-500">
+                    Choose your personalized hospitality service
                   </p>
                 </div>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                  {activeReservation ? 'Resident Guest' : '2 Options'}
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                  2 Options
                 </span>
               </div>
 
-              {/* Active Verified Stay Keycard Notification (If guest is checked in) */}
-              {activeReservation && !pendingApprovalBooking && (
-                <div
-                  data-testid="active-stay-card"
-                  onClick={() => {
-                    launchResidentPortal(
-                      activeReservation.roomNumber,
-                      selectedHotel,
-                      activeReservation.sessionToken,
-                      'HOME'
-                    );
-                  }}
-                  className="p-3.5 rounded-2xl border border-emerald-300 bg-emerald-50 text-slate-900 shadow-xs flex items-center justify-between gap-3 cursor-pointer active:scale-98 transition"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                      <Icons.Key className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-black text-emerald-950 uppercase tracking-wide">
-                          Room {activeReservation.roomNumber} Keycard Active
-                        </span>
-                        <span className="text-[9px] font-mono font-bold bg-emerald-200 text-emerald-950 px-1.5 py-0.2 rounded">
-                          {activeReservation.bookingNumber}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 truncate">
-                        {activeReservation.roomTypeName} • {activeReservation.guestName}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-emerald-800 shrink-0">Open Keycard ➔</span>
-                </div>
-              )}
-
-              {/* GUEST EXPERIENCES: STAY & SUITES + DINE-IN CARDS (Matches Image Exactly) */}
+              {/* GUEST EXPERIENCES: STAY & SUITES + DINE-IN CARDS (Matches Image 2 Exactly) */}
               <div className="grid grid-cols-1 gap-3.5">
                 {/* OPTION 1: BOOK A ROOM (STAY) WITH ROOM PHOTO */}
                 <button
@@ -2742,12 +2714,9 @@ export const App: React.FC = () => {
                 data-testid="home-resident-verify-link"
                 onClick={() => {
                   if (activeReservation) {
-                    launchResidentPortal(
-                      activeReservation.roomNumber,
-                      selectedHotel,
-                      activeReservation.sessionToken,
-                      'HOME'
-                    );
+                    setShowActiveStayModal(true);
+                  } else if (pendingApprovalBooking) {
+                    setCustomerView('waiting_approval');
                   } else {
                     setCustomerView('resident_verify');
                   }
@@ -2761,7 +2730,7 @@ export const App: React.FC = () => {
                 <Icons.Key className="w-3.5 h-3.5 text-amber-500" />
                 <span>
                   {activeReservation
-                    ? `Already checked in? Open My Stay (Room ${activeReservation.roomNumber})`
+                    ? `Already checked in? View Room ${activeReservation.roomNumber} Stay`
                     : 'Already checked in at Front Desk? Verify Room Stay'}
                 </span>
                 <Icons.ArrowRight className="w-3.5 h-3.5 text-amber-500" />
@@ -5220,6 +5189,160 @@ export const App: React.FC = () => {
                 }`}
               >
                 Close Voucher
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* ACTIVE ROOM STAY & KEYCARD MODAL                         */}
+      {/* ======================================================== */}
+      {showActiveStayModal && activeReservation && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in"
+        >
+          <div
+            className={`w-full max-w-sm rounded-2xl border p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-center ${
+              isDark ? 'border-amber-500/40 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
+            }`}
+          >
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <Icons.Check className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Reception Verified • Stay Active</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowActiveStayModal(false)}
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition ${
+                  isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border-2 border-amber-400 text-amber-500 flex items-center justify-center mx-auto shadow-md">
+              <Icons.Key className="w-7 h-7 text-amber-500" />
+            </div>
+
+            <div>
+              <h3 className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-950'}`}>
+                Room {activeReservation.roomNumber}
+              </h3>
+              <p className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                {activeReservation.roomTypeName}
+              </p>
+            </div>
+
+            {/* Stay Details Box */}
+            <div
+              className={`p-3.5 rounded-xl border text-left space-y-2 text-xs shadow-xs ${
+                isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}
+            >
+              <div className="flex justify-between items-center">
+                <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Booking Ref:</span>
+                <span className="font-mono font-black text-amber-600 dark:text-amber-400">
+                  {activeReservation.bookingNumber}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Primary Guest:</span>
+                <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{activeReservation.guestName}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Stay Dates:</span>
+                <span className={`font-medium text-[11px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  {activeReservation.checkInDate} ➔ {activeReservation.checkOutDate} ({activeReservation.nights || 1} Night)
+                </span>
+              </div>
+              {activeReservation.grandTotal && (
+                <div className={`flex justify-between items-center border-t pt-1.5 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                  <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Total Tariff:</span>
+                  <span className="font-black text-emerald-600 dark:text-emerald-400">
+                    ₹{activeReservation.grandTotal.toLocaleString('en-IN')}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* In-Room High Speed WiFi Card */}
+            <div
+              className={`p-3 rounded-xl border text-left flex items-center justify-between text-xs ${
+                isDark ? 'bg-blue-950/20 border-blue-500/30 text-blue-200' : 'bg-blue-50 border-blue-200 text-blue-950'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold">
+                  <Icons.Wifi className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 block">
+                    High-Speed Room WiFi
+                  </span>
+                  <span className="font-mono font-bold text-xs">{activeReservation.wifiSsid || 'TajGateway_HighSpeed'}</span>
+                  <p className="text-[10px] text-slate-500 font-mono">
+                    Pass: <strong>{activeReservation.wifiPassword || 'GuestPass@101'}</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                data-testid="stay-open-resident-btn"
+                onClick={() => {
+                  setShowActiveStayModal(false);
+                  launchResidentPortal(
+                    activeReservation.roomNumber,
+                    selectedHotel,
+                    activeReservation.sessionToken,
+                    'HOME'
+                  );
+                }}
+                className="min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98"
+              >
+                <Icons.Key className="w-4 h-4" />
+                <span>Enter Room / Open Keycard ➔</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="stay-order-food-btn"
+                onClick={() => {
+                  setShowActiveStayModal(false);
+                  launchResidentPortal(
+                    activeReservation.roomNumber,
+                    selectedHotel,
+                    activeReservation.sessionToken,
+                    'DINING'
+                  );
+                }}
+                className={`min-h-[42px] rounded-xl border font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition ${
+                  isDark
+                    ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
+                    : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                }`}
+              >
+                <Icons.Utensils className="w-4 h-4 text-amber-500" />
+                <span>Order In-Room Dining</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="stay-close-btn"
+                onClick={() => setShowActiveStayModal(false)}
+                className={`min-h-[38px] rounded-xl border text-xs font-bold transition ${
+                  isDark ? 'border-slate-800 text-slate-400 hover:text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                ← Back to Hotel Home
               </button>
             </div>
           </div>

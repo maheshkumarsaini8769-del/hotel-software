@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { App as CapApp } from '@capacitor/app';
 import { registerPlugin } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import jsQR from 'jsqr';
 import { useTranslation, LanguageToggle } from '@spicehub/ui';
 
@@ -450,6 +451,20 @@ const Icons = {
       <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
     </svg>
   ),
+  Calendar: ({ className = 'w-4 h-4' }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+      <line x1="16" x2="16" y1="2" y2="6" />
+      <line x1="8" x2="8" y1="2" y2="6" />
+      <line x1="3" x2="21" y1="10" y2="10" />
+    </svg>
+  ),
+  CreditCard: ({ className = 'w-4 h-4' }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect width="20" height="14" x="2" y="5" rx="2" />
+      <line x1="2" x2="22" y1="10" y2="10" />
+    </svg>
+  ),
 };
 
 const PROD_API_BASE = 'https://spicehub-backend.vercel.app';
@@ -512,7 +527,7 @@ export const App: React.FC = () => {
   const [theme] = useState<'light'>('light');
   const toggleTheme = () => {};
   const isDark = false;
-  const { t, locale } = useTranslation();
+  const { t, locale, toggleLocale } = useTranslation();
 
   // Synchronize HTML element & body background with active theme
   useEffect(() => {
@@ -522,6 +537,68 @@ export const App: React.FC = () => {
       document.body.style.color = '#0f172a';
     }
   }, []);
+
+  // Prompt Notification Permission & Register High-Priority Notification Channel on Boot
+  useEffect(() => {
+    const initNotifications = async () => {
+      try {
+        const perm = await LocalNotifications.checkPermissions();
+        if (perm.display !== 'granted') {
+          await LocalNotifications.requestPermissions();
+        }
+        await LocalNotifications.createChannel({
+          id: 'pms_approvals',
+          name: 'Room Approvals & Keycards',
+          description: 'Instant notification when reception approves check-in',
+          importance: 5,
+          visibility: 1,
+          vibration: true,
+        });
+      } catch (err) {
+        console.warn('LocalNotifications setup note:', err);
+      }
+    };
+    initNotifications();
+
+    let notifSub: any = null;
+    LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+      console.log('🔔 [NOTIF_CLICKED]', action);
+      setShowActiveStayModal(true);
+      setCustomerView('home');
+    }).then((handle) => {
+      notifSub = handle;
+    });
+
+    return () => {
+      if (notifSub && typeof notifSub.remove === 'function') {
+        notifSub.remove();
+      }
+    };
+  }, []);
+
+  // Trigger Native Local Notification when Check-in is Approved
+  const triggerApprovalNotification = async (booking: ActiveReservation) => {
+    try {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            title: `🎉 Room ${booking.roomNumber} Check-In Approved!`,
+            body: `Reception has approved your booking (${booking.roomTypeName})! Keycard & high-speed WiFi are active.`,
+            id: Math.floor(Date.now() % 100000),
+            channelId: 'pms_approvals',
+            schedule: { at: new Date(Date.now() + 200) },
+            extra: {
+              bookingNumber: booking.bookingNumber,
+              roomNumber: booking.roomNumber,
+            },
+          },
+        ],
+      });
+      console.log('🔔 [CustomerAndroid] Native approval notification scheduled!');
+    } catch (err) {
+      console.warn('LocalNotifications schedule note:', err);
+    }
+  };
 
   // Navigation state: 'hotel_select' (Step 1) -> 'home' (Step 2: Service Choice) -> 'rooms' (Step 3: Room Catalog) -> 'waiting_approval' (Step 5)
   const [customerView, setCustomerView] = useState<'hotel_select' | 'home' | 'rooms' | 'waiting_approval' | 'table_scan' | 'resident_verify' | 'profile' | 'settings'>(() => {
@@ -1004,6 +1081,7 @@ export const App: React.FC = () => {
           } catch {}
           setBookingConfirmation(approvedReservation);
           refreshRoomsCatalog(selectedHotel);
+          triggerApprovalNotification(approvedReservation);
         }
       };
 
@@ -2029,101 +2107,122 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden flex justify-center bg-slate-50">
-      <div className="max-w-md w-full h-[100dvh] flex flex-col bg-slate-50 text-slate-900 border-x border-slate-200 overflow-hidden relative shadow-2xl">
-      {/* Brand Navbar: w-full flex justify-between items-center px-4 py-3 pt-[env(safe-area-inset-top)] */}
+    <div className="h-[100dvh] w-full overflow-hidden flex justify-center bg-[#F6F1E6]">
+      <div className="max-w-md w-full h-[100dvh] flex flex-col lux-page text-[#1B2A22] overflow-hidden relative">
+      {/* Heritage brand header */}
       <header
-        className="w-full flex justify-between items-center px-4 py-3 bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-30 shrink-0"
+        className="w-full sticky top-0 z-30 shrink-0"
         style={{
-          paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)',
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 16px)',
         }}
       >
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => setCustomerView('hotel_select')}
-          className="flex items-center gap-2.5 min-w-0 cursor-pointer active:opacity-80 transition"
-          title="Switch Hotel Property"
-        >
-          <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 shadow-xs bg-slate-100 shrink-0">
-            <img
-              src={selectedHotel?.logoUrl || FALLBACK_HOTEL_LOGO}
-              alt={selectedHotel?.name || 'Hotel Logo'}
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = FALLBACK_HOTEL_LOGO;
-              }}
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1">
-              <h1 className="text-xs font-bold tracking-tight truncate text-slate-900">
+        <div className="px-5 pb-3 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setCustomerView('hotel_select')}
+            className="flex items-center gap-3 min-w-0 text-left active:opacity-80 transition"
+            title="Switch Hotel Property"
+          >
+            <div className="w-12 h-12 rounded-2xl overflow-hidden ring-1 ring-[#E6DCC7] shadow-sm bg-white shrink-0">
+              <img
+                src={selectedHotel?.logoUrl || FALLBACK_HOTEL_LOGO}
+                alt={selectedHotel?.name || 'Hotel Logo'}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = FALLBACK_HOTEL_LOGO;
+                }}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-lux text-[21px] leading-tight font-bold text-[#123C2B] truncate">
                 {selectedHotel?.name || 'SpiceHub Guest'}
               </h1>
+              <p className="text-[12px] mt-0.5 truncate font-medium text-[#7C7566] flex items-center gap-1">
+                <Icons.Location className="w-3.5 h-3.5 text-[#123C2B]" />
+                <span>
+                  {selectedHotel?.city ? `${selectedHotel.city}, ${selectedHotel.state || 'India'}` : 'Guest Stay & Dining'}
+                </span>
+              </p>
             </div>
-            <p className="text-[10px] truncate font-medium text-slate-500">
-              {selectedHotel?.city ? `${selectedHotel.city}, ${selectedHotel.state || 'India'}` : 'Guest Stay & Dining'}
-            </p>
-          </div>
-        </div>
+          </button>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <LanguageToggle isDark={isDark} />
+          <button
+            type="button"
+            onClick={toggleLocale}
+            className="flex items-center gap-1.5 shrink-0 rounded-full bg-white border border-[#E7DFCE] px-3 py-2 text-[12px] font-bold text-[#123C2B] shadow-sm active:scale-95 transition"
+            title={locale === 'en' ? 'हिन्दी में बदलें' : 'Switch to English'}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M2 12h20" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+            <span>{locale === 'en' ? 'हिन्दी' : 'English'}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-[#7C7566]">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
         </div>
       </header>
 
       {/* Main Content Viewport */}
-      <main className="flex-1 overflow-y-auto overscroll-contain max-w-lg w-full mx-auto p-4 flex flex-col gap-4 pb-28">
+      <main className="flex-1 overflow-y-auto overscroll-contain no-scrollbar max-w-md w-full mx-auto px-4 pt-1 flex flex-col gap-4 pb-28">
 
         {/* ======================================================== */}
         {/* STEP 1: DEDICATED HOTEL SELECTION SCREEN ('hotel_select')*/}
         {/* ======================================================== */}
         {customerView === 'hotel_select' && (
-          <div className="flex flex-col gap-4 animate-in fade-in">
-            {/* Hotel Search Bar */}
-            <div className="relative">
-              <input
-                type="text"
-                data-testid="hotel-search-input"
-                value={hotelSearch}
-                onChange={(e) => setHotelSearch(e.target.value)}
-                placeholder="Search hotel name, city (e.g. Jaipur, Rajasthan)..."
-                className={`w-full min-h-[42px] rounded-xl border pl-9 pr-9 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500'
-                    : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 shadow-xs'
-                }`}
-              />
-              <Icons.Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
-              {hotelSearch && (
-                <button
-                  type="button"
-                  onClick={() => setHotelSearch('')}
-                  className="absolute right-3 top-3 text-slate-400 hover:text-white"
-                >
-                  <Icons.X className="w-4 h-4" />
-                </button>
-              )}
+          <div className="flex flex-col gap-4 lux-fade-in pt-1">
+            {/* Hotel Search + Filter */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  data-testid="hotel-search-input"
+                  value={hotelSearch}
+                  onChange={(e) => setHotelSearch(e.target.value)}
+                  placeholder="Search hotel name, city (e.g. Jaipur, Rajasthan)..."
+                  className="w-full h-[50px] rounded-2xl border border-[#E7DFCE] bg-white pl-11 pr-9 text-[13px] font-medium text-[#1B2A22] placeholder-[#A79E8B] shadow-sm focus:outline-none focus:border-[#9DB7A5]"
+                />
+                <Icons.Search className="w-[18px] h-[18px] text-[#9C9482] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                {hotelSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setHotelSearch('')}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#9C9482]"
+                  >
+                    <Icons.X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                className="w-[50px] h-[50px] rounded-2xl bg-[#123C2B] text-[#F3E4C2] flex items-center justify-center shadow-sm active:scale-95 transition"
+                title="Filters"
+              >
+                <Icons.Filter className="w-5 h-5" />
+              </button>
             </div>
 
-            <div className="flex items-center justify-between px-1">
-              <span className={`text-[11px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                {filteredHotels.length} Verified Properties Ready
-              </span>
+            <div className="flex items-center justify-between gap-2 px-0.5">
+              <div className="flex items-center gap-2 text-[13px] font-bold text-[#123C2B] min-w-0">
+                <Icons.Shield className="w-4 h-4 shrink-0" />
+                <span className="truncate">{filteredHotels.length} Verified Properties Ready</span>
+              </div>
               {selectedHotel && (
                 <button
                   type="button"
                   onClick={() => setCustomerView('home')}
-                  className="text-xs font-black text-amber-500 hover:underline flex items-center gap-1"
+                  className="lux-btn-gold px-3 py-2 text-[12px] flex items-center gap-1.5 shrink-0 active:scale-95 transition"
                 >
                   <span>Continue with {selectedHotel.name.split(' ')[0]}</span>
-                  <Icons.ArrowRight className="w-3 h-3" />
+                  <Icons.ArrowRight className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
             {/* Hotel Cards List */}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               {filteredHotels.map((h) => {
                 const isSelected = selectedHotel?.id === h.id;
                 const cover = h.coverImageUrl || FALLBACK_HOTEL_COVER;
@@ -2141,15 +2240,13 @@ export const App: React.FC = () => {
                       setCustomerView('home');
                       setStayVerifyError(null);
                     }}
-                    className={`rounded-2xl border cursor-pointer transition-all duration-200 overflow-hidden shadow-md flex flex-col group active:scale-98 ${
+                    className={`cursor-pointer transition-all duration-200 active:scale-[0.99] group ${
                       isSelected
-                        ? 'border-2 border-amber-500 ring-2 ring-amber-500/20'
-                        : isDark
-                        ? 'border-slate-800 bg-slate-900/80 hover:border-slate-700'
-                        : 'border-slate-200 bg-white hover:border-amber-400'
+                        ? 'rounded-[22px] border-2 border-[#E2B96A] bg-[#FBF3E0] p-1.5 shadow-[0_12px_30px_rgba(176,136,58,0.18)]'
+                        : 'rounded-[20px] border border-[#ECE3D2] bg-white shadow-sm overflow-hidden'
                     }`}
                   >
-                    <div className="h-28 w-full relative overflow-hidden bg-slate-950">
+                    <div className={`relative overflow-hidden bg-[#0E2A1E] ${isSelected ? 'rounded-[16px] h-[138px]' : 'h-[138px]'}`}>
                       <img
                         src={cover}
                         alt={h.name}
@@ -2158,21 +2255,27 @@ export const App: React.FC = () => {
                         }}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/15" />
 
                       <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-black/60 text-white border border-white/20 backdrop-blur-md flex items-center gap-1">
-                          <Icons.Location className="w-3 h-3 text-amber-400" />
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-black/55 text-white border border-white/20 backdrop-blur-md flex items-center gap-1">
+                          <Icons.Location className="w-3 h-3 text-[#F7E2B4]" />
                           <span>{h.city || 'India'}{h.state ? `, ${h.state}` : ''}</span>
                         </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/80 text-white backdrop-blur-md flex items-center gap-1">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#12804E] text-white backdrop-blur-md flex items-center gap-1 shadow-sm">
                           <Icons.Check className="w-3 h-3" />
                           <span>Verified</span>
                         </span>
                       </div>
 
-                      <div className="absolute bottom-2 left-3 right-3 flex items-center gap-2.5">
-                        <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-white shadow bg-white shrink-0">
+                      {isSelected && (
+                        <span className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#F7E2B4] text-[#7A5210] border border-[#E9C98A] shadow-sm">
+                          Selected
+                        </span>
+                      )}
+
+                      <div className="absolute bottom-2.5 left-3 right-3 flex items-center gap-2.5">
+                        <div className="w-11 h-11 rounded-xl overflow-hidden border-2 border-[#F3E4C2] shadow-md bg-white shrink-0">
                           <img
                             src={logo}
                             alt=""
@@ -2183,29 +2286,34 @@ export const App: React.FC = () => {
                           />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-sm font-black text-white truncate drop-shadow">
+                          <h3 className="font-lux text-[17px] leading-tight font-bold text-white truncate drop-shadow">
                             {h.name}
                           </h3>
-                          <p className="text-[11px] text-amber-200/90 truncate font-semibold">
-                            {h.tagline || 'Experience luxury hospitality & fine dining'}
+                          <p className="text-[11px] text-[#F1DFC0] truncate font-medium">
+                            {h.tagline || 'Luxury Stays & Fine Hospitality'}
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    <div className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-1 text-amber-400 text-xs">
-                        <Icons.Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        <Icons.Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        <Icons.Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        <Icons.Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        <Icons.Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                        <span className="text-[10px] font-bold text-slate-400 ml-1">5-Star Luxury</span>
+                    <div className={`flex items-center justify-between ${isSelected ? 'px-2.5 py-2.5' : 'px-4 py-3'}`}>
+                      <div className="flex items-center gap-1">
+                        <Icons.Star className="w-4 h-4 fill-[#D9A93F] text-[#D9A93F]" />
+                        <Icons.Star className="w-4 h-4 fill-[#D9A93F] text-[#D9A93F]" />
+                        <Icons.Star className="w-4 h-4 fill-[#D9A93F] text-[#D9A93F]" />
+                        <Icons.Star className="w-4 h-4 fill-[#D9A93F] text-[#D9A93F]" />
+                        <Icons.Star className="w-4 h-4 fill-[#D9A93F] text-[#D9A93F]" />
+                        <span className="w-px h-4 bg-[#E7DFCE] mx-2" />
+                        <span className="text-[12px] font-medium text-[#7C7566]">5-Star Luxury</span>
                       </div>
 
-                      <div className="flex items-center gap-1 text-xs font-black text-amber-500 group-hover:translate-x-1 transition-transform">
+                      <div
+                        className={`flex items-center gap-1.5 text-[13px] font-bold group-hover:translate-x-0.5 transition-transform ${
+                          isSelected ? 'text-[#8A5A12]' : 'text-[#123C2B]'
+                        }`}
+                      >
                         <span>{isSelected ? 'Selected' : 'Select Hotel'}</span>
-                        <Icons.ArrowRight className="w-3.5 h-3.5" />
+                        <Icons.ArrowRight className="w-4 h-4" />
                       </div>
                     </div>
                   </div>
@@ -2216,245 +2324,251 @@ export const App: React.FC = () => {
         )}
 
         {/* ======================================================== */}
-        {/* VIEW 5: WAITING FOR APPROVAL & RECEPTION DIGITAL PASS    */}
+        {/* VIEW 5: WAITING FOR APPROVAL SCREEN (Matches User Image) */}
         {/* ======================================================== */}
         {customerView === 'waiting_approval' && (
-          <div className="flex flex-col gap-4 animate-in fade-in">
-            {/* Top Back Action Bar */}
+          <div className="flex flex-col gap-4 animate-in fade-in pb-4">
+            {/* Top Action: Back to Home */}
             <div className="flex items-center justify-between">
               <button
                 type="button"
                 data-testid="approval-back-home-btn"
                 onClick={() => setCustomerView('home')}
-                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
-                  isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700 shadow-sm'
+                className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl border transition active:scale-95 ${
+                  isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700 shadow-xs'
                 }`}
               >
                 <Icons.ArrowLeft className="w-3.5 h-3.5" />
-                <span>{t('Back to Home')}</span>
+                <span>Back to Home</span>
               </button>
-              <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border flex items-center gap-1.5 ${
-                isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-amber-100 text-amber-900 border-amber-300'
-              }`}>
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                <span>{pendingApprovalBooking?.bookingOrigin === 'REMOTE_HOME' ? 'Advance Booking Pass' : 'Instant Approval Mode'}</span>
-              </span>
             </div>
 
-            {/* Glowing Status Radar Centerpiece */}
-            <div className="p-5 rounded-3xl border border-slate-200 bg-white text-center relative overflow-hidden flex flex-col items-center justify-center gap-3 shadow-xs">
-              {/* Radar Rings Effect */}
-              <div className="relative w-28 h-28 flex items-center justify-center my-1">
-                <div className="absolute inset-0 rounded-full bg-amber-500/10 animate-ping opacity-60" style={{ animationDuration: '2.5s' }} />
-                <div className="absolute -inset-2 rounded-full border-2 border-dashed border-amber-400/30 animate-spin" style={{ animationDuration: '14s' }} />
-                <div className="absolute -inset-4 rounded-full border border-amber-400/20" />
-                
-                {/* Core Shield */}
-                <div className="relative z-10 w-20 h-20 rounded-2xl bg-amber-500/20 border border-amber-500/40 p-1 flex items-center justify-center shadow-xs">
-                  <div className="w-full h-full rounded-[14px] bg-amber-50 flex flex-col items-center justify-center gap-0.5 p-2 border border-amber-200">
-                    <Icons.Shield className="w-7 h-7 text-amber-700" />
-                    <span className="text-[8px] font-black text-amber-800 uppercase tracking-widest text-center">
-                      FRONT DESK
-                    </span>
-                  </div>
-                </div>
+            {/* Center Status: Amber Circular Illustration + Title + Subtitle */}
+            <div className="text-center space-y-2.5 pt-1">
+              <div className="w-20 h-20 rounded-full bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-500 shadow-sm mx-auto relative">
+                <div className="absolute inset-0 rounded-full border border-amber-300/40 animate-ping opacity-30" style={{ animationDuration: '3s' }} />
+                <Icons.Clock className="w-9 h-9 text-amber-500" />
               </div>
 
-              <div>
-                <h3 className={`text-base sm:text-lg font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-950'}`}>
-                  {pendingApprovalBooking?.bookingOrigin === 'REMOTE_HOME'
-                    ? 'Advance Reservation Confirmed • Present Pass at Reception'
-                    : 'Awaiting Reception ID Verification'}
-                </h3>
-                <p className={`text-xs mt-1 max-w-sm mx-auto leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  {pendingApprovalBooking?.bookingOrigin === 'REMOTE_HOME'
-                    ? 'Your advance reservation is active! Present this digital pass to the Reception desk when you arrive to complete quick physical ID verification and collect your room keycard.'
-                    : 'Your booking details and Aadhaar card photos have been forwarded to Front Desk Reception for guest verification.'}
+              <div className="space-y-1">
+                <h2 className={`text-2xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  Waiting for Approval
+                </h2>
+                <p className={`text-xs max-w-xs mx-auto leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Your check-in request has been submitted and is currently under review by the Front Desk.
                 </p>
               </div>
             </div>
 
-            {/* Scannable Reception Digital Booking Pass / Voucher */}
-            {pendingApprovalBooking ? (
-              <div className={`p-5 rounded-3xl border-2 space-y-4 shadow-md relative overflow-hidden ${
-                isDark ? 'bg-slate-900 border-amber-500/40 text-white' : 'bg-white border-amber-300 text-slate-900'
-              }`}>
-                {/* Voucher Top Ribbon */}
-                <div className="flex items-center justify-between pb-3 border-b border-dashed border-amber-400/40">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold text-sm shadow">
-                      🏨
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 block">
-                        Official Digital Booking Pass
-                      </span>
-                      <h4 className="text-sm font-black">
-                        Room {pendingApprovalBooking.roomNumber} • {pendingApprovalBooking.roomTypeName}
-                      </h4>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[9px] uppercase font-bold text-slate-400 block">Booking No</span>
-                    <span className="text-xs font-mono font-black text-amber-600 dark:text-amber-400">
-                      {pendingApprovalBooking.bookingNumber}
-                    </span>
-                  </div>
-                </div>
+            {/* 3-Step Horizontal Stepper (Request Submitted ➔ Waiting for Approval ➔ Check-in Approved) */}
+            <div className={`p-4 rounded-2xl border shadow-xs ${
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+            }`}>
+              <div className="flex items-start justify-between relative px-2 sm:px-6">
+                {/* Connecting Line 1 to 2 (Green) */}
+                <div className="absolute left-10 right-1/2 top-3.5 h-0.5 bg-emerald-500 -translate-y-1/2 z-0" />
+                {/* Connecting Line 2 to 3 (Muted Gray) */}
+                <div className="absolute left-1/2 right-10 top-3.5 h-0.5 bg-slate-200 dark:bg-slate-700 -translate-y-1/2 z-0" />
 
-                {/* Scannable Visual Barcode / QR Simulation for Reception Scanner */}
-                <div className={`p-3 rounded-2xl border text-center space-y-1.5 ${
-                  isDark ? 'bg-black/50 border-slate-800' : 'bg-slate-50 border-slate-200'
-                }`}>
-                  <div className="flex justify-center items-center gap-1 font-mono tracking-widest text-[11px] text-slate-500 dark:text-slate-400">
-                    <span>||||| ||| |||| || ||||| |||| ||| |||||</span>
+                {/* Step 1: Request Submitted (Green Completed) */}
+                <div className="flex flex-col items-center relative z-10 text-center w-20">
+                  <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                    <Icons.Check className="w-4 h-4 stroke-[3]" />
                   </div>
-                  <div className="flex justify-between items-center text-[10px] font-mono px-2 text-slate-500">
-                    <span>HOTEL ID: {pendingApprovalBooking.hotelId ? pendingApprovalBooking.hotelId.slice(0, 8) : 'SPICEHUB'}</span>
-                    <span className="font-bold text-slate-700 dark:text-slate-300">{pendingApprovalBooking.bookingNumber}</span>
-                    <span>ROOM #{pendingApprovalBooking.roomNumber}</span>
-                  </div>
-                  <p className="text-[9px] text-slate-500 font-medium">
-                    Show this screen to Front Desk Receptionist for instant lookup upon arrival
-                  </p>
-                </div>
-
-                {/* Guest & Reservation Dates Matrix */}
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className={`p-2.5 rounded-xl border ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
-                    <span className={`text-[10px] font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      Primary Guest
-                    </span>
-                    <span className="font-bold text-sm block truncate">{pendingApprovalBooking.guestName}</span>
-                    <span className="text-[11px] text-slate-400 block">{pendingApprovalBooking.guestPhone}</span>
-                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-0.5 mt-0.5">
-                      <Icons.Check className="w-2.5 h-2.5" /> Mobile OTP Verified
-                    </span>
-                  </div>
-
-                  <div className={`p-2.5 rounded-xl border ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
-                    <span className={`text-[10px] font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      Reservation Stay
-                    </span>
-                    <span className="font-bold text-xs block">
-                      {pendingApprovalBooking.nights} Night{pendingApprovalBooking.nights > 1 ? 's' : ''} • ₹{pendingApprovalBooking.grandTotal?.toLocaleString('en-IN') || '—'}
-                    </span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">
-                      {pendingApprovalBooking.checkInDate
-                        ? new Date(pendingApprovalBooking.checkInDate).toLocaleDateString([], { day: '2-digit', month: 'short' })
-                        : 'Today'}
-                      {' ➔ '}
-                      {pendingApprovalBooking.checkOutDate
-                        ? new Date(pendingApprovalBooking.checkOutDate).toLocaleDateString([], { day: '2-digit', month: 'short' })
-                        : 'Tomorrow'}
-                    </span>
-                    <span className="text-[9px] font-bold text-blue-500 mt-0.5 block">
-                      {pendingApprovalBooking.bookingOrigin === 'REMOTE_HOME' ? 'Advance Scheduled' : 'Instant Check-in'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Document Verification Notice Banner */}
-                <div className={`p-3 rounded-2xl border flex items-start gap-2.5 ${
-                  pendingApprovalBooking.bookingOrigin === 'REMOTE_HOME'
-                    ? isDark ? 'border-blue-500/30 bg-blue-950/30 text-blue-200' : 'border-blue-200 bg-blue-50 text-blue-900'
-                    : isDark ? 'border-amber-500/30 bg-amber-950/30 text-amber-200' : 'border-amber-200 bg-amber-50 text-amber-900'
-                }`}>
-                  <Icons.Shield className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
-                  <div className="text-[11px] leading-snug">
-                    <strong className="block font-bold">
-                      {pendingApprovalBooking.bookingOrigin === 'REMOTE_HOME'
-                        ? 'Government ID Verification at Front Desk'
-                        : 'Aadhaar Verification in Progress'}
-                    </strong>
-                    <span>
-                      {pendingApprovalBooking.bookingOrigin === 'REMOTE_HOME'
-                        ? 'When you arrive at the property on your check-in date, show this digital pass and your physical ID card to the receptionist. Once verified, your digital keycard and in-room services will activate immediately.'
-                        : 'Front Desk is reviewing your uploaded documents. Keycard unlocks automatically as soon as verified.'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Aadhaar Photos Preview (If uploaded) */}
-                {(pendingApprovalBooking.aadhaarFrontUrl || pendingApprovalBooking.aadhaarBackUrl) && (
-                  <div className={`p-3 rounded-xl border space-y-2 ${isDark ? 'bg-black/40 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                    <div className="flex items-center justify-between text-[11px] font-bold">
-                      <span className="flex items-center gap-1 text-amber-500">
-                        <Icons.Shield className="w-3.5 h-3.5" />
-                        <span>Uploaded Aadhaar Verification Photos</span>
-                      </span>
-                      <span className="text-emerald-500 flex items-center gap-0.5 text-[10px]">
-                        <Icons.Check className="w-3 h-3" />
-                        <span>Attached</span>
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="rounded-lg border p-1 text-center bg-black/50 border-slate-800">
-                        <span className="text-[9px] font-bold block text-slate-400 mb-1">Aadhaar Front</span>
-                        {pendingApprovalBooking.aadhaarFrontUrl ? (
-                          <img
-                            src={pendingApprovalBooking.aadhaarFrontUrl}
-                            alt="Front"
-                            className="h-16 w-full object-contain rounded border border-slate-700 bg-black"
-                          />
-                        ) : (
-                          <div className="h-16 flex items-center justify-center text-[10px] text-slate-500">Attached</div>
-                        )}
-                      </div>
-                      <div className="rounded-lg border p-1 text-center bg-black/50 border-slate-800">
-                        <span className="text-[9px] font-bold block text-slate-400 mb-1">Aadhaar Back</span>
-                        {pendingApprovalBooking.aadhaarBackUrl ? (
-                          <img
-                            src={pendingApprovalBooking.aadhaarBackUrl}
-                            alt="Back"
-                            className="h-16 w-full object-contain rounded border border-slate-700 bg-black"
-                          />
-                        ) : (
-                          <div className="h-16 flex items-center justify-center text-[10px] text-slate-500">Attached</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Verification Actions */}
-                <div className="pt-2 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                    <span>Auto-syncing with Front Desk...</span>
+                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5 leading-tight">
+                    Request<br />Submitted
                   </span>
+                </div>
 
-                  <button
-                    type="button"
-                    data-testid="btn-cancel-pending-approval"
-                    disabled={isCancellingBooking}
-                    onClick={() => handleCancelBooking(pendingApprovalBooking.bookingNumber)}
-                    className="py-2 px-3.5 rounded-xl border border-red-300 text-red-600 hover:bg-red-50 font-bold text-xs transition active:scale-95"
-                  >
-                    <span>{isCancellingBooking ? 'Cancelling...' : t('Cancel Request')}</span>
-                  </button>
+                {/* Step 2: Waiting for Approval (Amber In-Progress) */}
+                <div className="flex flex-col items-center relative z-10 text-center w-20">
+                  <div className="w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shadow-xs ring-4 ring-amber-100 dark:ring-amber-950/60 animate-pulse">
+                    <Icons.Clock className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[11px] font-black text-amber-600 dark:text-amber-400 mt-1.5 leading-tight">
+                    Waiting for<br />Approval
+                  </span>
+                </div>
 
-                  {/* Hidden automation trigger */}
-                  <button
-                    type="button"
-                    data-testid="btn-check-approval-status"
-                    onClick={handleCheckApprovalStatus}
-                    style={{ display: 'none' }}
-                  />
+                {/* Step 3: Check-in Approved (Pending Gray) */}
+                <div className="flex flex-col items-center relative z-10 text-center w-20">
+                  <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-400 flex items-center justify-center text-xs font-bold">
+                    <Icons.Key className="w-3.5 h-3.5 text-slate-400" />
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-1.5 leading-tight">
+                    Check-in<br />Approved
+                  </span>
                 </div>
               </div>
-            ) : (
-              <div className="p-6 rounded-2xl border text-center space-y-2 border-slate-800 bg-slate-900/40">
-                <p className="text-xs text-slate-400">No pending booking verification active.</p>
-                <button
-                  type="button"
-                  onClick={() => setCustomerView('rooms')}
-                  className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-black text-xs"
-                >
-                  Browse Available Rooms
-                </button>
-              </div>
-            )}
+            </div>
+
+            {/* Booking Details Card (4 Rows: Room, Duration, Primary Guest, Total Amount) */}
+            {(() => {
+              const b = pendingApprovalBooking || (activeReservation ? {
+                roomNumber: activeReservation.roomNumber,
+                roomTypeName: activeReservation.roomTypeName,
+                nights: activeReservation.nights || 1,
+                checkInDate: activeReservation.checkInDate,
+                checkOutDate: activeReservation.checkOutDate,
+                guestName: activeReservation.guestName,
+                guestPhone: activeReservation.guestPhone,
+                grandTotal: activeReservation.grandTotal || 3136,
+                bookingNumber: activeReservation.bookingNumber,
+              } : null);
+
+              if (!b) {
+                return (
+                  <div className="p-6 rounded-2xl border text-center space-y-2 border-slate-200 bg-white shadow-xs">
+                    <p className="text-xs text-slate-500">No pending booking verification active.</p>
+                    <button
+                      type="button"
+                      onClick={() => setCustomerView('rooms')}
+                      className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs"
+                    >
+                      Browse Available Rooms
+                    </button>
+                  </div>
+                );
+              }
+
+              // Format date string for Nov 01 → Nov 02 style
+              const formatDates = () => {
+                try {
+                  const cin = b.checkInDate ? new Date(b.checkInDate) : new Date();
+                  const cout = b.checkOutDate ? new Date(b.checkOutDate) : new Date(cin.getTime() + (b.nights || 1) * 24 * 60 * 60 * 1000);
+                  const cinStr = cin.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+                  const coutStr = cout.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+                  return `${cinStr} → ${coutStr}`;
+                } catch {
+                  return 'Nov 01 → Nov 02';
+                }
+              };
+
+              return (
+                <>
+                  <div className={`rounded-2xl border p-4 space-y-3.5 shadow-xs ${
+                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                  }`}>
+                    <div className={`flex items-center gap-2 pb-2 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                      <h3 className={`text-sm font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        Booking Details
+                      </h3>
+                    </div>
+
+                    {/* Row 1: Room Number & Deluxe Room */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-200/50 dark:border-amber-500/20">
+                        <Icons.Bed className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                          Room {b.roomNumber}
+                        </h4>
+                        <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {b.roomTypeName}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Row 2: Stay Duration & Dates */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-200/50 dark:border-blue-500/20">
+                        <Icons.Calendar className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">
+                          Stay Duration
+                        </span>
+                        <span className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'} block`}>
+                          {b.nights || 1} Night
+                        </span>
+                        <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'} block mt-0.5`}>
+                          {formatDates()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Row 3: Primary Guest */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-200/50 dark:border-purple-500/20">
+                        <Icons.User className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">
+                          Primary Guest
+                        </span>
+                        <span className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'} block`}>
+                          {b.guestName}
+                        </span>
+                        <span className={`text-xs font-mono font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'} block mt-0.5`}>
+                          {b.guestPhone}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Row 4: Total Amount */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-200/50 dark:border-emerald-500/20">
+                        <Icons.CreditCard className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">
+                          Total Amount
+                        </span>
+                        <span className={`text-base font-black ${isDark ? 'text-white' : 'text-slate-900'} block`}>
+                          ₹{b.grandTotal ? b.grandTotal.toLocaleString('en-IN') : '—'} <span className="text-xs font-normal text-slate-500">(Incl. GST)</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Two Styled Action Buttons */}
+                  <div className="flex flex-col gap-2.5 pt-1">
+                    {/* Button 1: Cancel Booking */}
+                    <button
+                      type="button"
+                      data-testid="btn-cancel-pending-approval"
+                      disabled={isCancellingBooking}
+                      onClick={() => handleCancelBooking(b.bookingNumber)}
+                      className={`w-full py-3.5 px-4 rounded-2xl border text-center transition active:scale-[0.98] cursor-pointer ${
+                        isDark
+                          ? 'border-red-900/40 bg-red-950/20 hover:bg-red-950/40 text-red-400'
+                          : 'border-red-200 bg-red-50/50 hover:bg-red-100/50 text-red-600'
+                      }`}
+                    >
+                      <div className="text-sm font-black flex items-center justify-center gap-1.5">
+                        <Icons.X className="w-4 h-4" />
+                        <span>{isCancellingBooking ? 'Cancelling...' : 'Cancel Booking'}</span>
+                      </div>
+                      <p className={`text-[11px] font-medium mt-0.5 ${isDark ? 'text-red-400/80' : 'text-red-500/80'}`}>
+                        Cancel your request before approval
+                      </p>
+                    </button>
+
+                    {/* Button 2: Check Status */}
+                    <button
+                      type="button"
+                      data-testid="btn-check-approval-status"
+                      disabled={isCheckingApproval}
+                      onClick={handleCheckApprovalStatus}
+                      className={`w-full py-3 px-4 rounded-2xl border text-center shadow-xs transition active:scale-[0.98] cursor-pointer ${
+                        isDark
+                          ? 'border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-200'
+                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800'
+                      }`}
+                    >
+                      <div className="text-sm font-black flex items-center justify-center gap-1.5">
+                        <Icons.Refresh className={`w-4 h-4 ${isCheckingApproval ? 'animate-spin' : ''}`} />
+                        <span>{isCheckingApproval ? 'Checking...' : 'Check Status'}</span>
+                      </div>
+                      <p className={`text-[11px] font-medium mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        See latest update
+                      </p>
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -2516,10 +2630,8 @@ export const App: React.FC = () => {
                 </div>
               </div>
             )}
-            {/* Authoritative Property Showcase Hero Card */}
-            <div
-              className="rounded-2xl border border-amber-500/30 shadow-lg relative overflow-hidden min-h-[175px] flex flex-col justify-end p-4 group"
-            >
+            {/* Property Showcase Hero Card */}
+            <div className="rounded-[22px] border border-[#E2C489] shadow-[0_10px_28px_rgba(40,70,50,0.16)] relative overflow-hidden min-h-[205px] flex flex-col justify-end p-4 group">
               <img
                 src={selectedHotel?.coverImageUrl || 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1600&auto=format&fit=crop&q=80'}
                 alt={selectedHotel?.name || 'Hotel'}
@@ -2528,36 +2640,34 @@ export const App: React.FC = () => {
                 }}
                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/25" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#04120B]/95 via-[#04120B]/55 to-[#04120B]/15" />
 
-              {/* Banner Content */}
               <div className="relative z-10 flex flex-col gap-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-black/60 text-amber-300 border border-amber-500/30 backdrop-blur-md flex items-center gap-1">
-                      <Icons.Location className="w-3 h-3 text-amber-400" />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-col items-start gap-1.5">
+                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-black/55 text-[#F4E6C9] border border-white/15 backdrop-blur-md flex items-center gap-1.5">
+                      <Icons.Location className="w-3.5 h-3.5 text-[#F7E2B4]" />
                       <span>{selectedHotel?.city || 'Jaipur'}, {selectedHotel?.state || 'Rajasthan'}</span>
                     </span>
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 backdrop-blur-md flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#0F6B43]/85 text-[#E9F6EC] border border-[#7FBF98]/40 backdrop-blur-md flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#9BD8AE] lux-pulse-dot" />
                       <span>Verified Property</span>
                     </span>
                   </div>
 
-                  {/* Single Consolidated Authoritative Switch Hotel Action Button */}
                   <button
                     type="button"
                     data-testid="select-hotel-pill-btn"
                     onClick={() => setCustomerView('hotel_select')}
-                    className="text-[11px] font-black uppercase tracking-wider px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold border border-amber-300 shadow-md transition active:scale-95 flex items-center gap-1.5 shrink-0"
+                    className="text-[12px] font-bold px-3.5 py-2 rounded-full bg-[#F7E2B4] hover:bg-[#F9E9C6] text-[#6B4A12] border border-[#E9C98A] shadow-md transition active:scale-95 flex items-center gap-1.5 shrink-0"
                   >
-                    <Icons.Switch className="w-3.5 h-3.5 text-slate-950" />
+                    <Icons.Switch className="w-4 h-4 text-[#6B4A12]" />
                     <span>Switch Hotel</span>
                   </button>
                 </div>
 
                 <div className="flex items-center gap-3 pt-0.5">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-amber-400 shadow-md bg-white shrink-0">
+                  <div className="w-[52px] h-[52px] rounded-[14px] overflow-hidden border-2 border-[#F3E4C2] shadow-md bg-white shrink-0">
                     <img
                       src={selectedHotel?.logoUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=300&auto=format&fit=crop&q=80'}
                       alt=""
@@ -2568,11 +2678,11 @@ export const App: React.FC = () => {
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h2 className="text-base sm:text-lg font-black text-white truncate drop-shadow">
+                    <h2 className="font-lux text-[21px] leading-tight font-bold text-white truncate drop-shadow">
                       {selectedHotel?.name || 'Select Hotel Property'}
                     </h2>
-                    <p className="text-[11px] text-amber-200/90 truncate font-semibold">
-                      {selectedHotel?.tagline || 'Experience luxury hospitality & fine dining'}
+                    <p className="text-[12px] text-[#F1DFC0] truncate font-medium mt-0.5">
+                      {selectedHotel?.tagline || 'Luxury Stays & Fine Hospitality'}
                     </p>
                   </div>
                 </div>
@@ -2580,123 +2690,118 @@ export const App: React.FC = () => {
             </div>
 
             {/* Guest Services & Experience Section */}
-            <div className="flex flex-col gap-2.5">
-              <div className="flex items-center justify-between px-1">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-start justify-between px-1">
                 <div>
-                  <h2 className="text-sm font-black uppercase tracking-wider text-slate-800">
+                  <h2 className="font-lux text-[24px] leading-tight font-bold text-[#123C2B]">
                     Guest Experiences
                   </h2>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[12px] text-[#7C7566] mt-0.5">
                     Choose your personalized hospitality service
                   </p>
                 </div>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                <span className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-[#F7E2B4] text-[#8A5A12] border border-[#E9C98A] shrink-0 mt-1">
                   2 Options
                 </span>
               </div>
 
-              {/* GUEST EXPERIENCES: STAY & SUITES + DINE-IN CARDS (Matches Image 2 Exactly) */}
-              <div className="grid grid-cols-1 gap-3.5">
-                {/* OPTION 1: BOOK A ROOM (STAY) WITH ROOM PHOTO */}
+              <div className="grid grid-cols-1 gap-4">
+                {/* OPTION 1: BOOK A ROOM (STAY) */}
                 <button
                   type="button"
                   data-testid="home-book-room-card"
                   onClick={() => setCustomerView('rooms')}
-                  className="rounded-2xl border border-blue-500/40 relative overflow-hidden min-h-[175px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
+                  className="rounded-[20px] border border-[#E4DAC6] relative overflow-hidden min-h-[190px] text-left group shadow-[0_8px_22px_rgba(30,60,45,0.12)] flex flex-col justify-between p-4 transition active:scale-[0.99]"
                 >
                   <img
                     src={selectedHotel?.stayImageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80'}
                     alt="Book a Room"
                     className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#04120B] via-[#04120B]/70 to-[#04120B]/20" />
 
-                  {/* Card Header Badges */}
                   <div className="relative z-10 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white shadow-md flex items-center gap-1">
-                        <Icons.Bed className="w-3.5 h-3.5" />
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#123C2B] text-white shadow-md flex items-center gap-1.5">
+                        <Icons.Bed className="w-3.5 h-3.5 text-[#F7E2B4]" />
                         <span>{t('Stay & Suites')}</span>
                       </span>
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 backdrop-blur-md">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#DFF0E2] text-[#1C5138] border border-[#BFDCC6]">
                         {availableRoomCount !== null ? `${availableRoomCount} ${t('Available Rooms')}` : t('Available Rooms')}
                       </span>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-blue-600/90 text-white flex items-center justify-center text-sm font-black shadow-md group-hover:translate-x-1 transition-transform">
-                      <Icons.ArrowRight className="w-4 h-4 text-white" />
+                    <div className="w-9 h-9 rounded-full bg-[#F7E2B4] text-[#6B4A12] border border-[#E9C98A] flex items-center justify-center shadow-md group-hover:translate-x-1 transition-transform">
+                      <Icons.ArrowRight className="w-4 h-4" />
                     </div>
                   </div>
 
-                  {/* Card Content */}
                   <div className="relative z-10 space-y-1">
-                    <h3 className="text-lg font-black text-white drop-shadow-md flex items-center gap-2">
-                      <Icons.Bed className="w-5 h-5 text-blue-400" />
+                    <h3 className="font-lux text-[22px] leading-tight font-bold text-white drop-shadow-md flex items-center gap-2">
+                      <Icons.Bed className="w-[22px] h-[22px] text-[#F3D79B]" />
                       <span>{t('Book a Room')}</span>
                     </h3>
-                    <p className="text-xs text-slate-200 line-clamp-2 drop-shadow font-normal">
+                    <p className="text-[12px] text-[#EDE6D6] line-clamp-2 font-medium">
                       {t('Available Rooms')} • {t('Digital Keycard')} & {t('Instant ID Check-in')}
                     </p>
-                    <div className="pt-1.5 flex items-center gap-3 text-[11px] font-bold text-blue-300">
-                      <span className="flex items-center gap-1">
-                        <Icons.Check className="w-3.5 h-3.5 text-blue-400" />
+                    <div className="pt-2 flex items-center gap-3 text-[11px] font-semibold text-[#F3E4C2]">
+                      <span className="flex items-center gap-1.5">
+                        <Icons.Check className="w-3.5 h-3.5 text-[#9BD8AE]" />
                         <span>{t('Instant ID Check-in')}</span>
                       </span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1">
-                        <Icons.Key className="w-3.5 h-3.5 text-blue-400" />
+                      <span className="text-white/30">|</span>
+                      <span className="flex items-center gap-1.5">
+                        <Icons.Key className="w-3.5 h-3.5 text-[#F3D79B]" />
                         <span>{t('Digital Keycard')}</span>
                       </span>
                     </div>
                   </div>
                 </button>
 
-                {/* OPTION 2: DINE-IN / TABLE SCAN (DINING) WITH RESTAURANT PHOTO */}
+                {/* OPTION 2: DINE-IN / TABLE SCAN */}
                 <button
                   type="button"
                   data-testid="home-table-scan-card"
                   onClick={() => setCustomerView('table_scan')}
-                  className="rounded-2xl border border-amber-500/40 relative overflow-hidden min-h-[175px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
+                  className="rounded-[20px] border border-[#E4DAC6] relative overflow-hidden min-h-[190px] text-left group shadow-[0_8px_22px_rgba(30,60,45,0.12)] flex flex-col justify-between p-4 transition active:scale-[0.99]"
                 >
                   <img
                     src={selectedHotel?.diningImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80'}
                     alt="Dine-In Table Scan"
                     className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#04120B] via-[#04120B]/70 to-[#04120B]/20" />
 
-                  {/* Card Header Badges */}
                   <div className="relative z-10 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 shadow-md flex items-center gap-1">
-                        <Icons.Utensils className="w-3.5 h-3.5 text-slate-950" />
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#F7E2B4] text-[#6B4A12] shadow-md flex items-center gap-1.5">
+                        <Icons.Utensils className="w-3.5 h-3.5" />
                         <span>{t('Dine-In')}</span>
                       </span>
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/30 text-amber-300 border border-amber-500/40 backdrop-blur-md">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-black/45 text-[#F3E4C2] border border-[#E9C98A]/50 backdrop-blur-md">
                         {t('Scan Table QR', 'Scan Table QR')}
                       </span>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-sm font-black shadow-md group-hover:translate-x-1 transition-transform">
-                      <Icons.ArrowRight className="w-4 h-4 text-slate-950" />
+                    <div className="w-9 h-9 rounded-full bg-[#F7E2B4] text-[#6B4A12] border border-[#E9C98A] flex items-center justify-center shadow-md group-hover:translate-x-1 transition-transform">
+                      <Icons.ArrowRight className="w-4 h-4" />
                     </div>
                   </div>
 
-                  {/* Card Content */}
                   <div className="relative z-10 space-y-1">
-                    <h3 className="text-lg font-black text-white drop-shadow-md flex items-center gap-2">
-                      <Icons.Utensils className="w-5 h-5 text-amber-400" />
+                    <h3 className="font-lux text-[22px] leading-tight font-bold text-white drop-shadow-md flex items-center gap-2">
+                      <Icons.Utensils className="w-[22px] h-[22px] text-[#F3D79B]" />
                       <span>{t('Dine-In')}</span>
                     </h3>
-                    <p className="text-xs text-slate-200 line-clamp-2 drop-shadow font-normal">
+                    <p className="text-[12px] text-[#EDE6D6] line-clamp-2 font-medium">
                       {t('Dining')} • {t('In-Room Dining Menu')}
                     </p>
-                    <div className="pt-1.5 flex items-center gap-3 text-[11px] font-bold text-amber-300">
-                      <span className="flex items-center gap-1">
-                        <Icons.QrCode className="w-3.5 h-3.5 text-amber-400" />
+                    <div className="pt-2 flex items-center gap-3 text-[11px] font-semibold text-[#F3E4C2]">
+                      <span className="flex items-center gap-1.5">
+                        <Icons.QrCode className="w-3.5 h-3.5 text-[#F3D79B]" />
                         <span>{t('Camera QR Scan', 'Camera QR Scan')}</span>
                       </span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1">
-                        <Icons.Check className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="text-white/30">|</span>
+                      <span className="flex items-center gap-1.5">
+                        <Icons.Check className="w-3.5 h-3.5 text-[#F3D79B]" />
                         <span>{t('Live Kitchen KDS', 'Live Kitchen KDS')}</span>
                       </span>
                     </div>
@@ -2706,9 +2811,11 @@ export const App: React.FC = () => {
             </div>
 
             {/* Resident Verification Accent Card */}
-            <div className="pt-2 text-center">
-              {/* Highlight Accent Line */}
-              <div className="w-24 h-1 mx-auto bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 rounded-full mb-3 shadow-sm shadow-amber-500/30" />
+            <div className="pt-1 pb-2 text-center">
+              <div className="flex items-center justify-center gap-1.5 mb-3">
+                <span className="w-14 h-1.5 rounded-full bg-[#123C2B]" />
+                <span className="w-6 h-1.5 rounded-full bg-[#E7C583]" />
+              </div>
               <button
                 type="button"
                 data-testid="home-resident-verify-link"
@@ -2721,19 +2828,15 @@ export const App: React.FC = () => {
                     setCustomerView('resident_verify');
                   }
                 }}
-                className={`text-xs font-bold hover:underline flex items-center justify-center gap-2 mx-auto px-4 py-2 rounded-xl transition ${
-                  isDark
-                    ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30'
-                    : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 shadow-xs'
-                }`}
+                className="text-[12px] font-bold flex items-center justify-center gap-2 mx-auto px-4 py-2.5 rounded-full transition bg-white/70 text-[#7A5210] border border-[#E2C489] shadow-sm active:scale-95"
               >
-                <Icons.Key className="w-3.5 h-3.5 text-amber-500" />
+                <Icons.Key className="w-4 h-4 text-[#C08B32]" />
                 <span>
                   {activeReservation
                     ? `Already checked in? View Room ${activeReservation.roomNumber} Stay`
                     : 'Already checked in at Front Desk? Verify Room Stay'}
                 </span>
-                <Icons.ArrowRight className="w-3.5 h-3.5 text-amber-500" />
+                <Icons.ArrowRight className="w-4 h-4 text-[#C08B32]" />
               </button>
             </div>
           </div>
@@ -2750,34 +2853,22 @@ export const App: React.FC = () => {
                 type="button"
                 data-testid="rooms-back-home-btn"
                 onClick={() => setCustomerView('home')}
-                className={`flex items-center gap-2 text-xs font-bold px-3.5 py-2 rounded-xl border transition active:scale-95 ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
-                    : 'bg-white border-slate-200 text-slate-700 shadow-xs hover:bg-slate-50'
-                }`}
+                className="flex items-center gap-2 text-[12px] font-bold px-3.5 py-2.5 rounded-full border border-[#E7DFCE] bg-white text-[#123C2B] shadow-sm transition active:scale-95"
               >
-                <Icons.ArrowLeft className="w-4 h-4 text-amber-500" />
+                <Icons.ArrowLeft className="w-4 h-4 text-[#C08B32]" />
                 <span>{t('Back to Home')}</span>
               </button>
 
               <div className="flex items-center gap-2">
-                <span className={`text-[11px] font-black px-3 py-1.5 rounded-full border flex items-center gap-1.5 ${
-                  isDark
-                    ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
-                    : 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs'
-                }`}>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] font-bold px-3 py-2 rounded-full border border-[#CFE0D2] bg-[#EAF2EA] text-[#1C5138] flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#1E9E5A] lux-pulse-dot" />
                   <span>{availableRoomsList.length} {t('Rooms Ready')}</span>
                 </span>
                 <button
                   type="button"
                   onClick={() => refreshRoomsCatalog()}
                   title={t('Refresh')}
-                  className={`p-2 rounded-xl border transition active:scale-95 ${
-                    isDark
-                      ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
-                      : 'bg-white border-slate-200 text-slate-600 shadow-xs hover:text-slate-900'
-                  }`}
+                  className="w-10 h-10 rounded-full border border-[#E7DFCE] bg-white text-[#123C2B] shadow-sm flex items-center justify-center transition active:scale-95 active:rotate-180"
                 >
                   <Icons.Refresh className="w-4 h-4" />
                 </button>
@@ -2785,20 +2876,20 @@ export const App: React.FC = () => {
             </div>
 
             {/* Title Section */}
-            <div className="space-y-0.5">
+            <div className="space-y-1 pt-1">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-500">
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-[#C08B32]">
                   {selectedHotel?.name || 'Luxury Stay'}
                 </span>
-                <span className="text-slate-400 text-xs">•</span>
-                <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <span className="text-[#C9BFA9] text-xs">•</span>
+                <span className="text-[11px] font-medium text-[#7C7566]">
                   {selectedHotel?.city || 'Instant Check-In'}
                 </span>
               </div>
-              <h1 className={`text-lg font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <h1 className="lux-h1">
                 {t('Available Rooms & Suites')}
               </h1>
-              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <p className="text-[12px] leading-relaxed text-[#7C7566]">
                 {t('Verified live rooms with digital keycard, AC & instant room service.')}
               </p>
             </div>
@@ -2813,18 +2904,14 @@ export const App: React.FC = () => {
                   value={roomSearchQuery}
                   onChange={(e) => setRoomSearchQuery(e.target.value)}
                   placeholder={t('Search room number, suite type, king bed...')}
-                  className={`w-full min-h-[42px] pl-9 pr-9 py-2 rounded-xl border text-xs font-semibold outline-none transition ${
-                    isDark
-                      ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400'
-                      : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-xs'
-                  }`}
+                  className="lux-input h-[50px] rounded-2xl pl-11 pr-10 text-[13px] shadow-sm"
                 />
-                <Icons.Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
+                <Icons.Search className="w-[18px] h-[18px] text-[#9C9482] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                 {roomSearchQuery && (
                   <button
                     type="button"
                     onClick={() => setRoomSearchQuery('')}
-                    className="absolute right-3 top-3 p-0.5 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-[#9C9482]"
                   >
                     <Icons.X className="w-4 h-4" />
                   </button>
@@ -2832,18 +2919,15 @@ export const App: React.FC = () => {
               </div>
 
               {/* 2-Option AC & Non-AC Climate Filter */}
-              <div className={`p-1.5 rounded-2xl border transition-all ${
-                isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-100 border-slate-200'
-              }`}>
-                <div className="flex items-center justify-between px-1 pb-1.5">
-                  <span className={`text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
-                    isDark ? 'text-slate-300' : 'text-slate-700'
-                  }`}>
+              <div className="p-3 rounded-[20px] border border-[#D7E4D9] bg-[#EDF4EC]">
+                <div className="flex items-center justify-between px-0.5 pb-2.5">
+                  <span className="text-[11px] font-black uppercase tracking-[0.1em] text-[#123C2B] flex items-center gap-2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-4 h-4">
+                      <path d="M4 6h16M7 12h10M10 18h4" />
+                    </svg>
                     <span>Climate & AC Filter</span>
                   </span>
-                  <span className={`text-[10px] font-semibold ${
-                    roomAcFilter === 'AC' ? 'text-sky-400' : roomAcFilter === 'NON_AC' ? 'text-amber-400' : isDark ? 'text-slate-400' : 'text-slate-500'
-                  }`}>
+                  <span className="text-[10px] font-semibold text-[#6E7F72]">
                     {roomAcFilter === 'AC' ? 'AC Rooms Only' : roomAcFilter === 'NON_AC' ? 'Non-AC Rooms Only' : `${totalAvailableRoomsCount} Rooms Available`}
                   </span>
                 </div>
@@ -2853,22 +2937,20 @@ export const App: React.FC = () => {
                     type="button"
                     data-testid="room-filter-ac"
                     onClick={() => setRoomAcFilter((prev) => (prev === 'AC' ? 'ALL' : 'AC'))}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 active:scale-95 border ${
+                    className={`py-2.5 px-3 rounded-xl text-[12px] font-bold transition flex items-center justify-center gap-2 active:scale-95 border ${
                       roomAcFilter === 'AC'
-                        ? 'bg-sky-600 border-sky-400 text-white font-black shadow-md ring-2 ring-sky-400/40'
-                        : isDark
-                        ? 'bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-sky-500/50'
-                        : 'bg-white border-slate-300 text-slate-700 hover:text-slate-950 hover:border-sky-400 shadow-xs'
+                        ? 'bg-[#123C2B] border-[#123C2B] text-white shadow-sm'
+                        : 'bg-white border-[#DCE7DC] text-[#264637] shadow-xs'
                     }`}
                   >
-                    <Icons.Wind className="w-3.5 h-3.5 text-sky-400" />
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className={`w-4 h-4 ${roomAcFilter === 'AC' ? 'text-[#BFE3CB]' : 'text-[#1C5138]'}`}>
+                      <path d="M12 2v20M4.5 7l15 10M19.5 7l-15 10" />
+                    </svg>
                     <span>{t('AC Rooms')}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                    <span className={`text-[10px] min-w-[20px] h-[20px] px-1 rounded-full font-black flex items-center justify-center ${
                       roomAcFilter === 'AC'
-                        ? 'bg-sky-950/80 text-sky-200 border border-sky-400/40'
-                        : isDark
-                        ? 'bg-slate-800 text-slate-300'
-                        : 'bg-slate-200 text-slate-700'
+                        ? 'bg-white/15 text-white border border-white/20'
+                        : 'bg-[#E9EFE7] text-[#4B6353]'
                     }`}>
                       {acRoomsCount}
                     </span>
@@ -2878,22 +2960,18 @@ export const App: React.FC = () => {
                     type="button"
                     data-testid="room-filter-non-ac"
                     onClick={() => setRoomAcFilter((prev) => (prev === 'NON_AC' ? 'ALL' : 'NON_AC'))}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 active:scale-95 border ${
+                    className={`py-2.5 px-3 rounded-xl text-[12px] font-bold transition flex items-center justify-center gap-2 active:scale-95 border ${
                       roomAcFilter === 'NON_AC'
-                        ? 'bg-amber-600 border-amber-400 text-white font-black shadow-md ring-2 ring-amber-400/40'
-                        : isDark
-                        ? 'bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-amber-500/50'
-                        : 'bg-white border-slate-300 text-slate-700 hover:text-slate-950 hover:border-amber-400 shadow-xs'
+                        ? 'bg-[#123C2B] border-[#123C2B] text-white shadow-sm'
+                        : 'bg-white border-[#DCE7DC] text-[#264637] shadow-xs'
                     }`}
                   >
-                    <Icons.Sun className="w-3.5 h-3.5 text-amber-400" />
+                    <Icons.Sun className={`w-4 h-4 ${roomAcFilter === 'NON_AC' ? 'text-[#F3D79B]' : 'text-[#C08B32]'}`} />
                     <span>{t('Non-AC Rooms')}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                    <span className={`text-[10px] min-w-[20px] h-[20px] px-1 rounded-full font-black flex items-center justify-center ${
                       roomAcFilter === 'NON_AC'
-                        ? 'bg-amber-950/80 text-amber-200 border border-amber-400/40'
-                        : isDark
-                        ? 'bg-slate-800 text-slate-300'
-                        : 'bg-slate-200 text-slate-700'
+                        ? 'bg-white/15 text-white border border-white/20'
+                        : 'bg-[#E9EFE7] text-[#4B6353]'
                     }`}>
                       {nonAcRoomsCount}
                     </span>
@@ -2902,19 +2980,15 @@ export const App: React.FC = () => {
               </div>
 
               {/* Price Sort & Quick Budget Filters (Cohesive Strip) */}
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
                 <button
                   type="button"
                   data-testid="room-sort-low-high"
                   onClick={() =>
                     setRoomPriceSort((prev) => (prev === 'LOW_TO_HIGH' ? 'DEFAULT' : 'LOW_TO_HIGH'))
                   }
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition flex items-center gap-1 shrink-0 active:scale-95 ${
-                    roomPriceSort === 'LOW_TO_HIGH'
-                      ? 'bg-amber-500 border-amber-400 text-slate-950 font-black shadow-xs'
-                      : isDark
-                      ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                      : 'bg-white border-slate-200 text-slate-700 shadow-xs hover:bg-slate-50'
+                  className={`shrink-0 active:scale-95 transition ${
+                    roomPriceSort === 'LOW_TO_HIGH' ? 'lux-chip lux-chip-active' : 'lux-chip'
                   }`}
                 >
                   <span>Price ↑ Low to High</span>
@@ -2926,18 +3000,12 @@ export const App: React.FC = () => {
                   onClick={() =>
                     setRoomPriceSort((prev) => (prev === 'HIGH_TO_LOW' ? 'DEFAULT' : 'HIGH_TO_LOW'))
                   }
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition flex items-center gap-1 shrink-0 active:scale-95 ${
-                    roomPriceSort === 'HIGH_TO_LOW'
-                      ? 'bg-amber-500 border-amber-400 text-slate-950 font-black shadow-xs'
-                      : isDark
-                      ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                      : 'bg-white border-slate-200 text-slate-700 shadow-xs hover:bg-slate-50'
+                  className={`shrink-0 active:scale-95 transition ${
+                    roomPriceSort === 'HIGH_TO_LOW' ? 'lux-chip lux-chip-active' : 'lux-chip'
                   }`}
                 >
                   <span>Price ↓ High to Low</span>
                 </button>
-
-                <div className={`w-px h-5 mx-0.5 shrink-0 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
 
                 {(['ALL', '2500', '4000', 'LUXURY'] as const).map((budget) => {
                   const label =
@@ -2955,14 +3023,8 @@ export const App: React.FC = () => {
                       type="button"
                       data-testid={`budget-chip-${budget.toLowerCase()}`}
                       onClick={() => setRoomMaxBudget(budget)}
-                      className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition shrink-0 active:scale-95 ${
-                        isSelected
-                          ? isDark
-                            ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 font-black shadow-xs'
-                            : 'bg-emerald-600 border-emerald-600 text-white font-black shadow-xs'
-                          : isDark
-                          ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 shadow-xs'
+                      className={`shrink-0 active:scale-95 transition ${
+                        isSelected ? 'lux-chip lux-chip-active' : 'lux-chip'
                       }`}
                     >
                       {label}
@@ -2972,11 +3034,11 @@ export const App: React.FC = () => {
               </div>
 
               {/* Active Filter Indicator & Count */}
-              <div className="flex items-center justify-between text-xs px-1">
-                <span className={`font-semibold flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              <div className="flex items-center justify-between text-[12px] px-1">
+                <span className="font-medium flex items-center gap-2 text-[#5F5A4D]">
+                  <span className="w-2 h-2 rounded-full bg-[#D9A93F]" />
                   <span>
-                    {t('Showing')} <strong className={isDark ? 'text-white' : 'text-slate-900'}>{availableRoomsList.length}</strong> {t('rooms available')}
+                    {t('Showing')} <strong className="text-[#123C2B] font-bold">{availableRoomsList.length}</strong> {t('rooms available')}
                   </span>
                 </span>
                 {(roomSearchQuery || roomAcFilter !== 'ALL' || roomPriceSort !== 'DEFAULT' || roomMaxBudget !== 'ALL') && (
@@ -2988,7 +3050,7 @@ export const App: React.FC = () => {
                       setRoomPriceSort('DEFAULT');
                       setRoomMaxBudget('ALL');
                     }}
-                    className="text-xs font-bold text-amber-500 hover:underline flex items-center gap-1"
+                    className="text-[11px] font-bold text-[#8A5A12] hover:underline flex items-center gap-1"
                   >
                     <Icons.X className="w-3.5 h-3.5" />
                     <span>{t('Reset Filters')}</span>

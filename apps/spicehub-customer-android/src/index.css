@@ -1,6 +1,25 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  /* Heritage green × cream design system */
+  --lux-cream: #F6F1E6;
+  --lux-cream-deep: #EFE8D9;
+  --lux-surface: #FFFFFF;
+  --lux-surface-soft: #FBF8F1;
+  --lux-border: #E7DFCE;
+  --lux-border-strong: #DCCFB6;
+  --lux-green: #123C2B;
+  --lux-green-soft: #1B5138;
+  --lux-green-tint: #EAF2EA;
+  --lux-green-tint-border: #CFE0D2;
+  --lux-green-text: #1C5138;
+  --lux-gold: #F7E2B4;
+  --lux-gold-border: #E9C98A;
+  --lux-gold-text: #8A5A12;
+  --lux-ink: #1B2A22;
+  --lux-muted: #7C7566;
+  --lux-shadow: 0 10px 30px rgba(18, 60, 43, 0.07);
+
   --apple-bg: #FBFBFD;
   --apple-text: #1D1D1F;
   --apple-secondary: #86868B;
@@ -14,20 +33,21 @@ html {
   height: 100%;
   margin: 0;
   padding: 0;
-  background: #FBFBFD;
+  background: #F6F1E6;
 }
 
 body {
   height: 100%;
   margin: 0;
   padding: 0;
-  background: #FBFBFD;
-  color: #1D1D1F;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Inter, sans-serif;
+  background: #F6F1E6;
+  color: #1B2A22;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Inter, sans-serif;
   letter-spacing: -0.01em;
   overflow: hidden;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
+  -webkit-tap-highlight-color: transparent;
 }
 
 #root {
@@ -51,3 +71,138 @@ iframe {
 .type-body { font-size: 17px; line-height: 22px; font-weight: 400; letter-spacing: -0.41px; }
 .type-callout { font-size: 16px; line-height: 21px; font-weight: 400; letter-spacing: -0.32px; }
 .type-caption { font-size: 12px; line-height: 16px; font-weight: 400; letter-spacing: 0px; }
+
+/* ============================================================
+   HERITAGE LUXE UI PRIMITIVES
+   ============================================================ */
+.font-lux {
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Times New Roman", serif;
+  letter-spacing: -0.015em;
+}
+
+.lux-page {
+  background-color: #F6F1E6;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='260' viewBox='0 0 420 260'%3E%3Cg fill='%23123C2B' fill-opacity='0.045'%3E%3Cpath d='M40 240h340v6H40z'/%3E%3Cpath d='M70 240v-64h22v64zM328 240v-64h22v64z'/%3E%3Cpath d='M92 176c0-26 15-46 33-46s33 20 33 46h-11c0-20-10-34-22-34s-22 14-22 34z'/%3E%3Cpath d='M125 108l6 20h-12z'/%3E%3Cpath d='M262 176c0-26 15-46 33-46s33 20 33 46h-11c0-20-10-34-22-34s-22 14-22 34z'/%3E%3Cpath d='M295 108l6 20h-12z'/%3E%3Cpath d='M150 240v-44h120v44z'/%3E%3Cpath d='M176 196c0-14 9-26 19-26s19 12 19 26h-8c0-11-5-18-11-18s-11 7-11 18z'/%3E%3Cpath d='M190 158l5 12h-10z'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: top right;
+  background-size: 340px auto;
+}
+
+.lux-card {
+  background: #FFFFFF;
+  border: 1px solid #E7DFCE;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(18, 60, 43, 0.06);
+}
+
+.lux-card-soft {
+  background: #FBF8F1;
+  border: 1px solid #EDE5D5;
+  border-radius: 16px;
+}
+
+.lux-h1 {
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+  font-size: 28px;
+  line-height: 1.12;
+  font-weight: 700;
+  color: #123C2B;
+  letter-spacing: -0.02em;
+}
+
+.lux-h2 {
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+  font-size: 21px;
+  line-height: 1.18;
+  font-weight: 700;
+  color: #123C2B;
+  letter-spacing: -0.02em;
+}
+
+.lux-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #123C2B;
+}
+
+.lux-input {
+  width: 100%;
+  background: #FCFAF5;
+  border: 1px solid #E3DAC7;
+  border-radius: 13px;
+  padding: 13px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1B2A22;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.lux-input::placeholder { color: #A79E8B; font-weight: 400; }
+.lux-input:focus {
+  border-color: #88A893;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(27, 81, 56, 0.10);
+}
+
+.lux-btn-primary {
+  background: #123C2B;
+  color: #FFFFFF;
+  border-radius: 14px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  box-shadow: 0 8px 18px rgba(18, 60, 43, 0.20);
+}
+.lux-btn-primary:active { transform: scale(0.985); }
+.lux-btn-primary:disabled { opacity: 0.55; box-shadow: none; }
+
+.lux-btn-gold {
+  background: #F7E2B4;
+  color: #7A5210;
+  border: 1px solid #E9C98A;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+.lux-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  border: 1px solid #E7DFCE;
+  background: #FFFFFF;
+  padding: 7px 13px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #4B5A50;
+  white-space: nowrap;
+}
+.lux-chip-active {
+  background: #123C2B;
+  border-color: #123C2B;
+  color: #FFFFFF;
+}
+
+.lux-divider { height: 1px; background: #EDE5D5; }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.lux-sheet {
+  background: #FFFFFF;
+  border-radius: 26px;
+  box-shadow: 0 24px 80px rgba(9, 30, 21, 0.35);
+}
+
+.lux-fade-in { animation: luxFadeIn 0.28s ease both; }
+@keyframes luxFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.lux-pulse-dot { animation: luxPulse 1.8s ease-in-out infinite; }
+@keyframes luxPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.86); }
+}

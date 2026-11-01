@@ -632,6 +632,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
         booking.bookingStatus !== 'CANCELLED'
     )
     .slice(0, 6);
+  const pendingApprovals = bookings.filter((booking) => booking.bookingStatus === 'PENDING_APPROVAL');
   const todaysCheckOuts = bookings
     .filter(
       (booking) =>
@@ -716,7 +717,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
             {[
               { label: 'Room Dashboard', icon: Bed },
               { label: 'Room Booking', icon: Calendar },
-              { label: 'Walk-in Check-in', icon: DoorOpen },
+              { label: 'Walk-in Check-in', icon: DoorOpen, badge: pendingApprovals.length > 0 ? `${pendingApprovals.length} Approval` : undefined },
               { label: 'Check-in / Check-out', icon: Clock },
               { label: 'Room Calendar', icon: CalendarDays },
               { label: 'Room Allocation', icon: Layers },
@@ -752,7 +753,12 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
                 >
                   <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : isDark ? 'text-slate-400' : 'text-slate-500'}`} />
                   {(!isSidebarCollapsed || isMobileMenuOpen) && <span className="truncate">{item.label}</span>}
-                  {(!isSidebarCollapsed || isMobileMenuOpen) && isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto text-blue-200" />}
+                  {(!isSidebarCollapsed || isMobileMenuOpen) && item.badge && (
+                    <span className="ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500 text-slate-950 animate-pulse">
+                      {item.badge}
+                    </span>
+                  )}
+                  {(!isSidebarCollapsed || isMobileMenuOpen) && isActive && !item.badge && <ChevronRight className="w-3.5 h-3.5 ml-auto text-blue-200" />}
                 </button>
               );
             })}
@@ -962,6 +968,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
               hotelId={hotelId}
               preselectedRoomNumber={selectedRoom?.number}
               isDark={isDark}
+              initialTab={pendingApprovals.length > 0 ? 'ARRIVALS' : 'CHECKIN'}
               onBackToMatrix={() => {
                 setActiveSidebarItem('Room Dashboard');
                 void loadRooms();
@@ -1144,6 +1151,41 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({ 
                 <span>+ New Booking</span>
               </button>
             </div>
+
+            {/* Online Room Booking Approval Notification Banner (if any guest booked online) */}
+            {pendingApprovals.length > 0 && (
+              <div
+                data-testid="reception-pending-approvals-alert"
+                className="p-3.5 rounded-2xl border-2 border-amber-400 bg-amber-50 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center shrink-0">
+                    <Clock className="w-4 h-4 animate-spin" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-amber-950">
+                      {pendingApprovals.length} Online Room Booking{pendingApprovals.length > 1 ? 's' : ''} Awaiting ID Verification
+                    </h4>
+                    <p className="text-[11px] text-amber-800">
+                      Guest documents attached in Approval Queue. Review and approve check-in to issue digital keycard.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-testid="reception-review-approvals-btn"
+                  onClick={() => {
+                    setActiveSidebarItem('Walk-in Check-in');
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('frontdesk:set_tab', { detail: 'ARRIVALS' }));
+                    }, 50);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs uppercase tracking-wider shrink-0 transition shadow-xs cursor-pointer"
+                >
+                  Review & Approve ➔
+                </button>
+              </div>
+            )}
 
             {/* Middle Section: Split-screen layout (Mobile stacked, Tablet/Laptop Split View) */}
             <div data-testid="pms-split-container" className="flex flex-col lg:flex lg:flex-row lg:h-screen lg:overflow-hidden gap-4 min-h-0">

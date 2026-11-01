@@ -2587,303 +2587,150 @@ export const App: React.FC = () => {
                 </span>
               </div>
 
-              {/* CASE A: GUEST HAS AN ACTIVE APPROVED STAY (SHOW MY STAY FIRST, HIDE ROOMS PROMO) */}
-              {activeReservation && !pendingApprovalBooking ? (
-                <div className="flex flex-col gap-3.5">
-                  {/* 1. PRIMARY HERO CARD: ACTIVE STAY & DIGITAL KEYCARD */}
-                  <div
-                    data-testid="active-stay-card"
-                    className={`p-5 rounded-3xl border shadow-sm space-y-4 relative overflow-hidden ${
-                      isDark
-                        ? 'bg-slate-900 border-slate-800 text-white'
-                        : 'bg-white border-slate-200 text-slate-900'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                        <span className={`text-xs font-black uppercase tracking-wider ${
-                          isDark ? 'text-emerald-400' : 'text-emerald-800'
-                        }`}>
-                          {t('My Stay')} • {t('Room')} {activeReservation.roomNumber}
+              {/* Active Verified Stay Keycard Notification (If guest is checked in) */}
+              {activeReservation && !pendingApprovalBooking && (
+                <div
+                  data-testid="active-stay-card"
+                  onClick={() => {
+                    launchResidentPortal(
+                      activeReservation.roomNumber,
+                      selectedHotel,
+                      activeReservation.sessionToken,
+                      'HOME'
+                    );
+                  }}
+                  className="p-3.5 rounded-2xl border border-emerald-300 bg-emerald-50 text-slate-900 shadow-xs flex items-center justify-between gap-3 cursor-pointer active:scale-98 transition"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                      <Icons.Key className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black text-emerald-950 uppercase tracking-wide">
+                          Room {activeReservation.roomNumber} Keycard Active
+                        </span>
+                        <span className="text-[9px] font-mono font-bold bg-emerald-200 text-emerald-950 px-1.5 py-0.2 rounded">
+                          {activeReservation.bookingNumber}
                         </span>
                       </div>
-                      <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
-                        {activeReservation.bookingNumber}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h3 className="text-xl font-black">{activeReservation.roomTypeName}</h3>
-                      <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                        {t('Guest', 'Guest')}: <strong className="font-bold">{activeReservation.guestName}</strong> ({activeReservation.guestPhone})
-                      </p>
-                      <p className={`text-[11px] mt-0.5 flex items-center gap-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        <span>WiFi: <strong>{activeReservation.wifiSsid || 'TajGateway_HighSpeed'}</strong></span>
-                        <span>•</span>
-                        <span>Pass: <strong className="font-mono">{activeReservation.wifiPassword || `TajGuest@${activeReservation.roomNumber}`}</strong></span>
+                      <p className="text-[11px] text-slate-600 truncate">
+                        {activeReservation.roomTypeName} • {activeReservation.guestName}
                       </p>
                     </div>
-
-                    {!isRoomEntered ? (
-                      <button
-                        type="button"
-                        data-testid="enter-active-room-btn"
-                        onClick={() => {
-                          if (activeReservation) {
-                            localStorage.setItem(`spicehub_room_entered_${activeReservation.bookingNumber}`, 'true');
-                            setIsRoomEntered(true);
-                            launchResidentPortal(
-                              activeReservation.roomNumber,
-                              selectedHotel,
-                              activeReservation.sessionToken,
-                              'HOME'
-                            );
-                          }
-                        }}
-                        className="w-full py-3 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/20 transition active:scale-98"
-                      >
-                        <Icons.Key className="w-4 h-4 text-white" />
-                        <span>{t('Digital Keycard')}</span>
-                      </button>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2.5 pt-1">
-                        <button
-                          type="button"
-                          data-testid="enter-active-room-btn"
-                          onClick={() =>
-                            launchResidentPortal(
-                              activeReservation.roomNumber,
-                              selectedHotel,
-                              activeReservation.sessionToken,
-                              'HOME'
-                            )
-                          }
-                          className="py-3 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/20 transition active:scale-98"
-                        >
-                          <Icons.Key className="w-4 h-4 text-white" />
-                          <span>{t('Digital Keycard')}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          data-testid="room-in-room-dining-btn"
-                          onClick={() =>
-                            launchResidentPortal(
-                              activeReservation.roomNumber,
-                              selectedHotel,
-                              activeReservation.sessionToken,
-                              'DINING'
-                            )
-                          }
-                          className={`py-3 px-3 rounded-2xl border text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition active:scale-98 shadow-sm ${
-                            isDark
-                              ? 'border-slate-700 bg-slate-800/90 hover:bg-slate-700 text-slate-200'
-                              : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-800'
-                          }`}
-                        >
-                          <Icons.Utensils className="w-4 h-4 text-amber-500" />
-                          <span>{t('In-Room Food')}</span>
-                        </button>
-                      </div>
-                    )}
                   </div>
-
-                  {/* 2. DINE-IN OPTIONS: IN-ROOM FOOD MENU & RESTAURANT TABLE SCAN */}
-                  <button
-                    type="button"
-                    data-testid="home-table-scan-card"
-                    onClick={() =>
-                      launchResidentPortal(
-                        activeReservation.roomNumber,
-                        selectedHotel,
-                        activeReservation.sessionToken,
-                        'DINING'
-                      )
-                    }
-                    className="rounded-2xl border border-amber-500/40 relative overflow-hidden min-h-[150px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
-                  >
-                    <img
-                      src={selectedHotel?.diningImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80'}
-                      alt="In-Room Dining Menu"
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
-
-                    <div className="relative z-10 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 shadow-md flex items-center gap-1">
-                          <Icons.Utensils className="w-3.5 h-3.5 text-slate-950" />
-                          <span>{t('In-Room Dining')}</span>
-                        </span>
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 backdrop-blur-md">
-                          {t('Room')} {activeReservation.roomNumber}
-                        </span>
-                      </div>
-                      <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-sm font-black shadow-md group-hover:translate-x-1 transition-transform">
-                        <Icons.ArrowRight className="w-4 h-4 text-slate-950" />
-                      </div>
-                    </div>
-
-                    <div className="relative z-10 space-y-1">
-                      <h3 className="text-base font-black text-white drop-shadow-md flex items-center gap-2">
-                        <Icons.Utensils className="w-4 h-4 text-amber-400" />
-                        <span>{t('In-Room Food')}</span>
-                      </h3>
-                      <p className="text-xs text-slate-200 line-clamp-2 drop-shadow font-normal">
-                        {t('In-Room Dining Menu')} • {t('Room')} {activeReservation.roomNumber}
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* 3. RESTAURANT TABLE SCAN (OPTIONAL FOR RESIDENTS DINING AT COURTYARD) */}
-                  <div className="flex items-center justify-between px-1 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setCustomerView('table_scan')}
-                      className={`text-xs font-semibold hover:underline flex items-center gap-1.5 ${
-                        isDark ? 'text-amber-400 hover:text-amber-300' : 'text-amber-700 hover:text-amber-800'
-                      }`}
-                    >
-                      <Icons.QrCode className="w-3.5 h-3.5" />
-                      <span>{t('Scan Table QR', 'Scan Table QR')}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setCustomerView('rooms')}
-                      className={`text-xs font-medium hover:underline flex items-center gap-1 ${
-                        isDark ? 'text-slate-400 hover:text-slate-300' : 'text-slate-600 hover:text-slate-800'
-                      }`}
-                    >
-                      <span>{t('Browse Rooms')}</span>
-                      <Icons.ArrowRight className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* CASE B: NEW / PROSPECTIVE GUEST (SHOW FULL BOOK A ROOM & DINE-IN CARDS) */
-                <div className="grid grid-cols-1 gap-3.5">
-                  {/* OPTION 1: BOOK A ROOM (STAY) WITH ROOM PHOTO */}
-                  <button
-                    type="button"
-                    data-testid="home-book-room-card"
-                    onClick={() => {
-                      if (activeReservation) {
-                        launchResidentPortal(
-                          activeReservation.roomNumber,
-                          selectedHotel,
-                          activeReservation.sessionToken,
-                          'HOME'
-                        );
-                      } else if (pendingApprovalBooking) {
-                        setCustomerView('waiting_approval');
-                      } else {
-                        setCustomerView('rooms');
-                      }
-                    }}
-                    className="rounded-2xl border border-blue-500/40 relative overflow-hidden min-h-[175px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
-                  >
-                    <img
-                      src={selectedHotel?.stayImageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80'}
-                      alt="Book a Room"
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
-
-                    {/* Card Header Badges */}
-                    <div className="relative z-10 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white shadow-md flex items-center gap-1">
-                          <Icons.Bed className="w-3.5 h-3.5" />
-                          <span>{t('Stay & Suites')}</span>
-                        </span>
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 backdrop-blur-md">
-                          {availableRoomCount !== null ? `${availableRoomCount} ${t('Available Rooms')}` : t('Available Rooms')}
-                        </span>
-                      </div>
-                      <div className="w-8 h-8 rounded-full bg-blue-600/90 text-white flex items-center justify-center text-sm font-black shadow-md group-hover:translate-x-1 transition-transform">
-                        <Icons.ArrowRight className="w-4 h-4 text-white" />
-                      </div>
-                    </div>
-
-                    {/* Card Content */}
-                    <div className="relative z-10 space-y-1">
-                      <h3 className="text-lg font-black text-white drop-shadow-md flex items-center gap-2">
-                        <Icons.Bed className="w-5 h-5 text-blue-400" />
-                        <span>{t('Book a Room')}</span>
-                      </h3>
-                      <p className="text-xs text-slate-200 line-clamp-2 drop-shadow font-normal">
-                        {t('Available Rooms')} • {t('Digital Keycard')} & {t('Instant ID Check-in')}
-                      </p>
-                      <div className="pt-1.5 flex items-center gap-3 text-[11px] font-bold text-blue-300">
-                        <span className="flex items-center gap-1">
-                          <Icons.Check className="w-3.5 h-3.5 text-blue-400" />
-                          <span>{t('Instant ID Check-in')}</span>
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Icons.Key className="w-3.5 h-3.5 text-blue-400" />
-                          <span>{t('Digital Keycard')}</span>
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* OPTION 2: DINE-IN / TABLE SCAN (DINING) WITH RESTAURANT PHOTO */}
-                  <button
-                    type="button"
-                    data-testid="home-table-scan-card"
-                    onClick={() => setCustomerView('table_scan')}
-                    className="rounded-2xl border border-amber-500/40 relative overflow-hidden min-h-[175px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
-                  >
-                    <img
-                      src={selectedHotel?.diningImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80'}
-                      alt="Dine-In Table Scan"
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
-
-                    {/* Card Header Badges */}
-                    <div className="relative z-10 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 shadow-md flex items-center gap-1">
-                          <Icons.Utensils className="w-3.5 h-3.5 text-slate-950" />
-                          <span>{t('Dine-In')}</span>
-                        </span>
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/30 text-amber-300 border border-amber-500/40 backdrop-blur-md">
-                          {t('Scan Table QR', 'Scan Table QR')}
-                        </span>
-                      </div>
-                      <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-sm font-black shadow-md group-hover:translate-x-1 transition-transform">
-                        <Icons.ArrowRight className="w-4 h-4 text-slate-950" />
-                      </div>
-                    </div>
-
-                    {/* Card Content */}
-                    <div className="relative z-10 space-y-1">
-                      <h3 className="text-lg font-black text-white drop-shadow-md flex items-center gap-2">
-                        <Icons.Utensils className="w-5 h-5 text-amber-400" />
-                        <span>{t('Dine-In')}</span>
-                      </h3>
-                      <p className="text-xs text-slate-200 line-clamp-2 drop-shadow font-normal">
-                        {t('Dining')} • {t('In-Room Dining Menu')}
-                      </p>
-                      <div className="pt-1.5 flex items-center gap-3 text-[11px] font-bold text-amber-300">
-                        <span className="flex items-center gap-1">
-                          <Icons.QrCode className="w-3.5 h-3.5 text-amber-400" />
-                          <span>{t('Camera QR Scan', 'Camera QR Scan')}</span>
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Icons.Check className="w-3.5 h-3.5 text-amber-400" />
-                          <span>{t('Live Kitchen KDS', 'Live Kitchen KDS')}</span>
-                        </span>
-                      </div>
-                    </div>
-                  </button>
+                  <span className="text-xs font-bold text-emerald-800 shrink-0">Open Keycard ➔</span>
                 </div>
               )}
+
+              {/* GUEST EXPERIENCES: STAY & SUITES + DINE-IN CARDS (Matches Image Exactly) */}
+              <div className="grid grid-cols-1 gap-3.5">
+                {/* OPTION 1: BOOK A ROOM (STAY) WITH ROOM PHOTO */}
+                <button
+                  type="button"
+                  data-testid="home-book-room-card"
+                  onClick={() => setCustomerView('rooms')}
+                  className="rounded-2xl border border-blue-500/40 relative overflow-hidden min-h-[175px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
+                >
+                  <img
+                    src={selectedHotel?.stayImageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80'}
+                    alt="Book a Room"
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
+
+                  {/* Card Header Badges */}
+                  <div className="relative z-10 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white shadow-md flex items-center gap-1">
+                        <Icons.Bed className="w-3.5 h-3.5" />
+                        <span>{t('Stay & Suites')}</span>
+                      </span>
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 backdrop-blur-md">
+                        {availableRoomCount !== null ? `${availableRoomCount} ${t('Available Rooms')}` : t('Available Rooms')}
+                      </span>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-blue-600/90 text-white flex items-center justify-center text-sm font-black shadow-md group-hover:translate-x-1 transition-transform">
+                      <Icons.ArrowRight className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+
+                  {/* Card Content */}
+                  <div className="relative z-10 space-y-1">
+                    <h3 className="text-lg font-black text-white drop-shadow-md flex items-center gap-2">
+                      <Icons.Bed className="w-5 h-5 text-blue-400" />
+                      <span>{t('Book a Room')}</span>
+                    </h3>
+                    <p className="text-xs text-slate-200 line-clamp-2 drop-shadow font-normal">
+                      {t('Available Rooms')} • {t('Digital Keycard')} & {t('Instant ID Check-in')}
+                    </p>
+                    <div className="pt-1.5 flex items-center gap-3 text-[11px] font-bold text-blue-300">
+                      <span className="flex items-center gap-1">
+                        <Icons.Check className="w-3.5 h-3.5 text-blue-400" />
+                        <span>{t('Instant ID Check-in')}</span>
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <Icons.Key className="w-3.5 h-3.5 text-blue-400" />
+                        <span>{t('Digital Keycard')}</span>
+                      </span>
+                    </div>
+                  </div>
+                </button>
+
+                {/* OPTION 2: DINE-IN / TABLE SCAN (DINING) WITH RESTAURANT PHOTO */}
+                <button
+                  type="button"
+                  data-testid="home-table-scan-card"
+                  onClick={() => setCustomerView('table_scan')}
+                  className="rounded-2xl border border-amber-500/40 relative overflow-hidden min-h-[175px] text-left group shadow-md flex flex-col justify-between p-4 transition active:scale-98"
+                >
+                  <img
+                    src={selectedHotel?.diningImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80'}
+                    alt="Dine-In Table Scan"
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/25" />
+
+                  {/* Card Header Badges */}
+                  <div className="relative z-10 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 shadow-md flex items-center gap-1">
+                        <Icons.Utensils className="w-3.5 h-3.5 text-slate-950" />
+                        <span>{t('Dine-In')}</span>
+                      </span>
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/30 text-amber-300 border border-amber-500/40 backdrop-blur-md">
+                        {t('Scan Table QR', 'Scan Table QR')}
+                      </span>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-sm font-black shadow-md group-hover:translate-x-1 transition-transform">
+                      <Icons.ArrowRight className="w-4 h-4 text-slate-950" />
+                    </div>
+                  </div>
+
+                  {/* Card Content */}
+                  <div className="relative z-10 space-y-1">
+                    <h3 className="text-lg font-black text-white drop-shadow-md flex items-center gap-2">
+                      <Icons.Utensils className="w-5 h-5 text-amber-400" />
+                      <span>{t('Dine-In')}</span>
+                    </h3>
+                    <p className="text-xs text-slate-200 line-clamp-2 drop-shadow font-normal">
+                      {t('Dining')} • {t('In-Room Dining Menu')}
+                    </p>
+                    <div className="pt-1.5 flex items-center gap-3 text-[11px] font-bold text-amber-300">
+                      <span className="flex items-center gap-1">
+                        <Icons.QrCode className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{t('Camera QR Scan', 'Camera QR Scan')}</span>
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <Icons.Check className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{t('Live Kitchen KDS', 'Live Kitchen KDS')}</span>
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              </div>
             </div>
 
             {/* Resident Verification Accent Card */}

@@ -8,6 +8,7 @@ export interface FrontDeskCheckInAppProps {
   preselectedRoomNumber?: string;
   onBackToMatrix?: () => void;
   isDark?: boolean;
+  initialTab?: 'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER' | 'SDB' | 'LUGGAGE' | 'PARCEL' | 'LOST_AND_FOUND';
 }
 
 interface ExpectedArrival {
@@ -523,8 +524,9 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
   preselectedRoomNumber,
   onBackToMatrix,
   isDark = true,
+  initialTab = 'CHECKIN',
 }) => {
-  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER' | 'SDB' | 'LUGGAGE' | 'PARCEL' | 'LOST_AND_FOUND'>('CHECKIN');
+  const [activeTab, setActiveTab] = useState<'CHECKIN' | 'ARRIVALS' | 'IN_HOUSE' | 'HISTORY' | 'CONCIERGE' | 'TURNAROUND' | 'MAINTENANCE' | 'CASHIER' | 'SDB' | 'LUGGAGE' | 'PARCEL' | 'LOST_AND_FOUND'>(initialTab);
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 

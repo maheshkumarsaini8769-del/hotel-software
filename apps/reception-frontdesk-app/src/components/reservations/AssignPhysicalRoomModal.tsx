@@ -29,12 +29,12 @@ export const AssignPhysicalRoomModal: React.FC<AssignPhysicalRoomModalProps> = (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-slate-950 border border-amber-500/30 rounded-2xl w-full max-w-lg shadow-sm dark:shadow-none overflow-hidden flex flex-col">
+      <div className="bg-slate-950 border border-amber-500/30 rounded-xl w-full max-w-lg shadow-sm dark:shadow-none overflow-hidden flex flex-col">
         {/* Header */}
         <div className="p-4 px-6 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-lg text-amber-400">
-              🔑
+              
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -49,7 +49,7 @@ export const AssignPhysicalRoomModal: React.FC<AssignPhysicalRoomModalProps> = (
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">
-            ✕
+            
           </button>
         </div>
 
@@ -61,7 +61,7 @@ export const AssignPhysicalRoomModal: React.FC<AssignPhysicalRoomModalProps> = (
 
           {cleanRooms.length === 0 ? (
             <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-center text-xs text-slate-400">
-              ⚠️ No clean available rooms in inventory. Housekeeping turnaround in progress.
+              ️ No clean available rooms in inventory. Housekeeping turnaround in progress.
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-60 overflow-y-auto pr-1">
@@ -72,10 +72,10 @@ export const AssignPhysicalRoomModal: React.FC<AssignPhysicalRoomModalProps> = (
                     key={room._id}
                     onClick={() => setSelectedRoomId(room._id)}
                     className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
-                      isSelected
-                        ? 'bg-amber-500/15 border-amber-500 text-amber-200 shadow-md shadow-amber-500/10'
-                        : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
-                    }`}
+ isSelected
+ ? 'bg-amber-500/15 border-amber-500 text-amber-200 shadow-md shadow-amber-500/10'
+ : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+ }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-base font-bold text-white">Room {room.roomNumber}</span>
@@ -103,7 +103,7 @@ export const AssignPhysicalRoomModal: React.FC<AssignPhysicalRoomModalProps> = (
           <button
             onClick={handleConfirm}
             disabled={isLoading || !selectedRoomId}
-            className="px-5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 transition-all shadow-md shadow-amber-950/40 cursor-pointer disabled:opacity-50 active:scale-95"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-950/40 cursor-pointer disabled:opacity-50 active:scale-95"
           >
             {isLoading ? 'Allocating...' : 'Confirm Room Allocation'}
           </button>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StaffRosterHelper } from '@spicehub/ui';
+import { StaffRosterHelper, NumericInput } from '@spicehub/ui';
 
 interface TipPoolDistributionModalProps {
   isOpen: boolean;
@@ -73,8 +73,7 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
             <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
               Total Shift / Daily Tips Collected (₹)
             </label>
-            <input
-              type="number"
+            <NumericInput
               min="100"
               step="100"
               required
@@ -112,7 +111,7 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
                   {StaffRosterHelper.formatCurrency(fohPool)}
                 </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-500/30">
+              <div className="p-2.5 rounded-xl bg-slate-900/20 border border-amber-500/30">
                 <span className="text-[11px] text-amber-400 font-semibold uppercase block">BOH Pool Share</span>
                 <span className="text-base font-bold text-white font-mono">
                   {StaffRosterHelper.formatCurrency(bohPool)}
@@ -177,7 +176,7 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/30"
+              className="bg-emerald-600 hover:bg-emerald-700 px-5 py-2 rounded-xl text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/30"
             >
               {loading ? 'Processing Split...' : 'Generate Tip Session'}
             </button>

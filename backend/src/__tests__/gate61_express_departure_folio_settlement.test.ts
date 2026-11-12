@@ -258,7 +258,7 @@ describe('Gate #61: 1-Tap Express Digital Departure, Atomic Master Folio Settlem
 
     expect(settleRes.status).toBe(200);
     expect(settleRes.body.success).toBe(true);
-    expect(settleRes.body.data.invoiceNumber).toMatch(/^INV-\d{4}-102-\d+$/);
+    expect(settleRes.body.data.invoiceNumber).toMatch(/^INV-\d{4}-102-\d+-\d+$/);
     expect(settleRes.body.data.balanceDue).toBe(0);
     expect(settleRes.body.data.roomStatus).toBe(RoomStatus.DIRTY);
     expect(settleRes.body.data.housekeepingTaskId).toBeDefined();
@@ -280,6 +280,7 @@ describe('Gate #61: 1-Tap Express Digital Departure, Atomic Master Folio Settlem
     // Verify Room 102 transitioned to DIRTY
     const room = await Room.findById(room102._id);
     expect(room?.status).toBe(RoomStatus.DIRTY);
+    expect(room?.currentStayId).toBeUndefined();
 
     // Verify HousekeepingTask created in queue
     const hkTask = await HousekeepingTask.findById(settleRes.body.data.housekeepingTaskId);

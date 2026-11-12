@@ -96,8 +96,8 @@ export const StaffClockPinTerminalModal: React.FC<StaffClockPinTerminalModalProp
             <span
               key={idx}
               className={`h-3 w-3 rounded-full transition-all ${
-                pin.length > idx ? 'bg-slate-800 scale-125 shadow-sm dark:shadow-none' : 'bg-zinc-700'
-              }`}
+ pin.length > idx ? 'bg-slate-800 scale-125 shadow-sm dark:shadow-none' : 'bg-zinc-700'
+ }`}
             />
           ))}
         </div>
@@ -106,8 +106,8 @@ export const StaffClockPinTerminalModal: React.FC<StaffClockPinTerminalModalProp
         {feedback && (
           <div
             className={`my-2 p-2 rounded-xl text-xs font-semibold text-center w-full ${
-              feedback.isError ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-            }`}
+ feedback.isError ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+ }`}
           >
             {feedback.message}
           </div>
@@ -154,7 +154,7 @@ export const StaffClockPinTerminalModal: React.FC<StaffClockPinTerminalModalProp
             type="button"
             disabled={loading || pin.length < 4}
             onClick={() => handleAction('IN')}
-            className="py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-900/30 transition-all disabled:opacity-40"
+            className="bg-emerald-600 hover:bg-emerald-700 py-3 rounded-2xl text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-900/30 transition-all disabled:opacity-40"
           >
             Clock In 🟢
           </button>
@@ -162,7 +162,7 @@ export const StaffClockPinTerminalModal: React.FC<StaffClockPinTerminalModalProp
             type="button"
             disabled={loading || pin.length < 4}
             onClick={() => handleAction('OUT')}
-            className="py-3 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-sm transition-all disabled:opacity-40"
+            className="bg-emerald-600 hover:bg-emerald-700 py-3 rounded-2xl text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-sm transition-all disabled:opacity-40"
           >
             Clock Out 🔴
           </button>

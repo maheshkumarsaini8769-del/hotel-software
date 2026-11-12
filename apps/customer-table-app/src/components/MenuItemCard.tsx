@@ -1,6 +1,7 @@
 import React from 'react';
+import { Clock } from 'lucide-react';
 import { MenuItemDTO } from '@spicehub/shared-types';
-import { formatCurrency } from '@spicehub/ui';
+import { formatCurrency, IMAGE_PLACEHOLDER } from '@spicehub/ui';
 
 export interface MenuItemCardProps {
   item: MenuItemDTO;
@@ -20,17 +21,17 @@ const FALLBACK_DISH_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
   <rect width="300" height="200" fill="url(#dishGrad)"/>
   <circle cx="150" cy="100" r="50" fill="#334155" stroke="#475569" stroke-width="3"/>
   <circle cx="150" cy="100" r="38" fill="#d97706" opacity="0.25"/>
-  <text x="150" y="108" fill="#fef3c7" font-family="system-ui, sans-serif" font-size="28" text-anchor="middle">🍲</text>
+  <path d="M132 105 h36 a18 18 0 0 0 -36 0 z" fill="#f59e0b"/>
 </svg>
 `);
 
 const defaultImages: Record<string, string> = {
-  'Paneer Tikka Angara': 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=300&auto=format&fit=crop&q=80',
-  'Murgh Malai Tikka': 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=300&auto=format&fit=crop&q=80',
-  'Dal Makhani Bukhara': 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=300&auto=format&fit=crop&q=80',
-  'Butter Chicken Aslam Style': 'https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?w=300&auto=format&fit=crop&q=80',
-  'Butter Garlic Naan': 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=300&auto=format&fit=crop&q=80',
-  'Mint Lime Virgin Mojito': 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=300&auto=format&fit=crop&q=80',
+  'Paneer Tikka Angara': IMAGE_PLACEHOLDER,
+  'Murgh Malai Tikka': IMAGE_PLACEHOLDER,
+  'Dal Makhani Bukhara': IMAGE_PLACEHOLDER,
+  'Butter Chicken Aslam Style': IMAGE_PLACEHOLDER,
+  'Butter Garlic Naan': IMAGE_PLACEHOLDER,
+  'Mint Lime Virgin Mojito': IMAGE_PLACEHOLDER,
 };
 
 export const MenuItemCard: React.FC<MenuItemCardProps> = ({
@@ -47,10 +48,10 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
   return (
     <div
       className={`relative p-3.5 sm:p-4 rounded-2xl border transition-all duration-200 flex gap-3.5 justify-between items-start ${
-        isOutOfStock
-          ? 'bg-slate-900/40 border-slate-800/60 opacity-60'
-          : 'bg-slate-900/90 hover:bg-slate-900 border-slate-800 hover:border-slate-700 shadow-md'
-      }`}
+ isOutOfStock
+ ? 'bg-slate-900/40 border-slate-800/60 opacity-60'
+ : 'bg-slate-900/90 hover:bg-slate-900 border-slate-800 hover:border-slate-700 shadow-md'
+ }`}
       data-testid={`menu-item-${item.id}`}
     >
       {/* Left Details */}
@@ -60,21 +61,21 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
           <div className="flex items-center gap-2 mb-1.5">
             <span
               className={`w-4 h-4 border flex items-center justify-center rounded-[4px] ${
-                isVeg
-                  ? 'border-emerald-500'
-                  : isBeverage
-                  ? 'border-slate-200 dark:border-slate-800'
-                  : 'border-red-500'
-              }`}
+ isVeg
+ ? 'border-emerald-500'
+ : isBeverage
+ ? 'border-slate-200 dark:border-slate-800'
+ : 'border-red-500'
+ }`}
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  isVeg
-                    ? 'bg-emerald-500'
-                    : isBeverage
-                    ? 'bg-slate-800 dark:bg-slate-200'
-                    : 'bg-red-500'
-                }`}
+ isVeg
+ ? 'bg-emerald-500'
+ : isBeverage
+ ? 'bg-slate-800 dark:bg-slate-200'
+ : 'bg-red-500'
+ }`}
               />
             </span>
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
@@ -98,8 +99,8 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
               {formatCurrency(item.basePrice || (item as any).price || 0)}
             </span>
             {(item as any).prepTimeMinutes && (
-              <span className="text-[10px] text-slate-400 font-medium flex items-center gap-0.5">
-                <span>⏱️</span>
+              <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                <Clock className="w-3 h-3 text-slate-400" />
                 <span>{(item as any).prepTimeMinutes}m</span>
               </span>
             )}
@@ -157,7 +158,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
               </span>
               <button
                 onClick={() => onUpdateQuantity(item.id, 1)}
-                className="w-7 h-7 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold flex items-center justify-center active:scale-95 transition"
+                className="w-7 h-7 rounded-lg bg-emerald-600 hover:bg-amber-400 text-white font-extrabold flex items-center justify-center active:scale-95 transition"
               >
                 +
               </button>

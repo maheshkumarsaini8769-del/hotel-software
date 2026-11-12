@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Droplets, Bell, Utensils, Trash2, Receipt } from 'lucide-react';
 import {
   ServiceRequestDTO,
   ServiceRequestType,
@@ -26,20 +27,20 @@ export const UniversalServiceTracker: React.FC<UniversalServiceTrackerProps> = (
   const quickButtons: Array<{
     type: ServiceRequestType;
     label: string;
-    icon: string;
+    icon: React.ReactNode;
   }> =
     serviceMode === 'IN_ROOM_DINING'
       ? [
-          { type: 'WATER_REFILL', label: 'Bottled Water', icon: '💧' },
-          { type: 'CALL_ROOM_SERVICE', label: 'Room Attendant', icon: '🛎️' },
-          { type: 'EXTRA_CUTLERY', label: 'Plates & Cutlery', icon: '🍴' },
-          { type: 'ROOM_CLEANING', label: 'Trash Clearance', icon: '🧹' },
+          { type: 'WATER_REFILL', label: 'Bottled Water', icon: <Droplets size={15} className="text-cyan-600" /> },
+          { type: 'CALL_ROOM_SERVICE', label: 'Room Attendant', icon: <Bell size={15} className="text-emerald-700" /> },
+          { type: 'EXTRA_CUTLERY', label: 'Plates & Cutlery', icon: <Utensils size={15} className="text-amber-600" /> },
+          { type: 'ROOM_CLEANING', label: 'Trash Clearance', icon: <Trash2 size={15} className="text-slate-600" /> },
         ]
       : [
-          { type: 'WATER_REFILL', label: 'Water Refill', icon: '💧' },
-          { type: 'CALL_WAITER', label: 'Call Waiter', icon: '🛎️' },
-          { type: 'EXTRA_CUTLERY', label: 'Extra Cutlery', icon: '🍴' },
-          { type: 'REQUEST_BILL', label: 'Ask for Bill', icon: '🧾' },
+          { type: 'WATER_REFILL', label: 'Water Refill', icon: <Droplets size={15} className="text-cyan-600" /> },
+          { type: 'CALL_WAITER', label: 'Call Waiter', icon: <Bell size={15} className="text-emerald-700" /> },
+          { type: 'EXTRA_CUTLERY', label: 'Extra Cutlery', icon: <Utensils size={15} className="text-amber-600" /> },
+          { type: 'REQUEST_BILL', label: 'Ask for Bill', icon: <Receipt size={15} className="text-purple-600" /> },
         ];
 
   const handleOpenRequest = (type: ServiceRequestType) => {
@@ -59,8 +60,9 @@ export const UniversalServiceTracker: React.FC<UniversalServiceTrackerProps> = (
   return (
     <div style={{ padding: '16px', backgroundColor: '#F9FAFB', borderRadius: '12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#111827' }}>
-          🛎️ Quick Assistance & Table Service
+        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Bell size={16} className="text-emerald-800" />
+          <span>Quick Assistance & Table Service</span>
         </h3>
         <span style={{ fontSize: '12px', color: '#6B7280' }}>1-Tap Staff Alert</span>
       </div>

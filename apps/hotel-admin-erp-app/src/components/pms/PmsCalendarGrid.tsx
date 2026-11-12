@@ -79,8 +79,8 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
                   key={d.date}
                   style={{ width: `${CELL_WIDTH_PX}px` }}
                   className={`text-center py-2 px-1 border-r border-slate-200 font-mono transition ${
-                    d.isWeekend ? 'bg-slate-100 text-slate-900' : 'text-slate-700'
-                  }`}
+ d.isWeekend ? 'bg-slate-100 text-slate-900' : 'text-slate-700'
+ }`}
                 >
                   <div className="text-[10px] uppercase font-semibold text-slate-500">{d.dayName}</div>
                   <div className="text-sm font-extrabold text-slate-900">{d.dayNumber}</div>
@@ -100,7 +100,7 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
                     colSpan={dates.length + 1}
                     className="px-4 py-2 text-xs font-bold text-slate-800 tracking-wide uppercase bg-slate-100"
                   >
-                    <span>🏷️ {category.name}</span>
+                    <span>{category.name}</span>
                     <span className="text-[10px] text-slate-500 ml-2 font-normal">
                       ({category.rooms.length} Rooms Available)
                     </span>
@@ -151,8 +151,8 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
                                 )
                               }
                               className={`border-r border-slate-200 h-full flex items-center justify-center transition cursor-pointer hover:bg-blue-50 group/cell ${
-                                d.isWeekend ? 'bg-slate-50/80' : 'bg-white'
-                              }`}
+ d.isWeekend ? 'bg-slate-50/80' : 'bg-white'
+ }`}
                               title={`Click to reserve ${room.roomNumber} starting ${d.date}`}
                             >
                               <span className="opacity-0 group-hover/cell:opacity-100 text-[10px] font-bold text-blue-600 bg-white px-1 py-0.5 rounded border border-blue-200 shadow-xs transition">

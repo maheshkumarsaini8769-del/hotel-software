@@ -4,6 +4,15 @@ import { User, IUser } from '../models/User';
 import { Tenant } from '../models/Tenant';
 import { UserRole, ShiftStatus, TenantRequest } from '../types';
 import argon2 from 'argon2';
+import { resolveTenantCapabilities } from '../utils/tenantCapabilities';
+import { resolveStaffPortalAccess } from '../utils/staffPortalAccess';
+import { randomUUID } from 'crypto';
+import {
+  generateStaffHotelCode,
+  hashStaffHotelCode,
+  isValidStaffHotelCode,
+  normalizeStaffHotelCode,
+} from '../utils/staffHotelAccess';
 
 export interface HotelStaffDTO {
   id: string;
@@ -11,8 +20,6 @@ export interface HotelStaffDTO {
   email: string;
   phone: string;
   role: UserRole | string;
-  /** Never contains the real PIN after creation. */
-  pin: string;
   hasPin?: boolean;
   pinApprovedByAdmin?: boolean;
   pinStatus?: 'NONE' | 'ACTIVE' | 'PENDING_APPROVAL';
@@ -52,20 +59,33 @@ const normalizeStaffRole = (role: unknown): UserRole | null => {
   return ASSIGNABLE_STAFF_ROLES.includes(upper as UserRole) ? (upper as UserRole) : null;
 };
 
+const STAFF_PERMISSIONS_BY_ROLE: Record<UserRole, string[]> = {
+  [UserRole.SUPERADMIN]: [],
+  [UserRole.GROUP_ADMIN]: ['*'],
+  [UserRole.HOTEL_ADMIN]: ['*'],
+  [UserRole.MANAGER]: ['*'],
+  [UserRole.CASHIER]: ['POS_OPERATIONS', 'PAYMENT_SETTLE'],
+  [UserRole.WAITER]: ['WAITER_KOT', 'WAITER_SERVICE', 'TABLE_MANAGE'],
+  [UserRole.CHEF]: ['KDS_SCREEN', 'KITCHEN_OPERATIONS'],
+  [UserRole.RECEPTIONIST]: ['FRONT_DESK', 'CHECK_IN_OUT'],
+  [UserRole.HOUSEKEEPING]: ['HOUSEKEEPING_TASKS'],
+  [UserRole.MAINTENANCE]: ['MAINTENANCE_TICKETS'],
+  [UserRole.GUEST]: [],
+};
+
 const resolveHotelId = (req: TenantRequest): Types.ObjectId | undefined => {
   if (req.hotelId) return req.hotelId;
   const raw = req.body?.hotelId || req.query?.hotelId || req.headers?.['x-hotel-id'];
   return raw && Types.ObjectId.isValid(String(raw)) ? new Types.ObjectId(String(raw)) : undefined;
 };
 
-const toDTO = (u: IUser & Record<string, any>, includePin = true, plainPin?: string): HotelStaffDTO => ({
+const toDTO = (u: IUser & Record<string, any>): HotelStaffDTO => ({
   id: u._id.toString(),
   name: u.name,
   email: u.email,
   phone: u.phone || '+91 98765 00000',
   role: u.role,
-  pin: plainPin || u.pinCode || '1234',
-  hasPin: Boolean(u.pinCode || u.pinCodeHash || u.pendingPinHash),
+  hasPin: Boolean(u.pinCodeHash || u.pendingPinHash),
   pinApprovedByAdmin: u.pinApprovedByAdmin !== false,
   pinStatus: (u.pinStatus || (u.pinCodeHash ? 'ACTIVE' : 'NONE')) as 'NONE' | 'ACTIVE' | 'PENDING_APPROVAL',
   shift: u.shift || 'Morning Shift',
@@ -112,6 +132,92 @@ export const getHotelStaff = async (req: TenantRequest, res: Response): Promise<
   }
 };
 
+export const generateStaffAccessCode = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    if (![UserRole.HOTEL_ADMIN, UserRole.MANAGER].includes(req.user?.role as UserRole)) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'ADMIN_REQUIRED',
+        message: 'Only a Hotel Admin or Manager can generate the staff access code.',
+      });
+      return;
+    }
+
+    const hotelId = resolveHotelId(req);
+    if (!hotelId || (req.hotelId && !req.hotelId.equals(hotelId))) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'HOTEL_SCOPE_MISMATCH',
+        message: 'You can generate an access code only for your own hotel.',
+      });
+      return;
+    }
+    const tenant = await Tenant.findById(hotelId);
+    if (!tenant || !['ACTIVE', 'TRIAL'].includes(tenant.status)) {
+      res.status(404).json({
+        success: false,
+        errorCode: 'HOTEL_NOT_FOUND',
+        message: 'Active hotel not found.',
+      });
+      return;
+    }
+
+    const requestedCode = req.body?.code;
+    if (requestedCode !== undefined && !isValidStaffHotelCode(requestedCode)) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_HOTEL_CODE_FORMAT',
+        message: 'A custom staff hotel code must be six digits or use the existing two-letter code format.',
+      });
+      return;
+    }
+
+    const code = requestedCode === undefined
+      ? generateStaffHotelCode(tenant.name)
+      : normalizeStaffHotelCode(requestedCode);
+
+    // Prevent duplicate codes across distinct properties
+    const hashedCode = hashStaffHotelCode(code);
+    const codeConflict = await Tenant.findOne({
+      _id: { $ne: tenant._id },
+      staffAccessCodeHash: hashedCode,
+      status: { $in: ['ACTIVE', 'TRIAL'] },
+    });
+    if (codeConflict) {
+      res.status(409).json({
+        success: false,
+        errorCode: 'HOTEL_CODE_ALREADY_IN_USE',
+        message: `Hotel code '${code}' is already assigned to another property. Please choose another code.`,
+      });
+      return;
+    }
+
+    // Overwrite old code and rotate version so all prior staff sessions & tokens are instantly revoked
+    const version = randomUUID();
+    tenant.staffAccessCodeHash = hashedCode;
+    tenant.staffAccessCodeVersion = version;
+    tenant.staffAccessCodeUpdatedAt = new Date();
+    await tenant.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Staff hotel code generated. Share it securely; the code is shown only once.',
+      data: {
+        code,
+        hotelName: tenant.name,
+        updatedAt: tenant.staffAccessCodeUpdatedAt,
+      },
+    });
+  } catch (error: any) {
+    console.error('[HotelStaff] Staff access code generation failed:', error);
+    res.status(500).json({
+      success: false,
+      errorCode: 'STAFF_ACCESS_CODE_GENERATION_FAILED',
+      message: 'Could not generate the staff access code.',
+    });
+  }
+};
+
 // 2. POST /api/v1/hotel-staff (Create new staff member)
 export const createHotelStaff = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
@@ -154,25 +260,24 @@ export const createHotelStaff = async (req: TenantRequest, res: Response): Promi
 
     // Enforce Portal Subscription Gating: Hotel Admin can ONLY create staff for subscribed portals
     const tenant = await Tenant.findById(hotelId).lean();
-    if (tenant && Array.isArray(tenant.enabledPortals)) {
-      const roleToPortalMap: Record<string, string> = {
-        [UserRole.WAITER]: 'waiter',
-        [UserRole.CHEF]: 'kds',
-        [UserRole.CASHIER]: 'cashier',
-        [UserRole.RECEPTIONIST]: 'reception',
-        [UserRole.MANAGER]: 'admin',
-        [UserRole.HOTEL_ADMIN]: 'admin',
-      };
-      const requiredPortal = roleToPortalMap[normalizedRole];
-      if (requiredPortal && !tenant.enabledPortals.includes(requiredPortal)) {
-        res.status(403).json({
-          success: false,
-          errorCode: 'PORTAL_NOT_SUBSCRIBED',
-          requiredPortal,
-          message: `Cannot create staff for role '${normalizedRole}'. The '${requiredPortal}' portal workstation is not included in this hotel's subscription.`,
-        });
-        return;
-      }
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Hotel not found.' });
+      return;
+    }
+
+    const portalAccess = resolveStaffPortalAccess(
+      normalizedRole,
+      Array.isArray(tenant.enabledPortals) ? tenant.enabledPortals : [],
+      resolveTenantCapabilities(tenant)
+    );
+    if (!portalAccess.allowed) {
+      res.status(403).json({
+        success: false,
+        errorCode: portalAccess.errorCode,
+        requiredPortal: portalAccess.requiredPortal,
+        message: portalAccess.message,
+      });
+      return;
     }
 
     if (normalizedRole === UserRole.HOTEL_ADMIN && req.user?.role !== UserRole.HOTEL_ADMIN && req.user?.role !== UserRole.SUPERADMIN) {
@@ -211,7 +316,6 @@ export const createHotelStaff = async (req: TenantRequest, res: Response): Promi
       email: staffEmail,
       phone: staffPhone,
       passwordHash,
-      pinCode: String(pin),
       pinCodeHash,
       pinApprovedByAdmin: true,
       pinStatus: 'ACTIVE',
@@ -219,7 +323,7 @@ export const createHotelStaff = async (req: TenantRequest, res: Response): Promi
       shiftStatus: shiftStatus || ShiftStatus.ON_DUTY,
       isActive: true,
       avatar: staffAvatar,
-      permissions: ['KDS_SCREEN', 'POS_OPERATIONS', 'WAITER_KOT', 'TABLE_MANAGE', 'CHECK_IN_OUT'],
+      permissions: STAFF_PERMISSIONS_BY_ROLE[normalizedRole],
       shift: shift || 'Morning Shift',
       assignedSection,
       assignedStation,
@@ -228,7 +332,7 @@ export const createHotelStaff = async (req: TenantRequest, res: Response): Promi
       assignedCounter,
     } as any);
 
-    const createdStaff = toDTO(newUser as IUser & Record<string, any>, true, String(pin));
+    const createdStaff = toDTO(newUser as IUser & Record<string, any>);
 
     res.status(201).json({
       success: true,
@@ -333,7 +437,6 @@ export const updateHotelStaff = async (req: TenantRequest, res: Response): Promi
         res.status(400).json({ success: false, errorCode: 'INVALID_PIN', message: 'PIN must be exactly 4 numeric digits' });
         return;
       }
-      updates.pinCode = String(req.body.pin);
       updates.pinCodeHash = await argon2.hash(String(req.body.pin));
       updates.passwordHash = await argon2.hash(String(req.body.pin));
       updates.pinApprovedByAdmin = true;
@@ -468,4 +571,3 @@ export const approveStaffPin = async (req: TenantRequest, res: Response): Promis
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
   }
 };
-

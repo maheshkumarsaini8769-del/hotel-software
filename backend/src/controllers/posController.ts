@@ -3,12 +3,13 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { Types } from 'mongoose';
 import { DiningTable, TableStatus } from '../models/DiningTable';
+import { Room } from '../models/Room';
 import { TableSession, SessionStatus } from '../models/TableSession';
 import { MenuItem, FoodType } from '../models/MenuItem';
 import { MenuCategory } from '../models/MenuCategory';
 import { KitchenStation } from '../models/KitchenStation';
 import { User } from '../models/User';
-import { RestaurantOrder, OverallOrderStatus, ItemProductionStatus, OrderType } from '../models/RestaurantOrder';
+import { RestaurantOrder, OverallOrderStatus, ItemProductionStatus, OrderType, OrderSource } from '../models/RestaurantOrder';
 import { Tenant } from '../models/Tenant';
 import { UserRole } from '../types';
 import { TenantRequest } from '../types';
@@ -26,6 +27,7 @@ import {
   signTableSessionToken,
   matchesTableSessionToken,
 } from '../utils/tableSessionToken';
+import { resolveTenantCapabilities } from '../utils/tenantCapabilities';
 
 // 1. Get or Validate Table Session via Ephemeral QR Token
 export const accessTableByQR = async (req: Request, res: Response): Promise<void> => {
@@ -79,8 +81,20 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    const hotel = await Tenant.findById(hotelId).select('name enabledPortals');
-    const waiterEnabled = hotel?.enabledPortals?.includes('waiter') ?? true;
+    const hotel = await Tenant.findById(hotelId);
+    const waiterEnabled = hotel ? resolveTenantCapabilities(hotel).waiterDispatch : false;
+    const anyHotel = (hotel || {}) as any;
+    const hotelAddr = typeof anyHotel.address === 'object' && anyHotel.address ? anyHotel.address : {};
+    const hotelStreet = hotelAddr.street || anyHotel.street || '';
+    const hotelCity = hotelAddr.city || anyHotel.city || 'Jaipur';
+    const hotelState = hotelAddr.state || anyHotel.state || 'Rajasthan';
+    const hotelCountry = hotelAddr.country || anyHotel.country || 'India';
+    const hotelPincode = hotelAddr.pincode || anyHotel.pincode || '';
+    const hotelCoordinates = anyHotel.coordinates || {
+      latitude: typeof anyHotel.latitude === 'number' ? anyHotel.latitude : 26.9124,
+      longitude: typeof anyHotel.longitude === 'number' ? anyHotel.longitude : 75.7873,
+    };
+    const hotelGoogleMapUrl = anyHotel.googleMapUrl || `https://www.google.com/maps/search/?api=1&query=${hotelCoordinates.latitude},${hotelCoordinates.longitude}`;
 
     // Verify QR token if table has a registered qrTokenHash
     if (table.qrTokenHash) {
@@ -184,63 +198,8 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
     );
 
     const seatedGuests = session ? Number(session.guestCount || 0) : (effectiveTable.currentStatus === TableStatus.OCCUPIED ? tableCapacity : 0);
-    const isCapacityReached = seatedGuests >= tableCapacity && tableCapacity > 0;
 
-    // 3. Block unauthorized new device when table is full or occupied by seated guests
-    if (!isAuthorizedPartyMember && hasActiveSession && isCapacityReached) {
-      const displayCount = seatedGuests > 0 ? seatedGuests : tableCapacity;
-      res.status(409).json({
-        success: false,
-        errorCode: 'TABLE_ALREADY_OCCUPIED',
-        isOccupied: true,
-        isTableFull: true,
-        canOrder: false,
-        message: `Table ${effectiveTable.tableNumber} is currently occupied with ${displayCount} seated guests (Capacity: ${tableCapacity} seats). All seats are occupied. New food orders cannot be placed from this device.`,
-        data: {
-          isOccupied: true,
-          isTableFull: true,
-          canOrder: false,
-          tableId: effectiveTable._id.toString(),
-          tableNumber: effectiveTable.tableNumber,
-          section: effectiveTable.section,
-          capacity: tableCapacity,
-          guestCount: displayCount,
-          status: effectiveTable.currentStatus,
-          hotelId: String(effectiveTable.hotelId),
-          hotelName: hotel?.name || 'SpiceHub Hotel',
-          waiterEnabled,
-        },
-      });
-      return;
-    }
-
-    if (!isAuthorizedPartyMember && effectiveTable.currentStatus === TableStatus.OCCUPIED && !hasActiveSession) {
-      res.status(409).json({
-        success: false,
-        errorCode: 'TABLE_ALREADY_OCCUPIED',
-        isOccupied: true,
-        isTableFull: true,
-        canOrder: false,
-        message: `Table ${effectiveTable.tableNumber} is currently occupied by seated guests. New food orders cannot be placed from this device.`,
-        data: {
-          isOccupied: true,
-          isTableFull: true,
-          canOrder: false,
-          tableId: effectiveTable._id.toString(),
-          tableNumber: effectiveTable.tableNumber,
-          section: effectiveTable.section,
-          capacity: tableCapacity,
-          guestCount: tableCapacity,
-          status: effectiveTable.currentStatus,
-          hotelId: String(effectiveTable.hotelId),
-          hotelName: hotel?.name || 'SpiceHub Hotel',
-          waiterEnabled,
-        },
-      });
-      return;
-    }
-
-    // 4. If no active session, create a fresh ephemeral session token for new party
+    // 4. If no active session, create a fresh ephemeral session for this table
     if (!session || session.status !== SessionStatus.ACTIVE) {
       const ephemeralRawToken = crypto.randomBytes(32).toString('hex');
       const tokenHash = crypto.createHash('sha256').update(ephemeralRawToken).digest('hex');
@@ -258,6 +217,25 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
       effectiveTable.activeSessionId = session._id as Types.ObjectId;
       await effectiveTable.save();
 
+      // Real-time broadcast to Waiters and FrontDesk PMS
+      try {
+        io.to(`${effectiveTable.hotelId}_global`)
+          .to(`${effectiveTable.hotelId}_pos`)
+          .to(`${effectiveTable.hotelId}_waiters`)
+          .to(`${effectiveTable.hotelId}_waiter`)
+          .emit('table:status_changed', {
+            tableNumber: effectiveTable.tableNumber,
+            tableId: effectiveTable._id.toString(),
+            status: 'OCCUPIED',
+            currentStatus: 'OCCUPIED',
+            sessionId: session._id.toString(),
+            guestCount: session.guestCount,
+            capacity: tableCapacity,
+          });
+      } catch (err) {
+        console.warn('Socket broadcast error in accessTableByQR:', err);
+      }
+
       res.status(200).json({
         success: true,
         message: effectiveTable.isMerged
@@ -266,6 +244,20 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
         data: {
           hotelId: String(effectiveTable.hotelId),
           hotelName: hotel?.name || 'SpiceHub Hotel',
+          hotelStreet,
+          hotelCity,
+          hotelState,
+          hotelCountry,
+          hotelPincode,
+          hotelCoordinates,
+          googleMapUrl: hotelGoogleMapUrl,
+          hotelAddress: {
+            street: hotelStreet,
+            city: hotelCity,
+            state: hotelState,
+            pincode: hotelPincode,
+            country: hotelCountry,
+          },
           tableId: effectiveTable._id.toString(),
           tableNumber: effectiveTable.tableNumber,
           originalScannedTableNumber: table.tableNumber,
@@ -288,10 +280,35 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // 5. Existing active session within capacity: update guest count if companion joining
+    // 5. Existing active session: ensure table status is OCCUPIED and companion can join to order
+    if (effectiveTable.currentStatus !== TableStatus.OCCUPIED && effectiveTable.currentStatus !== TableStatus.MERGED) {
+      effectiveTable.currentStatus = TableStatus.OCCUPIED;
+      effectiveTable.activeSessionId = session._id as Types.ObjectId;
+      await effectiveTable.save();
+    }
+
     if (!isAuthorizedPartyMember && seatedGuests < tableCapacity) {
       session.guestCount = Math.min(tableCapacity, (session.guestCount || 1) + 1);
       await session.save();
+    }
+
+    // Real-time broadcast to Waiters
+    try {
+      io.to(`${effectiveTable.hotelId}_global`)
+        .to(`${effectiveTable.hotelId}_pos`)
+        .to(`${effectiveTable.hotelId}_waiters`)
+        .to(`${effectiveTable.hotelId}_waiter`)
+        .emit('table:status_changed', {
+          tableNumber: effectiveTable.tableNumber,
+          tableId: effectiveTable._id.toString(),
+          status: 'OCCUPIED',
+          currentStatus: 'OCCUPIED',
+          sessionId: session._id.toString(),
+          guestCount: session.guestCount,
+          capacity: tableCapacity,
+        });
+    } catch (err) {
+      console.warn('Socket broadcast error in accessTableByQR:', err);
     }
 
     // Join or resume existing active table session
@@ -303,6 +320,20 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
       data: {
         hotelId: String(effectiveTable.hotelId),
         hotelName: hotel?.name || 'SpiceHub Hotel',
+        hotelStreet,
+        hotelCity,
+        hotelState,
+        hotelCountry,
+        hotelPincode,
+        hotelCoordinates,
+        googleMapUrl: hotelGoogleMapUrl,
+        hotelAddress: {
+          street: hotelStreet,
+          city: hotelCity,
+          state: hotelState,
+          pincode: hotelPincode,
+          country: hotelCountry,
+        },
         tableId: effectiveTable._id.toString(),
         tableNumber: effectiveTable.tableNumber,
         originalScannedTableNumber: table.tableNumber,
@@ -381,6 +412,19 @@ export const getDemoContext = async (req: Request, res: Response): Promise<void>
         }).sort({ placedAt: 1 })
       : [];
 
+    const anyTenant = tenant as any;
+    const tenantAddr = typeof anyTenant.address === 'object' && anyTenant.address ? anyTenant.address : {};
+    const demoStreet = tenantAddr.street || anyTenant.street || '';
+    const demoCity = tenantAddr.city || anyTenant.city || 'Jaipur';
+    const demoState = tenantAddr.state || anyTenant.state || 'Rajasthan';
+    const demoCountry = tenantAddr.country || anyTenant.country || 'India';
+    const demoPincode = tenantAddr.pincode || anyTenant.pincode || '';
+    const demoCoordinates = anyTenant.coordinates || {
+      latitude: typeof anyTenant.latitude === 'number' ? anyTenant.latitude : 26.9124,
+      longitude: typeof anyTenant.longitude === 'number' ? anyTenant.longitude : 75.7873,
+    };
+    const demoGoogleMapUrl = anyTenant.googleMapUrl || `https://www.google.com/maps/search/?api=1&query=${demoCoordinates.latitude},${demoCoordinates.longitude}`;
+
     res.status(200).json({
       success: true,
       data: {
@@ -389,7 +433,22 @@ export const getDemoContext = async (req: Request, res: Response): Promise<void>
           name: tenant.name,
           slug: tenant.slug,
           currency: tenant.currency || 'INR',
-          waiterEnabled: tenant.enabledPortals?.includes('waiter') ?? true,
+          waiterEnabled: resolveTenantCapabilities(tenant).waiterDispatch,
+          street: demoStreet,
+          city: demoCity,
+          state: demoState,
+          country: demoCountry,
+          pincode: demoPincode,
+          address: {
+            street: demoStreet,
+            city: demoCity,
+            state: demoState,
+            pincode: demoPincode,
+            country: demoCountry,
+          },
+          coordinates: demoCoordinates,
+          googleMapUrl: demoGoogleMapUrl,
+          locationNotes: anyTenant.locationNotes || '',
         },
         table: table4
           ? {
@@ -845,6 +904,7 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
     // an authenticated staff JWT or present the raw QR session token issued at scan time.
     const authHeader = req.headers.authorization;
     let staffAuthenticated = false;
+    let isQrSessionOrder = false;
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       try {
@@ -881,6 +941,7 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
         });
         return;
       }
+      isQrSessionOrder = isValidToken;
     }
 
     // Table Status & Capacity Verification
@@ -1024,6 +1085,16 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
       hotelId: new Types.ObjectId(hotelId),
       orderNumber,
       orderType,
+      source:
+        orderType === OrderType.ROOM_SERVICE
+          ? OrderSource.IN_ROOM_DINING
+          : isQrSessionOrder
+            ? OrderSource.TABLE_QR
+            : staffAuthenticated
+              ? OrderSource.STAFF_POS
+              : orderType === OrderType.TAKEAWAY
+                ? OrderSource.TAKEAWAY
+                : undefined,
       tableSessionId: session._id,
       tableId: session.tableId,
       items: validatedItems,
@@ -1226,15 +1297,21 @@ export const updateKDSOrderStatus = async (req: TenantRequest, res: Response): P
     }
 
     if (order.orderStatus === OverallOrderStatus.READY) {
-      let tableNumberDisplay = 'Table 4';
+      let tableNumberDisplay = 'Table';
+      let roomNumberDisplay: string | undefined;
       if (order.tableId) {
         const tableDoc = await DiningTable.findById(order.tableId);
         if (tableDoc) tableNumberDisplay = tableDoc.tableNumber;
       }
+      if (order.roomId) {
+        const room = await Room.findById(order.roomId).select('roomNumber');
+        roomNumberDisplay = room?.roomNumber;
+      }
       io.to(`${order.hotelId}_waiters`).to(`${order.hotelId}_global`).emit('order:ready', {
         orderId: order._id.toString(),
         orderNumber: order.orderNumber,
-        tableNumber: tableNumberDisplay,
+        tableNumber: roomNumberDisplay ? `Room ${roomNumberDisplay}` : tableNumberDisplay,
+        roomNumber: roomNumberDisplay,
         tableId: order.tableId,
         roomId: order.roomId,
         readyAt: order.readyAt,
@@ -1418,7 +1495,41 @@ export const getDiningTables = async (req: TenantRequest, res: Response): Promis
       filter.currentStatus = status;
     }
 
-    const tables = await DiningTable.find(filter).sort({ tableNumber: 1 });
+    const storedTables = await DiningTable.find(filter).sort({ tableNumber: 1 });
+    let tables = storedTables;
+    if (req.user?.role === UserRole.WAITER) {
+      const waiter = await User.findById(req.user.userId)
+        .select('assignedTableStart assignedTableEnd assignedSection')
+        .lean();
+      const start = Number(waiter?.assignedTableStart) || 0;
+      const end = Number(waiter?.assignedTableEnd) || 0;
+      if (waiter && start > 0 && end >= start) {
+        // Sections are stored as codes (AC_DINING) but staff records created
+        // before this was normalised hold free text ("Indoor AC Hall"). Compare
+        // on an alphanumeric-only basis so both forms match the same tables.
+        const normalizeSection = (value: unknown) =>
+          String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const assignedSection = normalizeSection(waiter.assignedSection);
+        tables = storedTables.filter((table) => {
+          const tableNumber = Number(String(table.tableNumber || '').replace(/\D/g, ''));
+          return (
+            tableNumber >= start &&
+            tableNumber <= end &&
+            (!assignedSection || normalizeSection(table.section) === assignedSection)
+          );
+        });
+        // Legacy free-text sections never match a code; fall back to the
+        // assigned table range instead of showing the waiter an empty floor.
+        if (tables.length === 0 && assignedSection) {
+          tables = storedTables.filter((table) => {
+            const tableNumber = Number(String(table.tableNumber || '').replace(/\D/g, ''));
+            return tableNumber >= start && tableNumber <= end;
+          });
+        }
+      } else {
+        tables = [];
+      }
+    }
 
     // Populate active order totals for occupied tables
     const tableCards = await Promise.all(
@@ -2515,12 +2626,22 @@ export const updateTableSessionPax = async (req: Request, res: Response): Promis
     await session.save();
 
     const isFull = session.guestCount >= tableCapacity;
-    io.to(`${hotelId}_global`).to(`${hotelId}_pos`).to(`${hotelId}_waiters`).emit('table:pax_updated', {
+    io.to(`${hotelId}_global`).to(`${hotelId}_pos`).to(`${hotelId}_waiters`).to(`${hotelId}_waiter`).emit('table:pax_updated', {
       tableId: session.tableId.toString(),
+      tableNumber: table?.tableNumber,
       sessionId: session._id.toString(),
       guestCount: session.guestCount,
       capacity: tableCapacity,
       isTableFull: isFull,
+    });
+    io.to(`${hotelId}_global`).to(`${hotelId}_pos`).to(`${hotelId}_waiters`).to(`${hotelId}_waiter`).emit('table:status_changed', {
+      tableId: session.tableId.toString(),
+      tableNumber: table?.tableNumber,
+      sessionId: session._id.toString(),
+      status: 'OCCUPIED',
+      currentStatus: 'OCCUPIED',
+      guestCount: session.guestCount,
+      capacity: tableCapacity,
     });
 
     res.status(200).json({
@@ -2538,4 +2659,3 @@ export const updateTableSessionPax = async (req: Request, res: Response): Promis
     res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: err.message });
   }
 };
-

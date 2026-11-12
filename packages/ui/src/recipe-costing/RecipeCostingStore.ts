@@ -31,6 +31,9 @@ export class RecipeCostingStore {
       highCostRecipesCount: 0,
       averageFoodCostPercentage: 0,
       targetFoodCostPercentage: 32,
+      menuItemCount: 0,
+      recipeCoverageCount: 0,
+      recipeCoveragePercentage: 0,
     },
     wasteLogs: [],
     wasteSummary: {

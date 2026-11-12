@@ -40,7 +40,7 @@ export const GroupBookingCard: React.FC<GroupBookingCardProps> = ({
   const hasActiveStays = checkedInRooms > 0;
 
   return (
-    <div className="bg-slate-900 rounded-2xl border border-zinc-800 hover:border-amber-500/40 p-5 transition-all shadow-lg flex flex-col justify-between">
+    <div className="bg-slate-900 rounded-xl border border-zinc-800 hover:border-amber-500/40 p-5 transition-all shadow-lg flex flex-col justify-between">
       <div>
         {/* Top Header: Code, Policy, Status */}
         <div className="flex items-start justify-between gap-3 mb-3">
@@ -149,7 +149,7 @@ export const GroupBookingCard: React.FC<GroupBookingCardProps> = ({
             onClick={() => onBulkCheckIn(group)}
             className="flex-1 py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs transition-all shadow-md text-center"
           >
-            ⚡ Bulk Check-In
+             Bulk Check-In
           </button>
         )}
 
@@ -157,7 +157,7 @@ export const GroupBookingCard: React.FC<GroupBookingCardProps> = ({
           onClick={() => onViewSplitFolio(group)}
           className="flex-1 py-1.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium text-xs border border-zinc-700/60 transition-all text-center"
         >
-          📄 Split Folio & Tax Invoice
+           Split Folio & Tax Invoice
         </button>
 
         {hasActiveStays && (
@@ -175,7 +175,7 @@ export const GroupBookingCard: React.FC<GroupBookingCardProps> = ({
             onClick={() => onSettleCorporate(group)}
             className="py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shadow-md text-center"
           >
-            💳 Settle Master
+             Settle Master
           </button>
         )}
 
@@ -185,7 +185,7 @@ export const GroupBookingCard: React.FC<GroupBookingCardProps> = ({
             className="py-1.5 px-2.5 rounded-xl bg-red-950/60 hover:bg-red-900 text-red-300 font-medium text-xs border border-red-800/40 transition-all text-center"
             title="Checkout all in-house rooms"
           >
-            🚪 Group Checkout
+             Group Checkout
           </button>
         )}
       </div>

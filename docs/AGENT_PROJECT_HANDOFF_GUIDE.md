@@ -12,7 +12,7 @@
 ### Core Architectural Pillars
 1. **Single Centralized Backend Engine (`:5000`)**: Powered by Node.js, Express, TypeScript, MongoDB 7.0+ (Replica Set `rs0` for multi-document ACID transactions), Redis 7.2+ (caching and pub/sub), and Socket.IO (bidirectional real-time event distribution).
 2. **Eight Dedicated Micro-Frontends (`:3001` - `:3008`)**: Built with React 18, Vite, Tailwind CSS, Lucide icons, and shared design tokens.
-3. **Native Mobile Shells**: Capacitor Android applications (`spicehub-customer-android` and `spicehub-staff-android`) operating untethered over Wi-Fi with camera QR scanning, encrypted 4-digit PIN authentication, and physical back-button navigation.
+3. **Mobile Delivery**: A Capacitor Android application for customers (`spicehub-customer-android`) and installable browser PWAs for staff (`staff-pwa`).
 4. **Strict Multi-Tenancy**: Every entity, order, booking, folio, and socket room is isolated by `hotelId` (Tenant ID), with portal-level licensing enforced by SuperAdmin.
 
 ---
@@ -68,7 +68,7 @@ Hotel-Software/
 │   ├── cashier-pos-app/           # Port 3007 (React + Vite)
 │   ├── reception-frontdesk-app/   # Port 3008 (React + Vite)
 │   ├── spicehub-customer-android/ # Capacitor native Android shell for customer app
-│   └── spicehub-staff-android/    # Capacitor native Android shell for staff terminals
+│   └── staff-pwa/                 # Browser-installable staff PWA shell
 ├── scripts/                       # E2E test suites, load test, DB backup, seeding utilities
 └── docs/                          # Architectural specifications, operational policies, and guides
 ```

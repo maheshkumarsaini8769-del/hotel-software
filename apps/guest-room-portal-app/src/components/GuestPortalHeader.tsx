@@ -88,15 +88,15 @@ export const GuestPortalHeader: React.FC<GuestPortalHeaderProps> = ({
               data-testid={`guest-tab-${tab.key.toLowerCase()}`}
               onClick={() => onTabChange(tab.key as any)}
               className={`py-3 px-4 text-xs font-bold transition flex items-center space-x-2 border-b-2 relative shrink-0 ${
-                isActive
-                  ? 'border-amber-400 text-amber-300 bg-amber-500/5'
-                  : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-900/60'
-              }`}
+ isActive
+ ? 'border-amber-400 text-amber-300 bg-emerald-600/5'
+ : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-900/60'
+ }`}
             >
               <span>{tab.icon}</span>
               <span>{tab.label}</span>
               {tab.count !== undefined && tab.count > 0 && (
-                <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                <span className="bg-emerald-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
                   {tab.count}
                 </span>
               )}

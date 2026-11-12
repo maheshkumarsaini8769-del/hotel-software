@@ -196,17 +196,17 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
                 <div key={st.num} className="relative z-10 flex flex-col items-center">
                   <div
                     className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition shadow ${
-                      isPassed
-                        ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-500/30 font-black'
-                        : 'bg-slate-800 text-slate-500 border border-slate-700'
-                    }`}
+ isPassed
+ ? 'bg-emerald-600 text-white ring-2 ring-emerald-600/30 font-black'
+ : 'bg-slate-800 text-slate-500 border border-slate-700'
+ }`}
                   >
                     <span>{st.icon}</span>
                   </div>
                   <span
                     className={`text-[9px] font-bold mt-1 text-center ${
-                      isCurrent ? 'text-amber-300' : isPassed ? 'text-slate-300' : 'text-slate-600'
-                    }`}
+ isCurrent ? 'text-amber-300' : isPassed ? 'text-slate-300' : 'text-slate-600'
+ }`}
                   >
                     {st.label}
                   </span>
@@ -220,10 +220,10 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
       {checkoutResult && (
         <div
           className={`p-4 rounded-xl border text-xs font-bold flex items-center space-x-2 ${
-            checkoutResult.success
-              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-              : 'bg-red-500/20 border-red-500/40 text-red-300'
-          }`}
+ checkoutResult.success
+ ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+ : 'bg-red-500/20 border-red-500/40 text-red-300'
+ }`}
         >
           <span>{checkoutResult.success ? '✅' : '⚠️'}</span>
           <span>{checkoutResult.message}</span>
@@ -257,8 +257,8 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
           <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Net Balance Due</span>
           <span
             className={`font-mono text-sm font-extrabold ${
-              hasOutstandingBalance ? 'text-amber-400' : 'text-emerald-400'
-            }`}
+ hasOutstandingBalance ? 'text-amber-400' : 'text-emerald-400'
+ }`}
           >
             {formatCurrency(folioSummary.dueAmount)}
           </span>
@@ -383,10 +383,10 @@ export const GuestFolioReviewModal: React.FC<GuestFolioReviewModalProps> = ({
                     data-testid={`pay-method-${mode}`}
                     onClick={() => setPreferredPayment(mode)}
                     className={`py-2.5 rounded-xl font-bold border transition flex items-center justify-center space-x-1.5 ${
-                      preferredPayment === mode
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 ring-1 ring-amber-500/30'
-                        : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
-                    }`}
+ preferredPayment === mode
+ ? 'bg-emerald-600/20 text-amber-300 border-emerald-600/50 ring-1 ring-emerald-600/30'
+ : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+ }`}
                   >
                     <span>{mode === 'UPI' ? '📱' : mode === 'CARD' ? '💳' : '💵'}</span>
                     <span>{mode}</span>

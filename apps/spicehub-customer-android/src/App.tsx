@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { App as CapApp } from '@capacitor/app';
-import { registerPlugin } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import jsQR from 'jsqr';
-import { useTranslation, LanguageToggle } from '@spicehub/ui';
+import { useTranslation, CustomerNeedHelpChatModal, CustomerDownloadAppBanner } from '@spicehub/ui';
+
+declare const __SPICEHUB_DEV_LAN_IP__: string | undefined;
 
 export interface ActiveHotel {
   id: string;
@@ -22,7 +24,18 @@ export interface ActiveHotel {
   };
   photos?: string[];
   tagline?: string;
+  status?: string;
+  contactEmail?: string;
+  updatedAt?: string;
+  createdAt?: string;
   enabledPortals?: string[];
+  serviceCapabilities?: {
+    roomBooking?: boolean;
+    reception?: boolean;
+    inRoomServices?: boolean;
+    tableOrdering?: boolean;
+    waiterDispatch?: boolean;
+  };
   contactPhone?: string;
   wifiSsid?: string;
   wifiPassword?: string;
@@ -139,85 +152,43 @@ const compressImageToBase64 = (file: File): Promise<string> => {
   });
 };
 
-// Resilient Offline-Safe SVG Fallbacks
-const FALLBACK_HOTEL_COVER = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400">
-  <defs>
-    <linearGradient id="hotelBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1e293b"/>
-      <stop offset="50%" stop-color="#0f172a"/>
-      <stop offset="100%" stop-color="#020617"/>
-    </linearGradient>
-  </defs>
-  <rect width="800" height="400" fill="url(#hotelBg)"/>
-  <circle cx="400" cy="180" r="140" fill="#d97706" opacity="0.08"/>
-  <path d="M260 280 L260 160 L330 110 L400 160 L400 280 Z" fill="#334155" opacity="0.6"/>
-  <path d="M400 280 L400 130 L470 80 L540 130 L540 280 Z" fill="#1e293b" opacity="0.8"/>
-  <path d="M330 280 L330 140 L400 90 L470 140 L470 280 Z" fill="#475569" opacity="0.8"/>
-  <g fill="#fbbf24" opacity="0.75">
-    <rect x="355" y="160" width="16" height="20" rx="3"/>
-    <rect x="390" y="160" width="16" height="20" rx="3"/>
-    <rect x="425" y="160" width="16" height="20" rx="3"/>
-    <rect x="355" y="200" width="16" height="20" rx="3"/>
-    <rect x="390" y="200" width="16" height="20" rx="3"/>
-    <rect x="425" y="200" width="16" height="20" rx="3"/>
-    <rect x="355" y="240" width="16" height="20" rx="3"/>
-    <rect x="390" y="240" width="16" height="20" rx="3"/>
-    <rect x="425" y="240" width="16" height="20" rx="3"/>
-  </g>
-  <text x="400" y="340" fill="#f8fafc" font-family="system-ui, sans-serif" font-size="22" font-weight="800" text-anchor="middle" letter-spacing="2">SPICEHUB LUXURY RESORT</text>
-  <text x="400" y="365" fill="#f59e0b" font-family="system-ui, sans-serif" font-size="12" font-weight="600" text-anchor="middle" letter-spacing="4">HERITAGE HOSPITALITY &amp; SUITES</text>
-</svg>
-`);
+// Flat, luxury fallbacks keep the app usable without hotel-uploaded images.
+const FALLBACK_HOTEL_COVER = '/images/customer-hotel-cover.jpg';
 
 const FALLBACK_HOTEL_LOGO = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
-  <defs>
-    <linearGradient id="logoBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#d97706"/>
-      <stop offset="100%" stop-color="#b45309"/>
-    </linearGradient>
-  </defs>
-  <rect width="120" height="120" rx="30" fill="url(#logoBg)"/>
-  <circle cx="60" cy="60" r="46" fill="none" stroke="#fef3c7" stroke-width="2" stroke-dasharray="4,4"/>
-  <text x="60" y="72" fill="#ffffff" font-family="system-ui, sans-serif" font-size="36" font-weight="900" text-anchor="middle">S</text>
-  <circle cx="60" cy="24" r="3.5" fill="#fbbf24"/>
+  <rect width="120" height="120" rx="28" fill="#123C2B"/>
+  <circle cx="60" cy="60" r="42" fill="none" stroke="#F3D79B" stroke-width="3"/>
+  <text x="60" y="72" fill="#F3D79B" font-family="serif" font-size="38" font-weight="bold" text-anchor="middle">S</text>
 </svg>
 `);
 
-const FALLBACK_ROOM_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">
-  <defs>
-    <linearGradient id="roomBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1e293b"/>
-      <stop offset="100%" stop-color="#0f172a"/>
-    </linearGradient>
-  </defs>
-  <rect width="600" height="400" fill="url(#roomBg)"/>
-  <rect x="150" y="80" width="300" height="150" rx="8" fill="#334155" opacity="0.6"/>
-  <rect x="180" y="100" width="240" height="110" rx="4" fill="#475569" opacity="0.8"/>
-  <rect x="160" y="210" width="280" height="120" rx="12" fill="#e2e8f0"/>
-  <path d="M160 250 L440 250 L440 330 L160 330 Z" fill="#cbd5e1"/>
-  <rect x="180" y="180" width="100" height="45" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-  <rect x="320" y="180" width="100" height="45" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-  <circle cx="110" cy="180" r="18" fill="#fef08a" opacity="0.8"/>
-  <circle cx="490" cy="180" r="18" fill="#fef08a" opacity="0.8"/>
-  <text x="300" y="375" fill="#f8fafc" font-family="system-ui, sans-serif" font-size="16" font-weight="800" text-anchor="middle" letter-spacing="1">PREMIUM EXECUTIVE SUITE</text>
-</svg>
-`);
+const FALLBACK_ROOM_IMAGE = '/images/customer-room.jpg';
+const FALLBACK_DINING_IMAGE = '/images/customer-dining.jpg';
 
-const CURATED_ROOM_IMAGES = [
-  'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=900&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=900&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=900&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=900&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1591088398332-8a7791972843?w=900&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=900&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=900&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?w=900&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?w=900&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=900&auto=format&fit=crop&q=80',
-];
+const CURATED_ROOM_IMAGES = [FALLBACK_ROOM_IMAGE];
+
+const getHotelCoverImage = (hotel?: ActiveHotel | null): string =>
+  hotel?.coverImageUrl?.trim() || FALLBACK_HOTEL_COVER;
+
+const getHotelStayImage = (hotel?: ActiveHotel | null): string =>
+  hotel?.stayImageUrl?.trim() || hotel?.coverImageUrl?.trim() || FALLBACK_ROOM_IMAGE;
+
+const getHotelDiningImage = (hotel?: ActiveHotel | null): string =>
+  hotel?.diningImageUrl?.trim() || hotel?.coverImageUrl?.trim() || FALLBACK_DINING_IMAGE;
+
+const handleImageError =
+  (fallback: string) =>
+  (event: React.SyntheticEvent<HTMLImageElement>): void => {
+    const image = event.currentTarget;
+    const fallbackUrl = new URL(fallback, image.baseURI).href;
+    if (image.src === fallbackUrl) {
+      image.style.display = 'none';
+      console.warn('[Customer app] Bundled image fallback failed to load:', fallback);
+      return;
+    }
+    image.src = fallback;
+  };
 
 const getRoomDisplayPhoto = (room: CatalogRoom): string => {
   const custom = room.photos?.[0] || room.roomType?.photos?.[0];
@@ -465,78 +436,189 @@ const Icons = {
       <line x1="2" x2="22" y1="10" y2="10" />
     </svg>
   ),
+  MessageSquare: ({ className = 'w-4 h-4' }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  ),
+  AlertTriangle: ({ className = 'w-4 h-4' }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  ),
+  RefreshCw: ({ className = 'w-4 h-4' }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M8 16H3v5" />
+    </svg>
+  ),
+  Server: ({ className = 'w-4 h-4' }: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+      <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+      <line x1="6" x2="6.01" y1="6" y2="6" />
+      <line x1="6" x2="6.01" y1="18" y2="18" />
+    </svg>
+  ),
 };
 
-const PROD_API_BASE = 'https://spicehub-backend.vercel.app';
-const PROD_TABLE_PORTAL_BASE = 'https://spicehub-customer-table.vercel.app';
-const PROD_ROOM_PORTAL_BASE = 'https://spicehub-guest-portal.vercel.app';
-const PROD_SOCKET_URL = 'https://spicehub-socket-server.onrender.com';
-const DEV_LAN_HOST = '127.0.0.1';
+const PROD_API_BASE = import.meta.env.VITE_API_BASE?.trim() || 'https://spicehub-backend.vercel.app';
+const PROD_TABLE_PORTAL_BASE =
+  import.meta.env.VITE_TABLE_PORTAL_BASE?.trim() || 'https://spicehub-customer-table.vercel.app';
+const PROD_ROOM_PORTAL_BASE =
+  import.meta.env.VITE_ROOM_PORTAL_BASE?.trim() || 'https://spicehub-guest-portal.vercel.app';
+const PROD_SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL?.trim() || 'https://spicehub-socket-server.onrender.com';
+
+const BUILT_IN_LAN_IP =
+  typeof __SPICEHUB_DEV_LAN_IP__ !== 'undefined' ? __SPICEHUB_DEV_LAN_IP__.trim() : '';
+const DEV_LAN_HOST =
+  import.meta.env.VITE_LAN_HOST?.trim() ||
+  (BUILT_IN_LAN_IP && BUILT_IN_LAN_IP !== '127.0.0.1' ? BUILT_IN_LAN_IP : '127.0.0.1');
+
+const isPrivateNetworkHost = (value: string): boolean => {
+  const clean = value.replace(/^https?:\/\//i, '').split(':')[0].split('/')[0].trim().toLowerCase();
+  return (
+    clean === 'localhost' ||
+    clean === '127.0.0.1' ||
+    clean === '10.0.2.2' ||
+    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(clean) ||
+    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(clean) ||
+    /^172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(clean)
+  );
+};
+
+const isProductionBackendHost = (value: string): boolean =>
+  value.includes('vercel.app') ||
+  value.includes('onrender.com') ||
+  (value.startsWith('https://') && !isPrivateNetworkHost(value));
+
+const normalizeBackendHost = (rawHost: string): string => {
+  const trimmed = String(rawHost || '').trim().replace(/\/api\/v1\/?$/i, '').replace(/\/+$/, '');
+  if (!trimmed) return PROD_API_BASE;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  const looksCloudDomain = trimmed.includes('.vercel.app') || trimmed.includes('.onrender.com');
+  if (looksCloudDomain) return `https://${trimmed}`;
+  return trimmed.includes(':') ? `http://${trimmed}` : `http://${trimmed}:5000`;
+};
+
+const isLocalWebOrigin = (): boolean => {
+  if (typeof window === 'undefined' || Capacitor.isNativePlatform()) return false;
+  const host = window.location.hostname;
+  return Boolean(host && isPrivateNetworkHost(host));
+};
 
 const resolveInitialServerHost = (): string => {
   if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('spicehub_server_host');
-    if (saved && saved !== '127.0.0.1' && saved !== 'localhost' && !saved.startsWith('192.168.') && !saved.startsWith('10.')) {
-      return saved;
-    }
+    const manual = localStorage.getItem('spicehub_server_host_manual') === 'true';
+    const saved = localStorage.getItem('spicehub_server_host')?.trim();
+    if (manual && saved) return normalizeBackendHost(saved);
+    if (isLocalWebOrigin()) return `http://${window.location.hostname}:5000`;
+    if (saved) return normalizeBackendHost(saved);
   }
-  return PROD_API_BASE;
+  return DEV_LAN_HOST !== '127.0.0.1' ? `http://${DEV_LAN_HOST}:5000` : 'http://127.0.0.1:5000';
 };
 
-export const App: React.FC = () => {
-  // Standalone Global Cloud APK: Automatically bind to Live Production Backend
-  useEffect(() => {
-    try {
-      const current = localStorage.getItem('spicehub_server_host');
-      if (!current || current === '127.0.0.1' || current === 'localhost' || current.startsWith('192.168.') || current.startsWith('10.')) {
-        localStorage.setItem('spicehub_server_host', PROD_API_BASE);
-        setServerHost(PROD_API_BASE);
-      }
-    } catch {}
-  }, []);
+const formatGuestStayDate = (value: string): string => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+};
 
-  // Configurable Host: Connected Live Production Backend Engine Host
+const CustomerAppOnlyNotice: React.FC = () => (
+  <main className="min-h-screen bg-[#F2F7F2] px-6 flex items-center justify-center text-center text-[#04120B]">
+    <section className="w-full max-w-sm rounded-2xl bg-white p-7 shadow-lg">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#123C2B] text-lg font-black text-white">
+        S
+      </div>
+      <h1 className="text-xl font-bold text-[#123C2B]">Open the SpiceHub Customer app</h1>
+      <p className="mt-2 text-sm leading-6 text-[#5D675F]">
+        Table ordering and room services are available in the installed mobile app.
+      </p>
+    </section>
+  </main>
+);
+
+export const App: React.FC = () => {
+  return <CustomerAppExperience />;
+};
+
+const CustomerAppExperience: React.FC = () => {
+  // Configurable Host: Automatically selects local USB/LAN backend if reachable, else Cloud Production
   const [serverHost, setServerHost] = useState<string>(resolveInitialServerHost);
 
-  const isProductionHost =
-    serverHost.includes('vercel.app') ||
-    serverHost.includes('onrender.com') ||
-    (serverHost.startsWith('https://') && !serverHost.includes('localhost') && !serverHost.includes('127.0.0.1'));
+  const isProductionHost = isProductionBackendHost(serverHost);
 
-  const BASE = serverHost.startsWith('http://') || serverHost.startsWith('https://')
-    ? serverHost.replace(/\/+$/, '')
-    : `http://${serverHost}`;
+  const BASE = normalizeBackendHost(serverHost);
+
+  // The configured host may already carry a port (e.g. http://10.0.0.5:5000).
+  // Each portal runs on its own port on the same host, so always replace the
+  // port instead of appending it (`http://10.0.0.5:5000:3001` is invalid).
+  const withPort = (base: string, port: number) => {
+    try {
+      const url = new URL(base);
+      url.port = String(port);
+      return url.origin;
+    } catch {
+      return `${base.replace(/:\d+$/, '')}:${port}`;
+    }
+  };
 
   const DEFAULT_API_BASE = isProductionHost
-    ? serverHost.replace(/\/+$/, '')
-    : `${BASE.includes(':5000') ? BASE : BASE + ':5000'}`;
+    ? BASE
+    : (() => {
+        try {
+          const parsed = new URL(BASE);
+          return parsed.port ? parsed.origin : withPort(BASE, 5000);
+        } catch {
+          return withPort(BASE, 5000);
+        }
+      })();
 
   const TABLE_PORTAL_BASE = isProductionHost
     ? PROD_TABLE_PORTAL_BASE
-    : `${BASE.includes(':3001') ? BASE : BASE + ':3001'}`;
+    : withPort(BASE, 3001);
 
   const ROOM_PORTAL_BASE = isProductionHost
     ? PROD_ROOM_PORTAL_BASE
-    : `${BASE.includes(':3004') ? BASE : BASE + ':3004'}`;
+    : withPort(BASE, 3004);
 
   const SOCKET_URL = isProductionHost
     ? PROD_SOCKET_URL
-    : `${BASE.includes(':5000') ? BASE : BASE + ':5000'}`;
+    : DEFAULT_API_BASE;
 
-  // Theme state: Strictly Bright Mode (Light Theme) per global standard
-  const [theme] = useState<'light'>('light');
-  const toggleTheme = () => {};
-  const isDark = false;
-  const { t, locale, toggleLocale } = useTranslation();
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsMessage, setSettingsMessage] = useState('');
+  const [settingsCallHistory, setSettingsCallHistory] = useState<Array<{
+    requestType: string;
+    status: string;
+    requestedAt: string;
+  }>>([]);
+  const isDark = theme === 'dark';
+  const { t, locale, toggleLocale, setLocale } = useTranslation();
 
-  // Synchronize HTML element & body background with active theme
   useEffect(() => {
-    if (typeof document !== 'undefined') {
-      document.documentElement.classList.remove('dark');
-      document.body.style.backgroundColor = '#f8fafc';
-      document.body.style.color = '#0f172a';
-    }
-  }, []);
+    const root = document.documentElement;
+    root.classList.toggle('dark', isDark);
+    root.dataset.fontSize = fontSize;
+    root.style.colorScheme = isDark ? 'dark' : 'light';
+    root.style.fontSize = { small: '14px', medium: '16px', large: '18px' }[fontSize];
+    document.body.style.backgroundColor = isDark ? '#020617' : '#F2F7F2';
+    document.body.style.color = isDark ? '#FBF7EE' : '#123C2B';
+  }, [fontSize, isDark]);
 
   // Prompt Notification Permission & Register High-Priority Notification Channel on Boot
   useEffect(() => {
@@ -562,7 +644,7 @@ export const App: React.FC = () => {
 
     let notifSub: any = null;
     LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
-      console.log('🔔 [NOTIF_CLICKED]', action);
+      console.log('[NOTIF_CLICKED]', action);
       setShowActiveStayModal(true);
       setCustomerView('home');
     }).then((handle) => {
@@ -582,7 +664,7 @@ export const App: React.FC = () => {
       await LocalNotifications.schedule({
         notifications: [
           {
-            title: `🎉 Room ${booking.roomNumber} Check-In Approved!`,
+            title: `Room ${booking.roomNumber} Check-In Approved!`,
             body: `Reception has approved your booking (${booking.roomTypeName})! Keycard & high-speed WiFi are active.`,
             id: Math.floor(Date.now() % 100000),
             channelId: 'pms_approvals',
@@ -594,7 +676,7 @@ export const App: React.FC = () => {
           },
         ],
       });
-      console.log('🔔 [CustomerAndroid] Native approval notification scheduled!');
+      console.log('[CustomerAndroid] Native approval notification scheduled!');
     } catch (err) {
       console.warn('LocalNotifications schedule note:', err);
     }
@@ -603,12 +685,12 @@ export const App: React.FC = () => {
   // Navigation state: 'hotel_select' (Step 1) -> 'home' (Step 2: Service Choice) -> 'rooms' (Step 3: Room Catalog) -> 'waiting_approval' (Step 5)
   const [customerView, setCustomerView] = useState<'hotel_select' | 'home' | 'rooms' | 'waiting_approval' | 'table_scan' | 'resident_verify' | 'profile' | 'settings'>(() => {
     if (typeof window !== 'undefined') {
+      const selectedHotelId = localStorage.getItem('spicehub_customer_hotel_id');
       const pending = localStorage.getItem('spicehub_pending_approval_booking');
-      if (pending) return 'waiting_approval';
       const active = localStorage.getItem('spicehub_active_guest_reservation');
-      if (active) return 'home';
       const chosen = localStorage.getItem('spicehub_customer_hotel_chosen');
-      if (chosen === 'true') return 'home';
+      if (selectedHotelId && pending) return 'waiting_approval';
+      if (selectedHotelId && active) return 'home';
     }
     return 'hotel_select';
   });
@@ -623,8 +705,14 @@ export const App: React.FC = () => {
   const [hotels, setHotels] = useState<ActiveHotel[]>([]);
   const [selectedHotel, setSelectedHotel] = useState<ActiveHotel | null>(null);
   const [loadingHotels, setLoadingHotels] = useState(true);
+  const [hotelLoadError, setHotelLoadError] = useState('');
+  const [hotelLoadAttempt, setHotelLoadAttempt] = useState(0);
+  const [incomingAppUrl, setIncomingAppUrl] = useState<string | null>(null);
+  const [incomingAppUrlError, setIncomingAppUrlError] = useState('');
+  const lastHandledAppUrlRef = useRef('');
   const [isHotelModalOpen, setIsHotelModalOpen] = useState(false);
   const [hotelSearch, setHotelSearch] = useState('');
+  const [isHelpChatOpen, setIsHelpChatOpen] = useState(false);
 
   // Live Available Rooms & Catalog for Selected Hotel
   const [availableRoomCount, setAvailableRoomCount] = useState<number | null>(null);
@@ -816,7 +904,125 @@ export const App: React.FC = () => {
   const [activePortalUrl, setActivePortalUrl] = useState<string | null>(null);
   const [activeSessionLabel, setActiveSessionLabel] = useState<string>('');
   const [showActiveStayModal, setShowActiveStayModal] = useState(false);
-  const [settingsPage, setSettingsPage] = useState<'MAIN' | 'RESERVATION' | 'SUPPORT' | 'SESSION'>('MAIN');
+  const [settingsPage, setSettingsPage] = useState<'MAIN' | 'PREFERENCES' | 'RESERVATION' | 'SUPPORT' | 'SESSION'>('MAIN');
+  const openSettings = (page: typeof settingsPage = 'MAIN') => {
+    setSettingsPage(page);
+    setCustomerView('settings');
+  };
+
+  useEffect(() => {
+    if (customerView !== 'settings') return;
+    const sessionToken = localStorage.getItem('spicehub_customer_session_token') || '';
+    const hotelId = localStorage.getItem('spicehub_customer_hotel_id') || '';
+    if (!sessionToken || !hotelId) {
+      setSettingsError('Scan a hotel table QR to load and save account settings.');
+      return;
+    }
+
+    let active = true;
+    setSettingsError('');
+    void fetch(`${DEFAULT_API_BASE}/api/v1/customer-portal/preferences`, {
+      headers: {
+        'x-hotel-id': hotelId,
+        'x-customer-session-token': sessionToken,
+      },
+    })
+      .then(async (response) => {
+        const json = await response.json().catch(() => null);
+        if (!response.ok || !json?.success) {
+          throw new Error(json?.message || 'Settings could not be loaded.');
+        }
+        return json.data;
+      })
+      .then((data) => {
+        if (!active) return;
+        const preferences = data.preferences || {};
+        setLocale(preferences.language === 'hi' ? 'hi' : 'en');
+        setTheme(preferences.theme === 'dark' ? 'dark' : 'light');
+        setFontSize(['small', 'medium', 'large'].includes(preferences.fontSize) ? preferences.fontSize : 'medium');
+        setSettingsCallHistory(Array.isArray(data.callHistory) ? data.callHistory : []);
+      })
+      .catch((error: unknown) => {
+        if (active) setSettingsError(error instanceof Error ? error.message : 'Settings could not be loaded.');
+      });
+
+    return () => { active = false; };
+  }, [customerView, DEFAULT_API_BASE, setLocale]);
+
+  useEffect(() => {
+    if (!activePortalUrl) return;
+
+    let tablePortalOrigin: string;
+    try {
+      tablePortalOrigin = new URL(TABLE_PORTAL_BASE).origin;
+    } catch {
+      return;
+    }
+
+    const handleTableSessionReady = (event: MessageEvent) => {
+      const frame = document.getElementById('portal-frame');
+      if (
+        event.origin !== tablePortalOrigin ||
+        !(frame instanceof HTMLIFrameElement) ||
+        event.source !== frame.contentWindow ||
+        event.data?.type !== 'spicehub:table-session-ready' ||
+        typeof event.data.hotelId !== 'string' ||
+        typeof event.data.tableNumber !== 'string' ||
+        typeof event.data.sessionToken !== 'string' ||
+        !event.data.sessionToken ||
+        (selectedHotel?.id && event.data.hotelId !== selectedHotel.id)
+      ) {
+        return;
+      }
+
+      try {
+        localStorage.setItem('spicehub_customer_hotel_id', event.data.hotelId);
+        localStorage.setItem('spicehub_customer_table', event.data.tableNumber);
+        localStorage.setItem('spicehub_customer_session_token', event.data.sessionToken);
+      } catch (error) {
+        console.error('Unable to persist the active customer table session.', error);
+      }
+    };
+
+    window.addEventListener('message', handleTableSessionReady);
+    return () => window.removeEventListener('message', handleTableSessionReady);
+  }, [activePortalUrl, TABLE_PORTAL_BASE, selectedHotel?.id]);
+
+  const saveCustomerSettings = async () => {
+    const sessionToken = localStorage.getItem('spicehub_customer_session_token') || '';
+    const hotelId = localStorage.getItem('spicehub_customer_hotel_id') || '';
+    if (!sessionToken || !hotelId) {
+      setSettingsError('Scan a hotel table QR to load and save account settings.');
+      return;
+    }
+    setSettingsSaving(true);
+    setSettingsError('');
+    setSettingsMessage('');
+    try {
+      const response = await fetch(`${DEFAULT_API_BASE}/api/v1/customer-portal/preferences`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hotel-id': hotelId,
+          'x-customer-session-token': sessionToken,
+        },
+        body: JSON.stringify({
+          language: locale === 'hi' ? 'hi' : 'en',
+          theme,
+          fontSize,
+        }),
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success) {
+        throw new Error(json?.message || 'Settings could not be saved.');
+      }
+      setSettingsMessage('Settings saved');
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : 'Settings could not be saved.');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
 
   // Real-time Socket Connection for Reception Approval Events
   const socketRef = useRef<Socket | null>(null);
@@ -913,13 +1119,13 @@ export const App: React.FC = () => {
             return;
           }
 
-          // 5. On Home / Root screens, safely exit app
-          if (s.customerView === 'home') {
-            CapApp.exitApp().catch(() => {});
+          // 5. On Home / Service Choice screen, navigate back to Hotel Selection (Screen 1)
+          if (s.customerView === 'home' && !activeReservation) {
+            setCustomerView('hotel_select');
             return;
           }
 
-          // On hotel_select root view -> exit app cleanly
+          // 6. On hotel_select root view or active reservation root -> exit app cleanly
           CapApp.exitApp().catch(() => {});
         });
       } catch (e) {
@@ -934,76 +1140,218 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // 1. Fetch Active Hotels on Mount (Instant Parallel Host Resolution)
+  const selectedHotelIdRef = useRef<string>('');
+  useEffect(() => {
+    selectedHotelIdRef.current = selectedHotel?.id || '';
+  }, [selectedHotel?.id]);
+
+  const applyFetchedHotels = (list: ActiveHotel[]) => {
+    setHotels(list);
+    const activeId =
+      selectedHotelIdRef.current || localStorage.getItem('spicehub_customer_hotel_id') || '';
+    const matched = activeId ? list.find((h) => h.id === activeId) : undefined;
+    setSelectedHotel(matched || list[0] || null);
+  };
+
+  const probeHotelsHost = async (
+    host: string,
+    timeoutMs: number
+  ): Promise<{ host: string; hotels: ActiveHotel[] } | null> => {
+    const normalized = normalizeBackendHost(host);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const apiBase = isProductionBackendHost(normalized)
+        ? normalized
+        : (() => {
+            try {
+              const parsed = new URL(normalized);
+              return parsed.port ? parsed.origin : `${parsed.origin}:5000`;
+            } catch {
+              return normalized;
+            }
+          })();
+      const res = await fetch(`${apiBase}/api/v1/auth/active-hotels`, {
+        signal: controller.signal,
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
+        },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          return { host: apiBase, hotels: json.data };
+        }
+      }
+    } catch {
+      // Probe failed or timed out
+    } finally {
+      clearTimeout(timer);
+    }
+    return null;
+  };
+
+  const refreshHotelsQuietly = async (hostOverride?: string) => {
+    const targetHost = hostOverride || DEFAULT_API_BASE;
+    const hit = await probeHotelsHost(
+      targetHost,
+      isProductionBackendHost(targetHost) ? 15000 : 3500
+    );
+    if (hit) {
+      applyFetchedHotels(hit.hotels);
+      setHotelLoadError('');
+    }
+  };
+
+  // 1. Fetch Active Hotels Dynamically with Local-First Discovery & Cloud Cold-Start Resilience
   useEffect(() => {
     let isMounted = true;
     async function fetchHotels() {
       setLoadingHotels(true);
+      setHotelLoadError('');
 
-      const probe = async (host: string): Promise<{ host: string; hotels: ActiveHotel[] } | null> => {
-        try {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 2500);
-          const url = host.startsWith('http://') || host.startsWith('https://')
-            ? `${host.replace(/\/+$/, '')}/api/v1/auth/active-hotels`
-            : `http://${host}:5000/api/v1/auth/active-hotels`;
-          const res = await fetch(url, { signal: controller.signal });
-          clearTimeout(timer);
-          if (res.ok) {
-            const json = await res.json();
-            if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-              return { host, hotels: json.data };
-            }
-          }
-        } catch {
-          // Probe failed or timed out
-        }
-        return null;
-      };
-
-      const candidates = Array.from(
-        new Set([PROD_API_BASE, serverHost, DEV_LAN_HOST, '127.0.0.1'].filter(Boolean))
-      );
       try {
-        const results = await Promise.all(candidates.map(probe));
-        const winner = results.find(Boolean);
-        if (winner && isMounted) {
-          setServerHost(winner.host);
-          localStorage.setItem('spicehub_server_host', winner.host);
-          setHotels(winner.hotels);
-          const savedHotelId = localStorage.getItem('spicehub_customer_hotel_id');
-          const matched = winner.hotels.find((h) => h.id === savedHotelId);
-          setSelectedHotel(matched || winner.hotels[0]);
+        const savedRaw = localStorage.getItem('spicehub_server_host')?.trim() || '';
+        const savedHost = savedRaw ? normalizeBackendHost(savedRaw) : '';
+
+        const browserCandidate = isLocalWebOrigin()
+          ? `http://${window.location.hostname}:5000`
+          : '';
+        const savedLocalCandidate =
+          savedHost && !isProductionBackendHost(savedHost) ? savedHost : '';
+        const lanCandidate =
+          DEV_LAN_HOST && DEV_LAN_HOST !== '127.0.0.1' ? `http://${DEV_LAN_HOST}:5000` : '';
+
+        const localCandidates = Array.from(
+          new Set(
+            [
+              browserCandidate,
+              savedLocalCandidate,
+              'http://127.0.0.1:5000',
+              lanCandidate,
+              'http://10.0.2.2:5000',
+            ].filter(Boolean)
+          )
+        );
+
+        const localResults = await Promise.all(
+          localCandidates.map((candidate) => probeHotelsHost(candidate, 1800))
+        );
+        const localWinner =
+          localResults.find((res) => res && Array.isArray(res.hotels) && res.hotels.length > 0) ||
+          localResults.find(Boolean);
+
+        if (localWinner && isMounted) {
+          setServerHost(localWinner.host);
+          localStorage.setItem('spicehub_server_host', localWinner.host);
+          applyFetchedHotels(localWinner.hotels);
+          return;
+        }
+
+        // Fall back to Cloud Production with generous 15s timeout for serverless cold starts
+        const cloudResult = await probeHotelsHost(PROD_API_BASE, 15000);
+        if (cloudResult && isMounted) {
+          setServerHost(cloudResult.host);
+          localStorage.setItem('spicehub_server_host', cloudResult.host);
+          applyFetchedHotels(cloudResult.hotels);
           return;
         }
       } catch (err) {
-        console.warn('⚠️ [CustomerAndroid] Fast probe note:', err);
+        console.warn('[CustomerAndroid] Hotel discovery error:', err);
       } finally {
         if (isMounted) setLoadingHotels(false);
       }
 
       if (isMounted) {
-        const fallbackHotel: ActiveHotel = {
-          id: '6ae06d00ddbafddfbb0a8013',
-          name: 'Mahesh Hotel',
-          slug: 'mahesh-hotel-4119',
-          city: 'Jodhpur',
-          state: 'Rajasthan',
-          tagline: 'Luxury Stays & Fine Hospitality',
-          coverImageUrl: FALLBACK_HOTEL_COVER,
-          logoUrl: FALLBACK_HOTEL_LOGO,
-          stayImageUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80',
-          diningImageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80',
-        };
-        setHotels([fallbackHotel]);
-        setSelectedHotel(fallbackHotel);
+        setHotelLoadError(
+          'Hotel properties could not be loaded. Check your connection and try again.'
+        );
       }
     }
     fetchHotels();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [hotelLoadAttempt]);
+
+  // Auto-refresh hotel list when returning to picker or opening switch-hotel modal
+  useEffect(() => {
+    if (customerView === 'hotel_select' || isHotelModalOpen) {
+      void refreshHotelsQuietly();
+    }
+  }, [customerView, isHotelModalOpen, DEFAULT_API_BASE]);
+
+  useEffect(() => {
+    const onFocusOrVisible = () => {
+      if (document.visibilityState === 'hidden') return;
+      void refreshHotelsQuietly();
+    };
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onFocusOrVisible);
+    let appStateHandle: any = null;
+    if (Capacitor.isNativePlatform()) {
+      void CapApp.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) void refreshHotelsQuietly();
+      }).then((h) => {
+        appStateHandle = h;
+      });
+    }
+    return () => {
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onFocusOrVisible);
+      if (appStateHandle && typeof appStateHandle.remove === 'function') {
+        void appStateHandle.remove();
+      }
+    };
+  }, [DEFAULT_API_BASE]);
+
+  // Global Real-Time Hotel Create / Edit Listener (works on hotel selection screen & inside any hotel)
+  useEffect(() => {
+    let globalSocket: Socket | null = null;
+    try {
+      globalSocket = io(SOCKET_URL, {
+        transports: ['websocket', 'polling'],
+      });
+
+      const handleTenantUpsert = (incoming: any) => {
+        if (!incoming || !incoming.id) {
+          void refreshHotelsQuietly();
+          return;
+        }
+        setHotels((prev) => {
+          const isInactive = incoming.status && !['ACTIVE', 'TRIAL'].includes(incoming.status);
+          if (isInactive) {
+            return prev.filter((h) => h.id !== incoming.id);
+          }
+          const exists = prev.some((h) => h.id === incoming.id);
+          if (!exists) {
+            return [incoming as ActiveHotel, ...prev];
+          }
+          return prev.map((h) => (h.id === incoming.id ? { ...h, ...incoming } : h));
+        });
+        setSelectedHotel((prev) =>
+          prev && prev.id === incoming.id ? { ...prev, ...incoming } : prev
+        );
+      };
+
+      const handleTenantChangeRefresh = () => {
+        void refreshHotelsQuietly();
+      };
+
+      globalSocket.on('tenant:created', handleTenantUpsert);
+      globalSocket.on('tenant:updated', handleTenantUpsert);
+      globalSocket.on('tenant:status_changed', handleTenantChangeRefresh);
+      globalSocket.on('tenant:portals_updated', handleTenantChangeRefresh);
+      globalSocket.on('restaurant:info_updated', handleTenantChangeRefresh);
+    } catch (err) {
+      console.warn('[CustomerAndroid] Global hotel sync socket note:', err);
+    }
+    return () => {
+      if (globalSocket) globalSocket.disconnect();
+    };
+  }, [SOCKET_URL, DEFAULT_API_BASE]);
 
   // 2. Fetch Live Room Availability Catalog for Selected Hotel
   const refreshRoomsCatalog = async (hotel = selectedHotel) => {
@@ -1019,7 +1367,7 @@ export const App: React.FC = () => {
         }
       }
     } catch (err) {
-      console.warn('⚠️ [CustomerAndroid] Rooms catalog load note:', err);
+      console.warn('[CustomerAndroid] Rooms catalog load note:', err);
     } finally {
       setLoadingRooms(false);
     }
@@ -1447,6 +1795,7 @@ export const App: React.FC = () => {
     const url = new URL(TABLE_PORTAL_BASE);
     url.searchParams.set('hotelId', hotel.id);
     url.searchParams.set('table', formatted);
+    url.searchParams.set('parentOrigin', window.location.origin);
     url.searchParams.set('theme', theme);
     url.searchParams.set('apiBase', DEFAULT_API_BASE);
     url.searchParams.set('socketUrl', SOCKET_URL);
@@ -1490,6 +1839,7 @@ export const App: React.FC = () => {
     url.searchParams.set('room', formatted);
     url.searchParams.set('tab', tab);
     url.searchParams.set('theme', theme);
+    url.searchParams.set('parentOrigin', window.location.origin);
     url.searchParams.set('apiBase', DEFAULT_API_BASE);
     url.searchParams.set('socketUrl', SOCKET_URL);
     if (token) {
@@ -1513,6 +1863,106 @@ export const App: React.FC = () => {
     };
   }, [selectedHotel, theme, activeReservation]);
 
+  useEffect(() => {
+    let active = true;
+    let listenerHandle: { remove: () => Promise<void> } | undefined;
+    const listenerPromise = CapApp.addListener('appUrlOpen', ({ url }) => {
+      if (active) setIncomingAppUrl(url);
+    });
+
+    void listenerPromise.then((handle) => {
+      if (active) listenerHandle = handle;
+      else void handle.remove();
+    }).catch((error) => {
+      console.error('Unable to register customer app link listener:', error);
+    });
+
+    void CapApp.getLaunchUrl().then((launch) => {
+      if (active && launch?.url) setIncomingAppUrl(launch.url);
+    }).catch((error) => {
+      console.error('Unable to read customer app launch URL:', error);
+    });
+
+    return () => {
+      active = false;
+      if (listenerHandle) void listenerHandle.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!incomingAppUrl || loadingHotels || incomingAppUrl === lastHandledAppUrlRef.current) return;
+
+    lastHandledAppUrlRef.current = incomingAppUrl;
+    const clearIncomingUrl = () => setIncomingAppUrl(null);
+    setIncomingAppUrlError('');
+
+    try {
+      const incomingUrl = new URL(incomingAppUrl);
+
+      // Accept the hosted portals plus the private-network hosts used by the
+      // hotel admin QR generator, so a Wi-Fi QR still opens the app.
+      const knownPortalHosts = new Set([
+        new URL(PROD_TABLE_PORTAL_BASE).hostname,
+        new URL(PROD_ROOM_PORTAL_BASE).hostname,
+      ]);
+      const hostname = incomingUrl.hostname;
+      const isPrivateHost =
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+        /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+        /^172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(hostname);
+      const isPrivatePortalUrl =
+        isPrivateHost &&
+        ((incomingUrl.port === '3001') || (incomingUrl.port === '3004'));
+      if (!knownPortalHosts.has(hostname) && !isPrivatePortalUrl) {
+        setIncomingAppUrlError('This link is not a SpiceHub guest-service QR.');
+        clearIncomingUrl();
+        return;
+      }
+
+      const params = incomingUrl.searchParams;
+      const table =
+        params.get('table') ||
+        params.get('tableNumber') ||
+        params.get('tableId') ||
+        (params.get('type') === 'table' ? params.get('id') : null);
+      const room =
+        params.get('room') ||
+        params.get('roomNumber') ||
+        params.get('roomId') ||
+        (params.get('type') === 'room' ? params.get('id') : null);
+      const hotelId = params.get('hotelId');
+      const targetHotel = hotelId
+        ? hotels.find((hotel) => hotel.id === hotelId || hotel.slug === hotelId)
+        : selectedHotel;
+
+      if (Boolean(table) === Boolean(room)) {
+        setIncomingAppUrlError('This QR link is missing a valid table or room.');
+        clearIncomingUrl();
+        return;
+      }
+      if (!targetHotel) {
+        setIncomingAppUrlError('The QR link does not match an active hotel.');
+        clearIncomingUrl();
+        return;
+      }
+
+      setSelectedHotel(targetHotel);
+      const token = params.get('token') || params.get('qrToken') || params.get('sessionToken') || undefined;
+      if (table) {
+        launchTable(table, targetHotel, token);
+      } else if (room) {
+        launchResidentPortal(room, targetHotel, token, params.get('tab') || 'HOME');
+      }
+      clearIncomingUrl();
+    } catch (error) {
+      console.error('Unable to open customer guest-service link:', error);
+      setIncomingAppUrlError('This guest-service QR link could not be opened.');
+      clearIncomingUrl();
+    }
+  }, [incomingAppUrl, loadingHotels, hotels, selectedHotel]);
+
   // Haversine Distance Calculation for Geofencing
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371; // km
@@ -1528,7 +1978,32 @@ export const App: React.FC = () => {
     return Math.round(R * c * 10) / 10;
   };
 
-  const handleCheckGpsLocation = () => {
+  const handleCheckGpsLocation = (overrideCoords?: { latitude: number; longitude: number }) => {
+    const hLat =
+      Number((selectedHotel as any)?.coordinates?.latitude) ||
+      Number((selectedHotel as any)?.latitude) ||
+      26.2978;
+    const hLng =
+      Number((selectedHotel as any)?.coordinates?.longitude) ||
+      Number((selectedHotel as any)?.longitude) ||
+      73.0185;
+    const hotelCoordinates = { lat: hLat, lng: hLng };
+
+    if (overrideCoords) {
+      setUserCoords(overrideCoords);
+      const dist = calculateDistance(overrideCoords.latitude, overrideCoords.longitude, hotelCoordinates.lat, hotelCoordinates.lng);
+      setGpsDistKm(dist);
+      if (dist <= 0.5) {
+        setGpsStatus(`Verified on-site: within hotel premises (${Math.round(dist * 1000)}m away)`);
+        setBookingLocationType('HOTEL_RADIUS');
+      } else {
+        setGpsStatus(`Remote location: ${dist} km away. Auto-switched to Advance Booking.`);
+        setBookingLocationType('REMOTE_HOME');
+      }
+      setGpsChecking(false);
+      return;
+    }
+
     if (!navigator.geolocation) {
       setGpsStatus('Geolocation not supported by device');
       return;
@@ -1536,30 +2011,48 @@ export const App: React.FC = () => {
     setGpsChecking(true);
     setGpsStatus('Requesting GPS device coordinates...');
 
+    const processPosition = (pos: GeolocationPosition) => {
+      const uLat = pos.coords.latitude;
+      const uLng = pos.coords.longitude;
+      setUserCoords({ latitude: uLat, longitude: uLng });
+      const dist = calculateDistance(uLat, uLng, hotelCoordinates.lat, hotelCoordinates.lng);
+      setGpsDistKm(dist);
+
+      if (dist <= 0.5) {
+        setGpsStatus(`Verified on-site: within hotel premises (${Math.round(dist * 1000)}m away)`);
+        setBookingLocationType('HOTEL_RADIUS');
+      } else {
+        setGpsStatus(`Remote location: ${dist} km away. Auto-switched to Advance Booking.`);
+        setBookingLocationType('REMOTE_HOME');
+      }
+      setGpsChecking(false);
+    };
+
+    const handleGpsError = (err: GeolocationPositionError) => {
+      if (err.code === err.TIMEOUT) {
+        setGpsStatus('GPS high-accuracy timed out, retrying network location...');
+        navigator.geolocation.getCurrentPosition(
+          processPosition,
+          (err2) => {
+            setGpsChecking(false);
+            setGpsStatus('Location request timed out. Please allow location access or choose booking type.');
+          },
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+        );
+        return;
+      }
+      setGpsChecking(false);
+      if (err.code === err.PERMISSION_DENIED) {
+        setGpsStatus('Location permission denied. Please enable location in your browser/device settings.');
+      } else {
+        setGpsStatus('Unable to determine location. Choose your booking mode manually.');
+      }
+    };
+
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const uLat = pos.coords.latitude;
-        const uLng = pos.coords.longitude;
-        const hLat = (selectedHotel as any)?.latitude || 26.9124; // Jaipur coordinates
-        const hLng = (selectedHotel as any)?.longitude || 75.7873;
-
-        const dist = calculateDistance(uLat, uLng, hLat, hLng);
-        setGpsDistKm(dist);
-
-        if (dist <= 0.5) {
-          setGpsStatus(`Verified on-site: within hotel premises (${Math.round(dist * 1000)}m)`);
-          setBookingLocationType('HOTEL_RADIUS');
-        } else {
-          setGpsStatus(`Remote location: ${dist} km away. Auto-switched to Home Booking.`);
-          setBookingLocationType('REMOTE_HOME');
-        }
-        setGpsChecking(false);
-      },
-      (err) => {
-        setGpsChecking(false);
-        setGpsStatus('GPS permission skipped/denied. You may proceed manually.');
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
+      processPosition,
+      handleGpsError,
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
     );
   };
 
@@ -1609,7 +2102,7 @@ export const App: React.FC = () => {
       const json = await res.json();
       if (res.ok && json.success) {
         setPhoneOtpVerified(true);
-        setOtpSuccessMsg('✓ Mobile number successfully verified!');
+        setOtpSuccessMsg('Mobile number successfully verified!');
         const verifiedProfile = {
           name: guestName.trim() || 'Verified Guest',
           phone: guestPhone.trim(),
@@ -1663,6 +2156,7 @@ export const App: React.FC = () => {
       setPhoneOtpVerified(Boolean(verifiedGuestUser.isVerified));
     }
     setIsBookingModalOpen(true);
+    handleCheckGpsLocation();
   };
 
   // Step 2 of Booking: User confirms location -> Proceed to Guest Details & Reception Documents Form
@@ -1731,7 +2225,7 @@ export const App: React.FC = () => {
       }
 
       const basePrice = selectedRoomForBooking.roomType.basePriceOvernight || 2500;
-      const gstRate = basePrice > 7500 ? 18 : 12;
+      const gstRate = selectedRoomForBooking.roomType.gstRate || (basePrice > 7500 ? 18 : 12);
       const subtotal = basePrice * bookingNights;
       const taxAmount = Math.round(((subtotal * gstRate) / 100) * 100) / 100;
       const grandTotal = subtotal + taxAmount;
@@ -1766,10 +2260,17 @@ export const App: React.FC = () => {
         secondaryGuestName: isSecondRoom ? secondaryGuestName.trim() : undefined,
         secondaryGuestPhone: isSecondRoom ? secondaryGuestPhone.trim() : undefined,
         secondaryGuestRelationship: isSecondRoom ? secondaryGuestRelationship : undefined,
-        deviceLocation: gpsDistKm !== null ? {
-          distanceKm: gpsDistKm,
-          isRemote: gpsDistKm > 0.5,
-        } : undefined,
+        userLat: userCoords?.latitude,
+        userLng: userCoords?.longitude,
+        distanceFromHotelKm: gpsDistKm ?? undefined,
+        deviceLocation: userCoords
+          ? {
+              latitude: userCoords.latitude,
+              longitude: userCoords.longitude,
+              distanceKm: gpsDistKm ?? undefined,
+              isRemote: gpsDistKm !== null ? gpsDistKm > 0.5 : undefined,
+            }
+          : undefined,
       };
 
       const res = await fetch(`${DEFAULT_API_BASE}/api/v1/guest-portal/rooms/book-and-checkin`, {
@@ -1798,7 +2299,7 @@ export const App: React.FC = () => {
           checkInTime: bookingLocationType === 'REMOTE_HOME' ? estimatedArrivalTime : '12:00 PM',
           checkOutTime: bookingLocationType === 'REMOTE_HOME' ? estimatedDepartureTime : '11:00 AM',
           bookingOrigin: bookingLocationType === 'HOTEL_RADIUS' ? 'HOTEL_PREMISES' : 'REMOTE_HOME',
-          originBadge: bookingLocationType === 'HOTEL_RADIUS' ? '🏨 Hotel Premises (होटल से)' : '🏠 Remote / Home Booking (घर से)',
+          originBadge: bookingLocationType === 'HOTEL_RADIUS' ? 'Hotel Premises (होटल से)' : 'Remote / Home Booking (घर से)',
           distanceKm: gpsDistKm !== null ? gpsDistKm : undefined,
           nights: bookingNights,
           grandTotal,
@@ -1823,10 +2324,10 @@ export const App: React.FC = () => {
         refreshRoomsCatalog(selectedHotel);
       } else {
         if (json.errorCode === 'BOOKING_LIMIT_EXCEEDED') {
-          setBookingError(`🚫 ${json.message}`);
+          setBookingError(json.message);
         } else if (json.errorCode === 'SECONDARY_GUEST_REQUIRED') {
           setIsSecondRoom(true);
-          setBookingError(`⚠️ ${json.message}`);
+          setBookingError(json.message);
         } else {
           setBookingError(json.message || 'Failed to submit room reservation documents. Please try again.');
         }
@@ -1897,7 +2398,11 @@ export const App: React.FC = () => {
     const targetBookingNumber = bookingNum || pendingApprovalBooking?.bookingNumber;
     if (activeReservation) {
       alert(
-        `Reservation Verified & Checked-In:\n\nRoom ${activeReservation.roomNumber} (${activeReservation.bookingNumber}) is an active in-house stay. Self-cancellation is not permitted for verified stays.\n\nPlease contact Front Desk Reception at ${selectedHotel?.contactPhone || '+91 141 2345678'} for checkout or cancellation support.`
+        `Room ${activeReservation.roomNumber} (${activeReservation.bookingNumber}) is an active stay and cannot be cancelled here. ${
+          selectedHotel?.contactPhone
+            ? `Please contact the front desk at ${selectedHotel.contactPhone} for checkout or cancellation support.`
+            : 'Please contact the front desk for checkout or cancellation support.'
+        }`
       );
       return;
     }
@@ -1925,7 +2430,13 @@ export const App: React.FC = () => {
         alert(`Reservation #${targetBookingNumber} has been successfully cancelled.`);
         setCustomerView('home');
       } else if (data.receptionContactRequired) {
-        alert(data.message || `Please contact Front Desk at ${data.helplinePhone || '+91 141 2345678'} to modify or cancel your stay.`);
+        const helplinePhone = data.helplinePhone || selectedHotel?.contactPhone;
+        alert(
+          data.message ||
+            (helplinePhone
+              ? `Please contact the front desk at ${helplinePhone} to modify or cancel your stay.`
+              : 'Please contact the front desk to modify or cancel your stay.')
+        );
       } else {
         alert(data.message || 'Cancellation could not be completed.');
       }
@@ -2061,11 +2572,99 @@ export const App: React.FC = () => {
   const acRoomsCount = catalogRooms.filter((r) => r.displayStatus === 'AVAILABLE' && isClimateAc(r)).length;
   const nonAcRoomsCount = catalogRooms.filter((r) => r.displayStatus === 'AVAILABLE' && !isClimateAc(r)).length;
   const availableRoomsList = filteredRooms;
+  const canShowRoomBooking = selectedHotel?.serviceCapabilities?.roomBooking !== false;
+  const canShowInRoomServices = selectedHotel?.serviceCapabilities?.inRoomServices !== false;
+  const canShowReception = selectedHotel?.serviceCapabilities?.reception !== false;
+  const canShowServiceDirectory = canShowInRoomServices || canShowReception;
+  const stayNavWidth = canShowInRoomServices
+    ? 'w-1/5'
+    : canShowReception
+      ? 'w-1/4'
+      : 'w-1/3';
+  const profileName =
+    activeReservation?.guestName ||
+    verifiedGuestUser?.name ||
+    pendingApprovalBooking?.guestName ||
+    guestName.trim() ||
+    'Guest';
+  const profilePhone =
+    verifiedGuestUser?.phone ||
+    activeReservation?.guestPhone ||
+    pendingApprovalBooking?.guestPhone ||
+    guestPhone.trim();
+  const profileEmail = activeReservation?.guestEmail || pendingApprovalBooking?.guestEmail;
+  const profileStatus = activeReservation
+    ? 'In-house guest'
+    : verifiedGuestUser?.isVerified
+      ? 'Mobile verified'
+      : pendingApprovalBooking
+        ? 'Booking pending'
+        : 'Guest';
+  const pageSurfaceClass = isDark
+    ? 'border-[#315342] bg-[#123C2B] text-[#F2F7F2]'
+    : 'border-[#D7E5D9] bg-white text-[#123C2B]';
+  const softSurfaceClass = isDark
+    ? 'border-[#315342] bg-[#183B2D] text-[#F2F7F2]'
+    : 'border-[#D7E5D9] bg-[#F5FAF5] text-[#123C2B]';
+  const mutedTextClass = isDark ? 'text-[#B9C9BD]' : 'text-[#5E7163]';
+  const controlClass = isDark
+    ? 'border-[#486553] bg-[#102D21] text-[#F2F7F2] placeholder-[#9AB09E]'
+    : 'border-[#B8D0BE] bg-white text-[#123C2B] placeholder-[#6B7F70]';
+
+  const selectHotel = (hotel: ActiveHotel, openHome = false) => {
+    const previousHotelId = localStorage.getItem('spicehub_customer_hotel_id');
+    const hasGuestSession = Boolean(
+      activeReservation ||
+      pendingApprovalBooking ||
+      verifiedGuestUser ||
+      localStorage.getItem('spicehub_active_guest_reservation') ||
+      localStorage.getItem('spicehub_pending_approval_booking') ||
+      localStorage.getItem('spicehub_verified_guest_user')
+    );
+
+    if (hasGuestSession && previousHotelId !== hotel.id) {
+      try {
+        if (activeReservation?.bookingNumber) {
+          localStorage.removeItem(`spicehub_room_entered_${activeReservation.bookingNumber}`);
+        }
+        localStorage.removeItem('spicehub_active_guest_reservation');
+        localStorage.removeItem('spicehub_pending_approval_booking');
+        localStorage.removeItem('spicehub_verified_guest_user');
+      } catch (error) {
+        console.warn('Could not clear previous hotel guest session:', error);
+      }
+      setActiveReservation(null);
+      setBookingConfirmation(null);
+      setPendingApprovalBooking(null);
+      setVerifiedGuestUser(null);
+      setIsRoomEntered(false);
+      setGuestName('');
+      setGuestPhone('');
+      setGuestEmail('');
+      setPhoneOtp('');
+      setPhoneOtpSent(false);
+      setPhoneOtpVerified(false);
+      setOtpSuccessMsg(null);
+      setRoomNumberInput('');
+      setGuestPhoneInput('');
+      setActivePortalUrl(null);
+    }
+
+    setSelectedHotel(hotel);
+    try {
+      localStorage.setItem('spicehub_customer_hotel_id', hotel.id);
+      localStorage.setItem('spicehub_customer_hotel_chosen', 'true');
+    } catch (error) {
+      console.warn('Could not persist customer hotel selection:', error);
+    }
+    if (openHome) setCustomerView('home');
+    setStayVerifyError(null);
+  };
 
   // If a portal is active (e.g. In-Room Dining or Dine-In Table Menu), render embedded portal with single clean navbar
   if (activePortalUrl) {
     return (
-      <div className="w-full h-full flex flex-col bg-[#F8FAFC] text-slate-900 relative">
+      <div className="w-full h-full flex flex-col bg-[#F2F7F2] text-slate-900 relative">
         {/* Clean Native Top Navigation Bar */}
         <div
           className="w-full shrink-0 z-40 px-3 py-2 bg-white text-slate-900 flex items-center justify-between border-b border-slate-200 shadow-xs"
@@ -2107,9 +2706,19 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden flex justify-center bg-[#F6F1E6]">
-      <div className="max-w-md w-full h-[100dvh] flex flex-col lux-page text-[#1B2A22] overflow-hidden relative">
-      {/* Heritage brand header */}
+    <div className={`h-[100dvh] w-full overflow-hidden flex justify-center ${activeReservation && customerView === 'home' ? 'bg-[#F7FAF7]' : 'bg-[#F2F7F2]'}`}>
+      <div className={`max-w-md w-full h-[100dvh] flex flex-col overflow-hidden relative ${
+        activeReservation && customerView === 'home'
+          ? 'guest-stay-shell'
+          : isDark
+            ? 'bg-[#0C2118] text-[#F2F7F2]'
+            : 'lux-page text-[#123C2B]'
+      }`}>
+      {/* Top Navbar Download App Banner */}
+      <CustomerDownloadAppBanner portal="general" />
+
+      {/* Heritage brand header (hidden on approval page — it renders its own dark hero) */}
+      {customerView !== 'waiting_approval' && !(activeReservation && customerView === 'home') && (
       <header
         className="w-full sticky top-0 z-30 shrink-0"
         style={{
@@ -2117,42 +2726,62 @@ export const App: React.FC = () => {
         }}
       >
         <div className="px-5 pb-3 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => setCustomerView('hotel_select')}
-            className="flex items-center gap-3 min-w-0 text-left active:opacity-80 transition"
-            title="Switch Hotel Property"
-          >
-            <div className="w-12 h-12 rounded-2xl overflow-hidden ring-1 ring-[#E6DCC7] shadow-sm bg-white shrink-0">
-              <img
-                src={selectedHotel?.logoUrl || FALLBACK_HOTEL_LOGO}
-                alt={selectedHotel?.name || 'Hotel Logo'}
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = FALLBACK_HOTEL_LOGO;
-                }}
-                className="w-full h-full object-cover"
-              />
+          {customerView === 'hotel_select' ? (
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-[#123C2B] text-[#F3D79B] border border-[#2D5A46] shadow-sm flex items-center justify-center shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                  <path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h2v2H9zM13 9h2v2h-2zM9 13h2v2H9zM13 13h2v2h-2zM9 17h2v4H9zM13 17h2v4h-2z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <h1 className="font-lux text-[19px] leading-tight font-bold text-[#123C2B] whitespace-nowrap">
+                  SpiceHub Hotels
+                </h1>
+                <p className="text-[12px] mt-0.5 whitespace-nowrap font-medium text-[#7C7566] flex items-center gap-1">
+                  <Icons.Location className="w-3.5 h-3.5 text-[#123C2B]" />
+                  <span>Select Hotel Property</span>
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h1 className="font-lux text-[21px] leading-tight font-bold text-[#123C2B] truncate">
-                {selectedHotel?.name || 'SpiceHub Guest'}
-              </h1>
-              <p className="text-[12px] mt-0.5 truncate font-medium text-[#7C7566] flex items-center gap-1">
-                <Icons.Location className="w-3.5 h-3.5 text-[#123C2B]" />
-                <span>
-                  {selectedHotel?.city ? `${selectedHotel.city}, ${selectedHotel.state || 'India'}` : 'Guest Stay & Dining'}
-                </span>
-              </p>
-            </div>
-          </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setCustomerView('hotel_select')}
+              className="flex items-center gap-3 min-w-0 text-left active:opacity-80 transition group"
+              title="Switch Hotel Property"
+            >
+              <div className="w-12 h-12 rounded-2xl overflow-hidden ring-1 ring-[#E6DCC7] shadow-sm bg-white shrink-0">
+                <img
+                  src={selectedHotel?.logoUrl || FALLBACK_HOTEL_LOGO}
+                  alt={selectedHotel?.name || 'Hotel Logo'}
+                  onError={handleImageError(FALLBACK_HOTEL_LOGO)}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h1 className="font-lux text-[21px] leading-tight font-bold text-[#123C2B] truncate group-hover:text-[#0E2A1E]">
+                    {selectedHotel?.name || 'SpiceHub Guest'}
+                  </h1>
+                  <Icons.Switch className="w-3.5 h-3.5 text-[#A58852] shrink-0" />
+                </div>
+                <p className="text-[12px] mt-0.5 truncate font-medium text-[#7C7566] flex items-center gap-1">
+                  <Icons.Location className="w-3.5 h-3.5 text-[#123C2B]" />
+                  <span>
+                    {selectedHotel?.city ? `${selectedHotel.city}, ${selectedHotel.state || 'India'}` : 'Guest Stay & Dining'}
+                  </span>
+                </p>
+              </div>
+            </button>
+          )}
 
           <button
             type="button"
             onClick={toggleLocale}
-            className="flex items-center gap-1.5 shrink-0 rounded-full bg-white border border-[#E7DFCE] px-3 py-2 text-[12px] font-bold text-[#123C2B] shadow-sm active:scale-95 transition"
+            className="flex items-center gap-1.5 shrink-0 px-3.5 py-1.5 rounded-full bg-white border border-[#E7DFCE] text-[#123C2B] text-xs font-bold shadow-sm active:scale-95 transition"
             title={locale === 'en' ? 'हिन्दी में बदलें' : 'Switch to English'}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#123C2B]">
               <circle cx="12" cy="12" r="10" />
               <path d="M2 12h20" />
               <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
@@ -2164,16 +2793,42 @@ export const App: React.FC = () => {
           </button>
         </div>
       </header>
+      )}
 
       {/* Main Content Viewport */}
-      <main className="flex-1 overflow-y-auto overscroll-contain no-scrollbar max-w-md w-full mx-auto px-4 pt-1 flex flex-col gap-4 pb-28">
+      <main data-testid="customer-main-content" className="flex-1 overflow-y-auto overscroll-contain no-scrollbar max-w-md w-full mx-auto px-4 pt-1 flex flex-col gap-4 pb-28">
+        {hotelLoadError && (
+          <div role="alert" className="rounded-xl border border-[#E7DFCE] bg-white p-4 text-sm text-[#123C2B]">
+            <p>{hotelLoadError}</p>
+            <button
+              type="button"
+              onClick={() => setHotelLoadAttempt((attempt) => attempt + 1)}
+              className="mt-3 min-h-[44px] rounded-xl bg-[#123C2B] px-4 font-bold text-white"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {incomingAppUrlError && (
+          <div role="alert" className="flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-[#123C2B]">
+            <p>{incomingAppUrlError}</p>
+            <button
+              type="button"
+              aria-label="Dismiss QR link error"
+              onClick={() => setIncomingAppUrlError('')}
+              className="min-h-[44px] min-w-[44px] shrink-0 rounded-lg font-bold"
+            >
+              <Icons.X className="mx-auto h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* ======================================================== */}
         {/* STEP 1: DEDICATED HOTEL SELECTION SCREEN ('hotel_select')*/}
         {/* ======================================================== */}
         {customerView === 'hotel_select' && (
-          <div className="flex flex-col gap-4 lux-fade-in pt-1">
-            {/* Hotel Search + Filter */}
+          <div className="flex flex-col gap-3.5 lux-fade-in pt-1">
+            {/* Hotel Search + Refresh + Server Connection Status */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 <input
@@ -2182,14 +2837,18 @@ export const App: React.FC = () => {
                   value={hotelSearch}
                   onChange={(e) => setHotelSearch(e.target.value)}
                   placeholder="Search hotel name, city (e.g. Jaipur, Rajasthan)..."
-                  className="w-full h-[50px] rounded-2xl border border-[#E7DFCE] bg-white pl-11 pr-9 text-[13px] font-medium text-[#1B2A22] placeholder-[#A79E8B] shadow-sm focus:outline-none focus:border-[#9DB7A5]"
+                  className={`w-full h-[50px] rounded-2xl border pl-11 pr-10 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-[#12804E] shadow-xs ${
+                    isDark
+                      ? 'bg-[#183728] border-[#2A523D] text-[#F2F7F2] placeholder-[#8A9E90]'
+                      : 'bg-white border-[#D7E5D9] text-[#123C2B] placeholder-[#7D8F81]'
+                  }`}
                 />
-                <Icons.Search className="w-[18px] h-[18px] text-[#9C9482] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Icons.Search className="w-[18px] h-[18px] text-[#8A9E90] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                 {hotelSearch && (
                   <button
                     type="button"
                     onClick={() => setHotelSearch('')}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#9C9482]"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-[#8A9E90] hover:text-[#123C2B] transition"
                   >
                     <Icons.X className="w-4 h-4" />
                   </button>
@@ -2197,80 +2856,68 @@ export const App: React.FC = () => {
               </div>
               <button
                 type="button"
-                className="w-[50px] h-[50px] rounded-2xl bg-[#123C2B] text-[#F3E4C2] flex items-center justify-center shadow-sm active:scale-95 transition"
-                title="Filters"
+                data-testid="hotel-list-refresh-btn"
+                onClick={() => setHotelLoadAttempt((attempt) => attempt + 1)}
+                disabled={loadingHotels}
+                aria-label="Refresh hotels"
+                title="Refresh hotel list"
+                className={`h-[50px] w-[50px] shrink-0 rounded-2xl border flex items-center justify-center transition active:scale-95 ${
+                  isDark
+                    ? 'bg-[#183728] border-[#2A523D] text-[#F2F7F2]'
+                    : 'bg-white border-[#D7E5D9] text-[#123C2B] hover:bg-[#F2F7F2]'
+                }`}
               >
-                <Icons.Filter className="w-5 h-5" />
+                <Icons.RefreshCw className={`w-4 h-4 ${loadingHotels ? 'animate-spin' : ''}`} />
               </button>
             </div>
 
-            <div className="flex items-center justify-between gap-2 px-0.5">
-              <div className="flex items-center gap-2 text-[13px] font-bold text-[#123C2B] min-w-0">
-                <Icons.Shield className="w-4 h-4 shrink-0" />
-                <span className="truncate">{filteredHotels.length} Verified Properties Ready</span>
+            {!loadingHotels && filteredHotels.length === 0 && (
+              <div className={`rounded-2xl border p-6 text-center text-sm ${pageSurfaceClass}`}>
+                <p className="font-semibold">No active hotels match your view</p>
+                <p className={`mt-1 text-xs ${mutedTextClass}`}>
+                  {hotelSearch ? 'Try clearing the search query.' : 'No hotels are available right now. Tap Refresh to check again.'}
+                </p>
               </div>
-              {selectedHotel && (
-                <button
-                  type="button"
-                  onClick={() => setCustomerView('home')}
-                  className="lux-btn-gold px-3 py-2 text-[12px] flex items-center gap-1.5 shrink-0 active:scale-95 transition"
-                >
-                  <span>Continue with {selectedHotel.name.split(' ')[0]}</span>
-                  <Icons.ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+            )}
 
             {/* Hotel Cards List */}
             <div className="flex flex-col gap-4">
               {filteredHotels.map((h) => {
                 const isSelected = selectedHotel?.id === h.id;
-                const cover = h.coverImageUrl || FALLBACK_HOTEL_COVER;
+                const cover = getHotelCoverImage(h);
                 const logo = h.logoUrl || FALLBACK_HOTEL_LOGO;
 
                 return (
                   <div
                     key={h.id}
                     data-testid={`hotel-card-${h.id}`}
-                    onClick={() => {
-                      setSelectedHotel(h);
-                      try {
-                        localStorage.setItem('spicehub_customer_hotel_chosen', 'true');
-                      } catch {}
-                      setCustomerView('home');
-                      setStayVerifyError(null);
-                    }}
+                    onClick={() => selectHotel(h, true)}
                     className={`cursor-pointer transition-all duration-200 active:scale-[0.99] group ${
-                      isSelected
-                        ? 'rounded-[22px] border-2 border-[#E2B96A] bg-[#FBF3E0] p-1.5 shadow-[0_12px_30px_rgba(176,136,58,0.18)]'
-                        : 'rounded-[20px] border border-[#ECE3D2] bg-white shadow-sm overflow-hidden'
-                    }`}
+ isSelected
+ ? 'rounded-[22px] border-2 border-[#12804E] bg-[#E8F3EA] p-1.5 shadow-[0_12px_30px_rgba(18,60,43,0.14)]'
+ : 'rounded-[20px] border border-[#ECE3D2] bg-white shadow-sm overflow-hidden'
+ }`}
                   >
-                    <div className={`relative overflow-hidden bg-[#0E2A1E] ${isSelected ? 'rounded-[16px] h-[138px]' : 'h-[138px]'}`}>
+                    <div className={`relative overflow-hidden bg-[#0E2A1E] ${isSelected ? 'rounded-[16px] h-[165px]' : 'h-[165px]'}`}>
                       <img
                         src={cover}
                         alt={h.name}
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = FALLBACK_HOTEL_COVER;
-                        }}
+                        onError={handleImageError(FALLBACK_HOTEL_COVER)}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/15" />
+                      <div className="bg-gradient-to-t absolute inset-0 from-black/90 via-black/35 to-black/15" />
 
                       <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-black/55 text-white border border-white/20 backdrop-blur-md flex items-center gap-1">
                           <Icons.Location className="w-3 h-3 text-[#F7E2B4]" />
                           <span>{h.city || 'India'}{h.state ? `, ${h.state}` : ''}</span>
                         </span>
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#12804E] text-white backdrop-blur-md flex items-center gap-1 shadow-sm">
-                          <Icons.Check className="w-3 h-3" />
-                          <span>Verified</span>
-                        </span>
                       </div>
 
                       {isSelected && (
-                        <span className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#F7E2B4] text-[#7A5210] border border-[#E9C98A] shadow-sm">
-                          Selected
+                        <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#E4F1E6] text-[#123C2B] border border-[#B8D7C1] shadow-sm flex items-center gap-1">
+                          <Icons.Star className="w-3 h-3 fill-[#123C2B] text-[#123C2B]" />
+                          <span>Selected</span>
                         </span>
                       )}
 
@@ -2279,9 +2926,7 @@ export const App: React.FC = () => {
                           <img
                             src={logo}
                             alt=""
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = FALLBACK_HOTEL_LOGO;
-                            }}
+                            onError={handleImageError(FALLBACK_HOTEL_LOGO)}
                             className="w-full h-full object-cover"
                           />
                         </div>
@@ -2298,19 +2943,19 @@ export const App: React.FC = () => {
 
                     <div className={`flex items-center justify-between ${isSelected ? 'px-2.5 py-2.5' : 'px-4 py-3'}`}>
                       <div className="flex items-center gap-1">
-                        <Icons.Star className="w-4 h-4 fill-[#D9A93F] text-[#D9A93F]" />
-                        <Icons.Star className="w-4 h-4 fill-[#D9A93F] text-[#D9A93F]" />
-                        <Icons.Star className="w-4 h-4 fill-[#D9A93F] text-[#D9A93F]" />
-                        <Icons.Star className="w-4 h-4 fill-[#D9A93F] text-[#D9A93F]" />
-                        <Icons.Star className="w-4 h-4 fill-[#D9A93F] text-[#D9A93F]" />
+                        <Icons.Star className="w-4 h-4 fill-[#D9A93F]" />
+                        <Icons.Star className="w-4 h-4 fill-[#D9A93F]" />
+                        <Icons.Star className="w-4 h-4 fill-[#D9A93F]" />
+                        <Icons.Star className="w-4 h-4 fill-[#D9A93F]" />
+                        <Icons.Star className="w-4 h-4 fill-[#D9A93F]" />
                         <span className="w-px h-4 bg-[#E7DFCE] mx-2" />
                         <span className="text-[12px] font-medium text-[#7C7566]">5-Star Luxury</span>
                       </div>
 
                       <div
                         className={`flex items-center gap-1.5 text-[13px] font-bold group-hover:translate-x-0.5 transition-transform ${
-                          isSelected ? 'text-[#8A5A12]' : 'text-[#123C2B]'
-                        }`}
+ isSelected ? 'text-[#0F2F21]' : 'text-[#123C2B]'
+ }`}
                       >
                         <span>{isSelected ? 'Selected' : 'Select Hotel'}</span>
                         <Icons.ArrowRight className="w-4 h-4" />
@@ -2324,268 +2969,368 @@ export const App: React.FC = () => {
         )}
 
         {/* ======================================================== */}
-        {/* VIEW 5: WAITING FOR APPROVAL SCREEN (Matches User Image) */}
+        {/* VIEW 5: WAITING FOR APPROVAL SCREEN (Exact Reference UI) */}
         {/* ======================================================== */}
         {customerView === 'waiting_approval' && (
-          <div className="flex flex-col gap-4 animate-in fade-in pb-4">
-            {/* Top Action: Back to Home */}
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                data-testid="approval-back-home-btn"
-                onClick={() => setCustomerView('home')}
-                className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl border transition active:scale-95 ${
-                  isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700 shadow-xs'
-                }`}
-              >
-                <Icons.ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Home</span>
-              </button>
-            </div>
+          <div className="-mx-4 -mt-1 lux-fade-in pb-2">
+            {/* ================= DARK HERITAGE HERO HEADER ================= */}
+            <div
+              className="relative overflow-hidden bg-[#123C2B] px-5 pb-12"
+              style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 18px)' }}
+            >
+              <div
+                className="absolute inset-0 opacity-[0.18]"
+                style={{
+                  backgroundImage: `url("${getHotelCoverImage(selectedHotel)}"), url("${FALLBACK_HOTEL_COVER}")`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center right',
+                }}
+              />
+              <div className="bg-gradient-to-t absolute inset-0 from-[#123C2B] via-[#123C2B]/85 to-[#123C2B]/35" />
 
-            {/* Center Status: Amber Circular Illustration + Title + Subtitle */}
-            <div className="text-center space-y-2.5 pt-1">
-              <div className="w-20 h-20 rounded-full bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-500 shadow-sm mx-auto relative">
-                <div className="absolute inset-0 rounded-full border border-amber-300/40 animate-ping opacity-30" style={{ animationDuration: '3s' }} />
-                <Icons.Clock className="w-9 h-9 text-amber-500" />
-              </div>
+              <div className="relative z-10 flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  {/* Gold lotus mark */}
+                  <svg
+                    viewBox="0 0 48 48"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.9}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="w-11 h-11 shrink-0 text-[#F3D79B]"
+                    aria-hidden="true"
+                  >
+                    <path d="M24 12c3.6 4.4 4 9.6 0 14-4-4.4-3.6-9.6 0-14Z" />
+                    <path d="M24 26c-4.6-1.2-7.4-4.2-8.4-9 4.9-.2 7.8 2.6 8.4 9Z" />
+                    <path d="M24 26c4.6-1.2 7.4-4.2 8.4-9-4.9-.2-7.8 2.6-8.4 9Z" />
+                    <path d="M23 28c-6.4 1.8-12-.4-15-5.6 5.2-2.4 12-.6 15 5.6Z" />
+                    <path d="M25 28c6.4 1.8 12-.4 15-5.6-5.2-2.4-12-.6-15 5.6Z" />
+                    <path d="M12 33.5c7.5 3.6 16.5 3.6 24 0" />
+                  </svg>
 
-              <div className="space-y-1">
-                <h2 className={`text-2xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  Waiting for Approval
-                </h2>
-                <p className={`text-xs max-w-xs mx-auto leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Your check-in request has been submitted and is currently under review by the Front Desk.
-                </p>
-              </div>
-            </div>
-
-            {/* 3-Step Horizontal Stepper (Request Submitted ➔ Waiting for Approval ➔ Check-in Approved) */}
-            <div className={`p-4 rounded-2xl border shadow-xs ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-            }`}>
-              <div className="flex items-start justify-between relative px-2 sm:px-6">
-                {/* Connecting Line 1 to 2 (Green) */}
-                <div className="absolute left-10 right-1/2 top-3.5 h-0.5 bg-emerald-500 -translate-y-1/2 z-0" />
-                {/* Connecting Line 2 to 3 (Muted Gray) */}
-                <div className="absolute left-1/2 right-10 top-3.5 h-0.5 bg-slate-200 dark:bg-slate-700 -translate-y-1/2 z-0" />
-
-                {/* Step 1: Request Submitted (Green Completed) */}
-                <div className="flex flex-col items-center relative z-10 text-center w-20">
-                  <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shadow-xs">
-                    <Icons.Check className="w-4 h-4 stroke-[3]" />
+                  <div className="min-w-0">
+                    <h1 className="font-lux text-[24px] leading-tight font-bold text-white truncate">
+                      {selectedHotel?.name || 'Mahesh Hotel'}
+                    </h1>
+                    <p className="text-[12.5px] text-[#D8E9DF] font-medium mt-1 flex items-center gap-1.5">
+                      <Icons.Location className="w-3.5 h-3.5 text-[#F3D79B] shrink-0" />
+                      <span className="truncate">
+                        {selectedHotel?.city || 'Jodhpur'}, {selectedHotel?.state || 'Rajasthan'}
+                      </span>
+                    </p>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5 leading-tight">
-                    Request<br />Submitted
-                  </span>
                 </div>
 
-                {/* Step 2: Waiting for Approval (Amber In-Progress) */}
-                <div className="flex flex-col items-center relative z-10 text-center w-20">
-                  <div className="w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shadow-xs ring-4 ring-amber-100 dark:ring-amber-950/60 animate-pulse">
-                    <Icons.Clock className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-[11px] font-black text-amber-600 dark:text-amber-400 mt-1.5 leading-tight">
-                    Waiting for<br />Approval
-                  </span>
-                </div>
-
-                {/* Step 3: Check-in Approved (Pending Gray) */}
-                <div className="flex flex-col items-center relative z-10 text-center w-20">
-                  <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-400 flex items-center justify-center text-xs font-bold">
-                    <Icons.Key className="w-3.5 h-3.5 text-slate-400" />
-                  </div>
-                  <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-1.5 leading-tight">
-                    Check-in<br />Approved
-                  </span>
+                <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleCheckApprovalStatus()}
+                    className="relative w-11 h-11 rounded-full border border-white/25 bg-white/5 flex items-center justify-center text-white active:scale-95 transition"
+                    aria-label="Notifications"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
+                      <path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7" />
+                      <path d="M10.3 20a2 2 0 0 0 3.4 0" />
+                    </svg>
+                    <span className="absolute top-2 right-2.5 w-2.5 h-2.5 rounded-full bg-[#EF4444] ring-2 ring-[#123C2B]" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerView('profile')}
+                    className="w-11 h-11 rounded-full border border-white/25 bg-white/5 flex items-center justify-center text-white active:scale-95 transition"
+                    aria-label="Profile"
+                  >
+                    <Icons.User className="w-[19px] h-[19px]" />
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Booking Details Card (4 Rows: Room, Duration, Primary Guest, Total Amount) */}
-            {(() => {
-              const b = pendingApprovalBooking || (activeReservation ? {
-                roomNumber: activeReservation.roomNumber,
-                roomTypeName: activeReservation.roomTypeName,
-                nights: activeReservation.nights || 1,
-                checkInDate: activeReservation.checkInDate,
-                checkOutDate: activeReservation.checkOutDate,
-                guestName: activeReservation.guestName,
-                guestPhone: activeReservation.guestPhone,
-                grandTotal: activeReservation.grandTotal || 3136,
-                bookingNumber: activeReservation.bookingNumber,
-              } : null);
+            {/* ================= CREAM PANEL OVERLAPPING HEADER ================= */}
+            <div className="-mt-7 relative z-10 rounded-t-[26px] bg-[#FBF7EE] px-4 pt-4 pb-8 flex flex-col gap-4">
+              {/* Back to Home pill */}
+              <div>
+                <button
+                  type="button"
+                  data-testid="approval-back-home-btn"
+                  onClick={() => setCustomerView('home')}
+                  className="flex items-center gap-2 text-[13px] font-bold px-4 py-2.5 rounded-xl border border-[#E7DFCE] bg-white text-[#123C2B] shadow-sm active:scale-95 transition"
+                >
+                  <Icons.ArrowLeft className="w-4 h-4 text-[#123C2B]" />
+                  <span>Back to Home</span>
+                </button>
+              </div>
 
-              if (!b) {
-                return (
-                  <div className="p-6 rounded-2xl border text-center space-y-2 border-slate-200 bg-white shadow-xs">
-                    <p className="text-xs text-slate-500">No pending booking verification active.</p>
-                    <button
-                      type="button"
-                      onClick={() => setCustomerView('rooms')}
-                      className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs"
-                    >
-                      Browse Available Rooms
-                    </button>
+              {/* ---------- STATUS HERO CARD ---------- */}
+              <div className="relative overflow-hidden rounded-[26px] border border-[#EDE4D2] bg-white shadow-[0_14px_34px_rgba(30,60,45,0.09)] px-4 pt-6 pb-5">
+                <img
+                  src={getHotelCoverImage(selectedHotel)}
+                  alt=""
+                  onError={handleImageError(FALLBACK_HOTEL_COVER)}
+                  className="absolute left-0 top-0 h-full w-[46%] object-cover opacity-45"
+                  style={{ maskImage: 'linear-gradient(to right, #000 20%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to right, #000 20%, transparent 100%)' }}
+                />
+                <img
+                  src={getHotelStayImage(selectedHotel)}
+                  alt=""
+                  onError={handleImageError(FALLBACK_ROOM_IMAGE)}
+                  className="absolute right-0 top-0 h-full w-[46%] object-cover opacity-40"
+                  style={{ maskImage: 'linear-gradient(to left, #000 20%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to left, #000 20%, transparent 100%)' }}
+                />
+                <div className="bg-gradient-to-t absolute inset-0 from-white/45 via-white/80 to-white/95" />
+
+                <div className="relative z-10 flex flex-col items-center text-center">
+                  {/* Emblem */}
+                  <div className="relative w-[106px] h-[106px] flex items-center justify-center">
+                    <span className="absolute inset-0 rounded-full border border-[#F3D79B]/70" />
+                    <span className="absolute inset-[7px] rounded-full bg-[#FBF4E4]" />
+                    <span className="absolute inset-[15px] rounded-full bg-white/70 blur-[2px]" />
+                    <div className="bg-gradient-to-t relative w-[62px] h-[62px] rounded-[16px] from-[#F9EAC8] to-[#F2DDAF] border-[2.5px] border-[#123C2B] flex items-center justify-center shadow-[0_6px_14px_rgba(18,60,43,0.18)]">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#123C2B" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" className="w-[30px] h-[30px]">
+                        <rect x="5" y="5" width="14" height="15.6" rx="2.6" />
+                        <rect x="9" y="2.6" width="6" height="4" rx="1.6" fill="#F4DFB4" />
+                        <circle cx="12" cy="13.2" r="3.3" />
+                        <path d="M12 11.5v1.9l1.2.9" />
+                      </svg>
+                    </div>
                   </div>
-                );
-              }
 
-              // Format date string for Nov 01 → Nov 02 style
-              const formatDates = () => {
-                try {
-                  const cin = b.checkInDate ? new Date(b.checkInDate) : new Date();
-                  const cout = b.checkOutDate ? new Date(b.checkOutDate) : new Date(cin.getTime() + (b.nights || 1) * 24 * 60 * 60 * 1000);
-                  const cinStr = cin.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
-                  const coutStr = cout.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
-                  return `${cinStr} → ${coutStr}`;
-                } catch {
-                  return 'Nov 01 → Nov 02';
+                  <h2 className="font-lux text-[30px] leading-[1.1] font-bold text-[#123C2B] mt-3">
+                    Waiting for Approval
+                  </h2>
+                  <p className="text-[13px] leading-relaxed text-[#57534A] mt-2 max-w-[290px]">
+                    Your check-in request has been submitted and is currently under review by the Front Desk.
+                  </p>
+
+                  {/* 3-step stepper */}
+                  <div className="w-full mt-6">
+                    <div className="relative w-full px-1">
+                      <div className="absolute left-[17%] right-[17%] top-[17px] h-[3px] rounded-full bg-[#DCD3BF]" />
+                      <div className="absolute left-[17%] right-1/2 top-[17px] h-[3px] rounded-full bg-[#7FA97F]" />
+
+                      <div className="relative flex items-start justify-between">
+                        {/* Step 1 */}
+                        <div className="flex flex-col items-center text-center w-[31%]">
+                          <div className="w-9 h-9 rounded-full bg-[#123C2B] text-white flex items-center justify-center shadow-sm">
+                            <Icons.Check className="w-[18px] h-[18px] stroke-[3]" />
+                          </div>
+                          <span className="text-[12.5px] leading-tight font-bold text-[#123C2B] mt-2">
+                            Request<br />Submitted
+                          </span>
+                        </div>
+
+                        {/* Step 2 (active) */}
+                        <div className="flex flex-col items-center text-center w-[34%] -mt-1">
+                          <div className="relative w-[46px] h-[46px] rounded-full bg-[#123C2B] flex items-center justify-center shadow-[0_0_0_6px_rgba(217,169,63,0.16),0_0_22px_rgba(217,169,63,0.55)]">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="w-[21px] h-[21px]">
+                              <circle cx="12" cy="12" r="8.5" />
+                              <path d="M12 7.5V12l3 1.8" />
+                            </svg>
+                          </div>
+                          <span className="mt-2 px-3 py-1.5 rounded-full bg-[#F7E2B4] border border-[#F3D79B] text-[12.5px] leading-tight font-bold text-[#0F2F21]">
+                            Waiting for<br />Approval
+                          </span>
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className="flex flex-col items-center text-center w-[31%]">
+                          <div className="w-9 h-9 rounded-full bg-[#E7E0D2] border border-[#D9D0BD] text-[#8E8779] flex items-center justify-center">
+                            <Icons.Bed className="w-[18px] h-[18px]" />
+                          </div>
+                          <span className="text-[12.5px] leading-tight font-semibold text-[#8E8779] mt-2">
+                            Check-in<br />Approved
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ---------- BOOKING DETAILS ---------- */}
+              {(() => {
+                const b = pendingApprovalBooking || (activeReservation ? {
+                  roomNumber: activeReservation.roomNumber,
+                  roomTypeName: activeReservation.roomTypeName,
+                  nights: activeReservation.nights || 1,
+                  checkInDate: activeReservation.checkInDate,
+                  checkOutDate: activeReservation.checkOutDate,
+                  guestName: activeReservation.guestName,
+                  guestPhone: activeReservation.guestPhone,
+                  grandTotal: activeReservation.grandTotal || 3136,
+                  bookingNumber: activeReservation.bookingNumber,
+                } : null);
+
+                if (!b) {
+                  return (
+                    <div className="p-6 rounded-[22px] border border-[#EDE4D2] bg-white text-center space-y-3 shadow-sm">
+                      <p className="text-[13px] text-[#7C7566]">No pending booking verification active.</p>
+                      <button
+                        type="button"
+                        onClick={() => setCustomerView('rooms')}
+                        className="px-5 py-2.5 rounded-xl lux-btn-primary text-[12px]"
+                      >
+                        Browse Available Rooms
+                      </button>
+                    </div>
+                  );
                 }
-              };
 
-              return (
-                <>
-                  <div className={`rounded-2xl border p-4 space-y-3.5 shadow-xs ${
-                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-                  }`}>
-                    <div className={`flex items-center gap-2 pb-2 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-                      <h3 className={`text-sm font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                        Booking Details
-                      </h3>
+                const formatDates = () => {
+                  try {
+                    const cin = b.checkInDate ? new Date(b.checkInDate) : new Date();
+                    const cout = b.checkOutDate ? new Date(b.checkOutDate) : new Date(cin.getTime() + (b.nights || 1) * 24 * 60 * 60 * 1000);
+                    const cinStr = cin.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+                    const coutStr = cout.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+                    return `${cinStr} → ${coutStr}`;
+                  } catch {
+                    return 'Nov 01 → Nov 02';
+                  }
+                };
+
+                return (
+                  <>
+                    <div className="rounded-[22px] border border-[#EDE4D2] bg-white shadow-[0_12px_28px_rgba(30,60,45,0.07)] overflow-hidden">
+                      {/* Card header */}
+                      <div className="flex items-center gap-2.5 px-4 pt-4 pb-3">
+                        <span className="w-9 h-9 rounded-[11px] bg-[#123C2B] flex items-center justify-center shrink-0">
+                          <Icons.Bed className="w-[18px] h-[18px] text-[#F3D79B]" />
+                        </span>
+                        <h3 className="font-lux text-[19px] leading-none font-bold text-[#123C2B]">
+                          Booking Details
+                        </h3>
+                      </div>
+
+                      {/* Row 1 — Room */}
+                      <div className="flex items-start gap-3 px-4 py-3.5 border-t border-[#FBF7EE]">
+                        <span className="w-8 h-8 flex items-center justify-center text-[#123C2B] shrink-0">
+                          <Icons.Bed className="w-[22px] h-[22px]" />
+                        </span>
+                        <div className="min-w-0">
+                          <span className="text-[15px] font-bold text-[#123C2B] block leading-tight">
+                            Room {b.roomNumber}
+                          </span>
+                          <span className="text-[13px] text-[#7C7566] block mt-0.5">
+                            {b.roomTypeName}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Row 2 — Stay */}
+                      <div className="flex items-start gap-3 px-4 py-3.5 border-t border-[#FBF7EE]">
+                        <span className="w-8 h-8 flex items-center justify-center text-[#123C2B] shrink-0">
+                          <Icons.Calendar className="w-[22px] h-[22px]" />
+                        </span>
+                        <div className="min-w-0">
+                          <span className="text-[13px] text-[#334155] block leading-tight">
+                            Stay Duration
+                          </span>
+                          <span className="text-[14.5px] font-bold text-[#123C2B] block mt-0.5">
+                            {b.nights || 1} {b.nights === 1 ? 'Night' : 'Nights'}
+                          </span>
+                          <span className="text-[12.5px] text-[#7C7566] block mt-0.5">
+                            {formatDates()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Row 3 — Guest */}
+                      <div className="flex items-start gap-3 px-4 py-3.5 border-t border-[#FBF7EE]">
+                        <span className="w-8 h-8 flex items-center justify-center text-[#123C2B] shrink-0">
+                          <Icons.User className="w-[22px] h-[22px]" />
+                        </span>
+                        <div className="min-w-0">
+                          <span className="text-[13px] text-[#334155] block leading-tight">
+                            Primary Guest
+                          </span>
+                          <span className="text-[14.5px] font-bold text-[#123C2B] block mt-0.5 truncate">
+                            {b.guestName}
+                          </span>
+                          <span className="text-[12.5px] text-[#7C7566] block mt-0.5">
+                            {b.guestPhone}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Row 4 — Amount */}
+                      <div className="flex items-start gap-3 px-4 py-3.5 border-t border-[#FBF7EE]">
+                        <span className="w-8 h-8 flex items-center justify-center text-[#123C2B] shrink-0">
+                          <span className="font-lux text-[22px] leading-none font-bold">₹</span>
+                        </span>
+                        <div className="min-w-0">
+                          <span className="text-[13px] text-[#334155] block leading-tight">
+                            Total Amount
+                          </span>
+                          <span className="text-[19px] font-bold text-[#123C2B] block mt-0.5 leading-tight">
+                            ₹{b.grandTotal ? b.grandTotal.toLocaleString('en-IN') : '—'}{' '}
+                            <span className="text-[12px] font-medium text-[#7C7566]">(Incl. GST)</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Row 1: Room Number & Deluxe Room */}
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-200/50 dark:border-amber-500/20">
-                        <Icons.Bed className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                          Room {b.roomNumber}
-                        </h4>
-                        <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                          {b.roomTypeName}
-                        </p>
-                      </div>
+                    {/* ---------- ACTIONS ---------- */}
+                    <div className="flex flex-col gap-3">
+                      <button
+                        type="button"
+                        data-testid="btn-cancel-pending-approval"
+                        disabled={isCancellingBooking}
+                        onClick={() => handleCancelBooking(b.bookingNumber)}
+                        className="w-full rounded-[16px] border border-[#F0A9A9] bg-[#FDECEC] px-4 py-3.5 flex items-center justify-center gap-3 transition active:scale-[0.98] disabled:opacity-60"
+                      >
+                        <span className="w-9 h-9 rounded-full border-[2.5px] border-[#D32F2F] flex items-center justify-center shrink-0">
+                          <Icons.X className="w-[18px] h-[18px] text-[#D32F2F] stroke-[3]" />
+                        </span>
+                        <span className="text-left">
+                          <span className="text-[15px] font-bold text-[#C62828] block leading-tight">
+                            {isCancellingBooking ? 'Cancelling...' : 'Cancel Booking'}
+                          </span>
+                          <span className="text-[12px] font-medium text-[#B25757] block mt-0.5">
+                            Cancel your request before approval
+                          </span>
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        data-testid="btn-check-approval-status"
+                        disabled={isCheckingApproval}
+                        onClick={handleCheckApprovalStatus}
+                        className="w-full rounded-[16px] bg-[#123C2B] px-4 py-3.5 flex items-center justify-center gap-3 shadow-[0_10px_22px_rgba(14,59,42,0.22)] transition active:scale-[0.98] disabled:opacity-70"
+                      >
+                        <Icons.Refresh className={`w-[22px] h-[22px] text-white ${isCheckingApproval ? 'animate-spin' : ''}`} />
+                        <span className="text-left">
+                          <span className="text-[15px] font-bold text-white block leading-tight">
+                            {isCheckingApproval ? 'Checking...' : 'Check Status'}
+                          </span>
+                          <span className="text-[12px] font-medium text-[#A9CCBB] block mt-0.5">
+                            See latest update
+                          </span>
+                        </span>
+                      </button>
                     </div>
-
-                    {/* Row 2: Stay Duration & Dates */}
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-200/50 dark:border-blue-500/20">
-                        <Icons.Calendar className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">
-                          Stay Duration
-                        </span>
-                        <span className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'} block`}>
-                          {b.nights || 1} Night
-                        </span>
-                        <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'} block mt-0.5`}>
-                          {formatDates()}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Row 3: Primary Guest */}
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-200/50 dark:border-purple-500/20">
-                        <Icons.User className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">
-                          Primary Guest
-                        </span>
-                        <span className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'} block`}>
-                          {b.guestName}
-                        </span>
-                        <span className={`text-xs font-mono font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'} block mt-0.5`}>
-                          {b.guestPhone}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Row 4: Total Amount */}
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-200/50 dark:border-emerald-500/20">
-                        <Icons.CreditCard className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider block">
-                          Total Amount
-                        </span>
-                        <span className={`text-base font-black ${isDark ? 'text-white' : 'text-slate-900'} block`}>
-                          ₹{b.grandTotal ? b.grandTotal.toLocaleString('en-IN') : '—'} <span className="text-xs font-normal text-slate-500">(Incl. GST)</span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Two Styled Action Buttons */}
-                  <div className="flex flex-col gap-2.5 pt-1">
-                    {/* Button 1: Cancel Booking */}
-                    <button
-                      type="button"
-                      data-testid="btn-cancel-pending-approval"
-                      disabled={isCancellingBooking}
-                      onClick={() => handleCancelBooking(b.bookingNumber)}
-                      className={`w-full py-3.5 px-4 rounded-2xl border text-center transition active:scale-[0.98] cursor-pointer ${
-                        isDark
-                          ? 'border-red-900/40 bg-red-950/20 hover:bg-red-950/40 text-red-400'
-                          : 'border-red-200 bg-red-50/50 hover:bg-red-100/50 text-red-600'
-                      }`}
-                    >
-                      <div className="text-sm font-black flex items-center justify-center gap-1.5">
-                        <Icons.X className="w-4 h-4" />
-                        <span>{isCancellingBooking ? 'Cancelling...' : 'Cancel Booking'}</span>
-                      </div>
-                      <p className={`text-[11px] font-medium mt-0.5 ${isDark ? 'text-red-400/80' : 'text-red-500/80'}`}>
-                        Cancel your request before approval
-                      </p>
-                    </button>
-
-                    {/* Button 2: Check Status */}
-                    <button
-                      type="button"
-                      data-testid="btn-check-approval-status"
-                      disabled={isCheckingApproval}
-                      onClick={handleCheckApprovalStatus}
-                      className={`w-full py-3 px-4 rounded-2xl border text-center shadow-xs transition active:scale-[0.98] cursor-pointer ${
-                        isDark
-                          ? 'border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-200'
-                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800'
-                      }`}
-                    >
-                      <div className="text-sm font-black flex items-center justify-center gap-1.5">
-                        <Icons.Refresh className={`w-4 h-4 ${isCheckingApproval ? 'animate-spin' : ''}`} />
-                        <span>{isCheckingApproval ? 'Checking...' : 'Check Status'}</span>
-                      </div>
-                      <p className={`text-[11px] font-medium mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        See latest update
-                      </p>
-                    </button>
-                  </div>
-                </>
-              );
-            })()}
+                  </>
+                );
+              })()}
+            </div>
           </div>
         )}
 
         {/* ======================================================== */}
         {/* STEP 2: SERVICE CHOICE SCREEN ('home')                   */}
         {/* ======================================================== */}
-        {customerView === 'home' && (
+        {customerView === 'home' && !activeReservation && (
           <div className="flex flex-col gap-4">
             {/* If pending approval booking AND no active checked-in reservation, show sleek notification banner linking to Step 5 */}
             {!activeReservation && pendingApprovalBooking && (
               <div
                 data-testid="approval-waiting-card"
                 className={`p-3.5 rounded-2xl border-2 shadow-lg flex items-center justify-between gap-3 transition ${
-                  isDark
-                    ? 'border-amber-500/80 bg-slate-900 text-white'
-                    : 'border-amber-400 bg-amber-50/90 text-slate-900'
-                }`}
+ isDark
+ ? 'border-amber-500/80 bg-slate-900 text-white'
+ : 'border-amber-400 bg-amber-50/90 text-slate-900'
+ }`}
               >
                 <div
                   onClick={() => setCustomerView('waiting_approval')}
@@ -2625,7 +3370,7 @@ export const App: React.FC = () => {
                     title="Dismiss notification"
                     className="w-7 h-7 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 flex items-center justify-center text-xs font-bold transition active:scale-95"
                   >
-                    ✕
+                    <Icons.X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -2633,14 +3378,12 @@ export const App: React.FC = () => {
             {/* Property Showcase Hero Card */}
             <div className="rounded-[22px] border border-[#E2C489] shadow-[0_10px_28px_rgba(40,70,50,0.16)] relative overflow-hidden min-h-[205px] flex flex-col justify-end p-4 group">
               <img
-                src={selectedHotel?.coverImageUrl || 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1600&auto=format&fit=crop&q=80'}
+                src={getHotelCoverImage(selectedHotel)}
                 alt={selectedHotel?.name || 'Hotel'}
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = FALLBACK_HOTEL_COVER;
-                }}
+                onError={handleImageError(FALLBACK_HOTEL_COVER)}
                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#04120B]/95 via-[#04120B]/55 to-[#04120B]/15" />
+              <div className="bg-gradient-to-t absolute inset-0 from-[#123C2B]/95 via-[#123C2B]/55 to-[#123C2B]/15" />
 
               <div className="relative z-10 flex flex-col gap-2.5">
                 <div className="flex items-start justify-between gap-2">
@@ -2649,19 +3392,15 @@ export const App: React.FC = () => {
                       <Icons.Location className="w-3.5 h-3.5 text-[#F7E2B4]" />
                       <span>{selectedHotel?.city || 'Jaipur'}, {selectedHotel?.state || 'Rajasthan'}</span>
                     </span>
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#0F6B43]/85 text-[#E9F6EC] border border-[#7FBF98]/40 backdrop-blur-md flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#9BD8AE] lux-pulse-dot" />
-                      <span>Verified Property</span>
-                    </span>
                   </div>
 
                   <button
                     type="button"
                     data-testid="select-hotel-pill-btn"
                     onClick={() => setCustomerView('hotel_select')}
-                    className="text-[12px] font-bold px-3.5 py-2 rounded-full bg-[#F7E2B4] hover:bg-[#F9E9C6] text-[#6B4A12] border border-[#E9C98A] shadow-md transition active:scale-95 flex items-center gap-1.5 shrink-0"
+                    className="text-[12px] font-bold px-3.5 py-2 rounded-full bg-[#E4F1E6] hover:bg-[#D5E9D9] text-[#123C2B] border border-[#B8D7C1] shadow-md transition active:scale-95 flex items-center gap-1.5 shrink-0"
                   >
-                    <Icons.Switch className="w-4 h-4 text-[#6B4A12]" />
+                    <Icons.Switch className="w-4 h-4 text-[#123C2B]" />
                     <span>Switch Hotel</span>
                   </button>
                 </div>
@@ -2669,11 +3408,9 @@ export const App: React.FC = () => {
                 <div className="flex items-center gap-3 pt-0.5">
                   <div className="w-[52px] h-[52px] rounded-[14px] overflow-hidden border-2 border-[#F3E4C2] shadow-md bg-white shrink-0">
                     <img
-                      src={selectedHotel?.logoUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=300&auto=format&fit=crop&q=80'}
+                      src={selectedHotel?.logoUrl || FALLBACK_HOTEL_LOGO}
                       alt=""
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = FALLBACK_HOTEL_LOGO;
-                      }}
+                      onError={handleImageError(FALLBACK_HOTEL_LOGO)}
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -2700,13 +3437,15 @@ export const App: React.FC = () => {
                     Choose your personalized hospitality service
                   </p>
                 </div>
-                <span className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-[#F7E2B4] text-[#8A5A12] border border-[#E9C98A] shrink-0 mt-1">
-                  2 Options
+                <span className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-[#E4F1E6] text-[#123C2B] border border-[#B8D7C1] shrink-0 mt-1">
+                  {Number(selectedHotel?.serviceCapabilities?.roomBooking !== false) +
+                    Number(selectedHotel?.serviceCapabilities?.tableOrdering !== false)} {t('Options', 'Options')}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 gap-4">
                 {/* OPTION 1: BOOK A ROOM (STAY) */}
+                {selectedHotel?.serviceCapabilities?.roomBooking !== false && (
                 <button
                   type="button"
                   data-testid="home-book-room-card"
@@ -2714,11 +3453,12 @@ export const App: React.FC = () => {
                   className="rounded-[20px] border border-[#E4DAC6] relative overflow-hidden min-h-[190px] text-left group shadow-[0_8px_22px_rgba(30,60,45,0.12)] flex flex-col justify-between p-4 transition active:scale-[0.99]"
                 >
                   <img
-                    src={selectedHotel?.stayImageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80'}
+                    src={getHotelStayImage(selectedHotel)}
                     alt="Book a Room"
+                    onError={handleImageError(FALLBACK_ROOM_IMAGE)}
                     className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#04120B] via-[#04120B]/70 to-[#04120B]/20" />
+                  <div className="bg-gradient-to-t absolute inset-0 from-[#123C2B] via-[#123C2B]/70 to-[#123C2B]/20" />
 
                   <div className="relative z-10 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -2727,10 +3467,10 @@ export const App: React.FC = () => {
                         <span>{t('Stay & Suites')}</span>
                       </span>
                       <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#DFF0E2] text-[#1C5138] border border-[#BFDCC6]">
-                        {availableRoomCount !== null ? `${availableRoomCount} ${t('Available Rooms')}` : t('Available Rooms')}
+                        {t('Instant Confirmation', 'Instant Confirmation')}
                       </span>
                     </div>
-                    <div className="w-9 h-9 rounded-full bg-[#F7E2B4] text-[#6B4A12] border border-[#E9C98A] flex items-center justify-center shadow-md group-hover:translate-x-1 transition-transform">
+                    <div className="w-9 h-9 rounded-full bg-[#12804E] text-white border border-[#0F6B43] flex items-center justify-center shadow-md group-hover:translate-x-1 transition-transform">
                       <Icons.ArrowRight className="w-4 h-4" />
                     </div>
                   </div>
@@ -2756,8 +3496,10 @@ export const App: React.FC = () => {
                     </div>
                   </div>
                 </button>
+                )}
 
                 {/* OPTION 2: DINE-IN / TABLE SCAN */}
+                {selectedHotel?.serviceCapabilities?.tableOrdering !== false && (
                 <button
                   type="button"
                   data-testid="home-table-scan-card"
@@ -2765,23 +3507,24 @@ export const App: React.FC = () => {
                   className="rounded-[20px] border border-[#E4DAC6] relative overflow-hidden min-h-[190px] text-left group shadow-[0_8px_22px_rgba(30,60,45,0.12)] flex flex-col justify-between p-4 transition active:scale-[0.99]"
                 >
                   <img
-                    src={selectedHotel?.diningImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80'}
+                    src={getHotelDiningImage(selectedHotel)}
                     alt="Dine-In Table Scan"
+                    onError={handleImageError(FALLBACK_DINING_IMAGE)}
                     className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#04120B] via-[#04120B]/70 to-[#04120B]/20" />
+                  <div className="bg-gradient-to-t absolute inset-0 from-[#123C2B] via-[#123C2B]/70 to-[#123C2B]/20" />
 
                   <div className="relative z-10 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#F7E2B4] text-[#6B4A12] shadow-md flex items-center gap-1.5">
-                        <Icons.Utensils className="w-3.5 h-3.5" />
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#F7E2B4] text-[#123C2B] shadow-md flex items-center gap-1.5">
+                        <Icons.Utensils className="w-3.5 h-3.5 text-[#123C2B]" />
                         <span>{t('Dine-In')}</span>
                       </span>
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-black/45 text-[#F3E4C2] border border-[#E9C98A]/50 backdrop-blur-md">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-black/55 text-[#F3E4C2] border border-white/20 backdrop-blur-md">
                         {t('Scan Table QR', 'Scan Table QR')}
                       </span>
                     </div>
-                    <div className="w-9 h-9 rounded-full bg-[#F7E2B4] text-[#6B4A12] border border-[#E9C98A] flex items-center justify-center shadow-md group-hover:translate-x-1 transition-transform">
+                    <div className="w-9 h-9 rounded-full bg-[#12804E] text-white border border-[#0F6B43] flex items-center justify-center shadow-md group-hover:translate-x-1 transition-transform">
                       <Icons.ArrowRight className="w-4 h-4" />
                     </div>
                   </div>
@@ -2792,7 +3535,7 @@ export const App: React.FC = () => {
                       <span>{t('Dine-In')}</span>
                     </h3>
                     <p className="text-[12px] text-[#EDE6D6] line-clamp-2 font-medium">
-                      {t('Dining')} • {t('In-Room Dining Menu')}
+                      {t('Dining')} • {t('Table Ordering', 'Table Ordering')}
                     </p>
                     <div className="pt-2 flex items-center gap-3 text-[11px] font-semibold text-[#F3E4C2]">
                       <span className="flex items-center gap-1.5">
@@ -2807,10 +3550,18 @@ export const App: React.FC = () => {
                     </div>
                   </div>
                 </button>
+                )}
+                {selectedHotel?.serviceCapabilities?.roomBooking === false &&
+                  selectedHotel?.serviceCapabilities?.tableOrdering === false && (
+                    <p className="rounded-2xl bg-white/80 px-4 py-5 text-center text-sm text-[#6D746D]">
+                      This property has no guest booking or table-ordering services enabled.
+                    </p>
+                  )}
               </div>
             </div>
 
             {/* Resident Verification Accent Card */}
+            {canShowServiceDirectory && (
             <div className="pt-1 pb-2 text-center">
               <div className="flex items-center justify-center gap-1.5 mb-3">
                 <span className="w-14 h-1.5 rounded-full bg-[#123C2B]" />
@@ -2820,24 +3571,278 @@ export const App: React.FC = () => {
                 type="button"
                 data-testid="home-resident-verify-link"
                 onClick={() => {
-                  if (activeReservation) {
-                    setShowActiveStayModal(true);
-                  } else if (pendingApprovalBooking) {
+                  if (pendingApprovalBooking) {
                     setCustomerView('waiting_approval');
                   } else {
                     setCustomerView('resident_verify');
                   }
                 }}
-                className="text-[12px] font-bold flex items-center justify-center gap-2 mx-auto px-4 py-2.5 rounded-full transition bg-white/70 text-[#7A5210] border border-[#E2C489] shadow-sm active:scale-95"
+                className="text-[12px] font-bold flex items-center justify-center gap-2 mx-auto px-4 py-2.5 rounded-full transition bg-white/70 text-[#7A5210] shadow-sm active:scale-95"
               >
                 <Icons.Key className="w-4 h-4 text-[#C08B32]" />
-                <span>
-                  {activeReservation
-                    ? `Already checked in? View Room ${activeReservation.roomNumber} Stay`
-                    : 'Already checked in at Front Desk? Verify Room Stay'}
-                </span>
+                <span>Already checked in at Front Desk? Verify Room Stay</span>
                 <Icons.ArrowRight className="w-4 h-4 text-[#C08B32]" />
               </button>
+            </div>
+            )}
+          </div>
+        )}
+
+        {customerView === 'home' && activeReservation && (
+          <div data-testid="guest-stay-dashboard" className="-mx-4 -mt-1 flex flex-col gap-5 pb-4 text-[#101820]">
+            <div className="px-4 pt-2">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCustomerView('hotel_select')}
+                  className="min-h-10 rounded-full bg-[#F0F6F0] px-3.5 text-[13px] font-semibold text-[#123C2B] flex items-center gap-2"
+                >
+                  <Icons.ArrowLeft className="h-4 w-4" />
+                  <span>{t('Back to Hotel', 'Back to Hotel')}</span>
+                </button>
+                <div className="min-w-0 text-right">
+                  <span className="block truncate text-[13px] font-semibold">{selectedHotel?.name || 'SpiceHub Hotel'}</span>
+                  <span className="inline-flex mt-1 rounded-full bg-[#F3E4C2] px-2.5 py-1 text-[12px] font-bold text-[#0F2F21]">
+                    {t('Room', 'Room')} {activeReservation.roomNumber}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[15px] bg-[#0F2F21] text-white">
+                    <Icons.Utensils className="h-6 w-6" />
+                  </span>
+                  <span className="truncate text-[23px] font-extrabold tracking-tight text-[#04120B]">SpiceHub</span>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {selectedHotel?.serviceCapabilities?.inRoomServices !== false && (
+                  <button
+                    type="button"
+                    aria-label="Open in-room dining"
+                    onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'DINING')}
+                    className="flex h-10 w-11 items-center justify-center rounded-full bg-[#0F2F21] text-white"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                      <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+                      <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6" />
+                    </svg>
+                  </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={toggleLocale}
+                    className="min-h-10 rounded-full bg-[#F0F6F0] px-3.5 text-[12px] font-bold text-[#123C2B]"
+                    title={locale === 'en' ? 'हिन्दी में बदलें' : 'Switch to English'}
+                  >
+                    {locale === 'en' ? 'EN　हिन्दी' : 'हिन्दी　EN'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <section
+              id="guest-stay-top"
+              className="relative mx-2 overflow-hidden rounded-[24px] bg-[#0E2A1E] px-5 py-5 text-white min-h-[280px]"
+              style={{
+                backgroundImage: `linear-gradient(90deg, rgba(18, 60, 43, .96) 0%, rgba(18, 60, 43, .88) 48%, rgba(18, 60, 43, .15) 100%), url("${getHotelStayImage(selectedHotel)}"), url("${FALLBACK_ROOM_IMAGE}")`,
+                backgroundPosition: 'center, center right',
+                backgroundSize: 'cover',
+              }}
+            >
+              <h1 className="max-w-[90%] text-[24px] font-extrabold leading-tight tracking-tight">
+                {t('Welcome', 'Welcome')} {activeReservation.guestName.split(' ')[0]}, {t('Room', 'Room')} {activeReservation.roomNumber}
+              </h1>
+              <p className="mt-1.5 text-[14px] font-medium text-white/90">
+                {t('Good Food, Great Comfort Right at Your Room', 'Good Food, Great Comfort Right at Your Room')}
+              </p>
+
+              <div className="mt-4 flex flex-col gap-2.5 text-[13px]">
+                <div className="grid grid-cols-2 gap-2 text-[12px]">
+                  <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+                    <Icons.Clock className="h-4 w-4 shrink-0 text-[#12804E]" />
+                    <span>{t('Check-in', 'Check-in')}: {formatGuestStayDate(activeReservation.checkInDate)}</span>
+                  </span>
+                  <span className="min-w-0 self-center whitespace-nowrap">
+                    <span className="text-white/60">| </span>
+                    {t('Check-out', 'Check-out')}: {formatGuestStayDate(activeReservation.checkOutDate)}
+                  </span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Icons.Wifi className="mt-0.5 h-4 w-4 shrink-0 text-[#12804E]" />
+                  <span className="min-w-0">
+                    WiFi: {activeReservation.wifiSsid || 'TajGateway_HighSpeed'}
+                    <span className="ml-1.5">({activeReservation.wifiPassword || 'GuestPass@101'})</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const password = activeReservation.wifiPassword || 'GuestPass@101';
+                        if (!navigator.clipboard?.writeText) {
+                          window.alert('Clipboard is not available on this device.');
+                          return;
+                        }
+                        navigator.clipboard.writeText(password).then(
+                          () => window.alert('Wi-Fi password copied.'),
+                          (error: unknown) => {
+                            console.error('Unable to copy the Wi-Fi password:', error);
+                            window.alert('Unable to copy the Wi-Fi password.');
+                          }
+                        );
+                      }}
+                      className="ml-1.5 font-bold text-[#12804E] underline underline-offset-2"
+                    >
+                      {t('Copy Pass', 'Copy Pass')}
+                    </button>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Icons.Home className="h-4 w-4 shrink-0 text-[#12804E]" />
+                  <span>{t('Daily Housekeeping Included', 'Daily Housekeeping Included')}</span>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-col gap-2">
+                {selectedHotel?.serviceCapabilities?.roomBooking !== false && (
+                <button
+                  type="button"
+                  onClick={() => setCustomerView('rooms')}
+                  className="flex min-h-10 items-center justify-center gap-2 rounded-full bg-[#12804E] px-4 text-[13px] font-extrabold text-white"
+                >
+                  <Icons.Bed className="h-4 w-4" />
+                  <span>{t('Browse All Rooms & Rates', 'Browse All Rooms & Rates')}</span>
+                  <Icons.ArrowRight className="h-4 w-4" />
+                </button>
+                )}
+                {selectedHotel?.serviceCapabilities?.inRoomServices !== false && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'MORE');
+                  }}
+                  className="flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#D9A93F] px-4 text-[13px] font-bold text-[#F3D79B]"
+                >
+                  <Icons.Clock className="h-4 w-4" />
+                  <span>{t('Extend Check-out (+ Nights)', 'Extend Check-out (+ Nights)')}</span>
+                </button>
+                )}
+              </div>
+            </section>
+
+            {(selectedHotel?.serviceCapabilities?.inRoomServices !== false ||
+              selectedHotel?.serviceCapabilities?.reception !== false) && (
+            <section id="guest-services" className="px-3">
+              <div className="mb-2.5 flex items-center justify-between gap-2">
+                <h2 className="text-[17px] font-extrabold tracking-tight text-[#04120B]">{t('Guest Services Directory', 'Guest Services Directory')}</h2>
+                <span className="shrink-0 rounded-full bg-[#F3E4C2] px-2.5 py-1 text-[11px] font-bold text-[#0F2F21]">
+                  {t('Available 24/7 in Room', 'Available 24/7 in Room')} {activeReservation.roomNumber}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                {[
+                  { title: 'Food & Dining', detail: 'Order to room', icon: Icons.Utensils, tab: 'DINING' },
+                  { title: 'Room Service', detail: 'Water, towels, ice', icon: Icons.Bed, tab: 'HOME' },
+                  { title: 'Housekeeping', detail: 'Cleaning, bedsheet', icon: Icons.Sparkles, tab: 'HOME' },
+                  { title: 'Laundry Service', detail: 'Washing, ironing', icon: Icons.Bed, tab: 'HOME' },
+                  { title: 'Maintenance', detail: 'AC, TV, plumbing', icon: Icons.Settings, tab: 'HOME' },
+                ].filter((service) => {
+                  if (service.title === 'Food & Dining') {
+                    return selectedHotel?.serviceCapabilities?.inRoomServices !== false;
+                  }
+                  return selectedHotel?.serviceCapabilities?.inRoomServices !== false;
+                }).map((service) => {
+                  const ServiceIcon = service.icon;
+                  return (
+                    <button
+                      type="button"
+                      key={service.title}
+                      onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, service.tab)}
+                      className="flex min-h-[96px] flex-col items-center justify-center rounded-[18px] border border-[#F3E4C2] bg-white px-2.5 py-3 text-center"
+                    >
+                      <span className="mb-1.5 flex h-10 w-10 items-center justify-center rounded-[13px] bg-[#F3E4C2] text-[#0F2F21]">
+                        <ServiceIcon className="h-6 w-6" />
+                      </span>
+                      <span className="text-[13px] font-bold leading-tight text-[#04120B]">{t(service.title, service.title)}</span>
+                      <span className="mt-0.5 text-[11px] leading-tight text-[#667085]">{t(service.detail, service.detail)}</span>
+                    </button>
+                  );
+                })}
+                {selectedHotel?.serviceCapabilities?.reception !== false && <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedHotel?.contactPhone) {
+                      window.location.href = `tel:${selectedHotel.contactPhone}`;
+                    } else {
+                      window.alert('Reception phone number is not available for this hotel.');
+                    }
+                  }}
+                  className="flex min-h-[96px] flex-col items-center justify-center rounded-[18px] border border-[#F3E4C2] bg-white px-2.5 py-3 text-center"
+                >
+                  <span className="mb-1.5 flex h-10 w-10 items-center justify-center rounded-[13px] bg-[#F3E4C2] text-[#0F2F21]">
+                    <Icons.Phone className="h-6 w-6" />
+                  </span>
+                  <span className="text-[13px] font-bold leading-tight text-[#04120B]">{t('Call Reception', 'Call Reception')}</span>
+                  <span className="mt-0.5 text-[11px] leading-tight text-[#667085]">{t('Direct 24/7 assist', 'Direct 24/7 assist')}</span>
+                </button>}
+              </div>
+            </section>
+            )}
+
+            {selectedHotel?.serviceCapabilities?.inRoomServices !== false && (
+            <section className="mx-2 rounded-[22px] border border-[#F3E4C2] bg-white p-4" aria-labelledby="guest-order-title">
+              <div className="flex items-center justify-between gap-2">
+                <h2 id="guest-order-title" className="text-[17px] font-extrabold tracking-tight text-[#04120B]">{t('In-Room Order Updates', 'In-Room Order Updates')}</h2>
+                <span className="rounded-full bg-[#F3E4C2] px-2.5 py-1 text-[11px] font-bold text-[#0F2F21]">{t('Live', 'Live')}</span>
+              </div>
+              <p className="mt-2 text-[13px] leading-snug text-[#596579]">
+                {t('Your dining orders and kitchen status are available in the live order tracker.', 'Your dining orders and kitchen status are available in the live order tracker.')}
+              </p>
+              <button
+                type="button"
+                onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'DINING')}
+                className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-[#0F2F21] px-4 text-[13px] font-bold text-white"
+              >
+                <Icons.Utensils className="h-4 w-4" />
+                <span>{t('Open Live Order Tracker', 'Open Live Order Tracker')}</span>
+              </button>
+            </section>
+            )}
+
+            {selectedHotel?.serviceCapabilities?.inRoomServices !== false && (
+            <section id="guest-dining" className="mx-2 rounded-[22px] border border-[#F3E4C2] bg-white p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-[17px] font-extrabold tracking-tight text-[#04120B]">{t('Restaurant & Bar Hours', 'Restaurant & Bar Hours')}</h2>
+                <span className="rounded-full bg-[#F3E4C2] px-2.5 py-1 text-[11px] font-bold text-[#0F2F21]">{t('Today', 'Today')}</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {[
+                  { name: 'Breakfast Buffet', place: 'The Grand Dining Hall', hours: '7:00 – 10:30 AM' },
+                  { name: 'All-Day In-Room Dining', place: 'Delivered hot to room', hours: '24 Hours Live' },
+                  { name: 'Rooftop Lounge & Bar', place: 'Happy Hours (1+1 Free)', hours: '5:00 – 11:30 PM' },
+                ].map((venue) => (
+                  <div key={venue.name} className="flex min-h-[50px] items-center justify-between gap-3 rounded-[14px] bg-[#F6F9F6] px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-bold text-[#04120B]">{t(venue.name, venue.name)}</p>
+                      <p className="truncate text-[11px] text-[#667085]">{t(venue.place, venue.place)}</p>
+                    </div>
+                    <span className="shrink-0 text-right text-[12px] font-bold text-[#0F2F21]">{venue.hours}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'DINING')}
+                className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#0F2F21] px-3 text-[13px] font-bold text-[#F3D79B]"
+              >
+                <Icons.Sparkles className="h-4 w-4" />
+                <span>{t('View Special Dining Offers (10% Off)', 'View Special Dining Offers (10% Off)')}</span>
+                <Icons.ArrowRight className="h-4 w-4" />
+              </button>
+            </section>
+            )}
+
+            <div className="flex items-center justify-center gap-5 px-4 pb-2 text-[12px] font-semibold text-[#0F2F21]">
+              <button type="button" onClick={() => setCustomerView('profile')}>{t('Profile', 'Profile')}</button>
+              <button type="button" onClick={() => openSettings()}>{t('Settings', 'Settings')}</button>
             </div>
           </div>
         )}
@@ -2853,7 +3858,7 @@ export const App: React.FC = () => {
                 type="button"
                 data-testid="rooms-back-home-btn"
                 onClick={() => setCustomerView('home')}
-                className="flex items-center gap-2 text-[12px] font-bold px-3.5 py-2.5 rounded-full border border-[#E7DFCE] bg-white text-[#123C2B] shadow-sm transition active:scale-95"
+                className="flex items-center gap-2 text-[12px] font-bold px-3.5 py-2.5 rounded-full border border-[#E7DFCE] shadow-sm transition active:scale-95"
               >
                 <Icons.ArrowLeft className="w-4 h-4 text-[#C08B32]" />
                 <span>{t('Back to Home')}</span>
@@ -2868,7 +3873,7 @@ export const App: React.FC = () => {
                   type="button"
                   onClick={() => refreshRoomsCatalog()}
                   title={t('Refresh')}
-                  className="w-10 h-10 rounded-full border border-[#E7DFCE] bg-white text-[#123C2B] shadow-sm flex items-center justify-center transition active:scale-95 active:rotate-180"
+                  className="w-10 h-10 rounded-full border border-[#E7DFCE] shadow-sm flex items-center justify-center transition active:scale-95 active:rotate-180"
                 >
                   <Icons.Refresh className="w-4 h-4" />
                 </button>
@@ -2904,14 +3909,18 @@ export const App: React.FC = () => {
                   value={roomSearchQuery}
                   onChange={(e) => setRoomSearchQuery(e.target.value)}
                   placeholder={t('Search room number, suite type, king bed...')}
-                  className="lux-input h-[50px] rounded-2xl pl-11 pr-10 text-[13px] shadow-sm"
+                  className={`w-full h-[50px] rounded-2xl border pl-11 pr-10 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-[#12804E] shadow-xs ${
+                    isDark
+                      ? 'bg-[#183728] border-[#2A523D] text-[#F2F7F2] placeholder-[#8A9E90]'
+                      : 'bg-white border-[#D7E5D9] text-[#123C2B] placeholder-[#7D8F81]'
+                  }`}
                 />
-                <Icons.Search className="w-[18px] h-[18px] text-[#9C9482] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Icons.Search className="w-[18px] h-[18px] text-[#8A9E90] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                 {roomSearchQuery && (
                   <button
                     type="button"
                     onClick={() => setRoomSearchQuery('')}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-[#9C9482]"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-[#8A9E90] hover:text-[#123C2B] transition"
                   >
                     <Icons.X className="w-4 h-4" />
                   </button>
@@ -2919,7 +3928,7 @@ export const App: React.FC = () => {
               </div>
 
               {/* 2-Option AC & Non-AC Climate Filter */}
-              <div className="p-3 rounded-[20px] border border-[#D7E4D9] bg-[#EDF4EC]">
+              <div className="p-3 rounded-[20px] border border-[#D7E4D9]">
                 <div className="flex items-center justify-between px-0.5 pb-2.5">
                   <span className="text-[11px] font-black uppercase tracking-[0.1em] text-[#123C2B] flex items-center gap-2">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-4 h-4">
@@ -2938,20 +3947,20 @@ export const App: React.FC = () => {
                     data-testid="room-filter-ac"
                     onClick={() => setRoomAcFilter((prev) => (prev === 'AC' ? 'ALL' : 'AC'))}
                     className={`py-2.5 px-3 rounded-xl text-[12px] font-bold transition flex items-center justify-center gap-2 active:scale-95 border ${
-                      roomAcFilter === 'AC'
-                        ? 'bg-[#123C2B] border-[#123C2B] text-white shadow-sm'
-                        : 'bg-white border-[#DCE7DC] text-[#264637] shadow-xs'
-                    }`}
+ roomAcFilter === 'AC'
+ ? 'bg-[#123C2B] border-[#123C2B] text-white shadow-sm'
+ : 'bg-white border-[#DCE7DC] text-[#264637] shadow-xs'
+ }`}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className={`w-4 h-4 ${roomAcFilter === 'AC' ? 'text-[#BFE3CB]' : 'text-[#1C5138]'}`}>
                       <path d="M12 2v20M4.5 7l15 10M19.5 7l-15 10" />
                     </svg>
                     <span>{t('AC Rooms')}</span>
                     <span className={`text-[10px] min-w-[20px] h-[20px] px-1 rounded-full font-black flex items-center justify-center ${
-                      roomAcFilter === 'AC'
-                        ? 'bg-white/15 text-white border border-white/20'
-                        : 'bg-[#E9EFE7] text-[#4B6353]'
-                    }`}>
+ roomAcFilter === 'AC'
+ ? 'bg-white/15 text-white border border-white/20'
+ : 'bg-[#E9EFE7] text-[#4B6353]'
+ }`}>
                       {acRoomsCount}
                     </span>
                   </button>
@@ -2961,18 +3970,18 @@ export const App: React.FC = () => {
                     data-testid="room-filter-non-ac"
                     onClick={() => setRoomAcFilter((prev) => (prev === 'NON_AC' ? 'ALL' : 'NON_AC'))}
                     className={`py-2.5 px-3 rounded-xl text-[12px] font-bold transition flex items-center justify-center gap-2 active:scale-95 border ${
-                      roomAcFilter === 'NON_AC'
-                        ? 'bg-[#123C2B] border-[#123C2B] text-white shadow-sm'
-                        : 'bg-white border-[#DCE7DC] text-[#264637] shadow-xs'
-                    }`}
+ roomAcFilter === 'NON_AC'
+ ? 'bg-[#123C2B] border-[#123C2B] text-white shadow-sm'
+ : 'bg-white border-[#DCE7DC] text-[#264637] shadow-xs'
+ }`}
                   >
                     <Icons.Sun className={`w-4 h-4 ${roomAcFilter === 'NON_AC' ? 'text-[#F3D79B]' : 'text-[#C08B32]'}`} />
                     <span>{t('Non-AC Rooms')}</span>
                     <span className={`text-[10px] min-w-[20px] h-[20px] px-1 rounded-full font-black flex items-center justify-center ${
-                      roomAcFilter === 'NON_AC'
-                        ? 'bg-white/15 text-white border border-white/20'
-                        : 'bg-[#E9EFE7] text-[#4B6353]'
-                    }`}>
+ roomAcFilter === 'NON_AC'
+ ? 'bg-white/15 text-white border border-white/20'
+ : 'bg-[#E9EFE7] text-[#4B6353]'
+ }`}>
                       {nonAcRoomsCount}
                     </span>
                   </button>
@@ -2988,8 +3997,8 @@ export const App: React.FC = () => {
                     setRoomPriceSort((prev) => (prev === 'LOW_TO_HIGH' ? 'DEFAULT' : 'LOW_TO_HIGH'))
                   }
                   className={`shrink-0 active:scale-95 transition ${
-                    roomPriceSort === 'LOW_TO_HIGH' ? 'lux-chip lux-chip-active' : 'lux-chip'
-                  }`}
+ roomPriceSort === 'LOW_TO_HIGH' ? 'lux-chip lux-chip-active' : 'lux-chip'
+ }`}
                 >
                   <span>Price ↑ Low to High</span>
                 </button>
@@ -3001,8 +4010,8 @@ export const App: React.FC = () => {
                     setRoomPriceSort((prev) => (prev === 'HIGH_TO_LOW' ? 'DEFAULT' : 'HIGH_TO_LOW'))
                   }
                   className={`shrink-0 active:scale-95 transition ${
-                    roomPriceSort === 'HIGH_TO_LOW' ? 'lux-chip lux-chip-active' : 'lux-chip'
-                  }`}
+ roomPriceSort === 'HIGH_TO_LOW' ? 'lux-chip lux-chip-active' : 'lux-chip'
+ }`}
                 >
                   <span>Price ↓ High to Low</span>
                 </button>
@@ -3024,8 +4033,8 @@ export const App: React.FC = () => {
                       data-testid={`budget-chip-${budget.toLowerCase()}`}
                       onClick={() => setRoomMaxBudget(budget)}
                       className={`shrink-0 active:scale-95 transition ${
-                        isSelected ? 'lux-chip lux-chip-active' : 'lux-chip'
-                      }`}
+ isSelected ? 'lux-chip lux-chip-active' : 'lux-chip'
+ }`}
                     >
                       {label}
                     </button>
@@ -3068,8 +4077,8 @@ export const App: React.FC = () => {
             {!loadingRooms && availableRoomsList.length === 0 && (
               <div
                 className={`rounded-2xl border p-6 text-center space-y-2 ${
-                  isDark ? 'border-slate-800 bg-slate-900/40 text-slate-400' : 'border-slate-200 bg-white text-slate-600 shadow-sm'
-                }`}
+ isDark ? 'border-slate-800 bg-slate-900/40 text-slate-400' : 'border-slate-200 bg-white text-slate-600 shadow-sm'
+ }`}
               >
                 <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
                   <Icons.Bed className="w-6 h-6" />
@@ -3086,67 +4095,64 @@ export const App: React.FC = () => {
               availableRoomsList.map((room) => {
                 const photo = getRoomDisplayPhoto(room);
                 const basePrice = room.roomType.basePriceOvernight || 2500;
-                const gstRate = basePrice > 7500 ? 18 : 12;
-                const gstAmt = Math.round((basePrice * gstRate) / 100);
+                const gstRate = room.roomType.gstRate || (basePrice > 7500 ? 18 : 12);
+                const gstAmt = Math.round(((basePrice * gstRate) / 100) * 100) / 100;
+                const oneNightEstimate = basePrice + gstAmt;
 
                 return (
                   <div
                     key={room.id}
                     data-testid={`room-card-${room.roomNumber}`}
-                    className={`rounded-2xl border overflow-hidden transition duration-200 flex flex-col ${
-                      isDark
-                        ? 'bg-slate-950 border-slate-800/90 shadow-lg shadow-black/20'
-                        : 'bg-white border-slate-200/90 shadow-md'
-                    }`}
+                    className="rounded-[20px] border border-[#E9E1D1] bg-white overflow-hidden transition duration-200 flex flex-col shadow-[0_10px_26px_rgba(30,60,45,0.08)]"
                   >
                     {/* Hero Room Photograph */}
-                    <div className="h-48 w-full relative overflow-hidden bg-slate-950">
+                    <div className="h-[190px] w-full relative overflow-hidden bg-[#0E2A1E]">
                       <img
                         src={photo}
                         alt={room.roomType.name}
                         loading="lazy"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = CURATED_ROOM_IMAGES[0];
-                        }}
+                        onError={handleImageError(FALLBACK_ROOM_IMAGE)}
                         className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
                       />
-                      {/* Premium Dark Gradient Overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20 pointer-events-none" />
+                      <div className="bg-gradient-to-t absolute inset-0 from-[#123C2B]/92 via-[#123C2B]/35 to-[#123C2B]/10 pointer-events-none" />
 
                       {/* Top Badges Row */}
                       <div className="absolute top-3 inset-x-3 flex items-center justify-between">
-                        <div className="px-3 py-1 rounded-xl bg-black/65 backdrop-blur-md border border-white/20 text-white font-black text-xs flex items-center gap-1.5 shadow-md">
-                          <Icons.Bed className="w-3.5 h-3.5 text-amber-400" />
+                        <div className="px-3 py-1.5 rounded-xl bg-black/55 backdrop-blur-md border border-white/20 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-md">
+                          <Icons.Bed className="w-3.5 h-3.5 text-[#F3D79B]" />
                           <span>{t('Room')} {room.roomNumber}</span>
                         </div>
 
                         <div className="flex items-center gap-1.5">
                           {isClimateAc(room) ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-0.5 rounded-full bg-sky-950/80 text-sky-200 border border-sky-400/60 backdrop-blur-md shadow-md">
-                              <span>❄️ AC</span>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#123C2B]/85 text-[#DCEFE2] border border-[#7FBF98]/40 backdrop-blur-md shadow-sm">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-3 h-3">
+                                <path d="M12 2v20M4.5 7l15 10M19.5 7l-15 10" />
+                              </svg>
+                              <span>AC</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-0.5 rounded-full bg-amber-950/80 text-amber-200 border border-amber-400/60 backdrop-blur-md shadow-md">
-                              <span>🌀 Non-AC</span>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#0F2F21]/80 text-[#F7E2B4] border border-[#F3D79B]/50 backdrop-blur-md shadow-sm">
+                              <span>Non-AC</span>
                             </span>
                           )}
-                          <span className="inline-flex items-center gap-1.5 text-[11px] font-black px-2.5 py-0.5 rounded-full bg-emerald-600/90 text-white backdrop-blur-md border border-emerald-400/50 shadow-md">
-                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#12804E]/90 text-white backdrop-blur-md border border-[#7FBF98]/40 shadow-sm">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#B8F0C9] lux-pulse-dot" />
                             <span>{t('Ready')}</span>
                           </span>
                         </div>
                       </div>
 
                       {/* Bottom Title on Image */}
-                      <div className="absolute bottom-3 left-3 right-3">
-                        <h3 className="text-white font-black text-base sm:text-lg drop-shadow-md leading-tight">
+                      <div className="absolute bottom-3 left-4 right-4">
+                        <h3 className="font-lux text-[24px] leading-tight font-bold text-white drop-shadow-md">
                           {room.roomType.name}
                         </h3>
-                        <div className="text-amber-200 text-xs font-semibold drop-shadow flex items-center gap-2 mt-1">
+                        <div className="text-[#FBF7EE] text-[12px] font-medium drop-shadow flex items-center gap-2 mt-1">
                           <span>{t('Floor')} {room.floorNumber}</span>
-                          <span>•</span>
-                          <span>{t('Wing')} {room.wing || 'Main'}</span>
-                          <span>•</span>
+                          <span className="text-white/40">•</span>
+                          <span>{t('Wing')} {room.wing || 'Main Wing'}</span>
+                          <span className="text-white/40">•</span>
                           <span>{t('Max')} {room.roomType.maxCapacity || 2} {t('Guests')}</span>
                         </div>
                       </div>
@@ -3155,50 +4161,58 @@ export const App: React.FC = () => {
                     {/* Card Content & Details */}
                     <div className="p-4 flex flex-col gap-3.5">
                       {/* Amenities Pills */}
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="grid grid-cols-4 gap-1.5">
                         {(room.roomType.amenities?.length > 0
                           ? room.roomType.amenities
-                          : ['Free High-Speed WiFi', 'Air Conditioning', 'King Bed', 'Room Service']
+                          : ['King Bed', 'Air Conditioning', 'High-Speed WiFi', 'Room Service']
                         )
                           .slice(0, 4)
                           .map((amenity, idx) => (
                             <span
                               key={idx}
-                              className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${
-                                isDark
-                                  ? 'bg-slate-900 border-slate-800 text-slate-300'
-                                  : 'bg-slate-100/80 border-slate-200 text-slate-700'
-                              }`}
+                              className="text-[9.5px] leading-tight font-semibold px-1.5 py-2 rounded-xl border border-[#E7DFCE] bg-[#FBF7EE] text-[#334155] flex items-center justify-center gap-1 text-center"
                             >
-                              <Icons.Sparkles className="w-3 h-3 text-amber-500" />
-                              <span>{t(amenity, amenity)}</span>
+                              {idx === 0 ? (
+                                <Icons.Bed className="w-3 h-3 text-[#123C2B] shrink-0" />
+                              ) : idx === 1 ? (
+                                <Icons.Wind className="w-3 h-3 text-[#4F8A68] shrink-0" />
+                              ) : idx === 2 ? (
+                                <Icons.Wifi className="w-3 h-3 text-[#4F8A68] shrink-0" />
+                              ) : (
+                                <Icons.Sparkles className="w-3 h-3 text-[#123C2B] shrink-0" />
+                              )}
+                              <span className="truncate" title={t(amenity, amenity)}>
+                                {t(amenity, amenity)
+                                  .replace(/^Free\s+/i, '')
+                                  .replace(/Air Conditioning/i, 'AC')
+                                  .replace(/High-Speed WiFi/i, 'WiFi')
+                                  .replace(/Room Service/i, 'Room Svc')}
+                              </span>
                             </span>
                           ))}
                       </div>
 
                       {/* Pricing Box */}
-                      <div
-                        className={`p-3.5 rounded-xl border flex items-center justify-between ${
-                          isDark
-                            ? 'bg-slate-950/70 border-slate-800'
-                            : 'bg-slate-50 border-slate-200 shadow-xs'
-                        }`}
-                      >
-                        <div>
-                          <div className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      <div className="p-3.5 rounded-[14px] border border-[#E7DFCE] bg-[#FBF7EE] flex items-stretch justify-between">
+                        <div className="flex-1">
+                          <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#8B8473]">
                             {t('Overnight Stay')}
                           </div>
-                          <div className={`text-lg font-black ${isDark ? 'text-amber-400' : 'text-slate-900'}`}>
-                            ₹{basePrice.toLocaleString('en-IN')}{' '}
-                            <span className="text-xs font-medium text-slate-500">/ {t('night')}</span>
+                          <div className="font-lux text-[23px] leading-tight font-bold text-[#123C2B] mt-0.5">
+                            ₹{basePrice.toLocaleString('en-IN')}
+                            <span className="font-sans text-[11px] font-medium text-[#8B8473] ml-1">/ {t('night')}</span>
                           </div>
+                          <p className="text-[10px] font-semibold text-[#4F6656] mt-1">
+                            1-night estimate incl. GST: ₹{oneNightEstimate.toLocaleString('en-IN')}
+                          </p>
                         </div>
-                        <div className="text-right">
-                          <div className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 flex items-center justify-end gap-1">
-                            <Icons.Key className="w-3 h-3 text-emerald-500" />
+                        <div className="w-px bg-[#E7DFCE] mx-3" />
+                        <div className="text-right flex flex-col justify-center shrink-0">
+                          <div className="text-[10.5px] font-bold text-[#123C2B] flex items-center justify-end gap-1">
+                            <Icons.Key className="w-3.5 h-3.5 text-[#1E9E5A]" />
                             <span>{t('Digital Keycard Included')}</span>
                           </div>
-                          <p className={`text-[10px] font-medium mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <p className="text-[10px] font-medium mt-0.5 text-[#8B8473]">
                             + {gstRate}% GST (₹{gstAmt.toLocaleString('en-IN')})
                           </p>
                         </div>
@@ -3209,11 +4223,11 @@ export const App: React.FC = () => {
                         type="button"
                         data-testid={`book-room-btn-${room.roomNumber}`}
                         onClick={() => handleSelectRoomForBooking(room)}
-                        className="min-h-[46px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition cursor-pointer"
+                        className="min-h-[50px] rounded-[14px] lux-btn-primary text-[12px] uppercase tracking-[0.08em] flex items-center justify-center gap-2 active:scale-[0.98] transition cursor-pointer"
                       >
-                        <Icons.Bed className="w-4 h-4 text-white" />
+                        <Icons.Bed className="w-4 h-4" />
                         <span>{t('Book Room')} {room.roomNumber}</span>
-                        <Icons.ArrowRight className="w-3.5 h-3.5 text-white" />
+                        <Icons.ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -3237,8 +4251,8 @@ export const App: React.FC = () => {
                   setCustomerView('home');
                 }}
                 className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
-                  isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700 shadow-sm'
-                }`}
+ isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700 shadow-sm'
+ }`}
               >
                 <Icons.ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back to Home</span>
@@ -3275,8 +4289,8 @@ export const App: React.FC = () => {
             {/* Real Camera QR Scanner Box */}
             <div
               className={`rounded-3xl border p-4 sm:p-5 flex flex-col gap-3.5 shadow-md ${
-                isDark ? 'border-slate-800 bg-slate-900/90' : 'border-slate-200 bg-white'
-              }`}
+ isDark ? 'border-slate-800 bg-slate-900/90' : 'border-slate-200 bg-white'
+ }`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -3329,14 +4343,14 @@ export const App: React.FC = () => {
                     <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                       <div className="relative w-64 h-64 sm:w-72 sm:h-72">
                         {/* 4 Corner Markers */}
-                        <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-xl" />
-                        <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-xl" />
-                        <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500 rounded-bl-xl" />
-                        <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500 rounded-br-xl" />
+                        <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-emerald-500 rounded-tl-xl" />
+                        <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-emerald-500 rounded-tr-xl" />
+                        <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-emerald-500 rounded-bl-xl" />
+                        <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-emerald-500 rounded-br-xl" />
 
                         {/* Animated Laser Scanning Line */}
                         <div
-                          className="absolute inset-x-2 h-0.5 bg-blue-500"
+                          className="absolute inset-x-2 h-0.5 bg-emerald-500"
                           style={{
                             animation: 'laserScanSweep 2.4s ease-in-out infinite alternate',
                           }}
@@ -3361,10 +4375,10 @@ export const App: React.FC = () => {
                           type="button"
                           onClick={toggleTorch}
                           className={`pointer-events-auto p-2.5 rounded-full border shadow-lg transition active:scale-95 ${
-                            isTorchOn
-                              ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-400/40'
-                              : 'bg-black/75 backdrop-blur-md text-white border-white/20 hover:bg-black/90'
-                          }`}
+ isTorchOn
+ ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-400/40'
+ : 'bg-black/75 backdrop-blur-md text-white border-white/20 hover:bg-black/90'
+ }`}
                           title={isTorchOn ? 'Turn Flashlight Off' : 'Turn Flashlight On'}
                         >
                           <Icons.Zap className="w-4 h-4" />
@@ -3454,9 +4468,10 @@ export const App: React.FC = () => {
                   type="button"
                   data-testid="manual-table-entry-btn"
                   onClick={() => launchTable('T-01')}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 transition shadow-xs"
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 transition shadow-xs flex items-center gap-1"
                 >
-                  Select Table (T-01) ➔
+                  <span>Select Table (T-01)</span>
+                  <Icons.ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -3473,13 +4488,13 @@ export const App: React.FC = () => {
                 type="button"
                 onClick={() => setCustomerView('home')}
                 className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition ${
-                  isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700 shadow-sm'
-                }`}
+ isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-700 shadow-sm'
+ }`}
               >
                 <Icons.ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back to Home</span>
               </button>
-              <span className="text-xs font-bold text-blue-500 flex items-center gap-1">
+              <span className="text-xs font-bold text-emerald-500 flex items-center gap-1">
                 <Icons.Key className="w-3.5 h-3.5" />
                 <span>Resident Stay</span>
               </span>
@@ -3487,8 +4502,8 @@ export const App: React.FC = () => {
 
             <div
               className={`rounded-2xl border p-4 sm:p-5 flex flex-col gap-3 shadow-sm ${
-                isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200 bg-white'
-              }`}
+ isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200 bg-white'
+ }`}
             >
               <div>
                 <h3 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
@@ -3501,7 +4516,10 @@ export const App: React.FC = () => {
 
               {stayVerifyError && (
                 <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex flex-col gap-1.5">
-                  <span className="font-semibold">⚠️ {stayVerifyError}</span>
+                  <span className="font-semibold flex items-center gap-1.5">
+                    <Icons.AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>{stayVerifyError}</span>
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
@@ -3527,11 +4545,11 @@ export const App: React.FC = () => {
                       value={roomNumberInput}
                       onChange={(e) => setRoomNumberInput(e.target.value)}
                       placeholder="e.g. 101, 204"
-                      className={`w-full min-h-[42px] rounded-xl border px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        isDark
-                          ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500'
-                          : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
-                      }`}
+                      className={`w-full min-h-[42px] rounded-xl border px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+ isDark
+ ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500'
+ : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
+ }`}
                     />
                   </div>
                   <div>
@@ -3544,11 +4562,11 @@ export const App: React.FC = () => {
                       value={guestPhoneInput}
                       onChange={(e) => setGuestPhoneInput(e.target.value)}
                       placeholder="e.g. 9820011223"
-                      className={`w-full min-h-[42px] rounded-xl border px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        isDark
-                          ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500'
-                          : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
-                      }`}
+                      className={`w-full min-h-[42px] rounded-xl border px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+ isDark
+ ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500'
+ : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
+ }`}
                     />
                   </div>
                 </div>
@@ -3557,7 +4575,7 @@ export const App: React.FC = () => {
                   type="submit"
                   disabled={isVerifyingStay}
                   data-testid="resident-verify-stay-btn"
-                  className="min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider transition shadow-sm flex items-center justify-center gap-2 mt-1 active:scale-98"
+                  className="min-h-[44px] rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider transition shadow-sm flex items-center justify-center gap-2 mt-1 active:scale-98"
                 >
                   <Icons.Key className="w-4 h-4 text-white" />
                   {isVerifyingStay ? (
@@ -3575,111 +4593,95 @@ export const App: React.FC = () => {
         {/* VIEW 5: MODERN CUSTOMER PROFILE SECTION                  */}
         {/* ======================================================== */}
         {customerView === 'profile' && (
-          <div className="flex flex-col gap-4 animate-in fade-in">
-            {/* Profile Identity Card */}
-            <div className={`p-5 rounded-2xl border shadow-sm relative overflow-hidden flex flex-col gap-3.5 ${
-              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-            }`}>
-              <div className="flex items-center gap-3.5">
-                <div className="w-14 h-14 rounded-2xl bg-amber-600 text-white font-bold text-xl flex items-center justify-center shadow-sm shrink-0">
-                  {activeReservation?.guestName
-                    ? activeReservation.guestName.slice(0, 2).toUpperCase()
-                    : verifiedGuestUser?.name
-                    ? verifiedGuestUser.name.slice(0, 2).toUpperCase()
-                    : <Icons.User className="w-7 h-7 text-white" />}
+          <div className="flex flex-col gap-5 animate-in fade-in" data-testid="profile-page">
+            <header className="px-1 pt-1">
+              <h1 className={`text-2xl font-semibold tracking-tight ${isDark ? 'text-[#F2F7F2]' : 'text-[#123C2B]'}`}>
+                Your profile
+              </h1>
+              <p className={`mt-1 text-sm ${mutedTextClass}`}>
+                Your details for {selectedHotel?.name || 'this hotel'}
+              </p>
+            </header>
+
+            <section className={`rounded-[20px] border p-5 ${pageSurfaceClass}`} aria-label="Guest profile">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#E4F1E6] text-lg font-bold text-[#123C2B]">
+                  {profileName === 'Guest' ? (
+                    <Icons.User className="h-7 w-7" />
+                  ) : (
+                    profileName
+                      .split(/\s+/)
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .map((part) => part[0])
+                      .join('')
+                      .toUpperCase()
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-black truncate">
-                      {activeReservation?.guestName || verifiedGuestUser?.name || pendingApprovalBooking?.guestName || 'Valued Guest'}
-                    </h2>
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 flex items-center gap-0.5">
-                      <Icons.Check className="w-2.5 h-2.5 text-emerald-500" />
-                      <span>{verifiedGuestUser?.isVerified || activeReservation ? 'Verified' : 'Guest'}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="truncate text-lg font-semibold">{profileName}</h2>
+                    <span className={`inline-flex min-h-7 items-center rounded-full px-2.5 text-xs font-medium ${
+                      profileStatus === 'Mobile verified' || profileStatus === 'In-house guest'
+                        ? 'bg-[#E4F1E6] text-[#123C2B]'
+                        : isDark
+                          ? 'bg-[#244C39] text-[#C8DCCB]'
+                          : 'bg-[#F2F7F2] text-[#5E7163]'
+                    }`}>
+                      {profileStatus}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 truncate">
-                    {activeReservation?.guestPhone || verifiedGuestUser?.phone || pendingApprovalBooking?.guestPhone || '+91 98765 43210'}
-                  </p>
-                  <p className="text-[11px] text-slate-400 truncate">
-                    {activeReservation?.guestEmail || pendingApprovalBooking?.guestEmail || 'guest@spicehub.com'}
-                  </p>
+                  {profilePhone ? (
+                    <p className={`mt-1 truncate text-sm ${mutedTextClass}`}>{profilePhone}</p>
+                  ) : (
+                    <p className={`mt-1 text-sm ${mutedTextClass}`}>Add a mobile number to verify your profile.</p>
+                  )}
+                  {profileEmail && <p className={`mt-1 truncate text-sm ${mutedTextClass}`}>{profileEmail}</p>}
                 </div>
               </div>
+            </section>
 
-              {/* KYC & Verification Status Bar */}
-              <div className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
-                isDark ? 'bg-black/30 border-slate-800' : 'bg-slate-50 border-slate-200'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <Icons.Shield className="w-4 h-4 text-emerald-500" />
-                  <div>
-                    <span className="font-bold text-[11px] block">Front Desk KYC Verification</span>
-                    <span className="text-[10px] text-slate-400">
-                      {activeReservation ? 'Aadhaar ID Verified & Checked-In' : 'Standard Guest Profile'}
-                    </span>
-                  </div>
+            {/* Live 24/7 Concierge & Floor Support Action Card */}
+            <section
+              data-testid="profile-need-help-card"
+              className={`p-4 rounded-[20px] border flex items-center justify-between gap-3 shadow-xs ${
+                isDark ? 'bg-[#183728] border-[#2A523D]' : 'bg-[#EAF5EC] border-[#B8D7C1]'
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-[#123C2B] text-[#F3D79B] flex items-center justify-center shrink-0">
+                  <Icons.MessageSquare className="w-6 h-6 text-[#F3D79B]" />
                 </div>
-                <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
-                  ACTIVE
-                </span>
-              </div>
-
-              {/* SpiceHub Loyalty & VIP Member Card */}
-              <div className={`p-4 rounded-2xl border flex items-center justify-between shadow-xs ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800'
-                  : 'bg-slate-50 border-slate-200'
-              }`}>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm shadow-md">
-                    👑
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-sm font-bold truncate">Need Help with Stay or Food?</h3>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`font-black text-xs uppercase tracking-wider ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
-                        Gold Privilege Club
-                      </span>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold border ${
-                        isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-amber-200 text-amber-900 border-amber-300'
-                      }`}>
-                        VIP
-                      </span>
-                    </div>
-                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                      450 Reward Points • 10% Off In-Room Dining
-                    </p>
-                  </div>
+                  <p className={`text-xs mt-0.5 truncate ${mutedTextClass}`}>
+                    Instant chat routed to Reception Desk or Waiter
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => alert('Loyalty Points: 450. Points can be redeemed for room upgrades or complimentary dining courses at checkout!')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition ${
-                    isDark
-                      ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border-amber-500/40'
-                      : 'bg-amber-200/60 hover:bg-amber-200 text-amber-900 border-amber-300'
-                  }`}
-                >
-                  View Perks
-                </button>
               </div>
-            </div>
+              <button
+                type="button"
+                data-testid="profile-need-help-btn"
+                onClick={() => setIsHelpChatOpen(true)}
+                className="px-4 py-2.5 bg-[#123C2B] hover:bg-[#0E2A1E] text-white font-bold text-xs rounded-xl shadow-xs transition active:scale-95 shrink-0 whitespace-nowrap"
+              >
+                Need Help
+              </button>
+            </section>
 
             {/* Guest Sign-In & OTP Phone Verification Card */}
             {verifiedGuestUser ? (
-              <div className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/80 text-emerald-950 flex items-center justify-between shadow-xs">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                    ✓
+              <section className={`flex items-center justify-between gap-3 rounded-[20px] border p-4 ${softSurfaceClass}`}>
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#E4F1E6] text-[#123C2B]">
+                    <Icons.Check className="h-5 w-5" />
                   </div>
-                  <div>
-                    <div className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
-                      <span>{verifiedGuestUser.name}</span>
-                      <span className="text-[9px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-bold uppercase">
-                        OTP Verified
-                      </span>
-                    </div>
-                    <p className="text-[11px] font-mono text-emerald-800">{verifiedGuestUser.phone}</p>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold">Mobile verified</h3>
+                    <p className={`mt-0.5 truncate text-sm ${mutedTextClass}`}>{verifiedGuestUser.phone}</p>
                   </div>
                 </div>
                 <button
@@ -3690,57 +4692,61 @@ export const App: React.FC = () => {
                       localStorage.removeItem('spicehub_verified_guest_user');
                     }
                   }}
-                  className="text-xs text-emerald-700 hover:text-emerald-900 font-bold underline px-2 py-1"
+                  className={`min-h-12 shrink-0 rounded-xl px-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E] ${
+                    isDark ? 'text-[#B9E4C5]' : 'text-[#0D6B3D]'
+                  }`}
                 >
                   Change
                 </button>
-              </div>
+              </section>
             ) : (
-              <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50/70 text-slate-900 space-y-3 shadow-xs">
+              <section className={`space-y-4 rounded-[20px] border p-5 ${pageSurfaceClass}`}>
                 <div>
-                  <h3 className="text-xs font-bold text-blue-950 flex items-center gap-1.5 uppercase tracking-wider">
-                    <span>📱</span>
-                    <span>Guest Mobile Sign-In & Verification</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-600 mt-0.5">
-                    Verify your identity via mobile OTP before booking. Front Desk will audit this verified number upon arrival.
+                  <h3 className="text-base font-semibold">Verify your mobile</h3>
+                  <p className={`mt-1 text-sm leading-5 ${mutedTextClass}`}>
+                    Use a one-time code to verify your number before booking.
                   </p>
                 </div>
 
                 <div className="space-y-2">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
-                      Guest Full Name *
+                    <label htmlFor="profile-guest-name" className={`mb-1.5 block text-sm font-medium ${isDark ? 'text-[#E0ECE2]' : 'text-[#294938]'}`}>
+                      Full name
                     </label>
                     <input
+                      id="profile-guest-name"
                       type="text"
                       data-testid="profile-guest-name-input"
                       value={guestName}
                       onChange={(e) => setGuestName(e.target.value)}
-                      placeholder="e.g. Mahesh Saini"
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      autoComplete="name"
+                      placeholder="Enter your name"
+                      className={`min-h-12 w-full rounded-xl border px-3.5 text-base focus:outline-none focus:ring-2 focus:ring-[#12804E] ${controlClass}`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
-                      Mobile Number *
+                    <label htmlFor="profile-guest-phone" className={`mb-1.5 block text-sm font-medium ${isDark ? 'text-[#E0ECE2]' : 'text-[#294938]'}`}>
+                      Mobile number
                     </label>
                     <div className="flex gap-2">
                       <input
+                        id="profile-guest-phone"
                         type="tel"
                         data-testid="profile-guest-phone-input"
                         value={guestPhone}
                         onChange={(e) => setGuestPhone(e.target.value)}
-                        placeholder="10-digit mobile number"
-                        className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        autoComplete="tel"
+                        inputMode="tel"
+                        placeholder="Enter mobile number"
+                        className={`min-h-12 min-w-0 flex-1 rounded-xl border px-3.5 text-base focus:outline-none focus:ring-2 focus:ring-[#12804E] ${controlClass}`}
                       />
                       <button
                         type="button"
                         data-testid="profile-send-otp-btn"
                         disabled={otpSending || !guestPhone.trim() || guestPhone.trim().length < 8}
                         onClick={handleSendPhoneOtp}
-                        className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs shrink-0 transition"
+                        className="min-h-12 shrink-0 rounded-xl bg-[#12804E] px-4 text-sm font-semibold text-white transition hover:bg-[#0D6B3D] disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E]"
                       >
                         {otpSending ? 'Sending...' : phoneOtpSent ? 'Resend' : 'Send OTP'}
                       </button>
@@ -3748,72 +4754,71 @@ export const App: React.FC = () => {
                   </div>
 
                   {phoneOtpSent && (
-                    <div className="p-2.5 bg-white rounded-xl border border-blue-200 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-700 uppercase">
-                          Enter 4-Digit OTP Code
-                        </span>
-                        <span className="text-[10px] text-blue-600 font-mono">Default: 9999</span>
-                      </div>
+                    <div className={`space-y-3 rounded-xl border p-3 ${softSurfaceClass}`}>
+                      <label htmlFor="profile-otp-code" className="block text-sm font-medium">
+                        Enter the 4-digit code
+                      </label>
                       <div className="flex gap-2">
                         <input
+                          id="profile-otp-code"
                           type="text"
-                          maxLength={6}
+                          maxLength={4}
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
                           data-testid="profile-otp-input"
                           value={phoneOtp}
                           onChange={(e) => setPhoneOtp(e.target.value)}
-                          placeholder="9999"
-                          className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-center text-sm font-mono font-bold tracking-widest text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="4-digit code"
+                          className={`min-h-12 min-w-0 flex-1 rounded-xl border px-3 text-center text-base tracking-[0.2em] focus:outline-none focus:ring-2 focus:ring-[#12804E] ${controlClass}`}
                         />
                         <button
                           type="button"
                           data-testid="profile-verify-otp-btn"
                           disabled={otpVerifying || !phoneOtp.trim()}
                           onClick={handleVerifyPhoneOtp}
-                          className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shrink-0 transition"
+                          className="min-h-12 shrink-0 rounded-xl bg-[#123C2B] px-4 text-sm font-semibold text-white transition hover:bg-[#0D6B3D] disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E]"
                         >
                           {otpVerifying ? 'Verifying...' : 'Confirm'}
                         </button>
                       </div>
-                      {otpSuccessMsg && (
-                        <p className="text-[11px] font-semibold text-emerald-600">{otpSuccessMsg}</p>
-                      )}
                     </div>
                   )}
+                  {bookingError && <p className="text-sm text-red-700 dark:text-red-300" role="alert">{bookingError}</p>}
+                  {otpSuccessMsg && <p className="text-sm font-medium text-[#0D6B3D] dark:text-[#B9E4C5]" role="status">{otpSuccessMsg}</p>}
                 </div>
-              </div>
+              </section>
             )}
 
             {/* Active Stay Details (If staying at hotel) */}
             {activeReservation && (
-              <div className={`p-4 rounded-2xl border shadow-sm space-y-3 ${
-                isDark ? 'bg-emerald-950/40 border-emerald-500/40 text-white' : 'bg-emerald-50/80 border-emerald-300 text-slate-900'
-              }`}>
+              <section className={`space-y-4 rounded-[20px] border p-5 ${softSurfaceClass}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-xs font-black uppercase tracking-wider text-emerald-500">
-                      Active In-House Stay
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#12804E]" />
+                    <span className="text-sm font-semibold text-[#12804E]">
+                      Current stay
                     </span>
                   </div>
-                  <span className="text-xs font-mono font-bold text-slate-400">
-                    Room #{activeReservation.roomNumber}
+                  <span className={`text-sm font-semibold ${mutedTextClass}`}>
+                    Room {activeReservation.roomNumber}
                   </span>
                 </div>
-                <div className="text-xs space-y-1">
+                <dl className={`space-y-2 text-sm ${mutedTextClass}`}>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Room Category:</span>
-                    <span className="font-bold">{activeReservation.roomTypeName}</span>
+                    <dt>Room type</dt>
+                    <dd className="text-right font-medium">{activeReservation.roomTypeName}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Booking Reference:</span>
-                    <span className="font-mono font-bold text-amber-500">{activeReservation.bookingNumber}</span>
+                    <dt>Booking reference</dt>
+                    <dd className="text-right font-medium">{activeReservation.bookingNumber}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Dates:</span>
-                    <span className="font-medium">{activeReservation.checkInDate} ➔ {activeReservation.checkOutDate}</span>
+                    <dt>Dates</dt>
+                    <dd className="text-right font-medium">
+                      {formatGuestStayDate(activeReservation.checkInDate)} – {formatGuestStayDate(activeReservation.checkOutDate)}
+                    </dd>
                   </div>
-                </div>
+                </dl>
 
                 {!isRoomEntered ? (
                   <button
@@ -3825,91 +4830,49 @@ export const App: React.FC = () => {
                         launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'HOME');
                       }
                     }}
-                    className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow"
+                    className="min-h-12 w-full rounded-xl bg-[#12804E] px-4 text-sm font-semibold text-white transition hover:bg-[#0D6B3D] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E]"
                   >
-                    <Icons.Key className="w-3.5 h-3.5 text-white" />
-                    <span>{t('Tap Digital Keycard to Unlock Room')}</span>
+                    <span>{t('Unlock room')}</span>
                   </button>
                 ) : (
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'HOME')}
-                      className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow"
+                      className="min-h-12 rounded-xl bg-[#12804E] px-3 text-sm font-semibold text-white transition hover:bg-[#0D6B3D] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E]"
                     >
-                      <Icons.Key className="w-3.5 h-3.5 text-white" />
                       <span>{t('Digital Keycard')}</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'DINING')}
-                      className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 shadow"
+                      className="min-h-12 rounded-xl border border-[#E9C98A] bg-[#F7E2B4] px-3 text-sm font-semibold text-[#6B4A12] transition hover:bg-[#F0D294] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E]"
                     >
-                      <Icons.Utensils className="w-3.5 h-3.5 text-slate-950" />
                       <span>{t('In-Room Food')}</span>
                     </button>
                   </div>
                 )}
-              </div>
+              </section>
             )}
 
-            {/* App Settings & Preferences */}
-            <div className={`p-4 rounded-2xl border shadow-sm space-y-3 ${
-              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'
-            }`}>
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
-                Preferences & Geofencing
-              </h3>
-
-              {/* Theme Preference */}
-              <div className="flex items-center justify-between py-1 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <Icons.Sun className="w-4 h-4 text-amber-500" />
-                  <span className="text-xs font-semibold">Appearance Theme</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleTheme}
-                  className={`px-3 py-1 rounded-xl text-xs font-bold border transition ${
-                    isDark ? 'bg-slate-800 border-slate-700 text-amber-400' : 'bg-slate-100 border-slate-200 text-slate-700'
-                  }`}
-                >
-                  {isDark ? '🌙 Dark Mode' : '☀️ Light Mode'}
-                </button>
+            <section className={`flex items-center justify-between gap-4 rounded-[20px] border p-4 ${pageSurfaceClass}`}>
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold">Need help?</h3>
+                <p className={`mt-1 text-sm ${mutedTextClass}`}>
+                  {selectedHotel?.contactPhone || 'Front desk phone is not available.'}
+                </p>
               </div>
-
-              {/* GPS Geofence Proximity Status */}
-              <div className="flex items-center justify-between py-1 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <Icons.Location className="w-4 h-4 text-emerald-500" />
-                  <div>
-                    <span className="text-xs font-semibold block">GPS Location Guard</span>
-                    <span className="text-[10px] text-slate-400">On-premises dining verified</span>
-                  </div>
-                </div>
-                <span className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
-                  Verified &lt;500m
-                </span>
-              </div>
-
-              {/* Front Desk Phone */}
-              <div className="flex items-center justify-between py-1">
-                <div className="flex items-center gap-2">
-                  <Icons.Phone className="w-4 h-4 text-amber-500" />
-                  <div>
-                    <span className="text-xs font-semibold block">Reception Helpline</span>
-                    <span className="text-[10px] text-slate-400">{selectedHotel?.name || 'Hotel Front Desk'}</span>
-                  </div>
-                </div>
+              {selectedHotel?.contactPhone && (
                 <a
-                  href={`tel:${selectedHotel?.contactPhone || '+91 141 2345678'}`}
-                  className="px-3 py-1 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1.5"
+                  href={`tel:${selectedHotel.contactPhone}`}
+                  aria-label={`Call ${selectedHotel.name} front desk`}
+                  className="flex min-h-12 shrink-0 items-center gap-2 rounded-xl bg-[#E4F1E6] px-4 text-sm font-semibold text-[#123C2B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E]"
                 >
-                  <Icons.Phone className="w-3 h-3" />
-                  <span>Call Desk</span>
+                  <Icons.Phone className="h-4 w-4" />
+                  <span>Call</span>
                 </a>
-              </div>
-            </div>
+              )}
+            </section>
 
             {/* Reservation Lifecycle & Cancellation Handling */}
             {pendingApprovalBooking && (
@@ -3923,70 +4886,86 @@ export const App: React.FC = () => {
                     {pendingApprovalBooking.bookingNumber}
                   </span>
                 </div>
-                <p className="text-[11px] text-amber-900 text-left leading-relaxed">
-                  Room {pendingApprovalBooking.roomNumber} ({pendingApprovalBooking.roomTypeName}) is awaiting Front Desk verification. You can cancel this request directly before Reception approves it.
+                <p className="text-sm text-amber-900 text-left leading-relaxed">
+                  Room {pendingApprovalBooking.roomNumber} ({pendingApprovalBooking.roomTypeName}) is awaiting approval. You can cancel this request before it is approved.
                 </p>
                 <button
                   type="button"
                   data-testid="profile-cancel-pending-btn"
                   disabled={isCancellingBooking}
                   onClick={() => handleCancelBooking(pendingApprovalBooking.bookingNumber)}
-                  className="w-full py-2.5 rounded-xl border border-red-400 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs transition flex items-center justify-center gap-1.5"
+                  className="min-h-12 w-full rounded-xl border border-red-300 bg-red-50 px-4 text-sm font-semibold text-red-700 transition hover:bg-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
                 >
-                  <Icons.Trash className="w-3.5 h-3.5 text-red-600" />
                   <span>{isCancellingBooking ? 'Cancelling Reservation...' : 'Cancel Reservation Request'}</span>
                 </button>
               </div>
             )}
 
-            {activeReservation && (
-              <div className="p-4 rounded-2xl border border-emerald-300 bg-emerald-50/80 space-y-2.5 text-center shadow-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Verified Resident Stay • Room {activeReservation.roomNumber}</span>
-                  </span>
-                  <span className="text-[10px] font-mono font-bold bg-emerald-200 text-emerald-950 px-2 py-0.5 rounded">
-                    {activeReservation.bookingNumber}
-                  </span>
-                </div>
-                <p className="text-[11px] text-emerald-900 text-left leading-relaxed">
-                  Your stay has been confirmed and keycard issued. For date extensions, room changes, or cancellation, please contact the Front Desk Reception desk directly.
-                </p>
-                <a
-                  href={`tel:${selectedHotel?.contactPhone || '+91 141 2345678'}`}
-                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <Icons.Phone className="w-3.5 h-3.5" />
-                  <span>Contact Reception for Cancellation / Changes</span>
-                </a>
-              </div>
-            )}
-
-            {/* Account & Cache Reset Action (Strictly hidden when booking exists) */}
-            {!activeReservation && !pendingApprovalBooking && (
-              <div className={`p-4 rounded-2xl border shadow-sm space-y-2 text-center ${
-                isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200'
-              }`}>
+            <section className={`overflow-hidden rounded-[20px] border ${pageSurfaceClass}`} aria-label="Profile shortcuts">
+              <h3 className="px-4 pb-2 pt-4 text-base font-semibold">Quick access</h3>
+              <div className={`divide-y ${isDark ? 'divide-[#315342]' : 'divide-[#D7E5D9]'}`}>
                 <button
                   type="button"
-                  data-testid="clear-customer-cache-btn"
-                  onClick={() => {
-                    if (confirm('Clear local guest cache on this device?')) {
-                      localStorage.removeItem('spicehub_customer_hotel_chosen');
-                      localStorage.removeItem('spicehub_verified_guest_user');
-                      setVerifiedGuestUser(null);
-                      setCustomerView('hotel_select');
-                      alert('Local session cache cleared successfully.');
-                    }
-                  }}
-                  className="w-full py-2.5 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50 font-bold text-xs transition flex items-center justify-center gap-1.5"
+                  data-testid="profile-quick-stay"
+                  onClick={() => openSettings('RESERVATION')}
+                  className="flex min-h-[68px] w-full items-center justify-between gap-3 px-4 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#12804E]"
                 >
-                  <Icons.Trash className="w-4 h-4 text-slate-500" />
-                  <span>Clear App Cache</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">
+                      {activeReservation
+                        ? `Room ${activeReservation.roomNumber}`
+                        : pendingApprovalBooking
+                          ? 'Booking request'
+                          : 'Stay & bookings'}
+                    </span>
+                    <span className={`mt-0.5 block text-sm ${mutedTextClass}`}>
+                      {activeReservation
+                        ? `Booking ${activeReservation.bookingNumber}`
+                        : pendingApprovalBooking
+                          ? 'View or cancel your pending request'
+                          : 'Check booking status or browse rooms'}
+                    </span>
+                  </span>
+                  <Icons.ArrowRight className="h-4 w-4 shrink-0" />
+                </button>
+                <button
+                  type="button"
+                  data-testid="profile-quick-services"
+                  onClick={() => setCustomerView('home')}
+                  className="flex min-h-[68px] w-full items-center justify-between gap-3 px-4 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#12804E]"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">Hotel services</span>
+                    <span className={`mt-0.5 block text-sm ${mutedTextClass}`}>Dining and services for your visit</span>
+                  </span>
+                  <Icons.ArrowRight className="h-4 w-4 shrink-0" />
+                </button>
+                <button
+                  type="button"
+                  data-testid="profile-quick-preferences"
+                  onClick={() => openSettings('PREFERENCES')}
+                  className="flex min-h-[68px] w-full items-center justify-between gap-3 px-4 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#12804E]"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">App preferences</span>
+                    <span className={`mt-0.5 block text-sm ${mutedTextClass}`}>Language, theme and text size</span>
+                  </span>
+                  <Icons.ArrowRight className="h-4 w-4 shrink-0" />
+                </button>
+                <button
+                  type="button"
+                  data-testid="profile-quick-support"
+                  onClick={() => setIsHelpChatOpen(true)}
+                  className="flex min-h-[68px] w-full items-center justify-between gap-3 px-4 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#12804E]"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">Support & call history</span>
+                    <span className={`mt-0.5 block text-sm ${mutedTextClass}`}>Contact the hotel and review service calls</span>
+                  </span>
+                  <Icons.ArrowRight className="h-4 w-4 shrink-0" />
                 </button>
               </div>
-            )}
+            </section>
           </div>
         )}
 
@@ -3994,332 +4973,423 @@ export const App: React.FC = () => {
         {/* STEP 7: DEDICATED SETTINGS PAGE ('settings')             */}
         {/* ======================================================== */}
         {customerView === 'settings' && (
-          <div className="flex flex-col gap-4 animate-in fade-in" data-testid="settings-page">
-            {/* Page Header */}
-            <div className={`p-4 rounded-2xl border flex items-center justify-between shadow-xs ${
-              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-            }`}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500">
-                  <Icons.Settings className="w-5 h-5 text-amber-500" />
-                </div>
-                <div>
-                  <h2 className="text-base font-black tracking-tight">{t('Settings')}</h2>
-                  <p className="text-xs text-slate-400 font-medium">{selectedHotel?.name || 'Hotel Stay & App Preferences'}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCustomerView('home')}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition active:scale-95 ${
-                  isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                ← {t('Home')}
-              </button>
-            </div>
+          <div className="flex flex-col gap-5 animate-in fade-in" data-testid="settings-page">
+            <header className="px-1 pt-1">
+              {settingsPage !== 'MAIN' && (
+                <button
+                  type="button"
+                  data-testid="settings-back"
+                  onClick={() => setSettingsPage('MAIN')}
+                  className={`mb-3 inline-flex min-h-10 items-center gap-2 rounded-lg pr-3 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E] ${
+                    isDark ? 'text-[#B9E4C5]' : 'text-[#0D6B3D]'
+                  }`}
+                >
+                  <Icons.ArrowLeft className="h-4 w-4" />
+                  <span>Settings</span>
+                </button>
+              )}
+              <h1 className={`text-2xl font-semibold tracking-tight ${isDark ? 'text-[#F2F7F2]' : 'text-[#123C2B]'}`}>
+                {settingsPage === 'MAIN'
+                  ? t('Settings')
+                  : settingsPage === 'PREFERENCES'
+                    ? 'Preferences'
+                    : settingsPage === 'RESERVATION'
+                      ? 'Stay & bookings'
+                      : settingsPage === 'SUPPORT'
+                        ? 'Support'
+                        : 'App access'}
+              </h1>
+              <p className={`mt-1 text-sm ${mutedTextClass}`}>
+                {settingsPage === 'MAIN'
+                  ? selectedHotel?.name || 'App preferences and hotel services'
+                  : settingsPage === 'PREFERENCES'
+                    ? 'Language, appearance and text size'
+                    : settingsPage === 'RESERVATION'
+                      ? 'Your current stay and booking requests'
+                      : settingsPage === 'SUPPORT'
+                        ? 'Contact the hotel and review service calls'
+                        : 'Permissions and hotel selection'}
+              </p>
+            </header>
 
-            {/* Multi-Page Navigation Bar (4 Simple Tabs) */}
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
-              <button
-                type="button"
-                data-testid="settings-nav-main"
-                onClick={() => setSettingsPage('MAIN')}
-                className={`flex-1 py-2 px-1 rounded-lg text-center transition ${
-                  settingsPage === 'MAIN'
-                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                General
-              </button>
-              <button
-                type="button"
-                data-testid="settings-nav-reservation"
-                onClick={() => setSettingsPage('RESERVATION')}
-                className={`flex-1 py-2 px-1 rounded-lg text-center transition relative ${
-                  settingsPage === 'RESERVATION'
-                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Stay
-                {(activeReservation || pendingApprovalBooking) && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block ml-1 animate-pulse" />
-                )}
-              </button>
-              <button
-                type="button"
-                data-testid="settings-nav-support"
-                onClick={() => setSettingsPage('SUPPORT')}
-                className={`flex-1 py-2 px-1 rounded-lg text-center transition ${
-                  settingsPage === 'SUPPORT'
-                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Desk
-              </button>
-              <button
-                type="button"
-                data-testid="settings-nav-session"
-                onClick={() => setSettingsPage('SESSION')}
-                className={`flex-1 py-2 px-1 rounded-lg text-center transition ${
-                  settingsPage === 'SESSION'
-                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                System
-              </button>
-            </div>
-
-            {/* TAB 1: GENERAL & PREFERENCES */}
             {settingsPage === 'MAIN' && (
-              <div className="space-y-3 animate-in fade-in">
-                {/* Verified Identity Status */}
-                <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 dark:bg-slate-900 dark:border-slate-800 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase font-bold text-slate-500">Guest Identity</span>
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700">
-                      {verifiedGuestUser?.isVerified ? '✓ OTP Verified' : 'Guest'}
+              <nav
+                aria-label="Settings pages"
+                data-testid="settings-page-list"
+                className={`overflow-hidden rounded-[20px] border ${pageSurfaceClass}`}
+              >
+                {[
+                  {
+                    page: 'PREFERENCES' as const,
+                    title: 'Preferences',
+                    description: 'Language, theme and text size',
+                    testId: 'settings-nav-preferences',
+                  },
+                  {
+                    page: 'RESERVATION' as const,
+                    title: 'Stay & bookings',
+                    description: 'Review active stays and booking requests',
+                    testId: 'settings-nav-reservation',
+                  },
+                  {
+                    page: 'SUPPORT' as const,
+                    title: 'Support',
+                    description: 'Hotel contact and service call history',
+                    testId: 'settings-nav-support',
+                  },
+                  {
+                    page: 'SESSION' as const,
+                    title: 'App access',
+                    description: 'Camera, location and hotel switching',
+                    testId: 'settings-nav-session',
+                  },
+                ].map((item, index) => (
+                  <button
+                    key={item.page}
+                    type="button"
+                    data-testid={item.testId}
+                    onClick={() => setSettingsPage(item.page)}
+                    className={`flex min-h-[76px] w-full items-center justify-between gap-3 px-4 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#12804E] ${
+                      index > 0 ? (isDark ? 'border-t border-[#315342]' : 'border-t border-[#D7E5D9]') : ''
+                    } ${isDark ? 'hover:bg-[#102D21]' : 'hover:bg-[#F2F7F2]'}`}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold">{item.title}</span>
+                      <span className={`mt-0.5 block text-sm ${mutedTextClass}`}>
+                        {item.page === 'RESERVATION' && activeReservation
+                          ? `Room ${activeReservation.roomNumber} · Current stay`
+                          : item.page === 'RESERVATION' && pendingApprovalBooking
+                            ? 'A booking is awaiting approval'
+                            : item.description}
+                      </span>
                     </span>
-                  </div>
-                  <div className="font-bold text-slate-900 dark:text-white text-sm">
-                    {verifiedGuestUser?.name || guestName || activeReservation?.guestName || 'Valued Guest'}
-                  </div>
-                  <div className="text-[11px] font-mono text-slate-600 dark:text-slate-400">
-                    {verifiedGuestUser?.phone || guestPhone || activeReservation?.guestPhone || 'Mobile not registered'}
-                  </div>
-                </div>
+                    {item.page === 'RESERVATION' && (activeReservation || pendingApprovalBooking) && (
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
+                        isDark ? 'bg-[#244C39] text-[#C8DCCB]' : 'bg-[#E4F1E6] text-[#123C2B]'
+                      }`}>
+                        {pendingApprovalBooking ? 'Pending' : 'Active'}
+                      </span>
+                    )}
+                    <Icons.ArrowRight className={`h-4 w-4 shrink-0 ${mutedTextClass}`} />
+                  </button>
+                ))}
+              </nav>
+            )}
 
-                {/* Appearance & Language */}
-                <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between">
+            {/* PAGE: PREFERENCES */}
+            {settingsPage === 'PREFERENCES' && (
+              <div id="settings-panel" role="region" aria-label="Preferences settings" className="space-y-4 animate-in fade-in">
+                <section className={`space-y-1 rounded-[20px] border p-5 ${pageSurfaceClass}`}>
+                  <h2 className="text-lg font-semibold">Preferences</h2>
+                  <p className={`text-sm ${mutedTextClass}`}>Choose how SpiceHub looks and reads.</p>
+                  <div className="pt-2">
+                    <div className="flex min-h-[68px] items-center justify-between gap-4">
                     <div>
-                      <span className="text-xs font-bold text-slate-900 dark:text-white block">{t('Language')}</span>
-                      <span className="text-[10px] text-slate-500">English / हिंदी भाषा</span>
+                      <span className="block text-sm font-medium">{t('Language')}</span>
+                      <span className={`mt-0.5 block text-sm ${mutedTextClass}`}>{locale === 'en' ? 'English' : 'हिन्दी'}</span>
                     </div>
-                    <LanguageToggle isDark={isDark} />
-                  </div>
+                    <button
+                      type="button"
+                      onClick={toggleLocale}
+                      aria-label={locale === 'en' ? 'Switch language to Hindi' : 'Switch language to English'}
+                      className={`min-h-12 shrink-0 rounded-xl border px-4 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E] ${
+                        isDark
+                          ? 'border-[#486553] bg-[#102D21] text-[#F2F7F2]'
+                          : 'border-[#B8D0BE] bg-white text-[#123C2B]'
+                      }`}
+                    >
+                      {locale === 'en' ? 'हिन्दी' : 'English'}
+                    </button>
+                    </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className={`flex min-h-[68px] items-center justify-between gap-4 border-t py-3 ${isDark ? 'border-[#315342]' : 'border-[#D7E5D9]'}`}>
                     <div>
-                      <span className="text-xs font-bold text-slate-900 dark:text-white block">{t('Theme')}</span>
-                      <span className="text-[10px] text-slate-500">Standard Bright Mode</span>
+                      <span className="block text-sm font-medium">{t('Theme')}</span>
+                      <span className={`mt-0.5 block text-sm ${mutedTextClass}`}>Preview updates immediately</span>
                     </div>
-                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
-                      <Icons.Sun className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Light</span>
-                    </span>
+                    <select
+                      aria-label="Theme"
+                      value={theme}
+                      onChange={(event) => {
+                        setTheme(event.target.value as 'light' | 'dark');
+                        setSettingsMessage('');
+                      }}
+                      className={`min-h-12 w-36 rounded-xl border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#12804E] ${controlClass}`}
+                    >
+                      <option value="light">Light</option>
+                      <option value="dark">Dark</option>
+                    </select>
                   </div>
-                </div>
+                  <div className={`flex min-h-[68px] items-center justify-between gap-4 border-t py-3 ${isDark ? 'border-[#315342]' : 'border-[#D7E5D9]'}`}>
+                    <div>
+                      <span className="block text-sm font-medium">Text size</span>
+                      <span className={`mt-0.5 block text-sm ${mutedTextClass}`}>Small, medium or large</span>
+                    </div>
+                    <select
+                      aria-label="Text size"
+                      value={fontSize}
+                      onChange={(event) => {
+                        setFontSize(event.target.value as 'small' | 'medium' | 'large');
+                        setSettingsMessage('');
+                      }}
+                      className={`min-h-12 w-36 rounded-xl border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#12804E] ${controlClass}`}
+                    >
+                      <option value="small">Small</option>
+                      <option value="medium">Medium</option>
+                      <option value="large">Large</option>
+                    </select>
+                  </div>
+                  <div className="grid gap-2 pt-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => void saveCustomerSettings()}
+                      disabled={settingsSaving}
+                      className="min-h-12 rounded-xl bg-[#12804E] px-4 text-sm font-semibold text-white transition hover:bg-[#0D6B3D] disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E]"
+                    >
+                      {settingsSaving ? 'Saving…' : 'Save settings'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCustomerView('profile')}
+                      className={`min-h-12 rounded-xl border px-4 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E] ${
+                        isDark
+                          ? 'border-[#486553] bg-[#102D21] text-[#F2F7F2]'
+                          : 'border-[#B8D0BE] bg-white text-[#123C2B]'
+                      }`}
+                    >
+                      Manage profile
+                    </button>
+                  </div>
+                  {settingsMessage && <p className="text-sm font-medium text-[#0D6B3D] dark:text-[#B9E4C5]" role="status">{settingsMessage}</p>}
+                  {settingsError && <p className="text-sm font-medium text-red-700 dark:text-red-300" role="alert">{settingsError}</p>}
+                  </div>
+                </section>
               </div>
             )}
 
-            {/* TAB 2: STAY & RESERVATION (CANCELLATION & RECEPTION GATING) */}
+            {/* PAGE: STAY & BOOKINGS */}
             {settingsPage === 'RESERVATION' && (
-              <div className="space-y-3 animate-in fade-in">
+              <div id="settings-panel" role="region" aria-label="Stay and bookings" className="space-y-4 animate-in fade-in">
                 {pendingApprovalBooking ? (
-                  <div className="p-4 rounded-2xl border-2 border-amber-400 bg-amber-50/90 dark:bg-amber-950/30 text-slate-900 dark:text-white space-y-3">
+                  <div className="space-y-4 rounded-[20px] border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                        <span className="text-xs font-black text-amber-950 dark:text-amber-400 uppercase">Pending Approval</span>
+                        <span className="h-2 w-2 rounded-full bg-amber-500" />
+                        <span className="text-sm font-semibold">Pending approval</span>
                       </div>
-                      <span className="font-mono text-[10px] font-bold bg-amber-200 text-amber-950 px-2 py-0.5 rounded">
+                      <span className="rounded-full bg-amber-200 px-3 py-1 text-xs font-medium text-amber-950 dark:bg-amber-900 dark:text-amber-100">
                         {pendingApprovalBooking.bookingNumber}
                       </span>
                     </div>
 
-                    <div className="space-y-1 text-xs">
+                    <dl className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-slate-600 dark:text-slate-400">Room:</span>
-                        <strong className="text-slate-900 dark:text-white">Room {pendingApprovalBooking.roomNumber} ({pendingApprovalBooking.roomTypeName})</strong>
+                        <dt>Room</dt>
+                        <dd className="text-right font-medium">{pendingApprovalBooking.roomNumber} · {pendingApprovalBooking.roomTypeName}</dd>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-600 dark:text-slate-400">Tariff:</span>
-                        <strong className="font-mono text-slate-900 dark:text-white">₹{pendingApprovalBooking.grandTotal?.toLocaleString('en-IN')}</strong>
+                        <dt>Amount</dt>
+                        <dd className="text-right font-medium">₹{pendingApprovalBooking.grandTotal?.toLocaleString('en-IN')}</dd>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-600 dark:text-slate-400">Stay Window:</span>
-                        <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                          {pendingApprovalBooking.checkInDate} ➔ {pendingApprovalBooking.checkOutDate}
-                        </span>
+                        <dt>Dates</dt>
+                        <dd className="text-right font-medium">
+                          {formatGuestStayDate(pendingApprovalBooking.checkInDate)} – {formatGuestStayDate(pendingApprovalBooking.checkOutDate)}
+                        </dd>
                       </div>
-                    </div>
+                    </dl>
 
-                    <div className="pt-2 border-t border-amber-300/80 space-y-2">
-                      <p className="text-[10px] text-amber-900 dark:text-amber-300 leading-tight">
-                        ✓ You can cancel this booking request anytime before Front Desk verifies it.
+                    <div className="space-y-3 border-t border-amber-300 pt-3 dark:border-amber-700">
+                      <p className="text-sm leading-5">
+                        You can cancel this request until it is approved.
                       </p>
                       <button
                         type="button"
                         data-testid="settings-cancel-booking-btn"
                         disabled={isCancellingBooking}
                         onClick={() => handleCancelBooking(pendingApprovalBooking.bookingNumber)}
-                        className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98"
+                        className="min-h-12 w-full rounded-xl bg-red-700 px-4 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
                       >
-                        <Icons.Trash className="w-3.5 h-3.5 text-white" />
                         <span>{isCancellingBooking ? 'Cancelling Request...' : 'Cancel Reservation Request'}</span>
                       </button>
                     </div>
                   </div>
                 ) : activeReservation ? (
-                  <div className="p-4 rounded-2xl border-2 border-emerald-400 bg-emerald-50/90 dark:bg-emerald-950/30 text-slate-900 dark:text-white space-y-3">
+                  <div className={`space-y-4 rounded-[20px] border p-5 ${softSurfaceClass}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-xs font-black text-emerald-950 dark:text-emerald-400 uppercase">Verified In-House Stay</span>
+                        <span className="h-2 w-2 rounded-full bg-[#12804E]" />
+                        <span className="text-sm font-semibold text-[#12804E]">Current stay</span>
                       </div>
-                      <span className="font-mono text-[10px] font-bold bg-emerald-200 text-emerald-950 px-2 py-0.5 rounded">
-                        Room #{activeReservation.roomNumber}
+                      <span className={`text-sm font-medium ${mutedTextClass}`}>
+                        Room {activeReservation.roomNumber}
                       </span>
                     </div>
 
-                    <div className="space-y-1 text-xs">
+                    <dl className={`space-y-2 text-sm ${mutedTextClass}`}>
                       <div className="flex justify-between">
-                        <span className="text-slate-600 dark:text-slate-400">Category:</span>
-                        <strong className="text-slate-900 dark:text-white">{activeReservation.roomTypeName}</strong>
+                        <dt>Room type</dt>
+                        <dd className="text-right font-medium">{activeReservation.roomTypeName}</dd>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-600 dark:text-slate-400">Booking Ref:</span>
-                        <strong className="font-mono text-slate-900 dark:text-white">{activeReservation.bookingNumber}</strong>
+                        <dt>Booking reference</dt>
+                        <dd className="text-right font-medium">{activeReservation.bookingNumber}</dd>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-600 dark:text-slate-400">Dates:</span>
-                        <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                          {activeReservation.checkInDate} ➔ {activeReservation.checkOutDate}
-                        </span>
+                        <dt>Dates</dt>
+                        <dd className="text-right font-medium">
+                          {formatGuestStayDate(activeReservation.checkInDate)} – {formatGuestStayDate(activeReservation.checkOutDate)}
+                        </dd>
                       </div>
-                    </div>
+                    </dl>
 
-                    <div className="pt-2 border-t border-emerald-300/80 space-y-2">
-                      <div className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-900 dark:text-emerald-300 leading-snug">
-                        <strong>🔒 Cancellation Gate:</strong> Because your stay is already approved and checked-in by Reception, self-cancellation is restricted. Please contact the Front Desk for checkout or cancellation support.
-                      </div>
-                      <a
-                        href={`tel:${selectedHotel?.contactPhone || '+91 141 2345678'}`}
-                        className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98"
-                      >
-                        <Icons.Phone className="w-3.5 h-3.5 text-white" />
-                        <span>Call Reception Support</span>
-                      </a>
+                    <div className={`space-y-3 border-t pt-3 ${isDark ? 'border-[#315342]' : 'border-[#D7E5D9]'}`}>
+                      <p className={`text-sm leading-5 ${mutedTextClass}`}>
+                        Your stay is active. Contact the front desk for checkout or changes.
+                      </p>
+                      {selectedHotel?.contactPhone ? (
+                        <a
+                          href={`tel:${selectedHotel.contactPhone}`}
+                          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#12804E] px-4 text-sm font-semibold text-white transition hover:bg-[#0D6B3D] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E]"
+                        >
+                          <Icons.Phone className="h-4 w-4" />
+                          <span>Call front desk</span>
+                        </a>
+                      ) : (
+                        <p className={`text-sm ${mutedTextClass}`}>Front desk phone is not available.</p>
+                      )}
                     </div>
                   </div>
                 ) : (
-                  <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-center space-y-2.5">
-                    <span className="text-2xl">🛏️</span>
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-white">No Active Reservation</h4>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                      You do not have any room booked at {selectedHotel?.name || 'this hotel'}. Browse our catalog to reserve luxury suites.
-                    </p>
+                  <div className={`space-y-4 rounded-[20px] border p-5 ${pageSurfaceClass}`}>
+                    <div className="flex items-start gap-3">
+                      <Icons.Bed className="mt-0.5 h-5 w-5 shrink-0 text-[#12804E]" />
+                      <div>
+                        <h4 className="text-base font-semibold">No active stay</h4>
+                        <p className={`mt-1 text-sm leading-5 ${mutedTextClass}`}>
+                          There is no room reservation linked to this profile at {selectedHotel?.name || 'this hotel'}.
+                        </p>
+                      </div>
+                    </div>
                     <button
                       type="button"
                       onClick={() => setCustomerView('rooms')}
-                      className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs"
+                      className="min-h-12 w-full rounded-xl bg-[#12804E] px-4 text-sm font-semibold text-white transition hover:bg-[#0D6B3D] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E]"
                     >
-                      Browse Available Rooms
+                      Browse rooms
                     </button>
                   </div>
                 )}
               </div>
             )}
 
-            {/* TAB 3: DESK & SUPPORT */}
+            {/* PAGE: SUPPORT */}
             {settingsPage === 'SUPPORT' && (
-              <div className="space-y-3 animate-in fade-in">
-                <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2.5 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-900 dark:text-white block">Reception Desk Helpline</span>
-                      <span className="text-[10px] text-slate-500">{selectedHotel?.name || 'Hotel Front Desk'}</span>
-                    </div>
+              <div id="settings-panel" role="region" aria-label="Hotel support" className="space-y-4 animate-in fade-in">
+                <section className={`rounded-[20px] border p-5 ${pageSurfaceClass}`}>
+                  <h2 className="text-lg font-semibold">Contact the front desk</h2>
+                  <p className={`mt-1 text-sm ${mutedTextClass}`}>{selectedHotel?.name || 'Selected hotel'}</p>
+                  {selectedHotel?.contactPhone ? (
+                    <div className={`mt-4 flex items-center justify-between gap-3 border-t pt-4 ${isDark ? 'border-[#315342]' : 'border-[#D7E5D9]'}`}>
+                    <span className="min-w-0 break-all text-sm font-medium">{selectedHotel.contactPhone}</span>
                     <a
-                      href={`tel:${selectedHotel?.contactPhone || '+91 141 2345678'}`}
-                      className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 flex items-center gap-1 shadow-xs"
+                      href={`tel:${selectedHotel.contactPhone}`}
+                      className="flex min-h-12 shrink-0 items-center gap-2 rounded-xl bg-[#12804E] px-4 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E]"
                     >
-                      <Icons.Phone className="w-3.5 h-3.5" />
-                      <span>Call Now</span>
+                      <Icons.Phone className="h-4 w-4" />
+                      <span>Call</span>
                     </a>
-                  </div>
-                </div>
+                    </div>
+                  ) : (
+                    <p className={`mt-4 border-t pt-4 text-sm ${isDark ? 'border-[#315342] text-[#B9C9BD]' : 'border-[#D7E5D9] text-[#5E7163]'}`}>
+                    A phone number has not been added for this hotel.
+                    </p>
+                  )}
+                </section>
 
-                <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 space-y-2 text-xs">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Standard Hotel Timings</span>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600 dark:text-slate-400">Check-In:</span>
-                    <strong className="text-slate-900 dark:text-white">02:00 PM</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600 dark:text-slate-400">Check-Out:</span>
-                    <strong className="text-slate-900 dark:text-white">11:00 AM Departure</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600 dark:text-slate-400">Night Dining:</span>
-                    <strong className="text-slate-900 dark:text-white">11:30 PM - 06:00 AM</strong>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs space-y-1.5">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block">In-Room Phone Extensions</span>
-                  <p className="text-[11px] text-slate-700 dark:text-slate-300">• Reception Manager: <strong>Dial 9</strong></p>
-                  <p className="text-[11px] text-slate-700 dark:text-slate-300">• Kitchen & Dining: <strong>Dial 101</strong></p>
-                  <p className="text-[11px] text-slate-700 dark:text-slate-300">• Housekeeping Butler: <strong>Dial 102</strong></p>
-                  <p className="text-[11px] text-slate-700 dark:text-slate-300">• Emergency / Security: <strong>Dial 0</strong></p>
-                </div>
+                <section className={`rounded-[20px] border p-5 ${pageSurfaceClass}`}>
+                  <h2 className="text-lg font-semibold">Service call history</h2>
+                  {settingsCallHistory.length === 0 ? (
+                    <p className={`mt-2 text-sm ${mutedTextClass}`}>No service calls in this session.</p>
+                  ) : (
+                    <ul className={`mt-3 divide-y ${isDark ? 'divide-[#315342]' : 'divide-[#D7E5D9]'}`}>
+                    {settingsCallHistory.map((call, index) => (
+                      <li key={`${call.requestedAt}-${index}`} className="flex min-h-14 items-center justify-between gap-3 py-2 text-sm">
+                        <span className="min-w-0 truncate font-medium">{call.requestType.replace(/_/g, ' ')}</span>
+                        <span className={`shrink-0 capitalize ${mutedTextClass}`}>{call.status.replace(/_/g, ' ').toLowerCase()}</span>
+                      </li>
+                    ))}
+                    </ul>
+                  )}
+                </section>
               </div>
             )}
 
-            {/* TAB 4: APP & SYSTEM */}
+            {/* PAGE: APP ACCESS */}
             {settingsPage === 'SESSION' && (
-              <div className="space-y-3 animate-in fade-in">
-                <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2.5 shadow-xs text-xs">
-                  <div className="flex items-center justify-between">
-                    <span>Camera (QR Scanner)</span>
+              <div id="settings-panel" role="region" aria-label="App access settings" className="space-y-4 animate-in fade-in">
+                <section className={`rounded-[20px] border p-5 ${pageSurfaceClass}`}>
+                  <h2 className="text-lg font-semibold">App access</h2>
+                  <p className={`mt-1 text-sm ${mutedTextClass}`}>Manage permissions used by guest features.</p>
+                  <div className={`mt-4 flex min-h-16 items-center justify-between gap-4 border-t pt-3 ${isDark ? 'border-[#315342]' : 'border-[#D7E5D9]'}`}>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Camera</p>
+                      <p className={`mt-0.5 text-sm ${mutedTextClass}`}>Used to scan table QR codes.</p>
+                    </div>
                     <button
                       type="button"
                       onClick={openAppSettings}
-                      className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                      className={`min-h-12 shrink-0 rounded-xl border px-4 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E] ${
+                        isDark
+                          ? 'border-[#486553] bg-[#102D21] text-[#F2F7F2]'
+                          : 'border-[#B8D0BE] bg-white text-[#123C2B]'
+                      }`}
                     >
-                      Permissions
+                      Open settings
                     </button>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span>GPS Location Guard</span>
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                      Active
-                    </span>
+                  <div className={`border-t pt-3 ${isDark ? 'border-[#315342]' : 'border-[#D7E5D9]'}`}>
+                    <p className="text-sm font-medium">Location check</p>
+                    <p className={`mt-0.5 text-sm ${mutedTextClass}`}>{gpsStatus}</p>
                   </div>
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-500">App Version</span>
-                    <span className="font-mono text-slate-700 dark:text-slate-300">v2.6.0 (Production)</span>
-                  </div>
-                </div>
+                </section>
 
-                {/* Session Reset / Cache Clear: STRICTLY GATED WHEN ROOM IS BOOKED */}
                 {activeReservation || pendingApprovalBooking ? (
-                  <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50/80 text-[11px] text-blue-950 leading-relaxed">
-                    <strong>ℹ️ Stay Session Protected:</strong> A room reservation is currently active on this device. Cache reset is disabled to protect your stay and digital keycard. To cancel your reservation, please use the Stay tab.
-                  </div>
+                  <p className={`rounded-[20px] border p-4 text-sm leading-5 ${softSurfaceClass}`}>
+                    Hotel switching is unavailable while a reservation is active. Manage your booking in the Stay section.
+                  </p>
                 ) : (
-                  <button
-                    type="button"
-                    data-testid="reset-guest-session-btn"
-                    onClick={() => {
-                      if (confirm('Clear local guest session cache on this device?')) {
-                        localStorage.removeItem('spicehub_customer_hotel_chosen');
-                        localStorage.removeItem('spicehub_verified_guest_user');
-                        setVerifiedGuestUser(null);
-                        setCustomerView('hotel_select');
-                        alert('Local session cache cleared successfully.');
-                      }
-                    }}
-                    className="w-full py-3 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-600 text-xs font-bold transition active:scale-95 flex items-center justify-center gap-1.5"
-                  >
-                    <Icons.Trash className="w-4 h-4 text-slate-500" />
-                    <span>Clear App Cache</span>
-                  </button>
+                  <section className={`rounded-[20px] border p-5 ${pageSurfaceClass}`}>
+                    <h2 className="text-base font-semibold">Switch hotel</h2>
+                    <p className={`mt-1 text-sm leading-5 ${mutedTextClass}`}>
+                      Your verified mobile and current table session will be removed from this device.
+                    </p>
+                    <button
+                      type="button"
+                      data-testid="reset-guest-session-btn"
+                      onClick={() => {
+                        if (confirm('Switch hotels? Your verified mobile and current table session will be removed from this device.')) {
+                          localStorage.removeItem('spicehub_customer_hotel_chosen');
+                          localStorage.removeItem('spicehub_verified_guest_user');
+                          localStorage.removeItem('spicehub_customer_session_token');
+                          localStorage.removeItem('spicehub_customer_hotel_id');
+                          localStorage.removeItem('spicehub_customer_table');
+                          setVerifiedGuestUser(null);
+                          setGuestName('');
+                          setGuestPhone('');
+                          setPhoneOtp('');
+                          setPhoneOtpSent(false);
+                          setPhoneOtpVerified(false);
+                          setOtpSuccessMsg(null);
+                          setBookingError(null);
+                          setCustomerView('hotel_select');
+                        }
+                      }}
+                      className="mt-4 min-h-12 w-full rounded-xl border border-[#B8D0BE] px-4 text-sm font-semibold text-[#123C2B] transition hover:bg-[#F2F7F2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12804E] dark:border-[#486553] dark:text-[#F2F7F2] dark:hover:bg-[#183B2D]"
+                    >
+                      Switch hotel
+                    </button>
+                  </section>
                 )}
               </div>
             )}
@@ -4332,58 +5402,120 @@ export const App: React.FC = () => {
       {/* ======================================================== */}
       <nav
         data-testid="customer-bottom-nav"
-        className={`fixed bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:max-w-md z-40 border-t backdrop-blur-md px-6 flex items-center justify-around transition-colors ${
-          isDark ? 'bg-slate-950/95 border-slate-800 text-slate-400' : 'bg-white/95 border-slate-200 text-slate-600 shadow-lg'
-        }`}
+        className={`fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t px-2 md:left-1/2 md:max-w-md md:-translate-x-1/2 ${
+          activeReservation && customerView === 'home'
+            ? 'border-[#F3E4C2] bg-white'
+            : isDark
+              ? 'border-[#315342] bg-[#0F2F21]'
+              : 'border-[#D7E5D9] bg-[#F7FAF7]'
+        } rounded-t-[22px] shadow-[0_-8px_24px_rgba(18,60,43,0.08)]`}
         style={{
           paddingTop: '6px',
-          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)',
         }}
       >
-        {/* 1. Home */}
-        <button
-          type="button"
-          data-testid="nav-tab-home"
-          onClick={() => setCustomerView('home')}
-          className={`min-h-[48px] min-w-[64px] flex flex-col items-center justify-center py-1 px-4 rounded-xl transition font-medium text-[11px] gap-1 ${
-            customerView === 'home'
-              ? isDark ? 'text-amber-400 bg-amber-500/15 font-semibold' : 'text-amber-600 bg-amber-50 font-semibold'
-              : 'hover:text-slate-900 dark:hover:text-slate-200'
-          }`}
-        >
-          <Icons.Home className="w-5 h-5" />
-          <span>{t('Home')}</span>
-        </button>
-
-        {/* 2. Settings (Dedicated Page) */}
-        <button
-          type="button"
-          data-testid="nav-tab-settings"
-          onClick={() => setCustomerView('settings')}
-          className={`min-h-[48px] min-w-[64px] flex flex-col items-center justify-center py-1 px-4 rounded-xl transition font-medium text-[11px] gap-1 ${
-            customerView === 'settings'
-              ? isDark ? 'text-amber-400 bg-amber-500/15 font-semibold' : 'text-slate-900 bg-slate-100 font-semibold'
-              : 'hover:text-slate-900 dark:hover:text-slate-200 text-slate-500'
-          }`}
-        >
-          <Icons.Settings className="w-5 h-5 text-slate-500" />
-          <span>{t('Settings')}</span>
-        </button>
-
-        {/* 3. Profile */}
-        <button
-          type="button"
-          data-testid="nav-tab-profile"
-          onClick={() => setCustomerView('profile')}
-          className={`min-h-[48px] min-w-[64px] flex flex-col items-center justify-center py-1 px-4 rounded-xl transition font-medium text-[11px] gap-1 ${
-            customerView === 'profile'
-              ? isDark ? 'text-blue-400 bg-blue-500/15 font-semibold' : 'text-blue-600 bg-blue-50 font-semibold'
-              : 'hover:text-slate-900 dark:hover:text-slate-200'
-          }`}
-        >
-          <Icons.User className="w-5 h-5" />
-          <span>{t('Profile')}</span>
-        </button>
+        {activeReservation && customerView === 'home' ? (
+          <>
+            <button
+              type="button"
+              data-testid="nav-tab-my-stay"
+              onClick={() => {
+                const main = document.querySelector<HTMLElement>('[data-testid="customer-main-content"]');
+                if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`min-h-[56px] ${stayNavWidth} flex flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-bold text-[#0F2F21]`}
+            >
+              <Icons.Bed className="h-5 w-5" />
+              <span>{t('My Stay', 'My Stay')}</span>
+            </button>
+            {selectedHotel?.serviceCapabilities?.inRoomServices !== false && <button
+              type="button"
+              data-testid="nav-tab-dining"
+              onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'DINING')}
+              className={`min-h-[56px] ${stayNavWidth} flex flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-medium text-[#596579]`}
+            >
+              <Icons.Utensils className="h-5 w-5" />
+              <span>{t('Dining', 'Dining')}</span>
+            </button>}
+            {canShowServiceDirectory && <button
+              type="button"
+              data-testid="nav-tab-services"
+              onClick={() => document.getElementById('guest-services')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className={`min-h-[56px] ${stayNavWidth} flex flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-medium text-[#596579]`}
+            >
+              <Icons.Sparkles className="h-5 w-5" />
+              <span>{t('Services', 'Services')}</span>
+            </button>}
+            <button
+              type="button"
+              data-testid="nav-tab-folio"
+              onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'BILL')}
+              className={`min-h-[56px] ${stayNavWidth} flex flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-medium text-[#596579]`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                <rect x="4" y="2" width="16" height="20" rx="2" /><path d="M8 7h8M8 12h3m-3 4h8m-4-5v4m-2-2h4" />
+              </svg>
+              <span>{t('Folio', 'Folio')}</span>
+            </button>
+            <button
+              type="button"
+              data-testid="nav-tab-orders"
+              onClick={() => launchResidentPortal(activeReservation.roomNumber, selectedHotel, activeReservation.sessionToken, 'TRACKING')}
+              className={`min-h-[56px] ${stayNavWidth} flex flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-medium text-[#596579]`}
+            >
+              <Icons.Clock className="h-5 w-5" />
+              <span>{t('Orders', 'Orders')}</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              data-testid="nav-tab-home"
+              onClick={() => setCustomerView('home')}
+              className={`min-h-[56px] min-w-[96px] flex flex-col items-center justify-center py-1.5 px-5 rounded-2xl transition text-[11px] gap-1 ${
+ customerView === 'home' || customerView === 'hotel_select'
+ ? 'bg-[#123C2B] text-white font-bold shadow-sm'
+ : isDark
+ ? 'text-[#B9C9BD] font-medium'
+ : 'text-[#5E7163] font-medium'
+ }`}
+            >
+              <Icons.Home className="w-5 h-5" />
+              <span>{t('Home')}</span>
+            </button>
+            <button
+              type="button"
+              data-testid="nav-tab-settings"
+              onClick={() => openSettings()}
+              className={`min-h-[56px] min-w-[96px] flex flex-col items-center justify-center py-1.5 px-5 rounded-2xl transition text-[11px] gap-1 ${
+ customerView === 'settings'
+ ? 'bg-[#123C2B] text-white font-bold shadow-sm'
+ : isDark
+ ? 'text-[#B9C9BD] font-medium'
+ : 'text-[#5E7163] font-medium'
+ }`}
+            >
+              <Icons.Settings className="w-5 h-5" />
+              <span>{t('Settings')}</span>
+            </button>
+            <button
+              type="button"
+              data-testid="nav-tab-profile"
+              onClick={() => setCustomerView('profile')}
+              className={`min-h-[56px] min-w-[96px] flex flex-col items-center justify-center py-1.5 px-5 rounded-2xl transition text-[11px] gap-1 ${
+ customerView === 'profile'
+ ? 'bg-[#123C2B] text-white font-bold shadow-sm'
+ : isDark
+ ? 'text-[#B9C9BD] font-medium'
+ : 'text-[#5E7163] font-medium'
+ }`}
+            >
+              <Icons.User className="w-5 h-5" />
+              <span>{t('Profile')}</span>
+            </button>
+          </>
+        )}
       </nav>
 
       {/* ======================================================== */}
@@ -4397,17 +5529,17 @@ export const App: React.FC = () => {
         >
           <div
             className={`w-full max-w-sm rounded-2xl border p-5 shadow-sm dark:shadow-none flex flex-col gap-4 text-center ${
-              isDark ? 'border-amber-500/40 bg-slate-950 text-white' : 'border-2 border-slate-200 bg-white text-slate-900'
-            }`}
+ isDark ? 'border-amber-500/40 bg-slate-950 text-white' : 'border-2 border-slate-200 bg-white text-slate-900'
+ }`}
           >
             <div className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center mx-auto shadow-md ${
-              isDark ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-blue-100 border-blue-600 text-blue-600'
-            }`}>
+ isDark ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-emerald-100 border-emerald-600 text-emerald-600'
+ }`}>
               <Icons.Location className="w-6 h-6" />
             </div>
 
             <div>
-              <span className={`text-[10px] font-black uppercase tracking-wider ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
+              <span className={`text-[10px] font-black uppercase tracking-wider ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                 Location & Radius Verification
               </span>
               <h3 className={`text-base font-black mt-1 ${isDark ? 'text-white' : 'text-slate-950'}`}>
@@ -4425,14 +5557,14 @@ export const App: React.FC = () => {
                 data-testid="radius-option-hotel-premises"
                 onClick={() => handleProceedToBookingForm('HOTEL_RADIUS')}
                 className={`p-3.5 rounded-xl border-2 text-left transition flex items-start gap-3 active:scale-98 ${
-                  isDark
-                    ? 'border-emerald-500/50 bg-emerald-950/30 hover:bg-emerald-950/50'
-                    : 'border-emerald-500 bg-emerald-50/90 hover:bg-emerald-100 shadow-sm'
-                }`}
+ isDark
+ ? 'border-emerald-500/50 bg-emerald-950/30 hover:bg-emerald-950/50'
+ : 'border-emerald-500 bg-emerald-50/90 hover:bg-emerald-100 shadow-sm'
+ }`}
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                  isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-600 text-white shadow-xs'
-                }`}>
+ isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-600 text-white shadow-xs'
+ }`}>
                   <Icons.Building className="w-4 h-4" />
                 </div>
                 <div>
@@ -4441,8 +5573,8 @@ export const App: React.FC = () => {
                       At Hotel (Within Hotel Radius)
                     </h4>
                     <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
-                      isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-600 text-white'
-                    }`}>
+ isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-600 text-white'
+ }`}>
                       On-Site
                     </span>
                   </div>
@@ -4458,14 +5590,14 @@ export const App: React.FC = () => {
                 data-testid="radius-option-remote-home"
                 onClick={() => handleProceedToBookingForm('REMOTE_HOME')}
                 className={`p-3.5 rounded-xl border-2 text-left transition flex items-start gap-3 active:scale-98 ${
-                  isDark
-                    ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-800'
-                    : 'border-slate-300 bg-slate-50 hover:bg-slate-100 shadow-sm'
-                }`}
+ isDark
+ ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-800'
+ : 'border-slate-300 bg-slate-50 hover:bg-slate-100 shadow-sm'
+ }`}
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                  isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-600 text-white shadow-xs'
-                }`}>
+ isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-600 text-white shadow-xs'
+ }`}>
                   <Icons.Home className="w-4 h-4" />
                 </div>
                 <div>
@@ -4474,8 +5606,8 @@ export const App: React.FC = () => {
                       Booking from Home / Remote
                     </h4>
                     <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
-                      isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-600 text-white'
-                    }`}>
+ isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-600 text-white'
+ }`}>
                       Advance
                     </span>
                   </div>
@@ -4490,8 +5622,8 @@ export const App: React.FC = () => {
               type="button"
               onClick={() => setShowLocationRadiusCheck(false)}
               className={`w-full py-2.5 rounded-xl border text-xs font-bold transition ${
-                isDark ? 'border-slate-800 text-slate-400 hover:text-white' : 'border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100'
-              }`}
+ isDark ? 'border-slate-800 text-slate-400 hover:text-white' : 'border-slate-300 text-slate-700 bg-slate-50 hover:bg-slate-100'
+ }`}
             >
               Cancel
             </button>
@@ -4506,323 +5638,402 @@ export const App: React.FC = () => {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A1F16]/45 backdrop-blur-sm px-3 pb-3 lux-fade-in"
+          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 46px)' }}
         >
-          <div
-            className={`w-full max-w-md rounded-2xl border p-5 sm:p-6 shadow-sm dark:shadow-none flex flex-col gap-4 max-h-[90vh] overflow-y-auto ${
-              isDark ? 'border-slate-800 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
-            }`}
-          >
-            {/* Modal Header */}
-            <div className={`flex items-start justify-between pb-3 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  <Icons.Location className="w-3 h-3 text-emerald-500" />
-                  <span>{bookingLocationType === 'HOTEL_RADIUS' ? 'On-Premises Guest Check-In' : 'Remote Advance Reservation'}</span>
-                </span>
-                <h3 className="text-base font-black mt-0.5">
-                  Room {selectedRoomForBooking.roomNumber} • {selectedRoomForBooking.roomType.name}
-                </h3>
+          <div className="w-full max-w-md lux-sheet max-h-full overflow-y-auto no-scrollbar">
+            {/* Sheet Header */}
+            <div className="px-5 pt-5 pb-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#123C2B] flex items-center gap-1.5">
+                    <Icons.Location className="w-3.5 h-3.5 text-[#123C2B]" />
+                    <span>{bookingLocationType === 'HOTEL_RADIUS' ? 'On-Premises Guest Check-In' : 'Remote Advance Reservation'}</span>
+                  </span>
+                  <h3 className="font-lux text-[24px] leading-tight font-bold text-[#123C2B] mt-1">
+                    Room {selectedRoomForBooking.roomNumber} · {selectedRoomForBooking.roomType.name}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsBookingModalOpen(false)}
+                  className="w-9 h-9 rounded-full bg-[#FBF7EE] border border-[#E7DFCE] flex items-center justify-center text-[#123C2B] shrink-0 active:scale-95 transition"
+                  aria-label="Close check-in"
+                >
+                  <Icons.X className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsBookingModalOpen(false)}
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs ${
-                  isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                }`}
-              >
-                ✕
-              </button>
+              <div className="lux-divider mt-4" />
             </div>
 
-            {/* Booking Mode Selector (At Hotel vs Advance Booking) */}
-            <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setBookingLocationType('HOTEL_RADIUS')}
-                className={`py-2 px-2 rounded-lg text-center transition ${
-                  bookingLocationType === 'HOTEL_RADIUS'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                At Hotel Check-In
-              </button>
-              <button
-                type="button"
-                onClick={() => setBookingLocationType('REMOTE_HOME')}
-                className={`py-2 px-2 rounded-lg text-center transition ${
-                  bookingLocationType === 'REMOTE_HOME'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Advance Booking
-              </button>
-            </div>
-
-            {/* Error Banner */}
-            {bookingError && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-medium">
-                ⚠️ {bookingError}
-              </div>
-            )}
-
-            {/* Transparent Tariff Calculation */}
-            {(() => {
-              const basePrice = selectedRoomForBooking.roomType.basePriceOvernight || 2500;
-              const gstRate = basePrice > 7500 ? 18 : 12;
-              const subtotal = basePrice * bookingNights;
-              const taxAmount = Math.round(((subtotal * gstRate) / 100) * 100) / 100;
-              const grandTotal = subtotal + taxAmount;
-
-              return (
-                <div
-                  className={`p-3.5 rounded-xl border space-y-1.5 text-xs ${
-                    isDark ? 'bg-emerald-950/20 border-emerald-500/30 text-slate-300' : 'bg-emerald-50/70 border-emerald-200 text-slate-700'
+            <div className="px-5 pb-6 flex flex-col gap-4">
+              {/* Booking Mode Selector (At Hotel vs Advance Booking) */}
+              <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-[#F3EDE0] border border-[#E7DFCE]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBookingLocationType('HOTEL_RADIUS');
+                    if (gpsDistKm === null && !gpsChecking) {
+                      handleCheckGpsLocation();
+                    }
+                  }}
+                  className={`py-2.5 px-2 rounded-xl text-[12px] font-bold flex items-center justify-center gap-2 transition ${
+                    bookingLocationType === 'HOTEL_RADIUS'
+                      ? 'bg-[#123C2B] text-white shadow-sm'
+                      : 'text-[#7C7566]'
                   }`}
                 >
-                  <div className="flex justify-between font-medium">
-                    <span>
-                      Room Tariff ({bookingNights} {bookingNights === 1 ? 'Night' : 'Nights'} × ₹{basePrice.toLocaleString('en-IN')})
-                    </span>
-                    <span className="font-bold">₹{subtotal.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-500">
-                    <span>GST ({gstRate}%)</span>
-                    <span>₹{taxAmount.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="border-t border-emerald-500/30 pt-1.5 flex justify-between font-black text-sm text-emerald-600 dark:text-emerald-400">
-                    <span>Total Estimated Tariff</span>
-                    <span>₹{grandTotal.toLocaleString('en-IN')}</span>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Guest Booking Form */}
-            <form onSubmit={handleSubmitBookingForApproval} className="flex flex-col gap-3">
-              {/* Stay Duration Selector */}
-              <div>
-                <label className={`block text-[11px] font-bold uppercase mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                  Stay Duration (Nights)
-                </label>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setBookingNights(Math.max(1, bookingNights - 1))}
-                    className={`w-10 h-10 rounded-xl border font-black text-base flex items-center justify-center ${
-                      isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-100 border-slate-300 text-slate-800'
-                    }`}
-                  >
-                    -
-                  </button>
-                  <span className="text-sm font-black px-4">
-                    {bookingNights} {bookingNights === 1 ? 'Night' : 'Nights'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setBookingNights(Math.min(30, bookingNights + 1))}
-                    className={`w-10 h-10 rounded-xl border font-black text-base flex items-center justify-center ${
-                      isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-100 border-slate-300 text-slate-800'
-                    }`}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              {/* Guest Details */}
-              <div>
-                <label className={`block text-[11px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                  Primary Guest Full Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  data-testid="input-guest-name"
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  placeholder="e.g. Vikramaditya Sharma"
-                  className={`w-full min-h-[42px] rounded-xl border px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                    isDark
-                      ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
+                  <Icons.Building className="w-4 h-4" />
+                  <span>At Hotel Check-In</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBookingLocationType('REMOTE_HOME')}
+                  className={`py-2.5 px-2 rounded-xl text-[12px] font-bold flex items-center justify-center gap-2 transition ${
+                    bookingLocationType === 'REMOTE_HOME'
+                      ? 'bg-[#123C2B] text-white shadow-sm'
+                      : 'text-[#7C7566]'
                   }`}
-                />
+                >
+                  <Icons.Calendar className="w-4 h-4" />
+                  <span>Advance Booking</span>
+                </button>
               </div>
 
-              {/* GPS Geofence Check & Location Guard */}
-              <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Icons.Location className="w-4 h-4 text-slate-700" />
-                    <span className="text-[11px] font-bold text-slate-800">
-                      Location Verification
-                    </span>
+              {/* Remote Distance Warning if At Hotel is selected but user is far */}
+              {bookingLocationType === 'HOTEL_RADIUS' && gpsDistKm !== null && gpsDistKm > 0.5 && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed flex items-start gap-2">
+                  <Icons.Location className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <span className="font-bold block">Remote Distance Detected ({gpsDistKm} km away)</span>
+                    <span>On-Premises check-in requires being physically inside hotel radius (&lt;500m). Please switch to <b>Advance Booking</b> if reserving from home.</span>
                   </div>
                   <button
                     type="button"
-                    onClick={handleCheckGpsLocation}
-                    disabled={gpsChecking}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 transition disabled:opacity-50"
+                    onClick={() => setBookingLocationType('REMOTE_HOME')}
+                    className="px-2 py-1 rounded-lg bg-amber-600 text-white font-bold text-[10px] shrink-0 active:scale-95 transition"
                   >
-                    {gpsChecking ? 'Checking...' : 'Check Location'}
+                    Switch
                   </button>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[11px] text-slate-600">{gpsStatus}</span>
-                  {gpsDistKm !== null && (
-                    <span className="font-mono font-bold text-slate-800">
-                      {gpsDistKm > 0.5 ? `${gpsDistKm} km (Remote Booking)` : `${Math.round(gpsDistKm * 1000)}m (On-Site)`}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Advance Booking Timing for Remote/Home Reservations */}
-              {bookingLocationType === 'REMOTE_HOME' && (
-                <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-900 block">
-                        Schedule Dates & Arrival Time
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        Choose your stay window for advance reservation
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div>
-                      <label className={`block text-[10px] font-bold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                        Check-In Date *
-                      </label>
-                      <input
-                        type="date"
-                        data-testid="input-checkin-date"
-                        value={checkInDateInput}
-                        onChange={(e) => setCheckInDateInput(e.target.value)}
-                        className={`w-full min-h-[38px] rounded-xl border px-2 text-xs font-medium ${
-                          isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                        }`}
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-[10px] font-bold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                        Check-In Time *
-                      </label>
-                      <input
-                        type="time"
-                        data-testid="input-checkin-time"
-                        value={estimatedArrivalTime}
-                        onChange={(e) => setEstimatedArrivalTime(e.target.value)}
-                        className={`w-full min-h-[38px] rounded-xl border px-2 text-xs font-medium ${
-                          isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                        }`}
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-[10px] font-bold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                        Check-Out Date *
-                      </label>
-                      <input
-                        type="date"
-                        data-testid="input-checkout-date"
-                        value={checkOutDateInput}
-                        onChange={(e) => setCheckOutDateInput(e.target.value)}
-                        className={`w-full min-h-[38px] rounded-xl border px-2 text-xs font-medium ${
-                          isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                        }`}
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-[10px] font-bold mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                        Check-Out Time *
-                      </label>
-                      <input
-                        type="time"
-                        data-testid="input-checkout-time"
-                        value={estimatedDepartureTime}
-                        onChange={(e) => setEstimatedDepartureTime(e.target.value)}
-                        className={`w-full min-h-[38px] rounded-xl border px-2 text-xs font-medium ${
-                          isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                        }`}
-                      />
-                    </div>
-                  </div>
-
-                  <div className={`p-2 rounded-xl text-[10px] font-medium flex items-center justify-between ${
-                    isDark ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
-                  }`}>
-                    <span>🕒 Requested Window:</span>
-                    <span className="font-mono font-bold">
-                      {checkInDateInput} ({estimatedArrivalTime}) ➔ {checkOutDateInput} ({estimatedDepartureTime})
-                    </span>
-                  </div>
                 </div>
               )}
 
-              {/* Mobile Number & Phone OTP Verification */}
-              <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className={`block text-[11px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                      Mobile Number *
-                    </label>
-                    <input
-                      type="tel"
-                      required
-                      data-testid="input-guest-phone"
-                      value={guestPhone}
-                      onChange={(e) => {
-                        setGuestPhone(e.target.value);
-                        setPhoneOtpVerified(false);
-                      }}
-                      placeholder="e.g. 9820011223"
-                      className={`w-full min-h-[42px] rounded-xl border px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                        isDark
-                          ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500'
-                          : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
-                      }`}
-                    />
+              {/* Error Banner */}
+              {bookingError && (
+                <div className="p-3 rounded-xl bg-[#FDF0EE] border border-[#F0C9C3] text-[#8A2B20] text-[12px] font-medium">
+                  {bookingError}
+                </div>
+              )}
+
+              {/* Transparent Tariff Calculation */}
+              {(() => {
+                const basePrice = selectedRoomForBooking.roomType.basePriceOvernight || 2500;
+                const gstRate = selectedRoomForBooking.roomType.gstRate || (basePrice > 7500 ? 18 : 12);
+                const subtotal = basePrice * bookingNights;
+                const taxAmount = Math.round(((subtotal * gstRate) / 100) * 100) / 100;
+                const grandTotal = subtotal + taxAmount;
+
+                return (
+                  <div className="p-4 rounded-2xl border border-[#F3D79B] bg-[#F3E4C2] space-y-2.5">
+                    <div className="flex items-center justify-between text-[12.5px] text-[#334155]">
+                      <span className="flex items-center gap-2">
+                        <Icons.Bed className="w-4 h-4 text-[#123C2B]" />
+                        <span>Room Tariff ({bookingNights} {bookingNights === 1 ? 'Night' : 'Nights'} × ₹{basePrice.toLocaleString('en-IN')})</span>
+                      </span>
+                      <span className="font-bold text-[#123C2B]">₹{subtotal.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[12.5px] text-[#5F6F64]">
+                      <span className="flex items-center gap-2">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-4 h-4 text-[#4F8A68]">
+                          <rect x="3" y="4" width="18" height="16" rx="2" />
+                          <path d="M3 10h18M8 4v16" />
+                        </svg>
+                        <span>GST ({gstRate}%)</span>
+                      </span>
+                      <span className="font-semibold">₹{taxAmount.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="border-t border-[#CBDCCF] pt-2.5 flex items-center justify-between">
+                      <span className="flex items-center gap-2 text-[13px] font-black text-[#123C2B]">
+                        <Icons.CreditCard className="w-4 h-4 text-[#123C2B]" />
+                        <span>Total Estimated Tariff</span>
+                      </span>
+                      <span className="font-lux text-[20px] leading-none font-bold text-[#123C2B]">
+                        ₹{grandTotal.toLocaleString('en-IN')}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <label className={`block text-[11px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                      Guests Count
-                    </label>
-                    <select
-                      value={guestCount}
-                      onChange={(e) => setGuestCount(Number(e.target.value))}
-                      className={`w-full min-h-[42px] rounded-xl border px-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                        isDark
-                          ? 'bg-slate-950 border-slate-700 text-white'
-                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
-                      }`}
+                );
+              })()}
+
+              {/* Guest Booking Form */}
+              <form onSubmit={handleSubmitBookingForApproval} className="flex flex-col gap-4">
+                {/* Stay Duration Selector */}
+                <div>
+                  <label className="flex items-center gap-2 lux-label mb-2">
+                    <Icons.Bed className="w-4 h-4 text-[#123C2B]" />
+                    <span>Stay Duration (Nights)</span>
+                  </label>
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setBookingNights(Math.max(1, bookingNights - 1))}
+                      className="w-[62px] h-[52px] rounded-2xl border border-[#E9DDBF] bg-[#FBF7EE] text-[#0F2F21] flex items-center justify-center active:scale-95 transition"
+                      aria-label="Decrease nights"
                     >
-                      <option value={1}>1 Guest</option>
-                      <option value={2}>2 Guests</option>
-                      <option value={3}>3 Guests</option>
-                      <option value={4}>4 Guests</option>
-                    </select>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" className="w-5 h-5">
+                        <path d="M5 12h14" />
+                      </svg>
+                    </button>
+                    <div className="flex-1 text-center">
+                      <span className="font-lux text-[19px] font-bold text-[#123C2B]">
+                        {bookingNights} {bookingNights === 1 ? 'Night' : 'Nights'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBookingNights(Math.min(30, bookingNights + 1))}
+                      className="w-[62px] h-[52px] rounded-2xl border border-[#E9DDBF] bg-[#FBF7EE] text-[#0F2F21] flex items-center justify-center active:scale-95 transition"
+                      aria-label="Increase nights"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" className="w-5 h-5">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
 
-                {/* Phone OTP Verification Row (Required for All Reservations) */}
-                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[11px] font-bold uppercase tracking-wider block text-slate-900">
-                        Phone Verification
+                {/* Primary Guest Full Name */}
+                <div>
+                  <label className="flex items-center gap-2 lux-label mb-2">
+                    <Icons.User className="w-4 h-4 text-[#123C2B]" />
+                    <span>Primary Guest Full Name *</span>
+                  </label>
+                  <div className="relative">
+                    <Icons.User className="w-[18px] h-[18px] text-[#7C7566] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      required
+                      data-testid="input-guest-name"
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      placeholder="e.g. Vikramaditya Sharma"
+                      className="lux-input h-[52px] !pl-11 text-[13px]"
+                    />
+                  </div>
+                </div>
+
+                {/* GPS Geofence Check & Location Guard */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  gpsDistKm !== null && gpsDistKm <= 0.5
+                    ? 'border-emerald-300 bg-emerald-50/90 text-emerald-950'
+                    : gpsDistKm !== null && gpsDistKm > 0.5
+                    ? 'border-amber-300 bg-amber-50/90 text-amber-950'
+                    : 'border-[#F3D79B] bg-[#F3E4C2]'
+                }`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                        gpsDistKm !== null && gpsDistKm <= 0.5
+                          ? 'bg-emerald-600 text-white border-emerald-700'
+                          : gpsDistKm !== null && gpsDistKm > 0.5
+                          ? 'bg-amber-600 text-white border-amber-700'
+                          : 'bg-white border-[#F7E2B4] text-[#123C2B]'
+                      }`}>
+                        <Icons.Location className="w-4 h-4" />
                       </span>
-                      <span className="text-[10px] text-slate-500">
-                        Quick OTP verification for your booking
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[12.5px] font-bold text-[#123C2B] block">
+                            Location Verification
+                          </span>
+                          {gpsDistKm !== null && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                              gpsDistKm <= 0.5
+                                ? 'bg-emerald-200 text-emerald-800'
+                                : 'bg-amber-200 text-amber-800'
+                            }`}>
+                              {gpsDistKm <= 0.5 ? 'On-Site Verified' : 'Remote Location'}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-[#5F6F64] block truncate mt-0.5">
+                          {gpsStatus}
+                          {gpsDistKm !== null
+                            ? ` · ${gpsDistKm > 0.5 ? `${gpsDistKm} km` : `${Math.round(gpsDistKm * 1000)} m`}`
+                            : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCheckGpsLocation()}
+                      disabled={gpsChecking}
+                      className="px-3 py-2 rounded-xl bg-white border border-[#BFD6C5] text-[#123C2B] text-[11px] font-bold flex items-center gap-1.5 shrink-0 active:scale-95 transition disabled:opacity-60 shadow-xs"
+                    >
+                      {gpsChecking ? (
+                        <div className="w-3.5 h-3.5 border-2 border-[#123C2B] border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-3.5 h-3.5">
+                          <circle cx="12" cy="12" r="7" />
+                          <circle cx="12" cy="12" r="2" />
+                          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+                        </svg>
+                      )}
+                      <span>{gpsChecking ? 'Checking...' : 'Check Location'}</span>
+                    </button>
+                  </div>
+
+                  {/* Dev / Testing Quick Button for localhost */}
+                  {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+                    <div className="mt-2.5 pt-2 border-t border-black/10 flex items-center justify-between text-[10px]">
+                      <span className="text-[#7C7566]">Dev Helper:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const hLat = Number((selectedHotel as any)?.coordinates?.latitude) || Number((selectedHotel as any)?.latitude) || 26.2978;
+                          const hLng = Number((selectedHotel as any)?.coordinates?.longitude) || Number((selectedHotel as any)?.longitude) || 73.0185;
+                          handleCheckGpsLocation({ latitude: hLat, longitude: hLng });
+                        }}
+                        className="text-[#123C2B] font-bold underline hover:text-[#0F2F21]"
+                      >
+                        Simulate On-Premises (0m)
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Advance Booking Timing for Remote/Home Reservations */}
+                {bookingLocationType === 'REMOTE_HOME' && (
+                  <div className="p-4 rounded-2xl border border-[#E7DFCE] bg-[#FBF7EE] space-y-3">
+                    <div>
+                      <span className="text-[12.5px] font-bold text-[#123C2B] block">
+                        Schedule Dates & Arrival Time
+                      </span>
+                      <span className="text-[10.5px] text-[#7C7566]">
+                        Choose your stay window for advance reservation
                       </span>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] font-bold mb-1 text-[#7C7566]">Check-In Date *</label>
+                        <input
+                          type="date"
+                          data-testid="input-checkin-date"
+                          value={checkInDateInput}
+                          onChange={(e) => setCheckInDateInput(e.target.value)}
+                          className="lux-input h-[42px] px-2.5 text-[12px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold mb-1 text-[#7C7566]">Check-In Time *</label>
+                        <input
+                          type="time"
+                          data-testid="input-checkin-time"
+                          value={estimatedArrivalTime}
+                          onChange={(e) => setEstimatedArrivalTime(e.target.value)}
+                          className="lux-input h-[42px] px-2.5 text-[12px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold mb-1 text-[#7C7566]">Check-Out Date *</label>
+                        <input
+                          type="date"
+                          data-testid="input-checkout-date"
+                          value={checkOutDateInput}
+                          onChange={(e) => setCheckOutDateInput(e.target.value)}
+                          className="lux-input h-[42px] px-2.5 text-[12px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold mb-1 text-[#7C7566]">Check-Out Time *</label>
+                        <input
+                          type="time"
+                          data-testid="input-checkout-time"
+                          value={estimatedDepartureTime}
+                          onChange={(e) => setEstimatedDepartureTime(e.target.value)}
+                          className="lux-input h-[42px] px-2.5 text-[12px]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-white border border-[#E7DFCE] text-[10px] font-medium flex items-center justify-between gap-2 text-[#7C7566]">
+                      <span className="shrink-0">Requested Window</span>
+                      <span className="font-mono font-bold text-[#123C2B] truncate">
+                        {checkInDateInput} ({estimatedArrivalTime}) - {checkOutDateInput} ({estimatedDepartureTime})
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mobile Number & Guests Count */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="flex items-center gap-1.5 lux-label mb-2">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-3.5 h-3.5 text-[#123C2B]">
+                        <rect x="7" y="2" width="10" height="20" rx="2" />
+                        <path d="M11 18h2" />
+                      </svg>
+                      <span>Mobile Number *</span>
+                    </label>
+                    <div className="relative">
+                      <Icons.Phone className="w-4 h-4 text-[#7C7566] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="tel"
+                        required
+                        data-testid="input-guest-phone"
+                        value={guestPhone}
+                        onChange={(e) => {
+                          setGuestPhone(e.target.value);
+                          setPhoneOtpVerified(false);
+                        }}
+                        placeholder="e.g. 9820011223"
+                        className="lux-input h-[52px] !pl-9 !pr-2 text-[12.5px]"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1.5 lux-label mb-2">
+                      <Icons.User className="w-3.5 h-3.5 text-[#123C2B]" />
+                      <span>Guests Count</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={guestCount}
+                        onChange={(e) => setGuestCount(Number(e.target.value))}
+                        className="lux-input h-[52px] px-3 pr-8 text-[12.5px] appearance-none"
+                      >
+                        <option value={1}>1 Guest</option>
+                        <option value={2}>2 Guests</option>
+                        <option value={3}>3 Guests</option>
+                        <option value={4}>4 Guests</option>
+                      </select>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" className="w-4 h-4 text-[#7C7566] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Phone OTP Verification */}
+                <div className="p-4 rounded-2xl border border-[#E7DFCE] bg-[#FAF7F0] space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <span className="w-9 h-9 rounded-xl bg-[#F3E4C2] border border-[#F7E2B4] flex items-center justify-center shrink-0">
+                        <Icons.Shield className="w-4 h-4 text-[#123C2B]" />
+                      </span>
+                      <div className="min-w-0">
+                        <span className="text-[12.5px] font-bold text-[#123C2B] block">
+                          Phone Verification
+                        </span>
+                        <span className="text-[10.5px] text-[#7C7566] block">
+                          Quick OTP verification for your booking
+                        </span>
+                      </div>
+                    </div>
                     {phoneOtpVerified ? (
-                      <span className="text-[10px] font-bold text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        <Icons.Check className="w-3 h-3 text-emerald-600" />
+                      <span className="text-[10px] font-bold text-[#123C2B] flex items-center gap-1 bg-[#E4F1E6] px-2.5 py-1.5 rounded-full border border-[#F7E2B4] shrink-0">
+                        <Icons.Check className="w-3 h-3" />
                         <span>Verified</span>
                       </span>
                     ) : (
@@ -4830,32 +6041,32 @@ export const App: React.FC = () => {
                         type="button"
                         onClick={handleSendPhoneOtp}
                         disabled={otpSending || !guestPhone.trim()}
-                        className="px-3 py-1 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition disabled:opacity-50"
+                        className="px-3.5 py-2 rounded-xl bg-[#123C2B] text-white text-[11px] font-bold flex items-center gap-1.5 shrink-0 active:scale-95 transition disabled:opacity-50"
                       >
-                        {otpSending ? 'Sending...' : phoneOtpSent ? 'Resend OTP' : 'Send OTP'}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                          <path d="m22 2-7 20-4-9-9-4Z" />
+                          <path d="M22 2 11 13" />
+                        </svg>
+                        <span>{otpSending ? 'Sending...' : phoneOtpSent ? 'Resend OTP' : 'Send OTP'}</span>
                       </button>
                     )}
                   </div>
 
                   {!phoneOtpVerified && phoneOtpSent && (
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="flex items-center gap-2 pt-0.5">
                       <input
                         type="text"
                         maxLength={6}
-                        placeholder="4-digit OTP"
+                        placeholder="Enter OTP"
                         value={phoneOtp}
                         onChange={(e) => setPhoneOtp(e.target.value)}
-                        className={`w-1/2 rounded-lg px-2.5 py-1.5 text-xs font-mono text-center tracking-widest border ${
-                          isDark
-                            ? 'bg-black border-slate-700 text-white'
-                            : 'bg-white border-slate-300 text-slate-900 focus:bg-white shadow-xs'
-                        }`}
+                        className="lux-input flex-1 h-[44px] text-center font-mono tracking-[0.3em] text-[13px]"
                       />
                       <button
                         type="button"
                         onClick={handleVerifyPhoneOtp}
                         disabled={otpVerifying}
-                        className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow disabled:opacity-50"
+                        className="px-4 h-[44px] rounded-xl bg-[#123C2B] text-white font-bold text-[11px] active:scale-95 transition disabled:opacity-50"
                       >
                         {otpVerifying ? 'Verifying...' : 'Verify OTP'}
                       </button>
@@ -4863,278 +6074,239 @@ export const App: React.FC = () => {
                   )}
 
                   {otpSuccessMsg && (
-                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">{otpSuccessMsg}</p>
+                    <p className="text-[10.5px] text-[#123C2B] font-semibold">{otpSuccessMsg}</p>
                   )}
                 </div>
-              </div>
 
-              <div>
-                <label className={`block text-[11px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                  Email Address (Optional)
-                </label>
-                <input
-                  type="email"
-                  data-testid="input-guest-email"
-                  value={guestEmail}
-                  onChange={(e) => setGuestEmail(e.target.value)}
-                  placeholder="e.g. vikram@example.com"
-                  className={`w-full min-h-[42px] rounded-xl border px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                    isDark
-                      ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
-                  }`}
-                />
-              </div>
-
-              {/* AADHAAR CARD PHOTO UPLOAD (OPTIONAL FOR ADVANCE / MANDATORY FOR ON-PREMISES) */}
-              <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Icons.Shield className="w-4 h-4 text-slate-700" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-900">
-                      {bookingLocationType === 'REMOTE_HOME'
-                        ? 'Government ID (Optional)'
-                        : 'ID Verification (Front & Back)'}
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-800">
-                    {bookingLocationType === 'REMOTE_HOME' ? 'Verify on Arrival' : 'Photos Required'}
-                  </span>
-                </div>
-                <p className="text-[11px] leading-tight text-slate-500">
-                  {bookingLocationType === 'REMOTE_HOME'
-                    ? 'Documents can be verified at the Front Desk when you arrive, or you can attach photos now.'
-                    : 'Attach photos of your ID card for front desk room check-in verification.'}
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Front Side Upload */}
-                  <div
-                    className={`rounded-xl p-2.5 border space-y-2 ${
-                      isDark ? 'border-slate-700/80 bg-slate-900/60' : 'border-slate-200 bg-white shadow-xs'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[11px] font-bold flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
-                        <span>🪪</span> Front Side (Photo & Name)
-                      </span>
-                      {aadhaarFront && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">✓ Attached</span>}
-                    </div>
-
-                    {aadhaarFront ? (
-                      <div className={`relative rounded-lg overflow-hidden border h-24 flex items-center justify-center ${
-                        isDark ? 'border-emerald-500/40 bg-black' : 'border-emerald-300 bg-slate-50'
-                      }`}>
-                        <img src={aadhaarFront} alt="Aadhaar Front" className="h-full w-full object-contain" />
-                        <button
-                          type="button"
-                          onClick={() => setAadhaarFront(null)}
-                          className="absolute top-1 right-1 bg-black/70 hover:bg-red-600 text-white p-1 rounded-md text-[10px]"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border text-xs font-bold cursor-pointer transition ${
-                          isDark
-                            ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
-                            : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-800 shadow-xs'
-                        }`}>
-                          <Icons.Gallery className="w-3.5 h-3.5 text-blue-600" />
-                          <span>{aadhaarCompressing === 'FRONT' ? 'Reading...' : 'Choose Gallery'}</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleUploadAadhaar(e, 'FRONT')}
-                            className="hidden"
-                          />
-                        </label>
-                        <label className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border text-xs font-bold cursor-pointer transition ${
-                          isDark
-                            ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-300'
-                            : 'bg-amber-100/70 hover:bg-amber-100 border-amber-300 text-amber-900 shadow-xs'
-                        }`}>
-                          <Icons.Camera className="w-3.5 h-3.5" />
-                          <span>Take Photo</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={(e) => handleUploadAadhaar(e, 'FRONT')}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Back Side Upload */}
-                  <div
-                    className={`rounded-xl p-2.5 border space-y-2 ${
-                      isDark ? 'border-slate-700/80 bg-slate-900/60' : 'border-slate-200 bg-white shadow-xs'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[11px] font-bold flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
-                        <span>🪪</span> Back Side (Address & QR)
-                      </span>
-                      {aadhaarBack && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">✓ Attached</span>}
-                    </div>
-
-                    {aadhaarBack ? (
-                      <div className={`relative rounded-lg overflow-hidden border h-24 flex items-center justify-center ${
-                        isDark ? 'border-emerald-500/40 bg-black' : 'border-emerald-300 bg-slate-50'
-                      }`}>
-                        <img src={aadhaarBack} alt="Aadhaar Back" className="h-full w-full object-contain" />
-                        <button
-                          type="button"
-                          onClick={() => setAadhaarBack(null)}
-                          className="absolute top-1 right-1 bg-black/70 hover:bg-red-600 text-white p-1 rounded-md text-[10px]"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border text-xs font-bold cursor-pointer transition ${
-                          isDark
-                            ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
-                            : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-800 shadow-xs'
-                        }`}>
-                          <Icons.Gallery className="w-3.5 h-3.5 text-blue-600" />
-                          <span>{aadhaarCompressing === 'BACK' ? 'Reading...' : 'Choose Gallery'}</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleUploadAadhaar(e, 'BACK')}
-                            className="hidden"
-                          />
-                        </label>
-                        <label className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border text-xs font-bold cursor-pointer transition ${
-                          isDark
-                            ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-300'
-                            : 'bg-amber-100/70 hover:bg-amber-100 border-amber-300 text-amber-900 shadow-xs'
-                        }`}>
-                          <Icons.Camera className="w-3.5 h-3.5" />
-                          <span>Take Photo</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={(e) => handleUploadAadhaar(e, 'BACK')}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* 2-ROOM QUOTA & SECONDARY GUEST DISCLOSURE */}
-              <div
-                className={`p-3.5 rounded-2xl border space-y-2.5 ${
-                  isDark ? 'border-slate-700 bg-slate-900/50' : 'border-slate-200 bg-slate-50/80 shadow-xs'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className={`text-xs font-bold block ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                      2nd Room Booking / Accompanying Guest
-                    </span>
-                    <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      Strict ceiling: Maximum 2 rooms per mobile number
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsSecondRoom(!isSecondRoom)}
-                    className={`w-12 h-6 rounded-full transition-colors relative p-0.5 ${
-                      isSecondRoom ? 'bg-slate-800 dark:bg-slate-200' : isDark ? 'bg-slate-700' : 'bg-slate-300'
-                    }`}
-                  >
-                    <span
-                      className={`block w-5 h-5 rounded-full bg-white transition-transform shadow-sm ${
-                        isSecondRoom ? 'translate-x-6' : 'translate-x-0'
-                      }`}
+                {/* Email Address */}
+                <div>
+                  <label className="flex items-center gap-2 lux-label mb-2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-4 h-4 text-[#123C2B]">
+                      <rect x="3" y="5" width="18" height="14" rx="2" />
+                      <path d="m3 7 9 6 9-6" />
+                    </svg>
+                    <span>Email Address (Optional)</span>
+                  </label>
+                  <div className="relative">
+                    <Icons.User className="w-[18px] h-[18px] text-[#7C7566] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="email"
+                      data-testid="input-guest-email"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      placeholder="e.g. vikram@example.com"
+                      className="lux-input h-[52px] !pl-11 text-[13px]"
                     />
-                  </button>
+                  </div>
                 </div>
 
-                {isSecondRoom && (
-                  <div className={`pt-2 border-t space-y-2 ${isDark ? 'border-slate-700/60' : 'border-slate-200'}`}>
-                    <p className={`text-[11px] ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-slate-700 dark:text-slate-300 font-medium'}`}>
-                      Who is this 2nd room for? Please provide the secondary guest's name and relationship.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <label className={`text-[10px] font-bold block mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                          Secondary Guest Full Name *
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Radhika Sharma"
-                          value={secondaryGuestName}
-                          onChange={(e) => setSecondaryGuestName(e.target.value)}
-                          className={`w-full rounded-xl px-2.5 py-1.5 text-xs border ${
-                            isDark
-                              ? 'bg-slate-950 border-slate-700 text-white'
-                              : 'bg-white border-slate-300 text-slate-900 focus:bg-white'
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        <label className={`text-[10px] font-bold block mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                          Relationship to Primary Guest
-                        </label>
-                        <select
-                          value={secondaryGuestRelationship}
-                          onChange={(e) => setSecondaryGuestRelationship(e.target.value)}
-                          className={`w-full rounded-xl px-2.5 py-1.5 text-xs border ${
-                            isDark
-                              ? 'bg-slate-950 border-slate-700 text-white'
-                              : 'bg-white border-slate-300 text-slate-900 focus:bg-white'
-                          }`}
-                        >
-                          <option value="Spouse">Spouse</option>
-                          <option value="Child / Dependent">Child / Dependent</option>
-                          <option value="Parents / Family">Parents / Family</option>
-                          <option value="Colleague / Business Partner">Colleague / Business Partner</option>
-                          <option value="Friend">Friend</option>
-                        </select>
+                {/* ID VERIFICATION (FRONT & BACK) */}
+                <div className="p-4 rounded-2xl border border-[#E9E1D1] bg-white space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <span className="w-9 h-9 rounded-xl bg-[#F3E4C2] border border-[#F7E2B4] flex items-center justify-center shrink-0">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-4 h-4 text-[#123C2B]">
+                          <rect x="3" y="5" width="18" height="14" rx="2" />
+                          <circle cx="8.5" cy="10" r="1.5" />
+                          <path d="M13 9h5M13 13h5M6 15c.7-1 1.5-1.5 2.5-1.5S10.3 14 11 15" />
+                        </svg>
+                      </span>
+                      <div className="min-w-0">
+                        <span className="text-[12.5px] font-bold text-[#123C2B] uppercase tracking-wide block">
+                          {bookingLocationType === 'REMOTE_HOME' ? 'Government ID (Optional)' : 'ID Verification (Front & Back)'}
+                        </span>
                       </div>
                     </div>
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#F7E2B4] text-[#0F2F21] border border-[#F3D79B] shrink-0">
+                      {bookingLocationType === 'REMOTE_HOME' ? 'Verify on Arrival' : 'Photos Required'}
+                    </span>
                   </div>
-                )}
-              </div>
+                  <p className="text-[11px] leading-relaxed text-[#7C7566]">
+                    {bookingLocationType === 'REMOTE_HOME'
+                      ? 'Documents can be verified at the Front Desk when you arrive, or you can attach photos now.'
+                      : 'Attach photos of your ID card for front desk room check-in verification.'}
+                  </p>
 
-              {/* Submit CTA */}
-              <button
-                type="submit"
-                disabled={isSubmittingBooking || !phoneOtpVerified}
-                data-testid="submit-reception-docs-btn"
-                className={`min-h-[46px] rounded-xl font-bold text-xs sm:text-sm uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 transition active:scale-98 mt-1 ${
-                  !phoneOtpVerified
-                    ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed border border-slate-300 dark:border-slate-700'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20'
-                }`}
-              >
-                {isSubmittingBooking ? (
-                  <span>Submitting Booking to Reception...</span>
-                ) : !phoneOtpVerified ? (
-                  <>
-                    <Icons.Shield className="w-4 h-4 text-amber-500" />
-                    <span>Verify Mobile OTP Above to Book</span>
-                  </>
-                ) : (
-                  <>
-                    <Icons.Check className="w-4 h-4 text-white" />
-                    <span>Submit Booking to Reception</span>
-                  </>
-                )}
-              </button>
-            </form>
+                  <div className="flex flex-col gap-3">
+                    {/* Front Side Upload */}
+                    <div className="rounded-2xl p-3 border border-[#E7DFCE] bg-white">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[12px] font-bold text-[#123C2B] flex items-center gap-2">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-4 h-4 text-[#123C2B]">
+                            <rect x="3" y="4" width="18" height="16" rx="2" />
+                            <circle cx="8.5" cy="9.5" r="1.5" />
+                            <path d="m21 16-5-5L5 20" />
+                          </svg>
+                          <span>Front Side (Photo & Name)</span>
+                        </span>
+                        {aadhaarFront && (
+                          <span className="text-[10px] text-[#123C2B] font-bold flex items-center gap-1">
+                            <Icons.Check className="w-3 h-3 text-emerald-600" />
+                            <span>Attached</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {aadhaarFront ? (
+                        <div className="relative rounded-xl overflow-hidden border border-[#F7E2B4] bg-[#FBF7EE] h-24 flex items-center justify-center">
+                          <img src={aadhaarFront} alt="Aadhaar Front" className="h-full w-full object-contain" />
+                          <button
+                            type="button"
+                            onClick={() => setAadhaarFront(null)}
+                            className="absolute top-1.5 right-1.5 bg-[#123C2B]/85 text-white p-1 rounded-md"
+                          >
+                            <Icons.X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <label className="flex items-center justify-center gap-1.5 h-[42px] rounded-xl border border-[#F7E2B4] bg-[#F3E4C2] text-[#123C2B] text-[11px] font-bold cursor-pointer active:scale-95 transition">
+                            <Icons.Gallery className="w-4 h-4" />
+                            <span>{aadhaarCompressing === 'FRONT' ? 'Reading...' : 'Choose Gallery'}</span>
+                            <input type="file" accept="image/*" onChange={(e) => handleUploadAadhaar(e, 'FRONT')} className="hidden" />
+                          </label>
+                          <label className="flex items-center justify-center gap-1.5 h-[42px] rounded-xl border border-[#F3D79B] bg-[#FBF7EE] text-[#0F2F21] text-[11px] font-bold cursor-pointer active:scale-95 transition">
+                            <Icons.Camera className="w-4 h-4" />
+                            <span>Take Photo</span>
+                            <input type="file" accept="image/*" capture="environment" onChange={(e) => handleUploadAadhaar(e, 'FRONT')} className="hidden" />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Back Side Upload */}
+                    <div className="rounded-2xl p-3 border border-[#E7DFCE] bg-white">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[12px] font-bold text-[#123C2B] flex items-center gap-2">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-4 h-4 text-[#123C2B]">
+                            <rect x="3" y="4" width="18" height="16" rx="2" />
+                            <circle cx="8.5" cy="9.5" r="1.5" />
+                            <path d="m21 16-5-5L5 20" />
+                          </svg>
+                          <span>Back Side (Address & QR)</span>
+                        </span>
+                        {aadhaarBack && (
+                          <span className="text-[10px] text-[#123C2B] font-bold flex items-center gap-1">
+                            <Icons.Check className="w-3 h-3 text-emerald-600" />
+                            <span>Attached</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {aadhaarBack ? (
+                        <div className="relative rounded-xl overflow-hidden border border-[#F7E2B4] bg-[#FBF7EE] h-24 flex items-center justify-center">
+                          <img src={aadhaarBack} alt="Aadhaar Back" className="h-full w-full object-contain" />
+                          <button
+                            type="button"
+                            onClick={() => setAadhaarBack(null)}
+                            className="absolute top-1.5 right-1.5 bg-[#123C2B]/85 text-white p-1 rounded-md"
+                          >
+                            <Icons.X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <label className="flex items-center justify-center gap-1.5 h-[42px] rounded-xl border border-[#F7E2B4] bg-[#F3E4C2] text-[#123C2B] text-[11px] font-bold cursor-pointer active:scale-95 transition">
+                            <Icons.Gallery className="w-4 h-4" />
+                            <span>{aadhaarCompressing === 'BACK' ? 'Reading...' : 'Choose Gallery'}</span>
+                            <input type="file" accept="image/*" onChange={(e) => handleUploadAadhaar(e, 'BACK')} className="hidden" />
+                          </label>
+                          <label className="flex items-center justify-center gap-1.5 h-[42px] rounded-xl border border-[#F3D79B] bg-[#FBF7EE] text-[#0F2F21] text-[11px] font-bold cursor-pointer active:scale-95 transition">
+                            <Icons.Camera className="w-4 h-4" />
+                            <span>Take Photo</span>
+                            <input type="file" accept="image/*" capture="environment" onChange={(e) => handleUploadAadhaar(e, 'BACK')} className="hidden" />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2-ROOM QUOTA & SECONDARY GUEST DISCLOSURE */}
+                <div className="p-4 rounded-2xl border border-[#E7DFCE] bg-[#FBF7EE] space-y-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="text-[12px] font-bold block text-[#123C2B]">
+                        2nd Room Booking / Accompanying Guest
+                      </span>
+                      <span className="text-[10px] text-[#7C7566]">
+                        Strict ceiling: Maximum 2 rooms per mobile number
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsSecondRoom(!isSecondRoom)}
+                      className={`w-12 h-6 rounded-full transition-colors relative p-0.5 shrink-0 ${
+ isSecondRoom ? 'bg-[#123C2B]' : 'bg-[#D8CEBA]'
+ }`}
+                    >
+                      <span
+                        className={`block w-5 h-5 rounded-full bg-white transition-transform shadow-sm ${
+ isSecondRoom ? 'translate-x-6' : 'translate-x-0'
+ }`}
+                      />
+                    </button>
+                  </div>
+
+                  {isSecondRoom && (
+                    <div className="pt-2 border-t border-[#E9E1D1] space-y-2">
+                      <p className="text-[11px] text-[#5F5A4D] font-medium">
+                        Who is this 2nd room for? Please provide the secondary guest's name and relationship.
+                      </p>
+                      <div className="grid grid-cols-1 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold block mb-1 text-[#7C7566]">Secondary Guest Full Name *</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Radhika Sharma"
+                            value={secondaryGuestName}
+                            onChange={(e) => setSecondaryGuestName(e.target.value)}
+                            className="lux-input h-[44px] text-[12px]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold block mb-1 text-[#7C7566]">Relationship to Primary Guest</label>
+                          <select
+                            value={secondaryGuestRelationship}
+                            onChange={(e) => setSecondaryGuestRelationship(e.target.value)}
+                            className="lux-input h-[44px] text-[12px] appearance-none"
+                          >
+                            <option value="Spouse">Spouse</option>
+                            <option value="Child / Dependent">Child / Dependent</option>
+                            <option value="Parents / Family">Parents / Family</option>
+                            <option value="Colleague / Business Partner">Colleague / Business Partner</option>
+                            <option value="Friend">Friend</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Submit CTA */}
+                <button
+                  type="submit"
+                  disabled={isSubmittingBooking || !phoneOtpVerified}
+                  data-testid="submit-reception-docs-btn"
+                  className="min-h-[54px] rounded-[14px] luxury-submit lux-btn-primary text-[12px] uppercase tracking-[0.06em] flex items-center justify-center gap-2 mt-1"
+                  style={!phoneOtpVerified ? { background: '#D9D2C3', color: '#7C7566', boxShadow: 'none' } : undefined}
+                >
+                  {isSubmittingBooking ? (
+                    <span>Submitting Booking to Reception...</span>
+                  ) : !phoneOtpVerified ? (
+                    <>
+                      <Icons.Shield className="w-4 h-4" />
+                      <span>Verify Mobile OTP Above to Book</span>
+                    </>
+                  ) : (
+                    <>
+                      <Icons.Check className="w-4 h-4" />
+                      <span>Submit Booking to Reception</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
@@ -5150,8 +6322,8 @@ export const App: React.FC = () => {
         >
           <div
             className={`w-full max-w-sm rounded-2xl border p-5 sm:p-6 shadow-sm dark:shadow-none flex flex-col gap-4 text-center ${
-              isDark ? 'border-amber-500/40 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
-            }`}
+ isDark ? 'border-amber-500/40 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
+ }`}
           >
             <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border-2 border-emerald-500 text-emerald-500 flex items-center justify-center mx-auto shadow-md">
               <Icons.Check className="w-6 h-6 text-emerald-500" />
@@ -5168,8 +6340,8 @@ export const App: React.FC = () => {
             {/* Voucher Reference Box */}
             <div
               className={`p-3.5 rounded-xl border-2 text-left space-y-2 text-xs shadow-sm ${
-                isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-300'
-              }`}
+ isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-300'
+ }`}
             >
               <div className="flex justify-between items-center">
                 <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Booking Ref:</span>
@@ -5184,7 +6356,7 @@ export const App: React.FC = () => {
               <div className="flex justify-between items-center">
                 <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Stay Dates:</span>
                 <span className={`font-medium text-[11px] ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
-                  {bookingConfirmation.checkInDate} ➔ {bookingConfirmation.checkOutDate} ({bookingConfirmation.nights} nt)
+                  {bookingConfirmation.checkInDate} - {bookingConfirmation.checkOutDate} ({bookingConfirmation.nights} nt)
                 </span>
               </div>
               <div className={`flex justify-between items-center border-t pt-1.5 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
@@ -5212,7 +6384,7 @@ export const App: React.FC = () => {
                     'HOME'
                   );
                 }}
-                className="min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98"
+                className="min-h-[44px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98"
               >
                 <Icons.Key className="w-4 h-4 text-white" />
                 <span>{t('Tap Digital Keycard to Unlock Room')}</span>
@@ -5232,10 +6404,10 @@ export const App: React.FC = () => {
                     );
                   }}
                   className={`min-h-[42px] rounded-xl border font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition ${
-                    isDark
-                      ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
-                      : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
-                  }`}
+ isDark
+ ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
+ : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+ }`}
                 >
                   <Icons.Utensils className="w-4 h-4 text-amber-500" />
                   <span>{t('Order Food to Room')} {bookingConfirmation.roomNumber}</span>
@@ -5247,8 +6419,8 @@ export const App: React.FC = () => {
                 data-testid="voucher-close-btn"
                 onClick={() => setBookingConfirmation(null)}
                 className={`min-h-[38px] rounded-xl border font-semibold text-xs transition ${
-                  isDark ? 'border-slate-800 bg-slate-900/60 text-slate-400' : 'border-slate-200 bg-white text-slate-500'
-                }`}
+ isDark ? 'border-slate-800 bg-slate-900/60 text-slate-400' : 'border-slate-200 bg-white text-slate-500'
+ }`}
               >
                 Close Voucher
               </button>
@@ -5268,8 +6440,8 @@ export const App: React.FC = () => {
         >
           <div
             className={`w-full max-w-sm rounded-2xl border p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-center ${
-              isDark ? 'border-amber-500/40 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
-            }`}
+ isDark ? 'border-amber-500/40 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
+ }`}
           >
             <div className="flex items-center justify-between pb-1">
               <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
@@ -5280,10 +6452,10 @@ export const App: React.FC = () => {
                 type="button"
                 onClick={() => setShowActiveStayModal(false)}
                 className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition ${
-                  isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                }`}
+ isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+ }`}
               >
-                ✕
+                <Icons.X className="w-3.5 h-3.5" />
               </button>
             </div>
 
@@ -5303,8 +6475,8 @@ export const App: React.FC = () => {
             {/* Stay Details Box */}
             <div
               className={`p-3.5 rounded-xl border text-left space-y-2 text-xs shadow-xs ${
-                isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
-              }`}
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}
             >
               <div className="flex justify-between items-center">
                 <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Booking Ref:</span>
@@ -5319,7 +6491,7 @@ export const App: React.FC = () => {
               <div className="flex justify-between items-center">
                 <span className={`text-[10px] uppercase font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Stay Dates:</span>
                 <span className={`font-medium text-[11px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                  {activeReservation.checkInDate} ➔ {activeReservation.checkOutDate} ({activeReservation.nights || 1} Night)
+                  {activeReservation.checkInDate} - {activeReservation.checkOutDate} ({activeReservation.nights || 1} Night)
                 </span>
               </div>
               {activeReservation.grandTotal && (
@@ -5335,15 +6507,15 @@ export const App: React.FC = () => {
             {/* In-Room High Speed WiFi Card */}
             <div
               className={`p-3 rounded-xl border text-left flex items-center justify-between text-xs ${
-                isDark ? 'bg-blue-950/20 border-blue-500/30 text-blue-200' : 'bg-blue-50 border-blue-200 text-blue-950'
-              }`}
+ isDark ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200' : 'bg-emerald-50 border-emerald-200 text-emerald-950'
+ }`}
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold">
                   <Icons.Wifi className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 block">
+                  <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 block">
                     High-Speed Room WiFi
                   </span>
                   <span className="font-mono font-bold text-xs">{activeReservation.wifiSsid || 'TajGateway_HighSpeed'}</span>
@@ -5368,10 +6540,13 @@ export const App: React.FC = () => {
                     'HOME'
                   );
                 }}
-                className="min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98"
+                className="min-h-[44px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98"
               >
                 <Icons.Key className="w-4 h-4" />
-                <span>Enter Room / Open Keycard ➔</span>
+                <span className="flex items-center gap-1.5">
+                  Enter Room / Open Keycard
+                  <Icons.ArrowRight className="w-3.5 h-3.5" />
+                </span>
               </button>
 
               <button
@@ -5387,10 +6562,10 @@ export const App: React.FC = () => {
                   );
                 }}
                 className={`min-h-[42px] rounded-xl border font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition ${
-                  isDark
-                    ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
-                    : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
-                }`}
+ isDark
+ ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
+ : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+ }`}
               >
                 <Icons.Utensils className="w-4 h-4 text-amber-500" />
                 <span>Order In-Room Dining</span>
@@ -5401,10 +6576,13 @@ export const App: React.FC = () => {
                 data-testid="stay-close-btn"
                 onClick={() => setShowActiveStayModal(false)}
                 className={`min-h-[38px] rounded-xl border text-xs font-bold transition ${
-                  isDark ? 'border-slate-800 text-slate-400 hover:text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-100'
-                }`}
+ isDark ? 'border-slate-800 text-slate-400 hover:text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-100'
+ }`}
               >
-                ← Back to Hotel Home
+                <span className="flex items-center justify-center gap-1.5">
+                  <Icons.ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to Hotel Home</span>
+                </span>
               </button>
             </div>
           </div>
@@ -5422,20 +6600,33 @@ export const App: React.FC = () => {
         >
           <div
             className={`w-full max-w-sm rounded-2xl border p-5 shadow-sm dark:shadow-none flex flex-col gap-3.5 max-h-[80vh] ${
-              isDark ? 'border-slate-800 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
-            }`}
+ isDark ? 'border-slate-800 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-900'
+ }`}
           >
             <div className={`flex items-center justify-between pb-2 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <h3 className="text-sm font-black">Select Hotel Property</h3>
-              <button
-                type="button"
-                onClick={() => setIsHotelModalOpen(false)}
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs ${
-                  isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                }`}
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setHotelLoadAttempt((attempt) => attempt + 1)}
+                  disabled={loadingHotels}
+                  aria-label="Refresh hotels"
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs ${
+                    isDark ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <Icons.RefreshCw className={`w-3.5 h-3.5 ${loadingHotels ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsHotelModalOpen(false)}
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs ${
+                    isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
+                >
+                  <Icons.X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             <div className="relative">
@@ -5444,19 +6635,28 @@ export const App: React.FC = () => {
                 value={hotelSearch}
                 onChange={(e) => setHotelSearch(e.target.value)}
                 placeholder="Search hotel or city..."
-                className={`w-full min-h-[40px] rounded-xl border pl-9 pr-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                className={`w-full min-h-[44px] rounded-xl border pl-10 pr-9 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#12804E] shadow-xs ${
                   isDark
-                    ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500'
-                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
+                    ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-400'
+                    : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
                 }`}
               />
-              <Icons.Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+              <Icons.Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              {hotelSearch && (
+                <button
+                  type="button"
+                  onClick={() => setHotelSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                >
+                  <Icons.X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto flex flex-col gap-2.5 pr-0.5">
               {filteredHotels.map((h) => {
                 const isSelected = selectedHotel?.id === h.id;
-                const cover = h.coverImageUrl || FALLBACK_HOTEL_COVER;
+                const cover = getHotelCoverImage(h);
                 const logo = h.logoUrl || FALLBACK_HOTEL_LOGO;
 
                 return (
@@ -5465,28 +6665,25 @@ export const App: React.FC = () => {
                     type="button"
                     data-testid={`hotel-select-option-${h.id}`}
                     onClick={() => {
-                      setSelectedHotel(h);
+                      selectHotel(h);
                       setIsHotelModalOpen(false);
-                      setStayVerifyError(null);
                     }}
                     className={`rounded-xl border text-left transition overflow-hidden flex flex-col ${
-                      isSelected
-                        ? 'border-amber-500 bg-amber-500/10 shadow-sm'
-                        : isDark
-                        ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-800/80'
-                        : 'border-slate-200 bg-white hover:bg-slate-50 shadow-sm'
-                    }`}
+ isSelected
+ ? 'border-amber-500 bg-amber-500/10 shadow-sm'
+ : isDark
+ ? 'border-slate-800 bg-slate-900/60 hover:bg-slate-800/80'
+ : 'border-slate-200 bg-white hover:bg-slate-50 shadow-sm'
+ }`}
                   >
                     <div className="h-16 w-full relative overflow-hidden bg-slate-950">
                       <img
                         src={cover}
                         alt=""
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = FALLBACK_HOTEL_COVER;
-                        }}
+                        onError={handleImageError(FALLBACK_HOTEL_COVER)}
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                      <div className="bg-gradient-to-t absolute inset-0 from-black/80 via-black/40" />
                       <div className="absolute top-2 right-2">
                         <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-black/60 text-white border border-white/20 flex items-center gap-1">
                           <Icons.Location className="w-2.5 h-2.5 text-amber-400" />
@@ -5498,9 +6695,7 @@ export const App: React.FC = () => {
                           <img
                             src={logo}
                             alt=""
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = FALLBACK_HOTEL_LOGO;
-                            }}
+                            onError={handleImageError(FALLBACK_HOTEL_LOGO)}
                             className="w-full h-full object-cover"
                           />
                         </div>
@@ -5530,6 +6725,20 @@ export const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 24/7 Concierge & Floor Support Live Chatbox Modal */}
+      <CustomerNeedHelpChatModal
+        isOpen={isHelpChatOpen}
+        onClose={() => setIsHelpChatOpen(false)}
+        hotelId={selectedHotel?.id || ''}
+        hotelName={selectedHotel?.name || 'SpiceHub Hotel'}
+        currentRoomNumber={activeReservation?.roomNumber || ''}
+        currentTableNumber={''}
+        guestName={profileName || 'Valued Guest'}
+        guestPhone={profilePhone || ''}
+        apiBaseUrl={DEFAULT_API_BASE}
+        socketUrl={SOCKET_URL}
+      />
       </div>
     </div>
   );

@@ -155,7 +155,7 @@ export const HousekeepingTurnaroundApp: React.FC<HousekeepingTurnaroundAppProps>
   const ecoSavings = store.getEcoWaterSavings();
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
+    <div className="heritage-light min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
       {/* Luxury Navigation Header */}
       <HousekeepingHeader
         summary={summary}
@@ -191,7 +191,7 @@ export const HousekeepingTurnaroundApp: React.FC<HousekeepingTurnaroundAppProps>
           </div>
         ) : filteredRooms.length === 0 ? (
           <div className="py-20 text-center text-slate-500">
-            <div className="text-4xl mb-2">🧹</div>
+            <div className="text-4xl mb-2"></div>
             <h3 className="text-sm font-semibold text-slate-300">No Rooms Found</h3>
             <p className="text-xs text-slate-500 mt-1">Try resetting your filters or search keywords.</p>
             <button

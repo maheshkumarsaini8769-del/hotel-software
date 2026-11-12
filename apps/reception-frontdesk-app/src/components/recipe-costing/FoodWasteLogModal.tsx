@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ILogWastePayload, WasteTypeUI, KitchenShiftUI, RecipeCostingHelper } from '@spicehub/ui';
+import { ILogWastePayload, WasteTypeUI, KitchenShiftUI, RecipeCostingHelper, NumericInput } from '@spicehub/ui';
 
 interface FoodWasteLogModalProps {
   isOpen: boolean;
@@ -47,11 +47,11 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border-2 border-red-500/40 rounded-3xl w-full max-w-2xl flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
+      <div className="bg-slate-900 border-2 border-red-500/40 rounded-xl w-full max-w-2xl flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="bg-slate-950 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl">🗑️</span>
+            <span className="text-xl">️</span>
             <div>
               <h2 className="text-lg font-bold text-white">Log Kitchen Spoilage / Food Waste</h2>
               <p className="text-xs text-zinc-400">
@@ -64,7 +64,7 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
             onClick={onClose}
             className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -125,8 +125,7 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
               <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
                 Wasted Quantity
               </label>
-              <input
-                type="number"
+              <NumericInput
                 step="0.1"
                 min="0.1"
                 value={quantity}
@@ -157,8 +156,7 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
               <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
                 Cost Per Unit (₹)
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="0"
                 value={unitCost}
                 onChange={(e) => setUnitCost(Number(e.target.value))}

@@ -6,6 +6,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { getApiClient } from '../lib/apiClient';
+import { NumericInput } from '@spicehub/ui';
 
 interface RoomChargesPosViewProps {
   isDark?: boolean;
@@ -32,7 +33,7 @@ interface StayDetails {
 }
 
 export const RoomChargesPosView: React.FC<RoomChargesPosViewProps> = ({
-  isDark = true,
+
   onToast,
 }) => {
   const [stays, setStays] = useState<ActiveStay[]>([]);
@@ -133,10 +134,10 @@ export const RoomChargesPosView: React.FC<RoomChargesPosViewProps> = ({
   return (
     <div className="space-y-4 max-w-4xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
+ 'bg-white border-slate-200 shadow-sm'
+ }`}>
         <div>
-          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${'text-slate-900'}`}>
             <Coffee className="w-5 h-5 text-amber-500" />
             <span>F&B Bill Transfer to Hotel Guest Room Folio</span>
           </h2>
@@ -168,8 +169,8 @@ export const RoomChargesPosView: React.FC<RoomChargesPosViewProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <form onSubmit={handlePost} className={`p-5 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+ 'bg-white border-slate-200'
+ }`}>
           <h3 className="font-black text-sm text-white">Post Bill to In-House Guest</h3>
 
           <div>
@@ -195,8 +196,7 @@ export const RoomChargesPosView: React.FC<RoomChargesPosViewProps> = ({
 
           <div>
             <label className="text-xs text-slate-400 font-bold block mb-1">F&B Bill Amount (₹)</label>
-            <input
-              type="number"
+            <NumericInput
               min="1"
               step="0.01"
               value={amount}
@@ -221,7 +221,7 @@ export const RoomChargesPosView: React.FC<RoomChargesPosViewProps> = ({
           <button
             type="submit"
             disabled={posting || !roomNum}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 text-white font-black text-xs shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
+            className="bg-emerald-600 hover:bg-emerald-700 w-full py-2.5 rounded-xl text-white font-black text-xs shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>{posting ? 'Transferring…' : 'Authorize & Transfer to Room Folio'}</span>
@@ -229,8 +229,8 @@ export const RoomChargesPosView: React.FC<RoomChargesPosViewProps> = ({
         </form>
 
         <div className={`p-5 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+ 'bg-white border-slate-200'
+ }`}>
           <h3 className="font-black text-sm text-white">Resident Guest Folio Preview</h3>
           {!roomNum ? (
             <div className="py-10 text-center text-xs text-slate-500">

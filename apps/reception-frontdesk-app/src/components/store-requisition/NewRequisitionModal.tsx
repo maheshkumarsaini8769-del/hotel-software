@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   INewRequisitionPayload,
   RequisitionDepartmentUI,
-  RequisitionUrgencyUI,
+  RequisitionUrgencyUI, NumericInput,
 } from '@spicehub/ui';
 
 interface NewRequisitionModalProps {
@@ -63,11 +63,11 @@ export const NewRequisitionModal: React.FC<NewRequisitionModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border-2 border-amber-500/40 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
+      <div className="bg-slate-900 border-2 border-amber-500/40 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="bg-slate-900 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl">📋</span>
+            <span className="text-xl"></span>
             <div>
               <h2 className="text-lg font-bold text-white">Raise Kitchen Store Indent (Requisition)</h2>
               <p className="text-xs text-zinc-400">
@@ -80,7 +80,7 @@ export const NewRequisitionModal: React.FC<NewRequisitionModalProps> = ({
             onClick={onClose}
             className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -118,7 +118,7 @@ export const NewRequisitionModal: React.FC<NewRequisitionModalProps> = ({
               >
                 <option value="NORMAL">Normal Indent (Routine Restock)</option>
                 <option value="HIGH">High Priority (Lunch/Dinner Rush)</option>
-                <option value="CRITICAL_SERVICE_BLOCKER">🚨 Critical Blocker (Stockout Imminent)</option>
+                <option value="CRITICAL_SERVICE_BLOCKER"> Critical Blocker (Stockout Imminent)</option>
               </select>
             </div>
           </div>
@@ -139,7 +139,7 @@ export const NewRequisitionModal: React.FC<NewRequisitionModalProps> = ({
               </button>
             </div>
 
-            <div className="bg-zinc-950/70 border border-zinc-800 rounded-2xl overflow-hidden p-3 space-y-2">
+            <div className="bg-zinc-950/70 border border-zinc-800 rounded-xl overflow-hidden p-3 space-y-2">
               <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-zinc-400 uppercase pb-1 border-b border-zinc-800 px-2">
                 <span className="col-span-6">Ingredient / Raw Material</span>
                 <span className="col-span-3 text-right">Requested Qty</span>
@@ -160,8 +160,7 @@ export const NewRequisitionModal: React.FC<NewRequisitionModalProps> = ({
                     />
                   </div>
                   <div className="col-span-3">
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.1"
                       min="0.1"
                       value={it.requestedQuantity}
@@ -192,7 +191,7 @@ export const NewRequisitionModal: React.FC<NewRequisitionModalProps> = ({
                       disabled={items.length <= 1}
                       className="text-zinc-500 hover:text-red-400 disabled:opacity-30 p-1 text-xs"
                     >
-                      ✕
+                      
                     </button>
                   </div>
                 </div>

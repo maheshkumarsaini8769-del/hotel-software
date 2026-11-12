@@ -53,10 +53,10 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
               type="button"
               onClick={() => onFilterChange(tab.key)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                selectedFilter === tab.key
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-              }`}
+ selectedFilter === tab.key
+ ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+ : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+ }`}
             >
               {tab.label}
             </button>
@@ -66,7 +66,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
         {/* Search Input */}
         <div className="relative w-full md:w-72">
           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">
-            🔍
+            
           </span>
           <input
             type="text"
@@ -82,7 +82,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredOrders.length === 0 ? (
           <div className="col-span-full py-16 text-center text-zinc-500 text-sm flex flex-col items-center gap-2">
-            <span className="text-3xl">📦</span>
+            <span className="text-3xl"></span>
             <span>No purchase orders found matching this filter</span>
           </div>
         ) : (
@@ -95,7 +95,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
             return (
               <div
                 key={po._id}
-                className="bg-slate-900 rounded-2xl border border-zinc-800 hover:border-zinc-700 p-5 flex flex-col justify-between shadow-lg transition-all group"
+                className="bg-slate-900 rounded-xl border border-zinc-800 hover:border-zinc-700 p-5 flex flex-col justify-between shadow-lg transition-all group"
               >
                 <div>
                   {/* Top Bar: PO # & Status */}
@@ -156,7 +156,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
                       disabled={loading}
                       className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider transition-all shadow-sm"
                     >
-                      ✓ Approve PO
+                       Approve PO
                     </button>
                   )}
 
@@ -166,14 +166,14 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
                       onClick={() => onReceiveGrn(po)}
                       className="w-full py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold text-xs border border-emerald-500/40 transition-all flex items-center justify-center gap-1.5"
                     >
-                      <span>🚚</span>
+                      <span></span>
                       <span>Receive at Dock (GRN)</span>
                     </button>
                   )}
 
                   {po.status === 'COMPLETED' && (
                     <span className="w-full py-2 rounded-xl bg-zinc-900 text-zinc-400 font-medium text-xs text-center border border-zinc-800">
-                      ✓ Fully Fulfilled
+                       Fully Fulfilled
                     </span>
                   )}
                 </div>

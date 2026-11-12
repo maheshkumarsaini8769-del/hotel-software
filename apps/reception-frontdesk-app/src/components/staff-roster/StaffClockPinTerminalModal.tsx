@@ -62,7 +62,7 @@ export const StaffClockPinTerminalModal: React.FC<StaffClockPinTerminalModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="bg-slate-950 border border-slate-200 dark:border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-sm dark:shadow-none text-zinc-100 flex flex-col items-center">
+      <div className="bg-slate-950 border border-slate-200 dark:border-slate-800 w-full max-w-sm rounded-xl p-6 shadow-sm dark:shadow-none text-zinc-100 flex flex-col items-center">
         {/* Terminal Header */}
         <div className="w-full flex items-center justify-between pb-3 border-b border-zinc-800">
           <div className="flex items-center gap-2">
@@ -76,7 +76,7 @@ export const StaffClockPinTerminalModal: React.FC<StaffClockPinTerminalModalProp
             onClick={onClose}
             className="text-zinc-400 hover:text-white p-1 rounded-lg text-sm"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -91,13 +91,13 @@ export const StaffClockPinTerminalModal: React.FC<StaffClockPinTerminalModalProp
         </div>
 
         {/* PIN Dots Display */}
-        <div className="flex items-center justify-center gap-3 my-2 h-10 w-full bg-zinc-900 border border-zinc-800 rounded-2xl">
+        <div className="flex items-center justify-center gap-3 my-2 h-10 w-full bg-zinc-900 border border-zinc-800 rounded-xl">
           {[0, 1, 2, 3].map((idx) => (
             <span
               key={idx}
               className={`h-3 w-3 rounded-full transition-all ${
-                pin.length > idx ? 'bg-slate-800 scale-125 shadow-sm dark:shadow-none' : 'bg-zinc-700'
-              }`}
+ pin.length > idx ? 'bg-slate-800 scale-125 shadow-sm dark:shadow-none' : 'bg-zinc-700'
+ }`}
             />
           ))}
         </div>
@@ -106,8 +106,8 @@ export const StaffClockPinTerminalModal: React.FC<StaffClockPinTerminalModalProp
         {feedback && (
           <div
             className={`my-2 p-2 rounded-xl text-xs font-semibold text-center w-full ${
-              feedback.isError ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-            }`}
+ feedback.isError ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+ }`}
           >
             {feedback.message}
           </div>
@@ -120,7 +120,7 @@ export const StaffClockPinTerminalModal: React.FC<StaffClockPinTerminalModalProp
               key={digit}
               type="button"
               onClick={() => handleKeyPress(digit)}
-              className="h-14 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-slate-200 dark:border-slate-800 hover:bg-zinc-800 text-xl font-bold font-mono text-white active:scale-95 transition-all shadow"
+              className="h-14 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-slate-200 dark:border-slate-800 hover:bg-zinc-800 text-xl font-bold font-mono text-white active:scale-95 transition-all shadow"
             >
               {digit}
             </button>
@@ -128,21 +128,21 @@ export const StaffClockPinTerminalModal: React.FC<StaffClockPinTerminalModalProp
           <button
             type="button"
             onClick={handleClear}
-            className="h-14 rounded-2xl bg-zinc-900 border border-zinc-800 hover:bg-red-500/20 text-xs font-bold text-red-400 active:scale-95 transition-all"
+            className="h-14 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-red-500/20 text-xs font-bold text-red-400 active:scale-95 transition-all"
           >
             CLR
           </button>
           <button
             type="button"
             onClick={() => handleKeyPress('0')}
-            className="h-14 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-slate-200 dark:border-slate-800 hover:bg-zinc-800 text-xl font-bold font-mono text-white active:scale-95 transition-all shadow"
+            className="h-14 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-slate-200 dark:border-slate-800 hover:bg-zinc-800 text-xl font-bold font-mono text-white active:scale-95 transition-all shadow"
           >
             0
           </button>
           <button
             type="button"
             onClick={handleBackspace}
-            className="h-14 rounded-2xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm font-bold text-zinc-400 active:scale-95 transition-all"
+            className="h-14 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm font-bold text-zinc-400 active:scale-95 transition-all"
           >
             ⌫
           </button>
@@ -154,17 +154,17 @@ export const StaffClockPinTerminalModal: React.FC<StaffClockPinTerminalModalProp
             type="button"
             disabled={loading || pin.length < 4}
             onClick={() => handleAction('IN')}
-            className="py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-900/30 transition-all disabled:opacity-40"
+            className="bg-emerald-600 hover:bg-emerald-700 py-3 rounded-xl text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-900/30 transition-all disabled:opacity-40"
           >
-            Clock In 🟢
+            Clock In 
           </button>
           <button
             type="button"
             disabled={loading || pin.length < 4}
             onClick={() => handleAction('OUT')}
-            className="py-3 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-sm transition-all disabled:opacity-40"
+            className="bg-emerald-600 hover:bg-emerald-700 py-3 rounded-xl text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-sm transition-all disabled:opacity-40"
           >
-            Clock Out 🔴
+            Clock Out 
           </button>
         </div>
       </div>

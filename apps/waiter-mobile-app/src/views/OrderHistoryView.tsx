@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   RotateCcw,
   Search,
@@ -7,30 +7,82 @@ import {
   CheckCircle2,
   DollarSign,
   Receipt,
-  FileText
+  FileText,
+  Loader2
 } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
+import { waiterFetch } from '../lib/waiterApi';
+
+export interface OrderHistoryItem {
+  id: string;
+  table: string;
+  guests: number;
+  items: string;
+  amount: number;
+  method: string;
+  time: string;
+  status: string;
+}
 
 interface OrderHistoryViewProps {
-  isDark: boolean;
+  isDark?: boolean;
   triggerToast: (msg: string) => void;
 }
 
 export const OrderHistoryView: React.FC<OrderHistoryViewProps> = ({
-  isDark,
   triggerToast,
 }) => {
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState('All');
+  const [history, setHistory] = useState<OrderHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const history = [
-    { id: '#D1024', table: 'Table 6', guests: 3, items: '1x Paneer Tikka, 2x Naan, 1x Dal', amount: 820, method: 'UPI QR', time: '01:50 PM', status: 'Settled' },
-    { id: '#T1030', table: 'Table 4', guests: 4, items: '2x Veg Thali, 2x Sweet Lassi', amount: 1240, method: 'Cash', time: '01:47 PM', status: 'Settled' },
-    { id: '#RB5616', table: 'Room 105', guests: 1, items: '1x Club Sandwich, 1x Fresh Lime', amount: 560, method: 'Room Folio', time: '01:45 PM', status: 'Settled' },
-    { id: '#D1023', table: 'Table 9', guests: 2, items: '1x Dal Makhani, 2x Butter Roti', amount: 680, method: 'Credit Card', time: '01:38 PM', status: 'Settled' },
-    { id: '#RB5615', table: 'Room 402', guests: 2, items: '2x Mutton Biryani, 2x Cold Coffee', amount: 2140, method: 'Room Folio', time: '01:30 PM', status: 'Settled' },
-    { id: '#D1020', table: 'Table 11', guests: 4, items: '2x Chicken Biryani, 1x Salad, 2x Soda', amount: 1550, method: 'UPI QR', time: '01:15 PM', status: 'Settled' },
-    { id: '#T1028', table: 'Table 2', guests: 2, items: '1x Veg Fried Rice, 1x Manchurian', amount: 940, method: 'Cash', time: '01:05 PM', status: 'Settled' },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    const fetchHistory = async () => {
+      setLoading(true);
+      try {
+        const hotelId = localStorage.getItem('spicehub_hotel_id') || '';
+        const res = await waiterFetch(`${API_BASE_URL}/pos/kds/orders?status=SERVED${hotelId ? `&hotelId=${encodeURIComponent(hotelId)}` : ''}`);
+        if (res.ok) {
+          const body = await res.json();
+          if (body.success && Array.isArray(body.data)) {
+            const mapped: OrderHistoryItem[] = body.data.map((ord: any) => {
+              const table = ord.tableId?.tableNumber || ord.tableNumber
+                ? `Table ${ord.tableId?.tableNumber || ord.tableNumber}`
+                : ord.roomId?.roomNumber
+                ? `Room ${ord.roomId.roomNumber}`
+                : 'Dine-In';
+              const itemsStr = Array.isArray(ord.items) && ord.items.length > 0
+                ? ord.items.map((i: any) => `${i.quantity || 1}x ${i.name || 'Dish'}`).join(', ')
+                : 'Dining items';
+              const servedDate = ord.servedAt || ord.updatedAt || ord.placedAt || ord.createdAt;
+              const timeStr = servedDate
+                ? new Date(servedDate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                : 'Just now';
+              return {
+                id: ord.orderNumber || String(ord._id || ord.id).slice(-6).toUpperCase(),
+                table,
+                guests: Number(ord.pax || ord.items?.length || 2),
+                items: itemsStr,
+                amount: Number(ord.totalAmount || ord.total || 0),
+                method: ord.paymentMethod || (ord.orderType === 'ROOM_SERVICE' ? 'Room Folio' : 'UPI QR'),
+                time: timeStr,
+                status: 'Settled',
+              };
+            });
+            if (!cancelled) setHistory(mapped);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load order history:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void fetchHistory();
+    return () => { cancelled = true; };
+  }, []);
 
   const totalSales = history.reduce((acc, curr) => acc + curr.amount, 0);
 
@@ -44,18 +96,18 @@ export const OrderHistoryView: React.FC<OrderHistoryViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-5 gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
+ 'bg-white border-slate-200'
+ }`}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-[#123C2B]/10 text-[#2E6B4C] flex items-center justify-center font-bold">
             <RotateCcw className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <h2 className={`font-black text-base ${'text-slate-900'}`}>
                 Order History & Shift Sales
               </h2>
-              <span className="px-2 py-0.5 rounded-full text-xs font-black bg-blue-500/20 text-blue-500">
+              <span className="px-2 py-0.5 rounded-full text-xs font-black bg-[#123C2B]/10 text-[#2E6B4C]">
                 Today's Shift
               </span>
             </div>
@@ -68,8 +120,8 @@ export const OrderHistoryView: React.FC<OrderHistoryViewProps> = ({
         {/* Total Summary */}
         <div className="flex items-center gap-3">
           <div className={`px-4 py-2 rounded-xl border text-right ${
-            isDark ? 'bg-slate-800/60 border-slate-700' : 'bg-slate-50 border-slate-200'
-          }`}>
+ 'bg-slate-50 border-slate-200'
+ }`}>
             <div className="text-[10px] text-slate-400 uppercase font-bold">Total Shift Revenue</div>
             <div className="text-lg font-black text-emerald-500">₹{totalSales.toLocaleString()}</div>
           </div>
@@ -84,12 +136,10 @@ export const OrderHistoryView: React.FC<OrderHistoryViewProps> = ({
               key={m}
               onClick={() => setMethodFilter(m)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                methodFilter === m
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : isDark
-                  ? 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-              }`}
+ methodFilter === m
+ ? 'bg-[#123C2B] text-white shadow-sm'
+ : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+ }`}
             >
               {m}
             </button>
@@ -103,22 +153,22 @@ export const OrderHistoryView: React.FC<OrderHistoryViewProps> = ({
             placeholder="Search order #, table..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className={`w-full pl-8 pr-3 py-1.5 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-              isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
-            }`}
+            className={`w-full pl-8 pr-3 py-1.5 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-[#2E6B4C] ${
+ 'bg-white border-slate-200 text-slate-800'
+ }`}
           />
         </div>
       </div>
 
       {/* Orders Table */}
       <div className={`flex-1 rounded-2xl border overflow-hidden flex flex-col ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
+ 'bg-white border-slate-200'
+ }`}>
         <div className="overflow-y-auto flex-1 custom-scrollbar">
           <table className="w-full text-left text-xs">
             <thead className={`sticky top-0 text-[11px] font-bold uppercase tracking-wider border-b ${
-              isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
-            }`}>
+ 'bg-slate-50 border-slate-200 text-slate-600'
+ }`}>
               <tr>
                 <th className="p-3.5">Order ID</th>
                 <th className="p-3.5">Destination</th>
@@ -129,45 +179,58 @@ export const OrderHistoryView: React.FC<OrderHistoryViewProps> = ({
                 <th className="p-3.5 text-center">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700/20">
-              {filteredHistory.map((row) => (
-                <tr
-                  key={row.id}
-                  className={`transition-colors ${
-                    isDark ? 'hover:bg-slate-800/40 text-slate-300' : 'hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  <td className="p-3.5 font-bold font-mono text-orange-500">{row.id}</td>
-                  <td className="p-3.5 font-bold">{row.table}</td>
-                  <td className="p-3.5 max-w-xs truncate text-slate-400">{row.items}</td>
-                  <td className="p-3.5">
-                    <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
-                      row.method === 'UPI QR'
-                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                        : row.method === 'Cash'
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : row.method === 'Credit Card'
-                        ? 'bg-blue-500/20 text-blue-400'
-                        : 'bg-amber-500/20 text-amber-400'
-                    }`}>
-                      {row.method}
-                    </span>
-                  </td>
-                  <td className="p-3.5 text-slate-400">{row.time}</td>
-                  <td className="p-3.5 text-right font-black text-emerald-500 text-sm">₹{row.amount}</td>
-                  <td className="p-3.5 text-center">
-                    <button
-                      onClick={() => triggerToast(`Reprinted thermal invoice for ${row.id}`)}
-                      className={`px-2.5 py-1 rounded-lg border text-xs font-semibold inline-flex items-center gap-1 transition ${
-                        isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                      }`}
-                    >
-                      <Printer className="w-3 h-3 text-blue-500" />
-                      <span>Reprint</span>
-                    </button>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-slate-500">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-[#2E6B4C]" />
+                    <p className="text-xs">Loading settled order records...</p>
                   </td>
                 </tr>
-              ))}
+              ) : filteredHistory.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-slate-400">
+                    <Receipt className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
+                    <p className="text-xs font-semibold text-slate-600">No settled order history found</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Orders marked as SERVED/Settled will appear here</p>
+                  </td>
+                </tr>
+              ) : (
+                filteredHistory.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="transition-colors hover:bg-slate-50 text-slate-700"
+                  >
+                    <td className="p-3.5 font-bold font-mono text-emerald-700">{row.id}</td>
+                    <td className="p-3.5 font-bold">{row.table}</td>
+                    <td className="p-3.5 max-w-xs truncate text-slate-500">{row.items}</td>
+                    <td className="p-3.5">
+                      <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
+                        row.method === 'UPI QR'
+                          ? 'bg-slate-100 text-slate-700 border border-slate-200'
+                          : row.method === 'Cash'
+                          ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-200'
+                          : row.method === 'Credit Card'
+                          ? 'bg-[#123C2B]/10 text-[#2E6B4C] border border-[#2E6B4C]/20'
+                          : 'bg-amber-500/10 text-amber-700 border border-amber-200'
+                      }`}>
+                        {row.method}
+                      </span>
+                    </td>
+                    <td className="p-3.5 text-slate-400">{row.time}</td>
+                    <td className="p-3.5 text-right font-black text-emerald-700 text-sm">₹{row.amount}</td>
+                    <td className="p-3.5 text-center">
+                      <button
+                        onClick={() => triggerToast(`Reprinted thermal invoice for ${row.id}`)}
+                        className="px-2.5 py-1 rounded-lg border text-xs font-semibold inline-flex items-center gap-1 transition bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200"
+                      >
+                        <Printer className="w-3 h-3 text-[#2E6B4C]" />
+                        <span>Reprint</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { IRosterMetricsUI, StaffRosterHelper } from '@spicehub/ui';
+import { RefreshCw, Clock, Coins, Plus, CalendarDays, Timer } from 'lucide-react';
 
 interface StaffRosterHeaderProps {
   metrics: IRosterMetricsUI;
@@ -23,137 +24,142 @@ export const StaffRosterHeader: React.FC<StaffRosterHeaderProps> = ({
   loading,
 }) => {
   return (
-    <div className="bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-6 py-6 text-zinc-100 shadow-xl">
+    <div className="bg-white border-b border-slate-200 px-6 py-6 text-slate-900 shadow-xs">
       {/* Title & Actions */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <span className="h-3 w-3 rounded-full bg-slate-800 animate-pulse shadow-sm dark:shadow-none" />
-            <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
               Staff Shift Rostering, Attendance & Tip Pool Engine
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               Shift 29 • Workforce & Tips
             </span>
           </div>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Weekly Departmental Roster, PIN Clock-in/out Terminal, Overtime Tracking & FOH/BOH Gratuity Tip Pool.
           </p>
         </div>
 
-        <div className="flex items-center flex-wrap gap-3">
+        <div className="flex items-center flex-wrap gap-2.5">
           <button
             type="button"
             onClick={onRefresh}
             disabled={loading}
-            className="p-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-xs border border-zinc-700 transition-all disabled:opacity-50"
+            className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs border border-slate-200 transition-all disabled:opacity-50"
             title="Refresh"
           >
-            🔄
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button
             type="button"
             onClick={onOpenClockTerminal}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-sm transition-all flex items-center gap-2"
+            className="btn-glass-green px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2"
           >
-            <span>⏰</span> PIN Clock Terminal
+            <Clock className="w-4 h-4" />
+            <span>PIN Clock Terminal</span>
           </button>
           <button
             type="button"
             onClick={onOpenTipPoolModal}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2"
+            className="btn-glass-green-subtle px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2"
           >
-            <span>💰</span> Tip Pool Split
+            <Coins className="w-4 h-4" />
+            <span>Tip Pool Split</span>
           </button>
           <button
             type="button"
             onClick={onOpenNewShiftModal}
-            className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold text-xs uppercase tracking-wider border border-zinc-700 transition-all flex items-center gap-2"
+            className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider border border-slate-200 transition-all flex items-center gap-1.5"
           >
-            <span>+</span> Schedule Shift
+            <Plus className="w-4 h-4" />
+            <span>Schedule Shift</span>
           </button>
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-2xl flex flex-col justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Scheduled Shifts</span>
+        <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col justify-between shadow-xs">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Scheduled Shifts</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-black text-white">{metrics.totalScheduledShifts}</span>
-            <span className="text-[10px] text-zinc-500">Today</span>
+            <span className="text-2xl font-black text-slate-900">{metrics.totalScheduledShifts}</span>
+            <span className="text-[10px] text-slate-400">Today</span>
           </div>
         </div>
 
-        <div className="bg-zinc-900/80 border border-emerald-500/30 p-4 rounded-2xl flex flex-col justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Active Clocked-In</span>
+        <div className="bg-emerald-50/60 border border-emerald-200 p-4 rounded-2xl flex flex-col justify-between shadow-xs">
+          <span className="text-xs font-semibold uppercase tracking-wider text-emerald-800">Active Clocked-In</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-black text-emerald-400">{metrics.activeClockedInCount}</span>
-            <span className="text-[10px] text-emerald-500/80">On duty right now</span>
+            <span className="text-2xl font-black text-emerald-700">{metrics.activeClockedInCount}</span>
+            <span className="text-[10px] text-emerald-600">On duty right now</span>
           </div>
         </div>
 
-        <div className="bg-zinc-900/80 border border-red-500/30 p-4 rounded-2xl flex flex-col justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-red-400">Late Arrivals</span>
+        <div className="bg-rose-50/60 border border-rose-200 p-4 rounded-2xl flex flex-col justify-between shadow-xs">
+          <span className="text-xs font-semibold uppercase tracking-wider text-rose-800">Late Arrivals</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-black text-red-400">{metrics.lateArrivalsCount}</span>
-            <span className="text-[10px] text-red-500/80">&gt; 10 min grace</span>
+            <span className="text-2xl font-black text-rose-600">{metrics.lateArrivalsCount}</span>
+            <span className="text-[10px] text-rose-500">&gt; 10 min grace</span>
           </div>
         </div>
 
-        <div className="bg-zinc-900/80 border border-blue-500/30 p-4 rounded-2xl flex flex-col justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-blue-400">Total Hours Today</span>
+        <div className="bg-sky-50/60 border border-sky-200 p-4 rounded-2xl flex flex-col justify-between shadow-xs">
+          <span className="text-xs font-semibold uppercase tracking-wider text-sky-800">Total Hours Today</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-black text-blue-400">{metrics.totalHoursWorkedToday}h</span>
-            <span className="text-[10px] text-blue-500/80">Accumulated</span>
+            <span className="text-2xl font-black text-sky-700">{metrics.totalHoursWorkedToday}h</span>
+            <span className="text-[10px] text-sky-600">Accumulated</span>
           </div>
         </div>
 
-        <div className="bg-zinc-900/80 border border-amber-500/30 p-4 rounded-2xl flex flex-col justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-amber-400">Today's Tip Pool</span>
+        <div className="bg-amber-50/60 border border-amber-200 p-4 rounded-2xl flex flex-col justify-between shadow-xs">
+          <span className="text-xs font-semibold uppercase tracking-wider text-amber-800">Today's Tip Pool</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-black text-amber-400">
+            <span className="text-2xl font-black text-amber-700">
               {StaffRosterHelper.formatCurrency(metrics.todayTipsPool)}
             </span>
-            <span className="text-[10px] text-amber-500/80">Collected</span>
+            <span className="text-[10px] text-amber-600">Collected</span>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-zinc-800 pb-0">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-0">
         <button
           type="button"
           onClick={() => onTabChange('ROSTER')}
-          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${
             activeTab === 'ROSTER'
-              ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-emerald-600 text-emerald-700 bg-emerald-50/50'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          📅 Shift Roster & Schedule Planner
+          <CalendarDays className="w-4 h-4" />
+          <span>Shift Roster & Schedule Planner</span>
         </button>
         <button
           type="button"
           onClick={() => onTabChange('ATTENDANCE')}
-          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${
             activeTab === 'ATTENDANCE'
-              ? 'border-blue-400 text-blue-400 bg-blue-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-emerald-600 text-emerald-700 bg-emerald-50/50'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          ⏱️ Clock Attendance & Overtime Audit
+          <Timer className="w-4 h-4" />
+          <span>Clock Attendance & Overtime Audit</span>
         </button>
         <button
           type="button"
           onClick={() => onTabChange('TIP_POOL')}
-          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+          className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-2 ${
             activeTab === 'TIP_POOL'
-              ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+              ? 'border-emerald-600 text-emerald-700 bg-emerald-50/50'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          💰 Gratuity Tip Pool Distribution
+          <Coins className="w-4 h-4" />
+          <span>Gratuity Tip Pool Distribution</span>
         </button>
       </div>
     </div>

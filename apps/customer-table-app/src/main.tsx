@@ -2,14 +2,21 @@ import './index.css';
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import { CustomerMenuApp, CustomerRequestType } from './CustomerMenuApp';
-import { ErrorBoundary, MenuCartStore, CustomerLocationSelectorModal, CustomerPortalSwitcherBar, I18nProvider } from '@spicehub/ui';
+import { ErrorBoundary, MenuCartStore, CustomerLocationSelectorModal, CustomerPortalSwitcherBar, I18nProvider, CustomerDownloadAppBanner, installGlobalNumericInputGuard } from '@spicehub/ui';
+import { Users, ArrowRight, AlertCircle, AlertTriangle, X } from 'lucide-react';
 import { SpiceHubSocket, SpiceHubClient } from '@spicehub/api-client';
 import { API_ORIGIN, SOCKET_URL } from './config/api';
 import { getPortalUrl } from './config/env';
 
+installGlobalNumericInputGuard();
+
 const store = MenuCartStore.getInstance();
 const socket = SpiceHubSocket.getInstance();
 const API_BASE = API_ORIGIN;
+const parentOrigin = new URLSearchParams(window.location.search).get('parentOrigin');
+const isCustomerApkEmbed =
+  window.parent !== window && parentOrigin === 'https://localhost';
+const isNativeCustomerRuntime = Boolean((window as any)?.Capacitor?.isNativePlatform?.());
 
 export interface PlacedOrderItem {
   id?: string;
@@ -34,6 +41,8 @@ export interface PlacedOrder {
 }
 
 export const CustomerAppRoot: React.FC = () => {
+  // Inside the app the portal runs in an iframe, where the Capacitor bridge is
+  // absent — the embed flag is the only signal available there.
   const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const queryHotelId = urlParams.get('hotelId');
   const queryTableId = urlParams.get('tableId');
@@ -62,6 +71,21 @@ export const CustomerAppRoot: React.FC = () => {
   const [showLocationModal, setShowLocationModal] = useState<boolean>(() => !hasExplicitTable && !crossRoomParam);
   const [hotelId, setHotelId] = useState<string>('');
   const [hotelName, setHotelName] = useState<string>('SpiceHub Hotel');
+  const [hotelLocation, setHotelLocation] = useState<{
+    street?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    pincode?: string;
+    latitude?: number;
+    longitude?: number;
+    googleMapUrl?: string;
+  }>({
+    city: 'Jaipur',
+    state: 'Rajasthan',
+    country: 'India',
+    googleMapUrl: 'https://www.google.com/maps/search/?api=1&query=26.9124,75.7873',
+  });
   const [tableId, setTableId] = useState<string>('');
   const [tableNumber, setTableNumber] = useState<string>('');
   const [section, setSection] = useState<string>('Dining');
@@ -127,7 +151,7 @@ export const CustomerAppRoot: React.FC = () => {
         }
       }
     } catch (err) {
-      console.warn('⚠️ [CustomerApp] Could not fetch session orders:', err);
+      console.warn('[CustomerApp] Could not fetch session orders:', err);
     }
     return null;
   }, []);
@@ -222,6 +246,18 @@ export const CustomerAppRoot: React.FC = () => {
 
         setHotelId(qrHotelIdStr);
         setHotelName(qrHotelNameStr);
+        if (d?.hotelCity || d?.hotelAddress || d?.googleMapUrl) {
+          setHotelLocation({
+            street: d.hotelStreet || d.hotelAddress?.street || '',
+            city: d.hotelCity || d.hotelAddress?.city || 'Jaipur',
+            state: d.hotelState || d.hotelAddress?.state || 'Rajasthan',
+            country: d.hotelCountry || d.hotelAddress?.country || 'India',
+            pincode: d.hotelPincode || d.hotelAddress?.pincode || '',
+            latitude: d.hotelCoordinates?.latitude,
+            longitude: d.hotelCoordinates?.longitude,
+            googleMapUrl: d.googleMapUrl,
+          });
+        }
         setTableId(String(d.tableId));
         setTableNumber(qrTableNumberStr);
         setSection(d.section || 'Dining');
@@ -240,6 +276,27 @@ export const CustomerAppRoot: React.FC = () => {
           localStorage.setItem('spicehub_customer_hotel', qrHotelNameStr);
           localStorage.setItem('spicehub_customer_hotel_id', qrHotelIdStr);
           localStorage.setItem('spicehub_customer_session_token', String(d.sessionToken));
+          const parentOrigin = new URLSearchParams(window.location.search).get('parentOrigin');
+          const allowedParentOrigins = new Set([
+            'https://localhost',
+            'capacitor://localhost',
+            'http://localhost:3012',
+            ...(import.meta.env.VITE_CUSTOMER_SHELL_ORIGINS || '')
+              .split(',')
+              .map((origin) => origin.trim())
+              .filter(Boolean),
+          ]);
+          if (window.parent !== window && parentOrigin && allowedParentOrigins.has(parentOrigin)) {
+            window.parent.postMessage(
+              {
+                type: 'spicehub:table-session-ready',
+                hotelId: qrHotelIdStr,
+                tableNumber: qrTableNumberStr,
+                sessionToken: String(d.sessionToken),
+              },
+              parentOrigin
+            );
+          }
           if (qrTableNumberStr && !localStorage.getItem(`spicehub_table_pax_set_${qrTableNumberStr}`)) {
             setShowPaxModal(true);
           }
@@ -274,6 +331,18 @@ export const CustomerAppRoot: React.FC = () => {
       setHotelId(d.hotel.id);
       const urlHotel = searchParams.get('hotel') || searchParams.get('hotelName');
       setHotelName(urlHotel || d.hotel.name);
+      if (d.hotel?.city || d.hotel?.address || d.hotel?.googleMapUrl) {
+        setHotelLocation({
+          street: d.hotel.street || d.hotel.address?.street || '',
+          city: d.hotel.city || d.hotel.address?.city || 'Jaipur',
+          state: d.hotel.state || d.hotel.address?.state || 'Rajasthan',
+          country: d.hotel.country || d.hotel.address?.country || 'India',
+          pincode: d.hotel.pincode || d.hotel.address?.pincode || '',
+          latitude: d.hotel.coordinates?.latitude,
+          longitude: d.hotel.coordinates?.longitude,
+          googleMapUrl: d.hotel.googleMapUrl,
+        });
+      }
 
       const targetTableStr = (rawTable || 'T-04').trim();
       const numOnly = targetTableStr.replace(/[^0-9]/g, '');
@@ -325,10 +394,10 @@ export const CustomerAppRoot: React.FC = () => {
       }
       if (d.menuItems && d.menuItems.length > 0) {
         store.setMenuItems(d.menuItems);
-        console.log(`✅ [CustomerApp] Loaded ${d.menuItems.length} menu items from backend`);
+        console.log(`[CustomerApp] Loaded ${d.menuItems.length} menu items from backend`);
       }
     } catch (err: any) {
-      console.warn('⚠️ [CustomerApp] Session bootstrap failed:', err);
+      console.warn('[CustomerApp] Session bootstrap failed:', err);
       setBootstrapError(err?.message || 'Unable to connect to this dining table.');
     } finally {
       setIsReady(true);
@@ -347,7 +416,7 @@ export const CustomerAppRoot: React.FC = () => {
 
     if (urlParams.get('redirectToast') || urlParams.get('redirectReason')) {
       setLiveToast({
-        message: '🍽️ Redirected to your Dine-in Table Menu',
+        message: 'Redirected to your Dine-in Table Menu',
         type: 'info',
       });
       setTimeout(() => setLiveToast(null), 5000);
@@ -376,13 +445,13 @@ export const CustomerAppRoot: React.FC = () => {
     });
 
     const unbind86 = socket.on('menu:item_86_toggled', (payload: any) => {
-      console.log('⚡ [CustomerApp] Realtime 86 broadcast:', payload);
+      console.log('[CustomerApp] Realtime 86 broadcast:', payload);
       store.handleItem86Toggled(payload);
       window.dispatchEvent(new CustomEvent('spicehub:menu_updated', { detail: payload }));
     });
 
     const unbindCatalogUpdated = socket.on('menu:catalog_updated', (payload: any) => {
-      console.log('⚡ [CustomerApp] Realtime menu catalog updated:', payload);
+      console.log('[CustomerApp] Realtime menu catalog updated:', payload);
       window.dispatchEvent(new CustomEvent('spicehub:menu_updated', { detail: payload }));
     });
 
@@ -403,7 +472,7 @@ export const CustomerAppRoot: React.FC = () => {
     });
 
     const unbindOrderStatus = socket.on('order:status_updated', (payload: any) => {
-      console.log('⚡ [CustomerApp] Order status updated:', payload);
+      console.log('[CustomerApp] Order status updated:', payload);
       setActiveOrders((prev) => {
         const updated = prev.map((o) => {
           if (
@@ -423,11 +492,11 @@ export const CustomerAppRoot: React.FC = () => {
       });
 
       if (payload.orderStatus === 'PREPARING') {
-        setLiveToast({ message: '🍳 Kitchen started cooking your order!', type: 'info' });
+        setLiveToast({ message: 'Kitchen started cooking your order!', type: 'info' });
       } else if (payload.orderStatus === 'READY') {
-        setLiveToast({ message: '🔔 Your order is ready! Waiter is bringing it to your table.', type: 'success' });
+        setLiveToast({ message: 'Your order is ready! Waiter is bringing it to your table.', type: 'success' });
       } else if (payload.orderStatus === 'SERVED') {
-        setLiveToast({ message: '🍽️ Your order has been served! Enjoy your meal.', type: 'success' });
+        setLiveToast({ message: 'Your order has been served! Enjoy your meal.', type: 'success' });
       }
       setTimeout(() => setLiveToast(null), 6000);
     });
@@ -445,7 +514,7 @@ export const CustomerAppRoot: React.FC = () => {
   }, [hotelId, tableSessionId, sessionToken]);
 
   const handleRequestService = async (type: CustomerRequestType) => {
-    console.log(`🛎️ [Customer] Requesting service: ${type} for table ${tableNumber}`);
+    console.log(`[Customer] Requesting service: ${type} for table ${tableNumber}`);
     
     // 1. Send HTTP request to central engine
     try {
@@ -461,7 +530,7 @@ export const CustomerAppRoot: React.FC = () => {
         }),
       });
       const data = await res.json();
-      console.log('✅ Service request HTTP response:', data);
+      console.log('Service request HTTP response:', data);
     } catch (e) {
       console.warn('HTTP request fallback to socket:', e);
     }
@@ -477,7 +546,7 @@ export const CustomerAppRoot: React.FC = () => {
     });
 
     setLiveToast({
-      message: `🛎️ ${type.replace(/_/g, ' ')} call sent! Waiter notified.`,
+      message: `${type.replace(/_/g, ' ')} call sent! Waiter notified.`,
       type: 'success',
     });
     setTimeout(() => setLiveToast(null), 4000);
@@ -615,7 +684,7 @@ export const CustomerAppRoot: React.FC = () => {
 
     // Guest-count updates are persisted by the backend together with the order.
     setLiveToast({
-      message: `🎉 Order ${placedOrder.orderNumber} sent to Kitchen KDS! Table ${tableNumber}`,
+      message: `Order ${placedOrder.orderNumber} sent to Kitchen KDS! Table ${tableNumber}`,
       type: 'success',
     });
     setTimeout(() => setLiveToast(null), 5000);
@@ -623,7 +692,7 @@ export const CustomerAppRoot: React.FC = () => {
   };
 
   const handleSettleBill = async (paymentMode: 'UPI' | 'CARD' | 'CASH' | 'ROOM', amount: number, utr?: string) => {
-    console.log(`💳 [Customer] Settling bill for table ${tableNumber} (Mode: ${paymentMode}, Amount: ${amount})`);
+    console.log(`[Customer] Settling bill for table ${tableNumber} (Mode: ${paymentMode}, Amount: ${amount})`);
     const idempotencyKey = `PAY_T5_${Date.now()}`;
     const payload = {
       hotelId,
@@ -684,7 +753,7 @@ export const CustomerAppRoot: React.FC = () => {
     } catch {}
 
     setLiveToast({
-      message: `🎉 Bill ₹${amount} settled via ${paymentMode}! Table marked for cleaning.`,
+      message: `Bill ₹${amount} settled via ${paymentMode}! Table marked for cleaning.`,
       type: 'success',
     });
     setTimeout(() => setLiveToast(null), 5000);
@@ -712,13 +781,13 @@ export const CustomerAppRoot: React.FC = () => {
   if (bootstrapError) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-6 text-center text-white">
-        <div className="text-4xl mb-4">⚠️</div>
+        <AlertTriangle className="w-12 h-12 text-amber-400 mb-4" />
         <h1 className="text-xl font-black text-amber-400">Dining session unavailable</h1>
         <p className="mt-2 max-w-md text-sm text-slate-300">{bootstrapError}</p>
         <p className="mt-1 text-xs text-slate-500">Please rescan the QR code on your table or ask a waiter for help.</p>
         <button
           onClick={() => window.location.reload()}
-          className="mt-6 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-amber-400"
+          className="mt-6 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-amber-400"
         >
           Retry
         </button>
@@ -743,23 +812,23 @@ export const CustomerAppRoot: React.FC = () => {
       />
       <CustomerPortalSwitcherBar
         currentApp="customer"
-        currentLocationName={tableNumber ? `Table ${tableNumber}${paramFormat ? ` (${paramFormat})` : ''}` : undefined}
+        currentLocationName={tableNumber ? `Table ${tableNumber}` : undefined}
         destinationUrl={getPortalUrl('guest')}
       />
 
       {/* Direct Camera / Chrome Scanner Pax Modal */}
       {showPaxModal && (
-        <div data-testid="table-pax-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-amber-500/40 rounded-3xl max-w-sm w-full p-6 text-white shadow-sm dark:shadow-none space-y-5">
-            <div className="text-center space-y-1">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl font-black mb-2 border border-amber-500/30">
-                👥
+        <div data-testid="table-pax-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-6 text-slate-900 shadow-xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className="text-center space-y-1.5">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-50 text-emerald-800 flex items-center justify-center mb-1 border border-emerald-100">
+                <Users className="w-6 h-6 text-emerald-800" />
               </div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 block">
                 {hotelName} • Table {tableNumber || 'Dining'}
               </span>
-              <h2 className="text-xl font-black text-white">Table pe kitne log hain?</h2>
-              <p className="text-xs text-slate-400">Select how many guests are seated with you</p>
+              <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Table Seating & Guests</h2>
+              <p className="text-xs text-slate-500">Please confirm how many guests are seated with you</p>
             </div>
 
             <div className="grid grid-cols-4 gap-2.5">
@@ -771,14 +840,14 @@ export const CustomerAppRoot: React.FC = () => {
                   onClick={() => {
                     setGuestCount(num);
                   }}
-                  className={`py-3 rounded-2xl font-black text-sm border transition flex flex-col items-center justify-center gap-0.5 ${
+                  className={`py-3 rounded-2xl font-bold text-sm border transition flex flex-col items-center justify-center gap-0.5 ${
                     guestCount === num
-                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/30'
-                      : 'bg-slate-900 border-slate-700 hover:border-amber-500/50 text-white'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]'
+                      : 'bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700'
                   }`}
                 >
-                  <span className="text-base">{num}</span>
-                  <span className="text-[9px] font-bold opacity-75">{num === 1 ? 'Guest' : 'Guests'}</span>
+                  <span className="text-base font-extrabold">{num}</span>
+                  <span className="text-[9px] font-medium opacity-80">{num === 1 ? 'Guest' : 'Guests'}</span>
                 </button>
               ))}
             </div>
@@ -814,9 +883,10 @@ export const CustomerAppRoot: React.FC = () => {
                   }
                 }
               }}
-              className="w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-sm transition"
+              className="w-full py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shadow-md transition active:scale-[0.98] flex items-center justify-center gap-2"
             >
-              Continue to Menu ({guestCount || 2} Pax) ➔
+              <span>Confirm & View Menu ({guestCount || 2} Pax)</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -824,42 +894,42 @@ export const CustomerAppRoot: React.FC = () => {
 
       {/* Table Already Occupied Bilingual Alert Screen */}
       {occupiedTable && !occupiedTable.viewOnlyAccepted && (
-        <div data-testid="table-already-occupied-screen" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4 overflow-y-auto">
-          <div className="bg-slate-900 border-2 border-red-500/60 rounded-3xl max-w-md w-full p-6 sm:p-8 text-white shadow-sm dark:shadow-none space-y-6 text-center animate-fadeIn">
+        <div data-testid="table-already-occupied-screen" className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/80 p-4">
+          <div className="w-full max-w-md space-y-6 rounded-2xl bg-white p-6 text-center text-slate-900 sm:p-8">
             {/* Top Warning Badge */}
-            <div className="w-16 h-16 mx-auto rounded-3xl bg-red-500/20 text-red-400 flex items-center justify-center text-3xl font-black border border-red-500/40 shadow-lg shadow-sm">
-              🚫
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-red-600">
+              <AlertCircle className="w-8 h-8" />
             </div>
 
             <div className="space-y-1.5">
-              <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30">
+              <span className="inline-block rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-red-700">
                 {occupiedTable.errorCode === 'TABLE_BILLING_IN_PROGRESS' ? 'BILLING IN PROGRESS' : 'TABLE ALREADY OCCUPIED'}
               </span>
-              <h2 className="text-2xl font-black text-white tracking-tight">
+              <h2 className="text-[22px] font-semibold tracking-tight text-slate-900">
                 Table {occupiedTable.tableNumber} is Occupied
               </h2>
-              <p className="text-sm font-bold text-red-300">
+              <p className="text-sm font-medium text-red-600">
                 Table is currently occupied • {occupiedTable.guestCount || 4} guests seated
               </p>
             </div>
 
             {/* Occupancy details card */}
-            <div className="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 text-left space-y-2 text-xs">
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/80">
-                <span className="text-slate-400">Current Seated Guests:</span>
-                <span className="font-bold text-amber-400">{occupiedTable.guestCount || 4} Guests Seated</span>
+            <div className="space-y-2 rounded-xl bg-slate-50 p-4 text-left text-xs">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 py-1.5">
+                <span className="text-slate-500">Current Seated Guests:</span>
+                <span className="shrink-0 font-semibold text-slate-900">{occupiedTable.guestCount || 4} Guests Seated</span>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/80">
-                <span className="text-slate-400">Table Capacity:</span>
-                <span className="font-bold text-white">{occupiedTable.capacity || 4} Seats</span>
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 py-1.5">
+                <span className="text-slate-500">Table Capacity:</span>
+                <span className="shrink-0 font-semibold text-slate-900">{occupiedTable.capacity || 4} Seats</span>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/80">
-                <span className="text-slate-400">Occupancy Status:</span>
-                <span className="font-black text-red-400 uppercase">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 py-1.5">
+                <span className="text-slate-500">Occupancy Status:</span>
+                <span className="shrink-0 text-right font-semibold uppercase text-red-600">
                   {occupiedTable.isTableFull ? 'Full Capacity Reached (100%)' : 'Active Dining Session'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 pt-1 leading-relaxed">
+              <p className="pt-1 text-[11px] leading-relaxed text-slate-500">
                 For guest privacy and billing integrity, when a table is occupied, new orders cannot be placed from another personal device.
               </p>
             </div>
@@ -873,14 +943,14 @@ export const CustomerAppRoot: React.FC = () => {
                 onClick={async () => {
                   try {
                     await handleRequestService('CALL_WAITER');
-                    setLiveToast({ message: `🛎️ Waiter notified! Staff will assist you at Table ${occupiedTable.tableNumber}`, type: 'success' });
+                    setLiveToast({ message: `Waiter notified! Staff will assist you at Table ${occupiedTable.tableNumber}`, type: 'success' });
                   } catch (e) {
                     setLiveToast({ message: 'Waiter call dispatched to staff.', type: 'info' });
                   }
                 }}
-                className="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 py-3.5 text-sm font-semibold text-white transition hover:bg-amber-700"
               >
-                <span>🛎️ Call Waiter</span>
+                <span>Call Waiter</span>
               </button>
 
               {/* Option 2: View Menu (View-Only) */}
@@ -890,9 +960,9 @@ export const CustomerAppRoot: React.FC = () => {
                 onClick={() => {
                   setOccupiedTable(prev => prev ? ({ ...prev, viewOnlyAccepted: true }) : null);
                 }}
-                className="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 flex items-center justify-center gap-2 transition"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
               >
-                <span>📖 Browse Menu (View-Only)</span>
+                <span>Browse menu (view only)</span>
               </button>
 
               {/* Option 3: Choose Another Table */}
@@ -902,7 +972,7 @@ export const CustomerAppRoot: React.FC = () => {
                 onClick={() => {
                   setShowLocationModal(true);
                 }}
-                className="w-full py-2.5 rounded-xl text-slate-400 hover:text-white font-medium text-xs transition"
+                className="w-full py-2.5 text-xs font-medium text-slate-500 transition hover:text-slate-900"
               >
                 Select or Scan Another Table
               </button>
@@ -915,19 +985,22 @@ export const CustomerAppRoot: React.FC = () => {
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-bounce">
           <div
             className={`px-4 py-3 rounded-2xl shadow-sm dark:shadow-none border text-sm font-bold flex items-center justify-between gap-2 ${
-              liveToast.type === 'success'
-                ? 'bg-emerald-950 text-emerald-200 border-emerald-600'
-                : 'bg-amber-950 text-amber-200 border-amber-600'
-            }`}
+ liveToast.type === 'success'
+ ? 'bg-emerald-950 text-emerald-200 border-emerald-600'
+ : 'bg-slate-900 text-amber-200 border-amber-600'
+ }`}
           >
             <span>{liveToast.message}</span>
-            <button onClick={() => setLiveToast(null)} className="text-white/60 hover:text-white">✕</button>
+            <button onClick={() => setLiveToast(null)} className="text-white/60 hover:text-white p-0.5" aria-label="Close toast">
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
       <CustomerMenuApp
         store={store}
         hotelName={hotelName}
+        hotelLocation={hotelLocation}
         tableNumber={tableNumber}
         section={section}
         onRequestService={handleRequestService}

@@ -32,6 +32,9 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
     highCostRecipesCount: 0,
     averageFoodCostPercentage: 0,
     targetFoodCostPercentage: 32,
+    menuItemCount: 0,
+    recipeCoverageCount: 0,
+    recipeCoveragePercentage: 0,
   });
   const [wasteLogs, setWasteLogs] = useState<IFoodWasteLogUI[]>([]);
   const [wasteSummary, setWasteSummary] = useState<IFoodWasteSummaryUI>({
@@ -208,7 +211,7 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
             <div className="flex items-center justify-between gap-4">
               <div className="relative flex-1 max-w-md">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">
-                  🔍
+                  
                 </span>
                 <input
                   type="text"
@@ -227,7 +230,7 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredRecipes.length === 0 ? (
                 <div className="col-span-full py-16 text-center text-zinc-500 text-sm flex flex-col items-center gap-3">
-                  <span className="text-3xl">📋</span>
+                  <span className="text-3xl"></span>
                   <span>No recipe specifications found matching your query</span>
                   <button
                     type="button"

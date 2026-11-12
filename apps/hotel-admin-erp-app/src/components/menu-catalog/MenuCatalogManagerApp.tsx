@@ -1,3 +1,4 @@
+import { IMAGE_PLACEHOLDER, NumericInput } from '@spicehub/ui';
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiFetch, getStoredHotelId } from '../../config/api';
 import {
@@ -326,7 +327,7 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
             setCategories((prev) =>
               prev.map((c) => (c.id === editingCategory.id ? { ...c, ...body.data } : c))
             );
-            showToast(`✓ Category "${categoryName}" updated successfully!`);
+            showToast(`Category "${categoryName}" updated successfully!`);
           }
         }
       } else {
@@ -340,7 +341,7 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
           const body = await res.json();
           if (body.success) {
             setCategories((prev) => [...prev, body.data]);
-            showToast(`✓ New Category "${categoryName}" added! Now available in customer menu.`);
+            showToast(`Category "${categoryName}" added! Now available in customer menu.`);
           }
         }
       }
@@ -364,7 +365,7 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
       if (res.ok) {
         setCategories((prev) => prev.filter((c) => c.id !== cat.id));
         setItems((prev) => prev.filter((i) => i.categoryId !== cat.id && i.category.toLowerCase() !== cat.name.toLowerCase()));
-        showToast(`✓ Category "${cat.name}" removed successfully!`);
+        showToast(`Category "${cat.name}" removed successfully!`);
       }
     } catch (err: any) {
       showToast(`Error deleting category: ${err.message}`);
@@ -419,7 +420,7 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
     try {
       const compressed = await compressImage(file);
       setDishImage(compressed);
-      showToast('✓ Dish photo attached!');
+      showToast('Dish photo attached!');
     } catch (err) {
       console.error('Image upload failed:', err);
       alert('Failed to process image. Please try another image.');
@@ -490,13 +491,13 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
             setItems((prev) =>
               prev.map((i) => (i.id === editingItem.id ? { ...i, ...body.data } : i))
             );
-            showToast(`✓ Dish "${dishName}" updated successfully!`);
+            showToast(`Dish "${dishName}" updated successfully!`);
           }
         } else {
           setItems((prev) =>
             prev.map((i) => (i.id === editingItem.id ? { ...i, ...payload } : i))
           );
-          showToast(`✓ Dish "${dishName}" updated!`);
+          showToast(`Dish "${dishName}" updated!`);
         }
       } else {
         const res = await apiFetch(`/menu-catalog/items`, {
@@ -508,7 +509,7 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
           const body = await res.json();
           if (body.success) {
             setItems((prev) => [body.data, ...prev]);
-            showToast(`✓ Dish "${dishName}" added to menu catalog!`);
+            showToast(`Dish "${dishName}" added to menu catalog!`);
           }
         } else {
           const newItem: MenuItemData = {
@@ -522,10 +523,10 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
             isAvailable: true,
             description: payload.description,
             prepTimeMinutes: payload.prepTimeMinutes,
-            images: payload.images.length > 0 ? payload.images : ['https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80'],
+            images: payload.images,
           };
           setItems((prev) => [newItem, ...prev]);
-          showToast(`✓ Dish "${dishName}" added!`);
+          showToast(`Dish "${dishName}" added!`);
         }
       }
       setIsItemModalOpen(false);
@@ -546,7 +547,7 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
       });
       if (res.ok) {
         setItems((prev) => prev.filter((i) => i.id !== item.id));
-        showToast(`✓ Dish "${item.name}" deleted from menu!`);
+        showToast(`Dish "${item.name}" deleted from menu!`);
       }
     } catch (err: any) {
       showToast(`Error deleting dish: ${err.message}`);
@@ -567,8 +568,8 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
           );
           showToast(
             nextState
-              ? `🟢 "${item.name}" is now LIVE in Kitchen & Customer Menu!`
-              : `🔴 "${item.name}" marked 86 OUT OF STOCK!`
+              ? `"${item.name}" is now LIVE in Kitchen & Customer Menu!`
+              : `"${item.name}" marked 86 OUT OF STOCK!`
           );
         }
       }
@@ -592,8 +593,8 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center text-xl shrink-0">
-                🍽️
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+                <UtensilsCrossed className="w-5 h-5 text-emerald-600" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -612,14 +613,14 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
           <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={handleOpenAddCategory}
-              className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
+              className="btn-glass-green-subtle px-4 py-2 rounded-xl text-emerald-800 text-xs font-semibold transition flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4 text-blue-600" />
               <span>+ Add New Category</span>
             </button>
             <button
               onClick={handleOpenAddItem}
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+              className="btn-glass-green px-4 py-2 rounded-xl text-white text-xs font-semibold transition flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
               <span>+ Add New Dish</span>
@@ -676,49 +677,49 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
         <button
           onClick={() => setActiveTab('CATEGORIES')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
-            activeTab === 'CATEGORIES'
-              ? 'bg-blue-600 text-white shadow-xs font-bold'
-              : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 shadow-xs'
-          }`}
+ activeTab === 'CATEGORIES'
+ ? 'btn-glass-green text-white shadow-xs font-semibold'
+ : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 shadow-xs'
+ }`}
         >
           <FolderTree className="w-4 h-4" />
-          <span>🏷️ Categories ({categories.length})</span>
+          <span>Categories ({categories.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('ITEMS')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
-            activeTab === 'ITEMS'
-              ? 'bg-blue-600 text-white shadow-xs font-bold'
-              : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 shadow-xs'
-          }`}
+ activeTab === 'ITEMS'
+ ? 'btn-glass-green text-white shadow-xs font-semibold'
+ : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 shadow-xs'
+ }`}
         >
           <UtensilsCrossed className="w-4 h-4" />
-          <span>🍽️ All Dishes ({items.length})</span>
+          <span>All Dishes ({items.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('STOCK_86')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
-            activeTab === 'STOCK_86'
-              ? 'bg-red-600 text-white shadow-xs font-bold'
-              : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 shadow-xs'
-          }`}
+ activeTab === 'STOCK_86'
+ ? 'bg-red-600 text-white shadow-xs font-bold'
+ : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 shadow-xs'
+ }`}
         >
           <AlertTriangle className="w-4 h-4" />
-          <span>⚡ 86 Kitchen Stock ({outOfStock86Count})</span>
+          <span>86 Kitchen Stock ({outOfStock86Count})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('RECIPES')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-2 ${
-            activeTab === 'RECIPES'
-              ? 'bg-blue-600 text-white shadow-xs font-bold'
-              : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 shadow-xs'
-          }`}
+ activeTab === 'RECIPES'
+ ? 'btn-glass-green text-white shadow-xs font-semibold'
+ : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 shadow-xs'
+ }`}
         >
           <BookOpen className="w-4 h-4" />
-          <span>📜 Recipes & BOM Costing ({recipes.length})</span>
+          <span>Recipes & BOM Costing ({recipes.length})</span>
         </button>
       </div>
 
@@ -758,7 +759,7 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2.5">
                       <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center text-lg font-bold shrink-0">
-                        📁
+                        
                       </div>
                       <div>
                         <h3 className="font-bold text-sm text-slate-900 group-hover:text-blue-600 transition">
@@ -853,30 +854,30 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                   <button
                     onClick={() => setFoodTypeFilter('ALL')}
                     className={`px-3 py-1 rounded-lg transition ${
-                      foodTypeFilter === 'ALL'
-                        ? 'bg-white text-slate-900 shadow-xs font-bold'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
+ foodTypeFilter === 'ALL'
+ ? 'bg-white text-slate-900 shadow-xs font-bold'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
                   >
                     All
                   </button>
                   <button
                     onClick={() => setFoodTypeFilter('VEG')}
                     className={`px-3 py-1 rounded-lg transition ${
-                      foodTypeFilter === 'VEG'
-                        ? 'bg-emerald-600 text-white font-bold'
-                        : 'text-slate-600 hover:text-emerald-700'
-                    }`}
+ foodTypeFilter === 'VEG'
+ ? 'bg-emerald-600 text-white font-bold'
+ : 'text-slate-600 hover:text-emerald-700'
+ }`}
                   >
                     Pure Veg
                   </button>
                   <button
                     onClick={() => setFoodTypeFilter('NON_VEG')}
                     className={`px-3 py-1 rounded-lg transition ${
-                      foodTypeFilter === 'NON_VEG'
-                        ? 'bg-red-600 text-white font-bold'
-                        : 'text-slate-600 hover:text-red-700'
-                    }`}
+ foodTypeFilter === 'NON_VEG'
+ ? 'bg-red-600 text-white font-bold'
+ : 'text-slate-600 hover:text-red-700'
+ }`}
                   >
                     Non-Veg
                   </button>
@@ -897,10 +898,10 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
               <button
                 onClick={() => setSelectedCatFilter('ALL')}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
-                  selectedCatFilter === 'ALL'
-                    ? 'bg-blue-600 text-white shadow-xs font-bold'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
+ selectedCatFilter === 'ALL'
+ ? 'btn-glass-green text-white shadow-xs font-semibold'
+ : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+ }`}
               >
                 All Categories ({items.length})
               </button>
@@ -913,10 +914,10 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                     key={c.id}
                     onClick={() => setSelectedCatFilter(c.name)}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1 ${
-                      selectedCatFilter === c.name
-                        ? 'bg-blue-600 text-white shadow-xs font-bold'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
+ selectedCatFilter === c.name
+ ? 'btn-glass-green text-white shadow-xs font-semibold'
+ : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+ }`}
                   >
                     <span>{c.name}</span>
                     <span className="text-[10px] opacity-70">({count})</span>
@@ -934,35 +935,35 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                 <div
                   key={dish.id}
                   className={`p-4 rounded-xl border border-slate-200 bg-white shadow-xs transition-all hover:shadow-md flex flex-col justify-between ${
-                    !isAvailable ? 'opacity-85 border-red-300' : ''
-                  }`}
+ !isAvailable ? 'opacity-85 border-red-300' : ''
+ }`}
                 >
                   <div>
                     {/* Image & Food Type Pill */}
                     <div className="relative h-36 rounded-xl overflow-hidden mb-3 bg-slate-100 border border-slate-200">
                       <img
-                        src={dish.images?.[0] || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80'}
+                        src={dish.images?.[0] || IMAGE_PLACEHOLDER }
                         alt={dish.name}
                         className={`w-full h-full object-cover transition-transform duration-300 hover:scale-105 ${
-                          !isAvailable ? 'grayscale' : ''
-                        }`}
+ !isAvailable ? 'grayscale' : ''
+ }`}
                       />
                       <div className="absolute top-2 left-2 flex items-center gap-1.5">
                         <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider bg-white/95 shadow-xs border ${
-                          dish.foodType === 'NON_VEG'
-                            ? 'text-red-700 border-red-200'
-                            : 'text-emerald-700 border-emerald-200'
-                        }`}>
-                          {dish.foodType === 'NON_VEG' ? '🔴 Non-Veg' : '🟢 Pure Veg'}
+ dish.foodType === 'NON_VEG'
+ ? 'text-red-700 border-red-200'
+ : 'text-emerald-700 border-emerald-200'
+ }`}>
+                          {dish.foodType === 'NON_VEG' ? 'Non-Veg' : 'Pure Veg'}
                         </span>
                       </div>
 
                       <div className="absolute top-2 right-2">
                         <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold uppercase ${
-                          isAvailable
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs'
-                            : 'bg-red-50 text-red-700 border border-red-200 font-bold'
-                        }`}>
+ isAvailable
+ ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs'
+ : 'bg-red-50 text-red-700 border border-red-200 font-bold'
+ }`}>
                           {isAvailable ? 'In Stock' : '86 Out of Stock'}
                         </span>
                       </div>
@@ -1000,13 +1001,13 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                       <button
                         onClick={() => handleToggle86(dish)}
                         className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 ${
-                          isAvailable
-                            ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                        }`}
+ isAvailable
+ ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
+ : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+ }`}
                         title="Toggle Out of Stock status"
                       >
-                        {isAvailable ? '⚡ Mark 86 Out of Stock' : '✓ Restock (Make Available)'}
+                        {isAvailable ? 'Mark 86 Out of Stock' : 'Restock (Make Available)'}
                       </button>
 
                       <button
@@ -1058,7 +1059,7 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900">
-                    <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200">📦</span>
+                    
                     <span>Live Menu Stock & Dish Availability Controller</span>
                   </h2>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -1117,32 +1118,32 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                 <button
                   onClick={() => setStockFilter('ALL')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${
-                    stockFilter === 'ALL'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                      : 'bg-slate-100 text-slate-700 border-transparent hover:bg-slate-200'
-                  }`}
+ stockFilter === 'ALL'
+ ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+ : 'bg-slate-100 text-slate-700 border-transparent hover:bg-slate-200'
+ }`}
                 >
                   All Dishes ({items.length})
                 </button>
                 <button
                   onClick={() => setStockFilter('IN_STOCK')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${
-                    stockFilter === 'IN_STOCK'
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                      : 'bg-slate-100 text-slate-700 border-transparent hover:bg-slate-200'
-                  }`}
+ stockFilter === 'IN_STOCK'
+ ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+ : 'bg-slate-100 text-slate-700 border-transparent hover:bg-slate-200'
+ }`}
                 >
-                  🟢 In Stock ({inStockCount})
+                  In Stock ({inStockCount})
                 </button>
                 <button
                   onClick={() => setStockFilter('OUT_OF_STOCK')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${
-                    stockFilter === 'OUT_OF_STOCK'
-                      ? 'bg-red-600 text-white border-red-600 shadow-xs'
-                      : 'bg-slate-100 text-slate-700 border-transparent hover:bg-slate-200'
-                  }`}
+ stockFilter === 'OUT_OF_STOCK'
+ ? 'bg-red-600 text-white border-red-600 shadow-xs'
+ : 'bg-slate-100 text-slate-700 border-transparent hover:bg-slate-200'
+ }`}
                 >
-                  🔴 86 Out of Stock ({outOfStockCount})
+                  86 Out of Stock ({outOfStockCount})
                 </button>
               </div>
 
@@ -1196,21 +1197,21 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                     <div
                       key={dish.id}
                       className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors hover:bg-slate-50 ${
-                        !isAvailable ? 'bg-red-50/30' : ''
-                      }`}
+ !isAvailable ? 'bg-red-50/30' : ''
+ }`}
                     >
                       {/* Left: Image & Info */}
                       <div className="flex items-center gap-3.5">
                         <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200 relative">
                           <img
-                            src={dish.images?.[0] || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80'}
+                            src={dish.images?.[0] || IMAGE_PLACEHOLDER }
                             alt={dish.name}
                             className={`w-full h-full object-cover ${!isAvailable ? 'grayscale opacity-60' : ''}`}
                           />
                           <span
                             className={`absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full border border-white ${
-                              dish.foodType === 'NON_VEG' ? 'bg-red-500' : 'bg-emerald-500'
-                            }`}
+ dish.foodType === 'NON_VEG' ? 'bg-red-500' : 'bg-emerald-500'
+ }`}
                             title={dish.foodType === 'NON_VEG' ? 'Non-Veg' : 'Veg'}
                           />
                         </div>
@@ -1252,21 +1253,21 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                         <button
                           onClick={() => handleToggle86(dish)}
                           className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-xs ${
-                            isAvailable
-                              ? 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100'
-                              : 'bg-emerald-600 text-white font-bold hover:bg-emerald-700'
-                          }`}
+ isAvailable
+ ? 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100'
+ : 'bg-emerald-600 text-white font-bold hover:bg-emerald-700'
+ }`}
                           title={isAvailable ? 'Block this dish on customer QR menus' : 'Make this dish orderable on customer QR menus'}
                         >
                           {isAvailable ? (
                             <>
                               <AlertTriangle className="w-3.5 h-3.5" />
-                              <span>⚡ Mark 86</span>
+                              <span>Mark 86</span>
                             </>
                           ) : (
                             <>
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>✓ Restock Dish</span>
+                              <span>Restock Dish</span>
                             </>
                           )}
                         </button>
@@ -1337,12 +1338,12 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                     </div>
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-                        isHighMargin
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : isOptimal
-                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
-                      }`}
+ isHighMargin
+ ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+ : isOptimal
+ ? 'bg-blue-50 text-blue-700 border border-blue-200'
+ : 'bg-amber-50 text-amber-700 border border-amber-200'
+ }`}
                     >
                       {rc.status}
                     </span>
@@ -1362,8 +1363,8 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                       <span className="text-[10px] text-slate-500 block font-bold">FOOD COST</span>
                       <span
                         className={`text-sm font-bold ${
-                          isHighMargin ? 'text-emerald-700' : isOptimal ? 'text-blue-700' : 'text-amber-700'
-                        }`}
+ isHighMargin ? 'text-emerald-700' : isOptimal ? 'text-blue-700' : 'text-amber-700'
+ }`}
                       >
                         {rc.foodCostPercent}%
                       </span>
@@ -1445,8 +1446,7 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">Display Order</label>
-                  <input
-                    type="number"
+                  <NumericInput
                     min="1"
                     max="50"
                     value={categoryDisplayOrder}
@@ -1526,7 +1526,7 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                   </label>
                   {dishImage && (
                     <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                      ✓ Photo Attached
+                      Photo Attached
                     </span>
                   )}
                 </div>
@@ -1555,7 +1555,7 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                       alt="Dish preview"
                       className="w-full h-40 object-cover"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end justify-between p-3">
+                    <div className="bg-gradient-to-t absolute inset-0 from-black/80 flex items-end justify-between p-3">
                       <div className="flex gap-2">
                         <button
                           type="button"
@@ -1630,24 +1630,24 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                           </p>
                           <div className="grid grid-cols-4 gap-1.5">
                             {[
-                              { label: 'Curry / Paneer', url: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=500&auto=format&fit=crop&q=80' },
-                              { label: 'Biryani / Rice', url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=500&auto=format&fit=crop&q=80' },
-                              { label: 'Tandoor / Tikka', url: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=500&auto=format&fit=crop&q=80' },
-                              { label: 'Dosa / South', url: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=500&auto=format&fit=crop&q=80' },
-                              { label: 'Rolls / Chinese', url: 'https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?w=500&auto=format&fit=crop&q=80' },
-                              { label: 'Breads / Naan', url: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=500&auto=format&fit=crop&q=80' },
-                              { label: 'Beverage / Drink', url: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=500&auto=format&fit=crop&q=80' },
-                              { label: 'Dessert / Sweet', url: 'https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?w=500&auto=format&fit=crop&q=80' },
+                              { label: 'Curry / Paneer', url: '' },
+                              { label: 'Biryani / Rice', url: '' },
+                              { label: 'Tandoor / Tikka', url: '' },
+                              { label: 'Dosa / South', url: '' },
+                              { label: 'Rolls / Chinese', url: '' },
+                              { label: 'Breads / Naan', url: '' },
+                              { label: 'Beverage / Drink', url: '' },
+                              { label: 'Dessert / Sweet', url: '' },
                             ].map((preset, idx) => (
                               <button
                                 key={idx}
                                 type="button"
                                 onClick={() => setDishImage(preset.url)}
                                 className={`px-2 py-1 rounded-lg text-[10px] font-semibold border transition text-center truncate ${
-                                  dishImage === preset.url
-                                    ? 'bg-blue-600 text-white border-blue-600'
-                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                                }`}
+ dishImage === preset.url
+ ? 'bg-blue-600 text-white border-blue-600'
+ : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+ }`}
                               >
                                 {preset.label}
                               </button>
@@ -1690,8 +1690,7 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
 
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">Price (₹) *</label>
-                  <input
-                    type="number"
+                  <NumericInput
                     required
                     min="1"
                     placeholder="280"
@@ -1710,15 +1709,14 @@ export const MenuCatalogManagerApp: React.FC<MenuCatalogManagerAppProps> = ({
                     onChange={(e) => setDishFoodType(e.target.value as any)}
                     className="w-full p-2.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="VEG">🟢 Pure Veg</option>
-                    <option value="NON_VEG">🔴 Non-Veg</option>
+                    <option value="VEG">Pure Veg</option>
+                    <option value="NON_VEG">Non-Veg</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">Prep Time (Mins)</label>
-                  <input
-                    type="number"
+                  <NumericInput
                     min="1"
                     max="60"
                     value={dishPrepTime}

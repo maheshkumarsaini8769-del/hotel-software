@@ -58,7 +58,7 @@ export const FastCashierHeader: React.FC<FastCashierHeaderProps> = ({
           </div>
 
           {/* Kitchen Preparing Queue Badge */}
-          <div className="bg-amber-950/40 border border-amber-500/40 rounded-lg px-3 py-1.5 flex items-center gap-2">
+          <div className="bg-slate-900/40 border border-amber-500/40 rounded-lg px-3 py-1.5 flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
             <span className="text-xs text-amber-300 font-medium">Cooking:</span>
             <span className="text-sm font-bold text-amber-300 font-mono">{preparingCount}</span>

@@ -20,7 +20,7 @@ export const TakeawayCallingBoard: React.FC<TakeawayCallingBoardProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
-      <div className="bg-slate-950 border-2 border-amber-500/40 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-slate-950 border-2 border-amber-500/40 rounded-xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95 duration-200">
         {/* Calling Board Top Banner */}
         <div className="bg-slate-900 border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -47,7 +47,7 @@ export const TakeawayCallingBoard: React.FC<TakeawayCallingBoardProps> = ({
               onClick={onClose}
               className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors"
             >
-              ✕
+              
             </button>
           </div>
         </div>
@@ -77,7 +77,7 @@ export const TakeawayCallingBoard: React.FC<TakeawayCallingBoardProps> = ({
                 queue.preparingQueue.map((ord: ITakeawayOrderUI) => (
                   <div
                     key={ord._id}
-                    className="p-4 rounded-2xl bg-zinc-900/90 border-2 border-amber-500/30 flex flex-col items-center justify-center gap-1 shadow-md hover:border-amber-400 transition-all"
+                    className="p-4 rounded-xl bg-zinc-900/90 border-2 border-amber-500/30 flex flex-col items-center justify-center gap-1 shadow-md hover:border-amber-400 transition-all"
                   >
                     <span className="text-[11px] text-zinc-400 uppercase font-bold tracking-wider">
                       Token
@@ -100,7 +100,7 @@ export const TakeawayCallingBoard: React.FC<TakeawayCallingBoardProps> = ({
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-emerald-400 animate-ping" />
                 <h3 className="text-sm font-black uppercase tracking-wider text-emerald-400">
-                  Ready for Pickup 🔔
+                  Ready for Pickup 
                 </h3>
               </div>
               <span className="text-xs font-mono text-emerald-300/80 font-bold">
@@ -117,7 +117,7 @@ export const TakeawayCallingBoard: React.FC<TakeawayCallingBoardProps> = ({
                 queue.readyQueue.map((ord: ITakeawayOrderUI) => (
                   <div
                     key={ord._id}
-                    className="p-4 rounded-2xl bg-zinc-900/90 border-2 border-emerald-500/60 flex flex-col items-center justify-center gap-2 shadow-sm dark:shadow-none animate-pulse"
+                    className="p-4 rounded-xl bg-zinc-900/90 border-2 border-emerald-500/60 flex flex-col items-center justify-center gap-2 shadow-sm dark:shadow-none animate-pulse"
                   >
                     <span className="text-[11px] text-emerald-400 uppercase font-black tracking-wider">
                       READY TO COLLECT
@@ -134,7 +134,7 @@ export const TakeawayCallingBoard: React.FC<TakeawayCallingBoardProps> = ({
                       disabled={loading}
                       className="w-full mt-1 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs uppercase tracking-wide transition-all shadow-md active:scale-95"
                     >
-                      ✓ Hand Over
+                       Hand Over
                     </button>
                   </div>
                 ))

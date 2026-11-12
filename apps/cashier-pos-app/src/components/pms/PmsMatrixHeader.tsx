@@ -91,10 +91,10 @@ export const PmsMatrixHeader: React.FC<PmsMatrixHeaderProps> = ({
               key={d}
               onClick={() => onDaysChange(d)}
               className={`px-3 py-1 rounded-lg transition ${
-                days === d
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+ days === d
+ ? 'bg-emerald-600/20 text-amber-300 border border-emerald-600/40 shadow-sm'
+ : 'text-slate-400 hover:text-white'
+ }`}
             >
               {d}D
             </button>
@@ -136,7 +136,7 @@ export const PmsMatrixHeader: React.FC<PmsMatrixHeaderProps> = ({
         {/* Luxury Gold Call-to-Action */}
         <button
           onClick={onNewReservation}
-          className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-amber-950/40 transition active:scale-95 flex items-center space-x-1.5"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 font-extrabold text-xs rounded-xl shadow-lg shadow-slate-900/40 transition active:scale-95 flex items-center space-x-1.5"
         >
           <span>✨</span>
           <span>New Reservation</span>

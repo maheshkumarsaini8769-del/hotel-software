@@ -45,12 +45,12 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-slate-950 border border-amber-500/30 rounded-2xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden">
+      <div className="bg-slate-950 border border-amber-500/30 rounded-xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden">
         {/* Modal Header */}
         <div className="p-4 px-6 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-lg text-amber-400">
-              🧹
+              
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -68,7 +68,7 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
             onClick={onClose}
             className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -98,19 +98,19 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
                   key={idx}
                   onClick={() => onToggleChecklist(idx)}
                   className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center gap-3 ${
-                    item.isDone
-                      ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-200'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
-                  }`}
+ item.isDone
+ ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-200'
+ : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+ }`}
                 >
                   <div
                     className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
-                      item.isDone
-                        ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-bold text-xs'
-                        : 'border-slate-600 bg-slate-800'
-                    }`}
+ item.isDone
+ ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-bold text-xs'
+ : 'border-slate-600 bg-slate-800'
+ }`}
                   >
-                    {item.isDone && '✓'}
+                    {item.isDone && ''}
                   </div>
                   <span className="text-xs font-medium select-none">{item.taskName}</span>
                 </div>
@@ -133,10 +133,10 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
               <div
                 onClick={() => onSetLinenAction('FULL_WASH')}
                 className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                  linenAction === 'FULL_WASH'
-                    ? 'bg-amber-500/10 border-amber-500/60 text-white shadow-sm shadow-amber-500/10'
-                    : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}
+ linenAction === 'FULL_WASH'
+ ? 'bg-amber-500/10 border-amber-500/60 text-white shadow-sm shadow-amber-500/10'
+ : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700'
+ }`}
               >
                 <div className="text-xs font-bold text-amber-300">Complete Linen Change</div>
                 <div className="text-[11px] text-slate-400 mt-1">Full replacement of all sheets, duvets & pillowcases.</div>
@@ -145,13 +145,13 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
               <div
                 onClick={() => onSetLinenAction('TUCK_IN')}
                 className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                  linenAction === 'TUCK_IN'
-                    ? 'bg-emerald-500/15 border-emerald-500/60 text-white shadow-sm shadow-emerald-500/10'
-                    : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}
+ linenAction === 'TUCK_IN'
+ ? 'bg-emerald-500/15 border-emerald-500/60 text-white shadow-sm shadow-emerald-500/10'
+ : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700'
+ }`}
               >
                 <div className="text-xs font-bold text-emerald-300 flex items-center gap-1">
-                  <span>🌿 Tuck-in (Eco Choice)</span>
+                  <span> Tuck-in (Eco Choice)</span>
                 </div>
                 <div className="text-[11px] text-emerald-400/80 mt-1">Stayover tidy bed. Saves ~35L fresh water!</div>
               </div>
@@ -203,7 +203,7 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
 
             {minibarTotal > 0 && room.guestInfo && (
               <p className="text-[10px] text-amber-400/90 mt-2 bg-amber-950/30 p-2 rounded-lg border border-amber-900/40">
-                ⚡ ₹{minibarTotal} will be automatically charged to {room.guestInfo.guestName}&apos;s Master Folio.
+                 ₹{minibarTotal} will be automatically charged to {room.guestInfo.guestName}&apos;s Master Folio.
               </p>
             )}
           </div>
@@ -234,7 +234,7 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
           <button
             onClick={onComplete}
             disabled={isLoading || !allChecklistDone}
-            className="px-5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 transition-all shadow-lg shadow-amber-950/40 cursor-pointer disabled:opacity-50 disabled:pointer-events-none active:scale-95"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-lg shadow-amber-950/40 cursor-pointer disabled:opacity-50 disabled:pointer-events-none active:scale-95"
           >
             {isLoading ? 'Processing Turnaround...' : 'Submit & Ready for Inspection'}
           </button>

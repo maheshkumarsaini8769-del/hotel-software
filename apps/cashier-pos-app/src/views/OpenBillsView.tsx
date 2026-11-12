@@ -61,7 +61,7 @@ function toBillType(type: SnapshotBill['type']): BillType {
 }
 
 export const OpenBillsView: React.FC<OpenBillsViewProps> = ({
-  isDark = true,
+
   onToast,
   onSettleBill,
   onSelectBillForPos,
@@ -136,14 +136,14 @@ export const OpenBillsView: React.FC<OpenBillsViewProps> = ({
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div
         className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-        }`}
+ 'bg-white border-slate-200 shadow-sm'
+ }`}
       >
         <div>
           <h2
             className={`text-lg font-black tracking-tight flex items-center gap-2 ${
-              isDark ? 'text-white' : 'text-slate-900'
-            }`}
+ 'text-slate-900'
+ }`}
           >
             <Clock className="w-5 h-5 text-amber-500" />
             <span>Open & Running Bills Terminal</span>
@@ -195,12 +195,10 @@ export const OpenBillsView: React.FC<OpenBillsViewProps> = ({
               key={f.type}
               onClick={() => setFilterType(f.type)}
               className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap ${
-                filterType === f.type
-                  ? 'bg-amber-600 text-white shadow-md'
-                  : isDark
-                    ? 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-              }`}
+ filterType === f.type
+ ? 'bg-amber-600 text-white shadow-md'
+ : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+ }`}
             >
               <span>{f.label}</span>
               <span className="text-[10px] opacity-80 font-mono">({f.count})</span>
@@ -240,11 +238,11 @@ export const OpenBillsView: React.FC<OpenBillsViewProps> = ({
       ) : filtered.length === 0 ? (
         <div
           className={`rounded-2xl border px-6 py-14 text-center ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-          }`}
+ 'bg-white border-slate-200'
+ }`}
         >
           <UtensilsCrossed className="w-9 h-9 text-slate-500 mx-auto mb-3" />
-          <p className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+          <p className={`text-sm font-bold ${'text-slate-800'}`}>
             No open bills in this category.
           </p>
           <p className="text-xs text-slate-500 mt-1">
@@ -257,10 +255,8 @@ export const OpenBillsView: React.FC<OpenBillsViewProps> = ({
             <div
               key={b.id}
               className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 transition ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 hover:border-slate-700'
-                  : 'bg-white border-slate-200 shadow-sm'
-              }`}
+ 'bg-white border-slate-200 shadow-sm'
+ }`}
             >
               <div>
                 <div className="flex items-center justify-between">
@@ -272,10 +268,10 @@ export const OpenBillsView: React.FC<OpenBillsViewProps> = ({
                   </div>
                   <span
                     className={`px-2 py-0.5 rounded text-[9px] font-bold ${
-                      b.status === 'READY_TO_SETTLE'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                    }`}
+ b.status === 'READY_TO_SETTLE'
+ ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+ : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+ }`}
                   >
                     {b.status.replace(/_/g, ' ')}
                   </span>

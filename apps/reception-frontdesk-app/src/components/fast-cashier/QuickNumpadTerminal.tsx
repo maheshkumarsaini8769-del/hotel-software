@@ -64,17 +64,17 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
   ];
 
   return (
-    <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 flex flex-col gap-5 shadow-sm dark:shadow-none">
+    <div className="bg-slate-900 rounded-xl border border-zinc-800 p-5 flex flex-col gap-5 shadow-sm dark:shadow-none">
       {/* Barcode & 10-Key Code Input Header */}
       <div className="flex flex-col gap-2">
         <label className="text-xs font-semibold uppercase tracking-wider text-amber-400/90 flex items-center justify-between">
           <span>Barcode / 10-Key Item Code Scanner</span>
-          <span className="text-[11px] text-zinc-500 font-normal">Physical Scanner Ready ⚡</span>
+          <span className="text-[11px] text-zinc-500 font-normal">Physical Scanner Ready </span>
         </label>
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 font-mono text-sm">
-              🔍
+              
             </span>
             <input
               ref={inputRef}
@@ -101,12 +101,12 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
         {statusMessage && (
           <div
             className={`text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-2 ${
-              statusMessage.isError
-                ? 'bg-red-950/60 text-red-300 border border-red-500/40'
-                : 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40'
-            }`}
+ statusMessage.isError
+ ? 'bg-red-950/60 text-red-300 border border-red-500/40'
+ : 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40'
+ }`}
           >
-            <span>{statusMessage.isError ? '⚠️' : '✓'}</span>
+            <span>{statusMessage.isError ? '️' : ''}</span>
             <span>{statusMessage.text}</span>
           </div>
         )}
@@ -125,10 +125,10 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
                 type="button"
                 onClick={() => setActiveQty(qty)}
                 className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                  activeQty === qty
-                    ? 'bg-amber-500 text-black border-amber-400 shadow-sm dark:shadow-none'
-                    : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-700'
-                }`}
+ activeQty === qty
+ ? 'bg-amber-500 text-black border-amber-400 shadow-sm dark:shadow-none'
+ : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+ }`}
               >
                 x{qty}
               </button>
@@ -168,7 +168,7 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
             type="button"
             onClick={handleEnter}
             disabled={!codeBuffer.trim() || loading}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:from-zinc-800 disabled:to-zinc-800 text-black disabled:text-zinc-600 font-black text-sm uppercase tracking-wider transition-all shadow-sm dark:shadow-none disabled:shadow-none flex items-center justify-center gap-2"
+            className="bg-gradient-to-t w-full py-3.5 rounded-xl disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 font-black text-sm uppercase tracking-wider transition-all shadow-sm dark:shadow-none disabled:shadow-none flex items-center justify-center gap-2"
           >
             <span>PUNCH CODE (ENTER)</span>
             <span>↵</span>

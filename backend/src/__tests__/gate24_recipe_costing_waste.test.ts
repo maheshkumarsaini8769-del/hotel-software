@@ -117,6 +117,16 @@ describe('--- SHIFT 24 / GATE 24: KITCHEN RECIPE COSTING, FOOD WASTE TRACKER & P
       isAvailable: true,
     });
     biryaniItemId = biryaniItem._id.toString();
+
+    await MenuItem.create({
+      hotelId: tenantA._id,
+      categoryId: new mongoose.Types.ObjectId(),
+      kitchenStationId: station._id,
+      name: 'Uncosted Seasonal Special',
+      basePrice: 220,
+      itemCode: '502',
+      isAvailable: true,
+    });
   });
 
   afterAll(async () => {
@@ -191,6 +201,23 @@ describe('--- SHIFT 24 / GATE 24: KITCHEN RECIPE COSTING, FOOD WASTE TRACKER & P
     expect(res.body.metrics.totalRecipesCount).toBe(1);
     expect(res.body.metrics.highCostRecipesCount).toBe(0);
     expect(res.body.metrics.averageFoodCostPercentage).toBe(30.5);
+    expect(res.body.metrics.menuItemCount).toBe(2);
+    expect(res.body.metrics.recipeCoverageCount).toBe(1);
+    expect(res.body.metrics.recipeCoveragePercentage).toBe(50);
+  });
+
+  it('keeps recipe coverage metrics global when the recipe list is searched', async () => {
+    const res = await request(app)
+      .get('/api/v1/recipe-costing/recipes?search=not-a-real-recipe')
+      .set('Authorization', `Bearer ${chefToken}`)
+      .set('x-hotel-id', tenantAId);
+
+    expect(res.status).toBe(200);
+    expect(res.body.recipes).toHaveLength(0);
+    expect(res.body.metrics.totalRecipesCount).toBe(1);
+    expect(res.body.metrics.menuItemCount).toBe(2);
+    expect(res.body.metrics.recipeCoverageCount).toBe(1);
+    expect(res.body.metrics.recipeCoveragePercentage).toBe(50);
   });
 
   // TEST 3

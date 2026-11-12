@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   IGroupBookingUI,
   IPostIncidentalPayload,
-  SplitBillingPolicy,
+  SplitBillingPolicy, NumericInput,
 } from '@spicehub/ui';
 
 interface PostIncidentalModalProps {
@@ -154,8 +154,7 @@ export const PostIncidentalModal: React.FC<PostIncidentalModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-zinc-400 font-medium mb-1">Rate (₹) *</label>
-              <input
-                type="number"
+              <NumericInput
                 min="1"
                 required
                 value={rate}
@@ -165,8 +164,7 @@ export const PostIncidentalModal: React.FC<PostIncidentalModalProps> = ({
             </div>
             <div>
               <label className="block text-zinc-400 font-medium mb-1">Quantity *</label>
-              <input
-                type="number"
+              <NumericInput
                 min="1"
                 required
                 value={quantity}
@@ -177,7 +175,7 @@ export const PostIncidentalModal: React.FC<PostIncidentalModalProps> = ({
           </div>
 
           {/* Policy Split Routing Indicator */}
-          <div className={`p-3.5 rounded-xl border ${willChargeCorporate ? 'bg-emerald-950/40 border-emerald-700/50' : 'bg-amber-950/40 border-amber-700/50'}`}>
+          <div className={`p-3.5 rounded-xl border ${willChargeCorporate ? 'bg-emerald-950/40 border-emerald-700/50' : 'bg-slate-900/40 border-amber-700/50'}`}>
             <div className="flex items-center gap-2 font-bold">
               <span className={`w-2 h-2 rounded-full ${willChargeCorporate ? 'bg-emerald-400' : 'bg-amber-400'}`} />
               <span className={willChargeCorporate ? 'text-emerald-300' : 'text-amber-300'}>
@@ -219,7 +217,7 @@ export const PostIncidentalModal: React.FC<PostIncidentalModalProps> = ({
             <button
               type="submit"
               disabled={loading || !selectedRoomNumber}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold text-xs shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold text-xs shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
             >
               {loading && <span className="w-3.5 h-3.5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />}
               <span>Post Charge ₹{netAmount.toLocaleString('en-IN')}</span>

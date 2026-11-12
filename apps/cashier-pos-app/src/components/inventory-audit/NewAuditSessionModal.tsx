@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AuditTypeUI, INewAuditSessionPayload } from '@spicehub/ui';
+import { AuditTypeUI, INewAuditSessionPayload, NumericInput } from '@spicehub/ui';
 
 interface NewAuditSessionModalProps {
   isOpen: boolean;
@@ -226,8 +226,7 @@ export const NewAuditSessionModal: React.FC<NewAuditSessionModalProps> = ({
                     />
                   </div>
                   <div>
-                    <input
-                      type="number"
+                    <NumericInput
                       placeholder="Book Qty"
                       value={item.systemBookQuantity}
                       onChange={(e) =>
@@ -239,8 +238,7 @@ export const NewAuditSessionModal: React.FC<NewAuditSessionModalProps> = ({
                     />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
+                    <NumericInput
                       placeholder="Cost (₹)"
                       value={item.unitCost}
                       onChange={(e) => handleItemChange(index, 'unitCost', Number(e.target.value))}

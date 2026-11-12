@@ -97,7 +97,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
               <span className="text-slate-400">👤</span>
               <span className="text-slate-200 font-medium truncate">{room.guestInfo.guestName}</span>
             </div>
-            <span className="text-[10px] text-amber-400/80 bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-900/50 flex-shrink-0">
+            <span className="text-[10px] text-amber-400/80 bg-slate-900/40 px-1.5 py-0.5 rounded border border-amber-900/50 flex-shrink-0">
               In-House
             </span>
           </div>
@@ -121,7 +121,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
                 <span className="text-slate-300 font-medium">{room.activeTask.assignedAttendantId.name}</span>
               </span>
             ) : (
-              <span className="text-[10px] text-amber-400/80 bg-amber-950/30 px-1.5 py-0.5 rounded border border-amber-800/40">
+              <span className="text-[10px] text-amber-400/80 bg-slate-900/30 px-1.5 py-0.5 rounded border border-amber-800/40">
                 Unassigned
               </span>
             )}
@@ -137,16 +137,16 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
           <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
-                room.status === RoomStatus.AVAILABLE
-                  ? 'bg-emerald-400'
-                  : room.status === RoomStatus.INSPECTION
-                  ? 'bg-amber-400'
-                  : room.status === RoomStatus.CLEANING
-                  ? 'bg-slate-800'
-                  : room.status === RoomStatus.OUT_OF_SERVICE
-                  ? 'bg-red-500'
-                  : 'bg-orange-500'
-              }`}
+ room.status === RoomStatus.AVAILABLE
+ ? 'bg-emerald-400'
+ : room.status === RoomStatus.INSPECTION
+ ? 'bg-amber-400'
+ : room.status === RoomStatus.CLEANING
+ ? 'bg-slate-800'
+ : room.status === RoomStatus.OUT_OF_SERVICE
+ ? 'bg-red-500'
+ : 'bg-emerald-600'
+ }`}
               style={{ width: `${turnaround.percentage}%` }}
             ></div>
           </div>
@@ -177,7 +177,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
               }
             }}
             disabled={isLoading}
-            className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-semibold text-xs transition-all shadow-md shadow-orange-950/50 active:scale-95 disabled:opacity-50 cursor-pointer text-center"
+            className="bg-emerald-600 hover:bg-emerald-700 flex-1 py-1.5 px-3 rounded-xl text-white font-semibold text-xs transition-all shadow-md shadow-orange-950/50 active:scale-95 disabled:opacity-50 cursor-pointer text-center"
           >
             {room.activeTask ? 'Start Cleaning' : 'Create Task & Start'}
           </button>
@@ -187,7 +187,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
           <button
             onClick={() => onOpenCleaningModal(room)}
             disabled={isLoading}
-            className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold text-xs transition-all shadow-md shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer text-center"
+            className="bg-emerald-600 hover:bg-emerald-700 flex-1 py-1.5 px-3 rounded-xl text-white font-semibold text-xs transition-all shadow-md shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer text-center"
           >
             Audit & Complete
           </button>
@@ -197,7 +197,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
           <button
             onClick={() => onOpenInspectionModal(room)}
             disabled={isLoading}
-            className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold text-xs transition-all shadow-md shadow-amber-950/50 hover:brightness-110 active:scale-95 disabled:opacity-50 cursor-pointer text-center"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 py-1.5 px-3 rounded-xl font-bold text-xs transition-all shadow-md shadow-slate-900/50 active:scale-95 disabled:opacity-50 cursor-pointer text-center"
           >
             Inspect Room
           </button>

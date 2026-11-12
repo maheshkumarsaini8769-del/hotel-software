@@ -27,14 +27,14 @@ export const FoodWasteAuditTable: React.FC<FoodWasteAuditTableProps> = ({
   ];
 
   return (
-    <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 space-y-4 shadow-xl">
+    <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-xl">
       {/* Table Header & Category Tabs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-zinc-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-200">
         <div>
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
+          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
             <span>Kitchen Spoilage & Shrinkage Audit Log</span>
           </h2>
-          <p className="text-xs text-zinc-400 mt-0.5">
+          <p className="text-xs text-slate-600 mt-0.5">
             Monetary losses, root causes and disposal methods for food waste
           </p>
         </div>
@@ -47,10 +47,10 @@ export const FoodWasteAuditTable: React.FC<FoodWasteAuditTableProps> = ({
               type="button"
               onClick={() => onFilterChange(tab.key)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                selectedFilter === tab.key
-                  ? 'bg-red-500/20 text-red-300 border-red-500/40'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-              }`}
+ selectedFilter === tab.key
+ ? 'bg-red-50 text-red-700 border-red-200'
+ : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+ }`}
             >
               {tab.label}
             </button>
@@ -59,9 +59,9 @@ export const FoodWasteAuditTable: React.FC<FoodWasteAuditTableProps> = ({
       </div>
 
       {/* Main Table */}
-      <div className="overflow-x-auto rounded-xl border border-zinc-800">
-        <table className="w-full text-left text-xs text-zinc-300">
-          <thead className="bg-slate-900 text-zinc-400 uppercase font-semibold text-[11px] border-b border-zinc-800">
+      <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <table className="w-full text-left text-xs text-slate-700">
+          <thead className="bg-white text-slate-600 uppercase font-semibold text-[11px] border-b border-slate-200">
             <tr>
               <th className="px-4 py-3">Waste #</th>
               <th className="px-4 py-3">Item / Prep</th>
@@ -74,10 +74,10 @@ export const FoodWasteAuditTable: React.FC<FoodWasteAuditTableProps> = ({
               <th className="px-4 py-3">Audited At</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800/80 bg-zinc-950/40">
+          <tbody className="divide-y divide-slate-200 bg-slate-100">
             {logs.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-12 text-center text-zinc-500">
+                <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
                   No food waste records logged for this filter
                 </td>
               </tr>
@@ -85,11 +85,11 @@ export const FoodWasteAuditTable: React.FC<FoodWasteAuditTableProps> = ({
               logs.map((log) => {
                 const badge = RecipeCostingHelper.getWasteTypeBadge(log.wasteType);
                 return (
-                  <tr key={log._id} className="hover:bg-zinc-900/50 transition-colors">
-                    <td className="px-4 py-3 font-mono font-bold text-amber-400">
+                  <tr key={log._id} className="hover:bg-slate-200 transition-colors">
+                    <td className="px-4 py-3 font-mono font-bold text-amber-700">
                       {log.wasteNumber}
                     </td>
-                    <td className="px-4 py-3 font-medium text-white max-w-[180px] truncate">
+                    <td className="px-4 py-3 font-medium text-slate-900 max-w-[180px] truncate">
                       {log.itemName}
                     </td>
                     <td className="px-4 py-3">
@@ -97,22 +97,22 @@ export const FoodWasteAuditTable: React.FC<FoodWasteAuditTableProps> = ({
                         {badge.label}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-mono text-[11px] text-zinc-400">
+                    <td className="px-4 py-3 font-mono text-[11px] text-slate-600">
                       {log.shift}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-zinc-200">
+                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">
                       {log.quantity} {log.unit}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono font-black text-red-400">
+                    <td className="px-4 py-3 text-right font-mono font-black text-red-700">
                       {RecipeCostingHelper.formatCurrency(log.totalLossAmount)}
                     </td>
-                    <td className="px-4 py-3 max-w-[200px] truncate text-zinc-300" title={log.reason}>
+                    <td className="px-4 py-3 max-w-[200px] truncate text-slate-700" title={log.reason}>
                       {log.reason}
                     </td>
-                    <td className="px-4 py-3 font-mono text-[11px] text-zinc-400">
+                    <td className="px-4 py-3 font-mono text-[11px] text-slate-600">
                       {log.disposalMethod}
                     </td>
-                    <td className="px-4 py-3 font-mono text-[11px] text-zinc-500">
+                    <td className="px-4 py-3 font-mono text-[11px] text-slate-500">
                       {new Date(log.loggedAt).toLocaleDateString('en-IN', {
                         day: '2-digit',
                         month: 'short',

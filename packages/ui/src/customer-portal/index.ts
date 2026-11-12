@@ -4,3 +4,4 @@ export * from './CustomerPortalStore';
 export * from './CustomerLocationSelectorModal';
 export * from './CustomerPortalSwitcherBar';
 export * from './CustomerUniversalHub';
+export * from './CustomerNeedHelpChatModal';

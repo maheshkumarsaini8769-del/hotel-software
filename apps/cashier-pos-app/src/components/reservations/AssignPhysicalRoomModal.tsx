@@ -39,7 +39,7 @@ export const AssignPhysicalRoomModal: React.FC<AssignPhysicalRoomModalProps> = (
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-white">Assign Physical Room</h3>
-                <span className="text-[10px] bg-amber-950/60 text-amber-300 border border-amber-800/60 px-2 py-0.5 rounded-full font-semibold">
+                <span className="text-[10px] bg-slate-900/60 text-amber-300 border border-amber-800/60 px-2 py-0.5 rounded-full font-semibold">
                   Front Desk
                 </span>
               </div>
@@ -72,10 +72,10 @@ export const AssignPhysicalRoomModal: React.FC<AssignPhysicalRoomModalProps> = (
                     key={room._id}
                     onClick={() => setSelectedRoomId(room._id)}
                     className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
-                      isSelected
-                        ? 'bg-amber-500/15 border-amber-500 text-amber-200 shadow-md shadow-amber-500/10'
-                        : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
-                    }`}
+ isSelected
+ ? 'bg-emerald-600/15 border-emerald-600 text-amber-200 shadow-md shadow-emerald-600/10'
+ : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+ }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-base font-bold text-white">Room {room.roomNumber}</span>
@@ -103,7 +103,7 @@ export const AssignPhysicalRoomModal: React.FC<AssignPhysicalRoomModalProps> = (
           <button
             onClick={handleConfirm}
             disabled={isLoading || !selectedRoomId}
-            className="px-5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 transition-all shadow-md shadow-amber-950/40 cursor-pointer disabled:opacity-50 active:scale-95"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-slate-900/40 cursor-pointer disabled:opacity-50 active:scale-95"
           >
             {isLoading ? 'Allocating...' : 'Confirm Room Allocation'}
           </button>

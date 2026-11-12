@@ -68,7 +68,7 @@ export const RecipeCostingHeader: React.FC<RecipeCostingHeaderProps> = ({
           <button
             type="button"
             onClick={onNewRecipeClick}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-2"
           >
             <span>+</span>
             <span>New Recipe BOM</span>
@@ -123,13 +123,13 @@ export const RecipeCostingHeader: React.FC<RecipeCostingHeaderProps> = ({
         <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between">
           <span className="text-xs text-zinc-400 uppercase font-semibold">Recipe Coverage</span>
           <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-black text-amber-400 font-mono">
-              {metrics.totalRecipesCount}
+            <span className="text-2xl font-black text-emerald-400 font-mono">
+              {metrics.recipeCoveragePercentage}%
             </span>
-            <span className="text-xs text-zinc-500">Standard SOPs</span>
+            <span className="text-xs text-zinc-500">of menu items</span>
           </div>
-          <span className="text-[11px] text-emerald-400 font-medium mt-2">
-            100% Chef Audited
+          <span className="text-[11px] text-zinc-400 font-medium mt-2">
+            {metrics.recipeCoverageCount} of {metrics.menuItemCount} menu items have a recipe
           </span>
         </div>
       </div>
@@ -140,10 +140,10 @@ export const RecipeCostingHeader: React.FC<RecipeCostingHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('RECIPES')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'RECIPES'
-              ? 'text-amber-400 border-amber-400 bg-amber-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'RECIPES'
+ ? 'text-amber-400 border-amber-400 bg-emerald-600/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
           📋 Standard Recipes & BOM ({metrics.totalRecipesCount})
         </button>
@@ -151,10 +151,10 @@ export const RecipeCostingHeader: React.FC<RecipeCostingHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('WASTE_AUDIT')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'WASTE_AUDIT'
-              ? 'text-red-400 border-red-400 bg-red-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'WASTE_AUDIT'
+ ? 'text-red-400 border-red-400 bg-red-500/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
           🗑️ Kitchen Spoilage & Waste Audit ({wasteSummary.totalEntriesCount})
         </button>

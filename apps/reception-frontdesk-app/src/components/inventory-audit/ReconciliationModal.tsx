@@ -84,7 +84,7 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-4xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
+      <div className="bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-4xl rounded-xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div>
@@ -103,7 +103,7 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
             onClick={onClose}
             className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-sm"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -125,8 +125,8 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
             <span className="text-[11px] text-zinc-400 uppercase font-bold block">Net Variance Impact</span>
             <span
               className={`text-lg font-bold ${
-                session.netDiscrepancyValue < 0 ? 'text-red-400' : 'text-emerald-400'
-              }`}
+ session.netDiscrepancyValue < 0 ? 'text-red-400' : 'text-emerald-400'
+ }`}
             >
               {InventoryAuditHelper.formatCurrency(session.netDiscrepancyValue)}
             </span>
@@ -137,7 +137,7 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
           {discrepantItems.length === 0 ? (
             <div className="text-center py-8 text-zinc-400 text-sm">
-              ✨ No variances detected! Physical counts match system book quantities 100%.
+               No variances detected! Physical counts match system book quantities 100%.
             </div>
           ) : (
             <div className="space-y-3">
@@ -246,7 +246,7 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-sm"
+              className="bg-emerald-600 hover:bg-emerald-700 px-5 py-2 rounded-xl text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-sm"
             >
               {loading ? 'Reconciling Ledger...' : 'Approve & Reconcile Book Stock'}
             </button>

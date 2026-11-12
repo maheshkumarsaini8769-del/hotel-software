@@ -11,6 +11,7 @@ import { DiningReservationCard } from './DiningReservationCard';
 import { RoomArrivalCard } from './RoomArrivalCard';
 import { AssignPhysicalRoomModal } from './AssignPhysicalRoomModal';
 import { NewDiningReservationModal } from './NewDiningReservationModal';
+import { UtensilsCrossed, Bell, Plus } from 'lucide-react';
 
 interface LiveReservationManagerAppProps {
   apiClient?: ApiClient;
@@ -109,14 +110,14 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
       store.closeNewDiningModal();
       await loadDiningData();
     } catch (err: any) {
-      alert(`Reservation failed: ${err.message}`);
+      alert(`Booking failed: ${err.message}`);
     } finally {
       store.setLoading(false);
     }
   };
 
-  // Room Assignment & Express Check-In Handlers
-  const handleAssignRoom = async (bookingId: string, roomId: string) => {
+  // Front Desk Room Assignment & Express Check-In Handlers
+  const handleAssignPhysicalRoom = async (bookingId: string, roomId: string) => {
     try {
       store.setLoading(true);
       await apiClient.pms.assignRoom(bookingId, roomId);
@@ -136,14 +137,13 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
     }
     try {
       store.setLoading(true);
-      await apiClient.pms.checkIn({
-        bookingId: booking._id,
-        roomId: booking.allocatedRoomId._id,
-        keyCardNumber: `KEY-${Date.now().toString().slice(-4)}`,
-      });
+      const allocatedId = typeof booking.allocatedRoomId === 'string'
+        ? booking.allocatedRoomId
+        : booking.allocatedRoomId._id;
+      await (apiClient.pms as any).checkIn(booking._id, allocatedId);
       await loadRoomsData();
     } catch (err: any) {
-      alert(`Check-in failed: ${err.message}`);
+      alert(`Express Check-in failed: ${err.message}`);
     } finally {
       store.setLoading(false);
     }
@@ -154,7 +154,7 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
   const roomList = store.getFilteredRoomArrivals();
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Luxury Dual Header */}
       <ReservationHeader
         activeTab={activeTab}
@@ -172,11 +172,11 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
       {/* Main Content Area */}
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
         {store.getError() && (
-          <div className="mb-6 p-4 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs flex items-center justify-between">
+          <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between shadow-2xs">
             <span>{store.getError()}</span>
             <button
               onClick={refreshAll}
-              className="px-3 py-1 rounded-lg bg-red-900/60 hover:bg-red-800 text-white font-medium cursor-pointer"
+              className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium cursor-pointer"
             >
               Retry
             </button>
@@ -187,22 +187,23 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
         {activeTab === 'DINING' && (
           <>
             {store.getLoading() && diningList.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-500 gap-3">
-                <div className="w-8 h-8 rounded-full border-2 border-amber-500 border-t-transparent animate-spin"></div>
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
+                <div className="w-8 h-8 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin"></div>
                 <p className="text-xs font-medium">Syncing live table reservations...</p>
               </div>
             ) : diningList.length === 0 ? (
-              <div className="py-20 text-center text-slate-500">
-                <div className="text-4xl mb-2">🍽️</div>
-                <h3 className="text-sm font-semibold text-slate-300">No Dining Reservations Found</h3>
+              <div className="py-20 text-center text-slate-500 bg-white rounded-3xl border border-slate-200 p-8 shadow-xs">
+                <UtensilsCrossed className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <h3 className="text-sm font-semibold text-slate-800">No Dining Reservations Found</h3>
                 <p className="text-xs text-slate-500 mt-1">
                   No table bookings scheduled for {store.getSelectedDate()}.
                 </p>
                 <button
                   onClick={() => store.openNewDiningModal()}
-                  className="mt-4 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-md cursor-pointer"
+                  className="btn-glass-green mt-4 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider shadow-xs cursor-pointer inline-flex items-center gap-1.5"
                 >
-                  + Add First Booking
+                  <Plus className="w-4 h-4" />
+                  <span>Add First Booking</span>
                 </button>
               </div>
             ) : (
@@ -225,14 +226,14 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
         {activeTab === 'ROOMS' && (
           <>
             {store.getLoading() && roomList.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-500 gap-3">
-                <div className="w-8 h-8 rounded-full border-2 border-amber-500 border-t-transparent animate-spin"></div>
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
+                <div className="w-8 h-8 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin"></div>
                 <p className="text-xs font-medium">Loading room arrivals board...</p>
               </div>
             ) : roomList.length === 0 ? (
-              <div className="py-20 text-center text-slate-500">
-                <div className="text-4xl mb-2">🛎️</div>
-                <h3 className="text-sm font-semibold text-slate-300">No Room Bookings Found</h3>
+              <div className="py-20 text-center text-slate-500 bg-white rounded-3xl border border-slate-200 p-8 shadow-xs">
+                <Bell className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <h3 className="text-sm font-semibold text-slate-800">No Room Bookings Found</h3>
                 <p className="text-xs text-slate-500 mt-1">
                   No guest arrivals or departures recorded for this date.
                 </p>
@@ -254,7 +255,7 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
         )}
       </main>
 
-      {/* New Dining Reservation Modal */}
+      {/* Modal: New Table Booking */}
       <NewDiningReservationModal
         isOpen={store.isNewDiningModalActive()}
         onClose={() => store.closeNewDiningModal()}
@@ -262,12 +263,12 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
         isLoading={store.getLoading()}
       />
 
-      {/* Assign Physical Room Modal */}
+      {/* Modal: Assign Clean Room for Arrival */}
       <AssignPhysicalRoomModal
         booking={store.getSelectedBookingForAssign()}
         isOpen={store.isAssignRoomModalActive()}
         cleanRooms={store.getAvailableCleanRooms()}
-        onAssign={handleAssignRoom}
+        onAssign={handleAssignPhysicalRoom}
         onClose={() => store.closeAssignRoomModal()}
         isLoading={store.getLoading()}
       />

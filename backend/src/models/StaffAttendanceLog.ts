@@ -2,19 +2,25 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 import { StaffDepartment } from './StaffShiftRoster';
 
 export enum AttendanceStatus {
+  PRESENT = 'PRESENT',
   ON_TIME = 'ON_TIME',
   LATE = 'LATE',
   EARLY_EXIT = 'EARLY_EXIT',
   OVERTIME = 'OVERTIME',
   HALF_DAY = 'HALF_DAY',
   ABSENT = 'ABSENT',
+  PAID_LEAVE = 'PAID_LEAVE',
 }
 
 export enum ClockMethod {
   PIN = 'PIN',
   BIOMETRIC = 'BIOMETRIC',
   MANUAL_OVERRIDE = 'MANUAL_OVERRIDE',
+  AUTO_LOGIN = 'AUTO_LOGIN',
+  AUTO_CUTOFF = 'AUTO_CUTOFF',
 }
+
+export type AttendanceSource = 'AUTO_LOGIN' | 'PIN_CLOCK' | 'AUTO_ABSENT_CUTOFF' | 'ADMIN_MANUAL';
 
 export interface IStaffAttendanceLog extends Document {
   hotelId: Types.ObjectId;
@@ -23,7 +29,8 @@ export interface IStaffAttendanceLog extends Document {
   staffName: string;
   department: StaffDepartment;
   attendanceDate: Date;
-  clockInTime: Date;
+  dateKey?: string; // 'YYYY-MM-DD'
+  clockInTime?: Date;
   clockOutTime?: Date;
   totalHoursWorked: number;
   lateMinutes: number;
@@ -31,6 +38,7 @@ export interface IStaffAttendanceLog extends Document {
   overtimeMinutes: number;
   status: AttendanceStatus;
   clockMethod: ClockMethod;
+  attendanceSource?: AttendanceSource;
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -49,7 +57,8 @@ const StaffAttendanceLogSchema = new Schema<IStaffAttendanceLog>(
       index: true,
     },
     attendanceDate: { type: Date, required: true, index: true },
-    clockInTime: { type: Date, required: true },
+    dateKey: { type: String, trim: true, index: true },
+    clockInTime: { type: Date },
     clockOutTime: { type: Date },
     totalHoursWorked: { type: Number, default: 0, min: 0 },
     lateMinutes: { type: Number, default: 0, min: 0 },
@@ -66,12 +75,18 @@ const StaffAttendanceLogSchema = new Schema<IStaffAttendanceLog>(
       enum: Object.values(ClockMethod),
       default: ClockMethod.PIN,
     },
+    attendanceSource: {
+      type: String,
+      enum: ['AUTO_LOGIN', 'PIN_CLOCK', 'AUTO_ABSENT_CUTOFF', 'ADMIN_MANUAL'],
+      default: 'PIN_CLOCK',
+    },
     notes: { type: String, trim: true },
   },
   { timestamps: true }
 );
 
 StaffAttendanceLogSchema.index({ hotelId: 1, attendanceDate: 1, userId: 1 });
+StaffAttendanceLogSchema.index({ hotelId: 1, dateKey: 1, userId: 1 });
 
 export const StaffAttendanceLog = mongoose.model<IStaffAttendanceLog>(
   'StaffAttendanceLog',

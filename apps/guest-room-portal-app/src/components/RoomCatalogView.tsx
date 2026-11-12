@@ -24,8 +24,6 @@ import {
   CreditCard,
   Building,
   RefreshCw,
-  Sun,
-  Moon,
   Tv,
   Coffee,
   Wind,
@@ -40,6 +38,11 @@ import {
   Home,
   CheckCircle,
   Radio,
+  X,
+  AlertTriangle,
+  Building2,
+  User,
+  ExternalLink,
 } from 'lucide-react';
 
 const compressImageToBase64 = (file: File): Promise<string> => {
@@ -114,8 +117,24 @@ export interface HotelMetadata {
   slug: string;
   city: string;
   state: string;
+  street?: string;
+  pincode?: string;
+  country?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    country?: string;
+  };
+  googleMapUrl?: string;
+  locationNotes?: string;
   latitude: number;
   longitude: number;
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
   phone: string;
   logoUrl?: string;
   coverImageUrl?: string;
@@ -132,48 +151,29 @@ export interface RoomCatalogViewProps {
   onCancelOrBack?: () => void;
   activeRoomNumber?: string;
   currentRoomNumber?: string;
-  theme?: 'light' | 'dark';
-  onToggleTheme?: () => void;
 }
 
-const ROOM_TYPE_PHOTOS: Record<string, string[]> = {
-  DLX: [
-    'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800&auto=format&fit=crop&q=80',
-  ],
-  STE: [
-    'https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1584132967334-10e028bd69f7?w=800&auto=format&fit=crop&q=80',
-  ],
-  STD: [
-    'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1591088398332-8a7791972843?w=800&auto=format&fit=crop&q=80',
-  ],
-};
+const FALLBACK_ROOM_IMAGE = '/images/customer-room.jpg';
+const FALLBACK_HOTEL_IMAGE = '/images/customer-hotel-cover.jpg';
 
-const FALLBACK_ROOM_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">
-  <defs>
-    <linearGradient id="roomBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1e293b"/>
-      <stop offset="100%" stop-color="#0f172a"/>
-    </linearGradient>
-  </defs>
-  <rect width="600" height="400" fill="url(#roomBg)"/>
-  <rect x="150" y="80" width="300" height="150" rx="8" fill="#334155" opacity="0.6"/>
-  <rect x="180" y="100" width="240" height="110" rx="4" fill="#475569" opacity="0.8"/>
-  <rect x="160" y="210" width="280" height="120" rx="12" fill="#e2e8f0"/>
-  <path d="M160 250 L440 250 L440 330 L160 330 Z" fill="#cbd5e1"/>
-  <rect x="180" y="180" width="100" height="45" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-  <rect x="320" y="180" width="100" height="45" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-  <circle cx="110" cy="180" r="18" fill="#fef08a" opacity="0.8"/>
-  <circle cx="490" cy="180" r="18" fill="#fef08a" opacity="0.8"/>
-  <text x="300" y="375" fill="#f8fafc" font-family="system-ui, sans-serif" font-size="16" font-weight="800" text-anchor="middle" letter-spacing="1">PREMIUM EXECUTIVE SUITE</text>
-</svg>
-`);
+const handleImageError =
+  (fallback: string) =>
+  (event: React.SyntheticEvent<HTMLImageElement>): void => {
+    const image = event.currentTarget;
+    const fallbackUrl = new URL(fallback, image.baseURI).href;
+    if (image.src === fallbackUrl) {
+      image.style.display = 'none';
+      console.warn('[Room Catalog] Bundled image fallback failed to load:', fallback);
+      return;
+    }
+    image.src = fallback;
+  };
+
+const ROOM_TYPE_PHOTOS: Record<string, string[]> = {
+  DLX: [FALLBACK_ROOM_IMAGE],
+  STE: [FALLBACK_ROOM_IMAGE],
+  STD: [FALLBACK_ROOM_IMAGE],
+};
 
 function getRoomPhoto(room: CatalogRoom, index: number): string {
   if (room.photos && room.photos.length > 0) return room.photos[0];
@@ -190,34 +190,8 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
   onCancelOrBack,
   activeRoomNumber,
   currentRoomNumber,
-  theme: themeProp,
-  onToggleTheme,
 }) => {
-  // Theme state: defaults to clean light theme, can be toggled to dark
-  const [localTheme, setLocalTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined') {
-      const urlTheme = new URLSearchParams(window.location.search).get('theme');
-      if (urlTheme === 'dark' || urlTheme === 'light') return urlTheme;
-      const saved = localStorage.getItem('spicehub_guest_theme');
-      if (saved === 'dark' || saved === 'light') return saved;
-    }
-    return 'light';
-  });
-
-  const activeTheme = themeProp || localTheme;
-  const isDark = activeTheme === 'dark';
-
-  const handleToggleTheme = () => {
-    if (onToggleTheme) {
-      onToggleTheme();
-    } else {
-      const next = activeTheme === 'dark' ? 'light' : 'dark';
-      setLocalTheme(next);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('spicehub_guest_theme', next);
-      }
-    }
-  };
+  const isDark = false;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -322,7 +296,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
         data.bookingNumber === bNum ||
         (data.roomNumber === pendingBooking.roomNumber && data.guestPhone === pendingBooking.guestPhone)
       ) {
-        console.log('🎉 [RoomCatalog] Booking approved by reception via Socket.io!', data);
+        console.log('[RoomCatalog] Booking approved by reception via Socket.io!', data);
         setIsApprovalGranted(true);
         if (typeof window !== 'undefined') {
           localStorage.removeItem('spicehub_pending_approval_booking');
@@ -348,7 +322,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
         if (!res.ok) return;
         const statusJson = await res.json();
         if (statusJson.success && statusJson.data?.isApproved) {
-          console.log('🎉 [RoomCatalog] Booking approved by reception via poller!', statusJson.data);
+          console.log('[RoomCatalog] Booking approved by reception via poller!', statusJson.data);
           setIsApprovalGranted(true);
           clearInterval(pollInterval);
           if (typeof window !== 'undefined') {
@@ -420,7 +394,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
       const json = await res.json();
       if (res.ok && json.success) {
         setPhoneOtpVerified(true);
-        setOtpSuccessMsg('✓ Mobile number successfully verified!');
+        setOtpSuccessMsg('Mobile number successfully verified!');
       } else {
         setBookingError(json.message || 'Invalid or expired OTP.');
       }
@@ -561,8 +535,8 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
         const uLng = pos.coords.longitude;
         setUserCoords({ lat: uLat, lng: uLng });
 
-        const hLat = hotel?.latitude || 28.6139;
-        const hLng = hotel?.longitude || 77.2090;
+        const hLat = Number((hotel as any)?.coordinates?.latitude ?? hotel?.latitude ?? 26.2978);
+        const hLng = Number((hotel as any)?.coordinates?.longitude ?? hotel?.longitude ?? 73.0185);
 
         const dist = calculateDistance(uLat, uLng, hLat, hLng);
         setDistanceKm(dist);
@@ -578,8 +552,9 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
       },
       (err) => {
         setLocating(false);
-        setLocationStatus('GPS detection skipped or denied (Defaulting to In-Hotel reception)');
-        setDistanceKm(0.1);
+        setUserCoords(null);
+        setDistanceKm(null);
+        setLocationStatus('GPS permission was skipped or denied. Choose your booking mode manually.');
       },
       { timeout: 8000 }
     );
@@ -656,7 +631,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
   const getPricingForRoom = (room: CatalogRoom) => {
     const basePerNight = room.roomType.basePriceOvernight || 2500;
     const subtotal = basePerNight * nights;
-    const gstRate = basePerNight > 7500 ? 18 : 12;
+    const gstRate = room.roomType.gstRate || (basePerNight > 7500 ? 18 : 12);
     const gstAmount = Math.round(((subtotal * gstRate) / 100) * 100) / 100;
     const grandTotal = subtotal + gstAmount;
     return {
@@ -761,10 +736,10 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
         }
       } else {
         if (json.errorCode === 'BOOKING_LIMIT_EXCEEDED') {
-          setBookingError(`🚫 ${json.message}`);
+          setBookingError(json.message);
         } else if (json.errorCode === 'SECONDARY_GUEST_REQUIRED') {
           setIsSecondRoom(true);
-          setBookingError(`⚠️ ${json.message}`);
+          setBookingError(json.message);
         } else {
           setBookingError(json.message || 'Booking submission failed');
         }
@@ -781,10 +756,10 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
       {/* Top Banner / Hotel Identification with Theme Toggle */}
       <div
         className={`px-4 py-3.5 sticky top-0 z-20 backdrop-blur-md transition-colors ${
-          isDark
-            ? 'bg-slate-900/95 border-b border-slate-800/90 shadow-md'
-            : 'bg-white/95 border-b border-slate-200/90 shadow-sm'
-        }`}
+ isDark
+ ? 'bg-slate-900/95 border-b border-slate-800/90 shadow-md'
+ : 'bg-white/95 border-b border-slate-200/90 shadow-sm'
+ }`}
       >
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -792,6 +767,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
               <img
                 src={hotel.logoUrl}
                 alt={hotel.name}
+                onError={handleImageError(FALLBACK_HOTEL_IMAGE)}
                 className="w-10 h-10 rounded-xl object-cover border border-amber-500/40 shadow-sm"
               />
             ) : (
@@ -805,47 +781,37 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                   {hotel?.name || 'Luxury Hotel & Suites'}
                 </h1>
               </div>
-              <p className={`text-xs flex items-center gap-1 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                <MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span>{hotel?.city ? `${hotel.city}, ${hotel.state}` : 'Property Hub'}</span>
+              <div className={`text-xs flex flex-wrap items-center gap-1.5 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>
+                  {hotel?.street ? `${hotel.street}, ` : ''}{hotel?.city || 'Jaipur'}, {hotel?.state || 'Rajasthan'}{hotel?.pincode ? ` - ${hotel.pincode}` : ''}
+                </span>
+                {hotel?.googleMapUrl && (
+                  <a
+                    href={hotel.googleMapUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="header-hotel-directions-btn"
+                    className="text-emerald-600 hover:text-emerald-700 underline font-semibold flex items-center gap-0.5 ml-1"
+                  >
+                    <span>Directions</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
                 <span className="text-amber-500 font-bold">• Live Room Matrix</span>
-              </p>
+              </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Theme Toggle Button */}
-            <button
-              onClick={handleToggleTheme}
-              data-testid="guest-theme-toggle"
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border ${
-                isDark
-                  ? 'bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700'
-                  : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 shadow-sm'
-              }`}
-              title={`Switch to ${isDark ? 'Light' : 'Dark'} Mode`}
-            >
-              {isDark ? (
-                <>
-                  <Sun className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Light Mode</span>
-                </>
-              ) : (
-                <>
-                  <Moon className="w-3.5 h-3.5 text-slate-700" />
-                  <span className="hidden sm:inline">Dark Mode</span>
-                </>
-              )}
-            </button>
-
             <button
               onClick={() => setIsUnlockModalOpen(true)}
               data-testid="btn-open-unlock-modal"
               className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border ${
-                isDark
-                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 hover:bg-amber-500/30'
-                  : 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200 shadow-sm'
-              }`}
+ isDark
+ ? 'bg-emerald-600/20 border-emerald-600/40 text-amber-300 hover:bg-emerald-600/30'
+ : 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200 shadow-sm'
+ }`}
             >
               <KeyRound className="w-3.5 h-3.5 text-amber-500" />
               <span>Unlock Room</span>
@@ -857,10 +823,10 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                 fetchRoomsCatalog();
               }}
               className={`p-2 rounded-xl border transition-all active:scale-95 ${
-                isDark
-                  ? 'bg-slate-800 border-slate-700 text-amber-300 hover:bg-slate-700'
-                  : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 shadow-sm'
-              }`}
+ isDark
+ ? 'bg-slate-800 border-slate-700 text-amber-300 hover:bg-slate-700'
+ : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 shadow-sm'
+ }`}
               title="Refresh Room Statuses"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
@@ -869,7 +835,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
             {activeRoomNumber && onCancelOrBack && (
               <button
                 onClick={onCancelOrBack}
-                className="px-3 py-1.5 text-xs font-bold rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 transition-all shadow-sm"
+                className="px-3 py-1.5 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm"
               >
                 Room {activeRoomNumber} Stay →
               </button>
@@ -882,18 +848,18 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
         {/* Available Rooms Hero Callout */}
         <div
           className={`rounded-2xl p-4 sm:p-5 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border ${
-            isDark
-              ? 'bg-slate-900 border-emerald-500/30 shadow-sm'
-              : 'bg-emerald-50 border-emerald-200 shadow-sm'
-          }`}
+ isDark
+ ? 'bg-slate-900 border-emerald-500/30 shadow-sm'
+ : 'bg-emerald-50 border-emerald-200 shadow-sm'
+ }`}
         >
           <div className="flex items-center gap-3.5">
             <div
               className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
-                isDark
-                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                  : 'bg-emerald-100 border-emerald-300 text-emerald-800'
-              }`}
+ isDark
+ ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+ : 'bg-emerald-100 border-emerald-300 text-emerald-800'
+ }`}
             >
               <BedDouble className="w-6 h-6" />
             </div>
@@ -901,12 +867,13 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
               <div className="flex items-center gap-2">
                 <span
                   className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                    isDark
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                  }`}
+ isDark
+ ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+ : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+ }`}
                 >
-                  🟢 Live Reception Catalog
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block mr-1.5" />
+                  Live Reception Catalog
                 </span>
                 <span className={`text-xs font-semibold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                   • Instant Digital Check-In
@@ -926,19 +893,19 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
             <button
               onClick={() => setFilter('AVAILABLE')}
               className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all border ${
-                filter === 'AVAILABLE'
-                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
-                  : isDark
-                  ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                  : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100 shadow-sm'
-              }`}
+ filter === 'AVAILABLE'
+ ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
+ : isDark
+ ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+ : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100 shadow-sm'
+ }`}
             >
               View Available Only ({counts.available})
             </button>
             <button
               onClick={() => setIsUnlockModalOpen(true)}
               data-testid="hero-unlock-room-btn"
-              className="px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all bg-amber-500 hover:bg-amber-400 text-slate-950 border border-amber-400 shadow-md flex items-center gap-1.5"
+              className="px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all bg-emerald-600 text-white hover:bg-emerald-700 shadow-md flex items-center gap-1.5"
             >
               <KeyRound className="w-3.5 h-3.5" />
               <span>Unlock Room</span>
@@ -951,14 +918,14 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
           <div
             onClick={() => setFilter('AVAILABLE')}
             className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-              filter === 'AVAILABLE'
-                ? isDark
-                  ? 'bg-emerald-950/60 border-emerald-500/70 shadow-lg shadow-emerald-950/40'
-                  : 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-500/30 shadow-sm'
-                : isDark
-                ? 'bg-slate-900 border-slate-800 hover:border-emerald-500/40'
-                : 'bg-white border-slate-200 hover:border-emerald-300 shadow-sm'
-            }`}
+ filter === 'AVAILABLE'
+ ? isDark
+ ? 'bg-emerald-950/60 border-emerald-500/70 shadow-lg shadow-emerald-950/40'
+ : 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-500/30 shadow-sm'
+ : isDark
+ ? 'bg-slate-900 border-slate-800 hover:border-emerald-500/40'
+ : 'bg-white border-slate-200 hover:border-emerald-300 shadow-sm'
+ }`}
           >
             <div className="flex items-center justify-between">
               <span className={`text-xs font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-800'}`}>
@@ -977,14 +944,14 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
           <div
             onClick={() => setFilter('CLEANING')}
             className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-              filter === 'CLEANING'
-                ? isDark
-                  ? 'bg-amber-950/60 border-amber-500/70 shadow-lg shadow-amber-950/40'
-                  : 'bg-amber-50 border-amber-400 ring-2 ring-amber-500/30 shadow-sm'
-                : isDark
-                ? 'bg-slate-900 border-slate-800 hover:border-amber-500/40'
-                : 'bg-white border-slate-200 hover:border-amber-300 shadow-sm'
-            }`}
+ filter === 'CLEANING'
+ ? isDark
+ ? 'bg-slate-900/60 border-emerald-600/70 shadow-lg shadow-slate-900/40'
+ : 'bg-amber-50 border-amber-400 ring-2 ring-emerald-600/30 shadow-sm'
+ : isDark
+ ? 'bg-slate-900 border-slate-800 hover:border-emerald-600/40'
+ : 'bg-white border-slate-200 hover:border-amber-300 shadow-sm'
+ }`}
           >
             <div className="flex items-center justify-between">
               <span className={`text-xs font-bold ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
@@ -1003,14 +970,14 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
           <div
             onClick={() => setFilter('MAINTENANCE')}
             className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-              filter === 'MAINTENANCE'
-                ? isDark
-                  ? 'bg-red-950/60 border-red-500/70 shadow-lg shadow-sm'
-                  : 'bg-red-50 border-red-400 ring-2 ring-red-500/30 shadow-sm'
-                : isDark
-                ? 'bg-slate-900 border-slate-800 hover:border-red-500/40'
-                : 'bg-white border-slate-200 hover:border-red-300 shadow-sm'
-            }`}
+ filter === 'MAINTENANCE'
+ ? isDark
+ ? 'bg-red-950/60 border-red-500/70 shadow-lg shadow-sm'
+ : 'bg-red-50 border-red-400 ring-2 ring-red-500/30 shadow-sm'
+ : isDark
+ ? 'bg-slate-900 border-slate-800 hover:border-red-500/40'
+ : 'bg-white border-slate-200 hover:border-red-300 shadow-sm'
+ }`}
           >
             <div className="flex items-center justify-between">
               <span className={`text-xs font-bold ${isDark ? 'text-red-400' : 'text-red-800'}`}>
@@ -1029,14 +996,14 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
           <div
             onClick={() => setFilter('OCCUPIED')}
             className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-              filter === 'OCCUPIED'
-                ? isDark
-                  ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 shadow-lg'
-                  : 'bg-slate-800 border-slate-200 dark:border-slate-800 ring-2 ring-blue-500/30 shadow-sm'
-                : isDark
-                ? 'bg-slate-900 border-slate-800 hover:border-slate-200 dark:border-slate-800'
-                : 'bg-white border-slate-200 hover:border-slate-200 dark:border-slate-800 shadow-sm'
-            }`}
+ filter === 'OCCUPIED'
+ ? isDark
+ ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 shadow-lg'
+ : 'bg-slate-800 border-slate-200 dark:border-slate-800 ring-2 ring-blue-500/30 shadow-sm'
+ : isDark
+ ? 'bg-slate-900 border-slate-800 hover:border-slate-200 dark:border-slate-800'
+ : 'bg-white border-slate-200 hover:border-slate-200 dark:border-slate-800 shadow-sm'
+ }`}
           >
             <div className="flex items-center justify-between">
               <span className={`text-xs font-bold ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>
@@ -1056,8 +1023,8 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
         {/* 2. Interactive Date Picker & Dynamic Stay Duration */}
         <div
           className={`border rounded-2xl p-4 shadow-sm transition-all ${
-            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-          }`}
+ isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+ }`}
         >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -1080,10 +1047,10 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                 min={new Date().toISOString().split('T')[0]}
                 onChange={(e) => setCheckInDate(e.target.value)}
                 className={`w-full rounded-xl px-3 py-2 text-sm font-semibold border transition-all focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                  isDark
-                    ? 'bg-slate-950 border-slate-700 text-white'
-                    : 'bg-slate-50 border-slate-200 text-slate-900 focus:bg-white'
-                }`}
+ isDark
+ ? 'bg-slate-950 border-slate-700 text-white'
+ : 'bg-slate-50 border-slate-200 text-slate-900 focus:bg-white'
+ }`}
               />
             </div>
 
@@ -1093,16 +1060,16 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
               </label>
               <div
                 className={`flex items-center border rounded-xl px-2 py-1 justify-between ${
-                  isDark ? 'bg-slate-950 border-slate-700' : 'bg-slate-50 border-slate-200'
-                }`}
+ isDark ? 'bg-slate-950 border-slate-700' : 'bg-slate-50 border-slate-200'
+ }`}
               >
                 <button
                   type="button"
                   data-testid="nights-minus-btn"
                   onClick={() => setNights((n) => Math.max(1, n - 1))}
                   className={`p-1 rounded-lg transition-all active:scale-95 ${
-                    isDark ? 'bg-white/5 hover:bg-white/10 text-slate-300' : 'bg-white hover:bg-slate-200 text-slate-700 shadow-sm'
-                  }`}
+ isDark ? 'bg-white/5 hover:bg-white/10 text-slate-300' : 'bg-white hover:bg-slate-200 text-slate-700 shadow-sm'
+ }`}
                 >
                   <Minus className="w-4 h-4" />
                 </button>
@@ -1114,8 +1081,8 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                   data-testid="nights-plus-btn"
                   onClick={() => setNights((n) => n + 1)}
                   className={`p-1 rounded-lg transition-all active:scale-95 ${
-                    isDark ? 'bg-white/5 hover:bg-white/10 text-slate-300' : 'bg-white hover:bg-slate-200 text-slate-700 shadow-sm'
-                  }`}
+ isDark ? 'bg-white/5 hover:bg-white/10 text-slate-300' : 'bg-white hover:bg-slate-200 text-slate-700 shadow-sm'
+ }`}
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -1128,8 +1095,8 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
               </label>
               <div
                 className={`w-full border rounded-xl px-3 py-2 text-sm font-semibold flex items-center justify-between ${
-                  isDark ? 'bg-slate-950/50 border-slate-700 text-amber-300' : 'bg-slate-50 border-slate-200 text-slate-800'
-                }`}
+ isDark ? 'bg-slate-950/50 border-slate-700 text-amber-300' : 'bg-slate-50 border-slate-200 text-slate-800'
+ }`}
               >
                 <span>{checkOutDate}</span>
                 <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -1141,8 +1108,8 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
           <div
             data-testid="date-picker-price-indicator"
             className={`mt-3 pt-2.5 border-t flex items-center justify-between text-xs ${
-              isDark ? 'border-slate-800 text-slate-400' : 'border-slate-100 text-slate-600'
-            }`}
+ isDark ? 'border-slate-800 text-slate-400' : 'border-slate-100 text-slate-600'
+ }`}
           >
             <span>Calculated Tariff ({nights} {nights === 1 ? 'Night' : 'Nights'} Stay):</span>
             <span className="font-black text-amber-500">
@@ -1155,8 +1122,8 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
         {/* 3. Distance & GPS Location Check */}
         <div
           className={`border rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm ${
-            isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-          }`}
+ isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+ }`}
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
@@ -1174,6 +1141,22 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
               <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 {locationStatus}
               </p>
+              <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500 mt-1">
+                <span className="font-medium">Hotel GPS Target:</span>
+                <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-slate-700 dark:text-slate-300">
+                  {hotel?.latitude ? Number(hotel.latitude).toFixed(4) : '26.9124'}, {hotel?.longitude ? Number(hotel.longitude).toFixed(4) : '75.7873'}
+                </span>
+                {hotel?.googleMapUrl && (
+                  <a
+                    href={hotel.googleMapUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-600 hover:text-emerald-700 underline font-semibold flex items-center gap-0.5 ml-1"
+                  >
+                    <span>Maps ↗</span>
+                  </a>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1181,7 +1164,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
             data-testid="verify-distance-btn"
             onClick={handleDetectLocation}
             disabled={locating}
-            className="w-full sm:w-auto px-4 py-2 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 shadow-sm"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50 sm:w-auto"
           >
             <MapPin className="w-3.5 h-3.5" />
             {locating ? 'Detecting GPS...' : 'Verify Distance'}
@@ -1191,24 +1174,24 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
         {/* 4. Filter Controls (Status, Capacity, and Climate) */}
         <div className="space-y-2.5">
           {/* Primary Status Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <div className="no-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto pb-1 pr-1">
             {(['AVAILABLE', 'ALL', 'CLEANING', 'MAINTENANCE', 'OCCUPIED'] as const).map((tab) => (
               <button
                 key={tab}
                 data-testid={`filter-tab-${tab.toLowerCase()}`}
                 onClick={() => setFilter(tab)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
-                  filter === tab
-                    ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-sm font-black'
-                    : isDark
-                    ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 shadow-sm'
-                }`}
+                className={`shrink-0 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors sm:px-3 sm:text-xs ${
+ filter === tab
+ ? 'border-slate-900 bg-slate-900 text-white'
+ : isDark
+ ? 'border-slate-800 bg-slate-900 text-slate-400 hover:text-white'
+ : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+ }`}
               >
-                {tab === 'AVAILABLE' && `🟢 Available (${counts.available})`}
-                {tab === 'ALL' && `All Rooms (${counts.total})`}
+                {tab === 'AVAILABLE' && `Available (${counts.available})`}
+                {tab === 'ALL' && `All (${counts.total})`}
                 {tab === 'CLEANING' && `Cleaning (${counts.cleaning})`}
-                {tab === 'MAINTENANCE' && `Maintenance (${counts.maintenance})`}
+                {tab === 'MAINTENANCE' && `Repairs (${counts.maintenance})`}
                 {tab === 'OCCUPIED' && `Occupied (${counts.occupied})`}
               </button>
             ))}
@@ -1217,14 +1200,14 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
           {/* Prominent 2-Option AC & Non-AC Climate Filter */}
           <div
             className={`p-3 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-              isDark
-                ? 'bg-slate-900 border-slate-800 shadow-sm'
-                : 'bg-slate-50 border-slate-200 shadow-xs'
-            }`}
+ isDark
+ ? 'bg-slate-900 border-slate-800 shadow-sm'
+ : 'bg-slate-50 border-slate-200 shadow-xs'
+ }`}
           >
             <div className="flex items-center gap-2">
               <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                <span>❄️ AC & Non-AC Filter:</span>
+                <span>AC & Non-AC Filter:</span>
               </span>
               <span className={`text-[11px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 {climateFilter === 'AC' ? 'Viewing AC Rooms Only' : climateFilter === 'NON_AC' ? 'Viewing Non-AC Rooms Only' : 'Showing All Climate Types'}
@@ -1237,15 +1220,15 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                 data-testid="filter-ac-option"
                 onClick={() => setClimateFilter((prev) => (prev === 'AC' ? 'ALL' : 'AC'))}
                 className={`px-3.5 py-1.5 rounded-xl font-black text-xs transition-all flex items-center gap-1.5 border ${
-                  climateFilter === 'AC'
-                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white border-slate-200 dark:border-slate-800 shadow-md ring-2 ring-cyan-400/50 scale-[1.02]'
-                    : isDark
-                    ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-slate-200 dark:border-slate-800'
-                    : 'bg-white border-slate-300 text-slate-700 hover:text-slate-950 hover:border-slate-200 dark:border-slate-800 shadow-xs'
-                }`}
+ climateFilter === 'AC'
+ ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white border-slate-200 dark:border-slate-800 shadow-md ring-2 ring-cyan-400/50 scale-[1.02]'
+ : isDark
+ ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-slate-200 dark:border-slate-800'
+ : 'bg-white border-slate-300 text-slate-700 hover:text-slate-950 hover:border-slate-200 dark:border-slate-800 shadow-xs'
+ }`}
               >
                 <Snowflake className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
-                <span>❄️ AC Rooms</span>
+                <span>AC Rooms</span>
                 {climateFilter === 'AC' && (
                   <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.2 rounded-full font-bold">
                     SELECTED
@@ -1258,15 +1241,15 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                 data-testid="filter-non-ac-option"
                 onClick={() => setClimateFilter((prev) => (prev === 'NON_AC' ? 'ALL' : 'NON_AC'))}
                 className={`px-3.5 py-1.5 rounded-xl font-black text-xs transition-all flex items-center gap-1.5 border ${
-                  climateFilter === 'NON_AC'
-                    ? 'bg-amber-600 text-white border-amber-400 shadow-md ring-2 ring-amber-400/50 scale-[1.02]'
-                    : isDark
-                    ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-amber-500/50'
-                    : 'bg-white border-slate-300 text-slate-700 hover:text-slate-950 hover:border-amber-400 shadow-xs'
-                }`}
+ climateFilter === 'NON_AC'
+ ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-amber-400/50 scale-[1.02]'
+ : isDark
+ ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-emerald-600/50'
+ : 'bg-white border-slate-300 text-slate-700 hover:text-slate-950 hover:border-amber-400 shadow-xs'
+ }`}
               >
                 <Wind className="w-3.5 h-3.5 text-amber-300" />
-                <span>🌀 Non-AC Rooms</span>
+                <span>Non-AC Rooms</span>
                 {climateFilter === 'NON_AC' && (
                   <span className="text-[10px] bg-amber-900/90 text-amber-200 px-1.5 py-0.2 rounded-full font-bold">
                     SELECTED
@@ -1280,10 +1263,10 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                   data-testid="filter-climate-all"
                   onClick={() => setClimateFilter('ALL')}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
-                    isDark
-                      ? 'border-slate-700 bg-slate-800/80 text-slate-300 hover:text-white'
-                      : 'border-slate-300 bg-slate-100 text-slate-700 hover:text-slate-950'
-                  }`}
+ isDark
+ ? 'border-slate-700 bg-slate-800/80 text-slate-300 hover:text-white'
+ : 'border-slate-300 bg-slate-100 text-slate-700 hover:text-slate-950'
+ }`}
                 >
                   Show All Rooms
                 </button>
@@ -1310,12 +1293,12 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                   data-testid={`capacity-filter-${opt.key}`}
                   onClick={() => setCapacityFilter(opt.key as any)}
                   className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition border ${
-                    capacityFilter === opt.key
-                      ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold shadow-xs'
-                      : isDark
-                      ? 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
+ capacityFilter === opt.key
+ ? 'bg-emerald-600 text-white border-amber-400 font-extrabold shadow-xs'
+ : isDark
+ ? 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+ : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+ }`}
                 >
                   {opt.label}
                 </button>
@@ -1337,8 +1320,8 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
         ) : filteredRooms.length === 0 ? (
           <div
             className={`p-12 text-center rounded-2xl border ${
-              isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500 shadow-sm'
-            }`}
+ isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500 shadow-sm'
+ }`}
           >
             <BedDouble className="w-10 h-10 text-slate-400 mx-auto mb-2" />
             <p className="text-base font-bold text-slate-700">No rooms found matching these filters.</p>
@@ -1349,7 +1332,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                 setClimateFilter('ALL');
                 setCapacityFilter('ALL');
               }}
-              className="mt-4 px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs shadow-sm hover:bg-amber-400"
+              className="mt-4 px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold text-xs shadow-sm hover:bg-amber-400"
             >
               Reset Filters ({counts.available} Available)
             </button>
@@ -1366,34 +1349,32 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                 <div
                   key={room.id}
                   className={`rounded-2xl border transition-all overflow-hidden flex flex-col justify-between shadow-xs hover:shadow-md ${
-                    isAvailable
-                      ? isDark
-                        ? 'bg-slate-900 border-emerald-500/40 hover:border-emerald-500/70'
-                        : 'bg-white border-slate-200 hover:border-emerald-500/50'
-                      : room.displayStatus === 'CLEANING'
-                      ? isDark
-                        ? 'bg-slate-900/80 border-amber-500/20 opacity-90'
-                        : 'bg-slate-50 border-amber-200 opacity-90'
-                      : room.displayStatus === 'MAINTENANCE'
-                      ? isDark
-                        ? 'bg-slate-900/80 border-red-500/20 opacity-80'
-                        : 'bg-slate-50 border-red-200 opacity-80'
-                      : isDark
-                      ? 'bg-slate-900/70 border-slate-800 opacity-75'
-                      : 'bg-slate-50 border-slate-200 opacity-75'
-                  }`}
+ isAvailable
+ ? isDark
+ ? 'bg-slate-900 border-emerald-500/40 hover:border-emerald-500/70'
+ : 'bg-white border-slate-200 hover:border-emerald-500/50'
+ : room.displayStatus === 'CLEANING'
+ ? isDark
+ ? 'bg-slate-900/80 border-emerald-600/20 opacity-90'
+ : 'bg-slate-50 border-amber-200 opacity-90'
+ : room.displayStatus === 'MAINTENANCE'
+ ? isDark
+ ? 'bg-slate-900/80 border-red-500/20 opacity-80'
+ : 'bg-slate-50 border-red-200 opacity-80'
+ : isDark
+ ? 'bg-slate-900/70 border-slate-800 opacity-75'
+ : 'bg-slate-50 border-slate-200 opacity-75'
+ }`}
                 >
                   {/* Photo Header (Compact Height ~128px) */}
                   <div className="relative h-32 w-full bg-slate-900 overflow-hidden shrink-0">
                     <img
                       src={photoUrl}
                       alt={room.roomType.name}
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = FALLBACK_ROOM_IMAGE;
-                      }}
+                      onError={handleImageError(FALLBACK_ROOM_IMAGE)}
                       className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+                    <div className="bg-gradient-to-t absolute inset-0 from-black/85 via-black/30" />
 
                     {/* Room Number & Status */}
                     <div className="absolute top-2 inset-x-2 flex items-center justify-between">
@@ -1404,14 +1385,14 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
 
                       <span
                         className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm backdrop-blur-md border ${
-                          isAvailable
-                            ? 'bg-emerald-600/90 text-white border-emerald-400'
-                            : room.displayStatus === 'CLEANING'
-                            ? 'bg-amber-500/90 text-slate-950 border-amber-300'
-                            : room.displayStatus === 'MAINTENANCE'
-                            ? 'bg-red-600/90 text-white border-red-400'
-                            : 'bg-slate-100 dark:bg-slate-800 text-white border-slate-200 dark:border-slate-800'
-                        }`}
+ isAvailable
+ ? 'bg-emerald-600/90 text-white border-emerald-400'
+ : room.displayStatus === 'CLEANING'
+ ? 'bg-emerald-600/95 text-white border-emerald-400'
+ : room.displayStatus === 'MAINTENANCE'
+ ? 'bg-red-600/90 text-white border-red-400'
+ : 'bg-slate-100 dark:bg-slate-800 text-white border-slate-200 dark:border-slate-800'
+ }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                         {room.statusBadge}
@@ -1427,19 +1408,19 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                         <p className="text-amber-200/90 text-[10px] font-semibold drop-shadow flex items-center gap-1.5 mt-0.5">
                           <span>Fl {room.floorNumber}</span>
                           <span>• {room.wing || 'Main'}</span>
-                          <span>• 👤 {room.roomType.maxCapacity || 2} Pax</span>
+                          <span>• {room.roomType.maxCapacity || 2} Pax</span>
                         </p>
                       </div>
 
                       {/* Climate pill - Prominent AC vs Non-AC Tag */}
                       <span
                         className={`px-2 py-0.5 rounded-md text-[10px] font-black shrink-0 border backdrop-blur-md shadow-xs ${
-                          isAc
-                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                            : 'bg-amber-500/30 text-amber-200 border-amber-400/50'
-                        }`}
+ isAc
+ ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+ : 'bg-emerald-600/30 text-amber-200 border-amber-400/50'
+ }`}
                       >
-                        {isAc ? '❄️ AC' : '🌀 Non-AC'}
+                        {isAc ? 'AC Room' : 'Non-AC'}
                       </span>
                     </div>
                   </div>
@@ -1449,20 +1430,23 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                     {/* Pricing Block */}
                     <div
                       className={`p-2.5 rounded-xl border flex items-center justify-between ${
-                        isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-                      }`}
+ isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}
                     >
                       <div>
                         <div className={`text-[10px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                          {nights} {nights === 1 ? 'Night' : 'Nights'} Total
+                          Rate per night
                         </div>
                         <div className={`text-base font-black ${isDark ? 'text-amber-400' : 'text-slate-900'}`}>
-                          ₹{pricing.grandTotal.toLocaleString('en-IN')}
+                          ₹{pricing.basePerNight.toLocaleString('en-IN')}/nt
                         </div>
                       </div>
                       <div className="text-right">
                         <div className={`text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                          ₹{pricing.basePerNight.toLocaleString('en-IN')}/nt
+                          {nights} {nights === 1 ? 'night' : 'nights'} incl. GST
+                        </div>
+                        <div className={`text-sm font-black ${isDark ? 'text-blue-400' : 'text-slate-900'}`}>
+                          ₹{pricing.grandTotal.toLocaleString('en-IN')}
                         </div>
                         <p className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                           + {pricing.gstRate}% GST (₹{pricing.gstAmount.toLocaleString('en-IN')})
@@ -1484,15 +1468,15 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                       ) : (
                         <div
                           className={`w-full py-2 px-2.5 rounded-xl text-center text-[11px] font-bold border ${
-                            isDark
-                              ? 'bg-slate-800/40 border-slate-800 text-red-300/80 bg-red-950/20'
-                              : 'bg-red-50 border-red-200 text-red-700'
-                          } cursor-not-allowed`}
+ isDark
+ ? 'bg-slate-800/40 border-slate-800 text-red-300/80 bg-red-950/20'
+ : 'bg-red-50 border-red-200 text-red-700'
+ } cursor-not-allowed`}
                         >
-                          {room.displayStatus === 'CLEANING' && '🧹 Not available at this time (Cleaning)'}
-                          {room.displayStatus === 'MAINTENANCE' && '🛠️ Not available at this time (Maintenance)'}
-                          {(room.displayStatus === 'OCCUPIED' || room.displayStatus === 'RESERVED') && '👤 Not available at this time (Booked)'}
-                          {room.displayStatus !== 'CLEANING' && room.displayStatus !== 'MAINTENANCE' && room.displayStatus !== 'OCCUPIED' && room.displayStatus !== 'RESERVED' && '🚫 Not available at this time'}
+                          {room.displayStatus === 'CLEANING' && 'Not available at this time (Cleaning in progress)'}
+                          {room.displayStatus === 'MAINTENANCE' && 'Not available at this time (Under Maintenance)'}
+                          {(room.displayStatus === 'OCCUPIED' || room.displayStatus === 'RESERVED') && 'Not available at this time (Currently Occupied)'}
+                          {room.displayStatus !== 'CLEANING' && room.displayStatus !== 'MAINTENANCE' && room.displayStatus !== 'OCCUPIED' && room.displayStatus !== 'RESERVED' && 'Not available at this time'}
                         </div>
                       )}
                     </div>
@@ -1509,16 +1493,16 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
           <div
             className={`rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-sm dark:shadow-none space-y-4 border ${
-              isDark
-                ? 'bg-slate-900 border-slate-800 text-white'
-                : 'bg-white border-slate-200 text-slate-900'
-            }`}
+ isDark
+ ? 'bg-slate-900 border-slate-800 text-white'
+ : 'bg-white border-slate-200 text-slate-900'
+ }`}
           >
             {/* Modal Header */}
             <div
               className={`flex items-start justify-between border-b pb-3 ${
-                isDark ? 'border-slate-800' : 'border-slate-200'
-              }`}
+ isDark ? 'border-slate-800' : 'border-slate-200'
+ }`}
             >
               <div>
                 <span className="text-xs font-extrabold text-amber-500 uppercase tracking-wider">
@@ -1531,12 +1515,12 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
               <button
                 onClick={() => setIsBookingModalOpen(false)}
                 className={`p-1.5 rounded-xl border transition-all ${
-                  isDark
-                    ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
-                    : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
-                }`}
+ isDark
+ ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+ : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
+ }`}
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1546,10 +1530,10 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
               return (
                 <div
                   className={`border rounded-2xl p-3.5 space-y-1.5 text-xs ${
-                    isDark
-                      ? 'bg-amber-950/30 border-amber-500/30 text-slate-300'
-                      : 'bg-amber-50/80 border-amber-200 text-slate-700'
-                  }`}
+ isDark
+ ? 'bg-slate-900/30 border-emerald-600/30 text-slate-300'
+ : 'bg-amber-50/80 border-amber-200 text-slate-700'
+ }`}
                 >
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">
@@ -1588,12 +1572,12 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                       setBookingError(null);
                     }}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                      bookingLocationMode === 'HOTEL'
-                        ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-md shadow-amber-500/20'
-                        : isDark
-                        ? 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
-                        : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'
-                    }`}
+ bookingLocationMode === 'HOTEL'
+ ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
+ : isDark
+ ? 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+ : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'
+ }`}
                   >
                     <Building className="w-3.5 h-3.5" />
                     <span>At Hotel Reception</span>
@@ -1606,12 +1590,12 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                       setBookingError(null);
                     }}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                      bookingLocationMode === 'HOME'
-                        ? 'bg-slate-800 dark:bg-slate-200 text-slate-950 border-slate-200 dark:border-slate-800 shadow-md shadow-sm'
-                        : isDark
-                        ? 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
-                        : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'
-                    }`}
+ bookingLocationMode === 'HOME'
+ ? 'bg-slate-800 dark:bg-slate-200 text-slate-950 border-slate-200 dark:border-slate-800 shadow-md shadow-sm'
+ : isDark
+ ? 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+ : 'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200'
+ }`}
                   >
                     <Home className="w-3.5 h-3.5" />
                     <span>Book from Home</span>
@@ -1649,8 +1633,8 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                         value={checkInDate}
                         onChange={(e) => setCheckInDate(e.target.value)}
                         className={`w-full rounded-xl px-2.5 py-1.5 text-xs font-medium border ${
-                          isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                        }`}
+ isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+ }`}
                       />
                     </div>
                     <div>
@@ -1659,8 +1643,8 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                         value={estimatedArrivalTime}
                         onChange={(e) => setEstimatedArrivalTime(e.target.value)}
                         className={`w-full rounded-xl px-2.5 py-1.5 text-xs font-medium border ${
-                          isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                        }`}
+ isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+ }`}
                       >
                         <option value="12:00">12:00 PM (Noon)</option>
                         <option value="14:00">02:00 PM (Standard Check-in)</option>
@@ -1686,10 +1670,10 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                   value={guestName}
                   onChange={(e) => setGuestName(e.target.value)}
                   className={`w-full rounded-xl px-3 py-2 text-sm font-medium border focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                    isDark
-                      ? 'bg-slate-950 border-slate-700 text-white'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
-                  }`}
+ isDark
+ ? 'bg-slate-950 border-slate-700 text-white'
+ : 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
+ }`}
                 />
               </div>
 
@@ -1710,10 +1694,10 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                       setPhoneOtpSent(false);
                     }}
                     className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium border focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                      isDark
-                        ? 'bg-slate-950 border-slate-700 text-white'
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
-                    }`}
+ isDark
+ ? 'bg-slate-950 border-slate-700 text-white'
+ : 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
+ }`}
                   />
                   {bookingLocationMode === 'HOTEL' && (
                     <button
@@ -1721,19 +1705,19 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                       onClick={handleSendOtp}
                       disabled={otpSending || phoneOtpVerified}
                       className={`px-3 py-2 rounded-xl text-xs font-bold transition shrink-0 ${
-                        phoneOtpVerified
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
-                      }`}
+ phoneOtpVerified
+ ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+ : 'bg-emerald-600 text-white hover:bg-emerald-700'
+ }`}
                     >
-                      {phoneOtpVerified ? '✓ Verified' : otpSending ? 'Sending...' : 'Send OTP'}
+                      {phoneOtpVerified ? 'Verified' : otpSending ? 'Sending...' : 'Send OTP'}
                     </button>
                   )}
                 </div>
 
                 {/* OTP Input Row if Sent and In Hotel */}
                 {bookingLocationMode === 'HOTEL' && phoneOtpSent && !phoneOtpVerified && (
-                  <div className="flex items-center gap-2 p-2.5 rounded-xl border border-amber-500/30 bg-amber-950/20">
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl border border-amber-500/30 bg-slate-900/20">
                     <input
                       type="text"
                       maxLength={4}
@@ -1770,15 +1754,15 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                   value={guestEmail}
                   onChange={(e) => setGuestEmail(e.target.value)}
                   className={`w-full rounded-xl px-3 py-2 text-sm font-medium border focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                    isDark
-                      ? 'bg-slate-950 border-slate-700 text-white'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
-                  }`}
+ isDark
+ ? 'bg-slate-950 border-slate-700 text-white'
+ : 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
+ }`}
                 />
               </div>
 
               {/* 2. Mandatory Aadhaar Card Photo Upload (Front & Back Only) */}
-              <div className="p-3.5 rounded-2xl border border-amber-500/40 bg-amber-950/20 space-y-3">
+              <div className="p-3.5 rounded-2xl border border-amber-500/40 bg-slate-900/20 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-amber-500" />
@@ -1798,10 +1782,15 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                   {/* Front Side Upload */}
                   <div className="border border-slate-700/80 rounded-xl p-2.5 bg-slate-900/60 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
-                        <span>🪪</span> Front Side (Photo & Name)
+                      <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Front Side (Photo & Name)</span>
                       </span>
-                      {aadhaarFront && <span className="text-[10px] text-emerald-400 font-bold">✓ Attached</span>}
+                      {aadhaarFront && (
+                        <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Attached
+                        </span>
+                      )}
                     </div>
 
                     {aadhaarFront ? (
@@ -1812,7 +1801,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                           onClick={() => setAadhaarFront(null)}
                           className="absolute top-1 right-1 bg-black/70 hover:bg-red-600 text-white p-1 rounded-md text-[10px]"
                         >
-                          ✕
+                          <X className="w-3 h-3" />
                         </button>
                       </div>
                     ) : (
@@ -1845,10 +1834,15 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                   {/* Back Side Upload */}
                   <div className="border border-slate-700/80 rounded-xl p-2.5 bg-slate-900/60 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
-                        <span>🪪</span> Back Side (Address & QR)
+                      <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Back Side (Address & QR)</span>
                       </span>
-                      {aadhaarBack && <span className="text-[10px] text-emerald-400 font-bold">✓ Attached</span>}
+                      {aadhaarBack && (
+                        <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Attached
+                        </span>
+                      )}
                     </div>
 
                     {aadhaarBack ? (
@@ -1859,7 +1853,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                           onClick={() => setAadhaarBack(null)}
                           className="absolute top-1 right-1 bg-black/70 hover:bg-red-600 text-white p-1 rounded-md text-[10px]"
                         >
-                          ✕
+                          <X className="w-3 h-3" />
                         </button>
                       </div>
                     ) : (
@@ -1905,13 +1899,13 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                     type="button"
                     onClick={() => setIsSecondRoom(!isSecondRoom)}
                     className={`w-12 h-6 rounded-full transition-colors relative p-0.5 ${
-                      isSecondRoom ? 'bg-slate-800 dark:bg-slate-200' : 'bg-slate-700'
-                    }`}
+ isSecondRoom ? 'bg-slate-800 dark:bg-slate-200' : 'bg-slate-700'
+ }`}
                   >
                     <span
                       className={`block w-5 h-5 rounded-full bg-white transition-transform shadow-sm ${
-                        isSecondRoom ? 'translate-x-6' : 'translate-x-0'
-                      }`}
+ isSecondRoom ? 'translate-x-6' : 'translate-x-0'
+ }`}
                     />
                   </button>
                 </div>
@@ -1954,8 +1948,8 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
               {/* Couple Stay Check-In Toggle */}
               <div
                 className={`border rounded-xl p-3 flex items-center justify-between ${
-                  isDark ? 'bg-slate-950 border-slate-700' : 'bg-slate-50 border-slate-200'
-                }`}
+ isDark ? 'bg-slate-950 border-slate-700' : 'bg-slate-50 border-slate-200'
+ }`}
               >
                 <div className="flex items-center gap-2.5">
                   <Heart className={`w-4 h-4 ${isCouple ? 'text-red-500 fill-rose-500' : 'text-slate-400'}`} />
@@ -1971,13 +1965,13 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                   data-testid="toggle-couple-stay"
                   onClick={() => setIsCouple(!isCouple)}
                   className={`w-12 h-6 rounded-full transition-colors relative p-0.5 ${
-                    isCouple ? 'bg-red-500' : 'bg-slate-300'
-                  }`}
+ isCouple ? 'bg-red-500' : 'bg-slate-300'
+ }`}
                 >
                   <span
                     className={`block w-5 h-5 rounded-full bg-white transition-transform shadow-sm ${
-                      isCouple ? 'translate-x-6' : 'translate-x-0'
-                    }`}
+ isCouple ? 'translate-x-6' : 'translate-x-0'
+ }`}
                   />
                 </button>
               </div>
@@ -1996,10 +1990,10 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                 type="button"
                 onClick={() => setIsBookingModalOpen(false)}
                 className={`w-1/3 py-2.5 rounded-xl border text-xs font-bold transition-all ${
-                  isDark
-                    ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                }`}
+ isDark
+ ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+ : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+ }`}
               >
                 Back
               </button>
@@ -2038,29 +2032,29 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
         >
           <div
             className={`w-full max-w-lg rounded-3xl p-6 shadow-sm dark:shadow-none border space-y-5 ${
-              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-            }`}
+ isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+ }`}
           >
             {/* Header with status badge */}
             <div className="text-center space-y-2">
               <div
                 className={`w-16 h-16 rounded-3xl mx-auto flex items-center justify-center shadow-lg transition-all ${
-                  isApprovalGranted
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 scale-110'
-                    : 'bg-amber-500/20 text-amber-400 border border-amber-500/40 animate-pulse'
-                }`}
+ isApprovalGranted
+ ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 scale-110'
+ : 'bg-emerald-600/20 text-amber-400 border border-emerald-600/40 animate-pulse'
+ }`}
               >
                 {isApprovalGranted ? <CheckCircle className="w-8 h-8 text-emerald-400" /> : <Clock className="w-8 h-8 animate-spin" />}
               </div>
               <div>
                 <span
                   className={`text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
-                    isApprovalGranted
-                      ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
-                      : 'bg-amber-500/20 border-amber-500/30 text-amber-400'
-                  }`}
+ isApprovalGranted
+ ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+ : 'bg-emerald-600/20 border-emerald-600/30 text-amber-400'
+ }`}
                 >
-                  {isApprovalGranted ? '✓ Check-In Approved!' : '⏳ Waiting for Reception Approval'}
+                  {isApprovalGranted ? 'Check-In Approved!' : 'Waiting for Reception Approval'}
                 </span>
                 <h3 className="text-xl font-black mt-2">
                   {isApprovalGranted ? 'Digital Keycard Activated' : `Room ${pendingBooking.roomNumber} Reservation Submitted`}
@@ -2076,8 +2070,8 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
             {/* Booking Voucher Summary */}
             <div
               className={`rounded-2xl p-4 border space-y-2.5 text-xs ${
-                isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
-              }`}
+ isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}
             >
               <div className="flex justify-between items-center pb-2 border-b border-slate-700/30">
                 <span className="text-slate-400 font-bold uppercase text-[10px]">Booking Reference</span>
@@ -2117,6 +2111,41 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
                   ₹{pendingBooking.grandTotal?.toLocaleString('en-IN') || '0'}
                 </span>
               </div>
+            </div>
+
+            {/* Hotel Destination & Verified Location Card */}
+            <div
+              data-testid="voucher-hotel-location"
+              className={`rounded-2xl p-3.5 border space-y-1.5 text-xs ${
+                isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{hotel?.name || 'Hotel Property Destination'}</span>
+                </div>
+                {hotel?.googleMapUrl && (
+                  <a
+                    href={hotel.googleMapUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="voucher-directions-btn"
+                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 underline flex items-center gap-1"
+                  >
+                    <span>Directions</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                {hotel?.street ? `${hotel.street}, ` : ''}{hotel?.city || 'Jaipur'}, {hotel?.state || 'Rajasthan'}{hotel?.pincode ? ` - ${hotel.pincode}` : ''}
+              </p>
+              {hotel?.coordinates && (
+                <p className="text-[10px] font-mono text-slate-400">
+                  GPS Coordinates: {Number(hotel.coordinates.latitude ?? hotel.latitude).toFixed(4)}, {Number(hotel.coordinates.longitude ?? hotel.longitude).toFixed(4)}
+                </p>
+              )}
             </div>
 
             {/* Aadhaar Photo Thumbnails Preview */}
@@ -2202,7 +2231,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
           >
             {/* Small hotel logo at top */}
             <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center font-bold text-2xl shadow-sm">
-              🏨
+              <Building2 className="w-8 h-8 text-amber-500" />
             </div>
 
             <h2 className="text-xl font-bold text-slate-900 dark:text-white text-center">
@@ -2213,8 +2242,9 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
             </p>
 
             {unlockError && (
-              <div className="mb-4 text-sm text-red-600 dark:text-red-400">
-                ⚠️ {unlockError}
+              <div className="mb-4 text-sm text-red-600 dark:text-red-400 flex items-center justify-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                <span>{unlockError}</span>
               </div>
             )}
 

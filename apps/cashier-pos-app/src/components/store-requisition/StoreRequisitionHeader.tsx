@@ -64,7 +64,7 @@ export const StoreRequisitionHeader: React.FC<StoreRequisitionHeaderProps> = ({
           <button
             type="button"
             onClick={onNewBatchClick}
-            className="px-4 py-2.5 rounded-xl bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 font-bold text-xs uppercase tracking-wider border border-amber-500/30 transition-all flex items-center gap-2"
+            className="px-4 py-2.5 rounded-xl bg-slate-900/60 hover:bg-amber-900/80 text-amber-300 font-bold text-xs uppercase tracking-wider border border-amber-500/30 transition-all flex items-center gap-2"
           >
             <span>🏷️</span>
             <span>+ Stock Batch</span>
@@ -72,7 +72,7 @@ export const StoreRequisitionHeader: React.FC<StoreRequisitionHeaderProps> = ({
           <button
             type="button"
             onClick={onNewRequisitionClick}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-2"
           >
             <span>+</span>
             <span>Raise Kitchen Indent</span>
@@ -125,10 +125,10 @@ export const StoreRequisitionHeader: React.FC<StoreRequisitionHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('REQUISITIONS')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'REQUISITIONS'
-              ? 'text-amber-400 border-amber-400 bg-amber-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'REQUISITIONS'
+ ? 'text-amber-400 border-amber-400 bg-emerald-600/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
           📋 Kitchen Indents ({metrics.totalPendingCount} Pending)
         </button>
@@ -136,10 +136,10 @@ export const StoreRequisitionHeader: React.FC<StoreRequisitionHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('TRANSFERS')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'TRANSFERS'
-              ? 'text-blue-400 border-blue-400 bg-blue-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'TRANSFERS'
+ ? 'text-blue-400 border-blue-400 bg-blue-500/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
           🔄 Inter-Kitchen Transfers
         </button>
@@ -147,10 +147,10 @@ export const StoreRequisitionHeader: React.FC<StoreRequisitionHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('FEFO_ALERTS')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'FEFO_ALERTS'
-              ? 'text-red-400 border-red-400 bg-red-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'FEFO_ALERTS'
+ ? 'text-red-400 border-red-400 bg-red-500/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
           ⏱️ FEFO Expiry Timeline ({fefoMetrics.expiringSoonCount + fefoMetrics.expiredCount} Alerts)
         </button>

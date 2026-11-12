@@ -77,7 +77,7 @@ export const KdsHeader: React.FC<KdsHeaderProps> = ({
             title="Raw materials below minimum par levels detected via BOM"
           >
             <span>⚠️ Low Stock</span>
-            <span className="bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded-full text-[10px] font-black">
+            <span className="bg-emerald-600 text-white px-1.5 py-0.2 rounded-full text-[10px] font-black">
               {lowStockCount}
             </span>
           </button>
@@ -88,10 +88,10 @@ export const KdsHeader: React.FC<KdsHeaderProps> = ({
           <button
             onClick={onOpen86Modal}
             className={`px-3 py-1 text-xs font-bold rounded-lg border transition flex items-center space-x-1.5 min-h-[32px] ${
-              active86Count > 0
-                ? 'bg-red-500/20 text-red-300 border-red-500/50 hover:bg-red-500/30 animate-pulse'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-            }`}
+ active86Count > 0
+ ? 'bg-red-500/20 text-red-300 border-red-500/50 hover:bg-red-500/30 animate-pulse'
+ : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+ }`}
             title="Open 1-Tap 86 (Out of Stock) Manager"
           >
             <span>🚫 86 Manager</span>
@@ -108,10 +108,10 @@ export const KdsHeader: React.FC<KdsHeaderProps> = ({
           onClick={onToggleSound}
           title={isSoundEnabled ? 'Audio alerts active' : 'Audio alerts muted'}
           className={`px-3 py-1 text-xs font-semibold rounded border transition flex items-center space-x-1.5 ${
-            isSoundEnabled
-              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30'
-              : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
-          }`}
+ isSoundEnabled
+ ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30'
+ : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+ }`}
         >
           <span>{isSoundEnabled ? '🔔 Chime ON' : '🔕 Muted'}</span>
         </button>

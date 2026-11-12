@@ -1,4 +1,5 @@
 import React from 'react';
+import { Search } from 'lucide-react';
 import { FoodType } from '@spicehub/shared-types';
 import { MenuFilterState } from '@spicehub/ui';
 
@@ -12,7 +13,7 @@ export const MenuHeaderFilter: React.FC<MenuHeaderFilterProps> = ({ filter, onFi
     <div className="sticky top-[65px] z-10 bg-slate-950/95 backdrop-blur-md border-b border-slate-800/90 px-4 py-3 space-y-2.5">
       {/* Search Input */}
       <div className="relative">
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
           type="text"
           placeholder="Search royal dishes, tandoor, curries, drinks..."
@@ -28,44 +29,44 @@ export const MenuHeaderFilter: React.FC<MenuHeaderFilterProps> = ({ filter, onFi
           <button
             onClick={() => onFilterChange({ foodType: 'ALL' })}
             className={`px-3 py-1.5 text-xs font-bold rounded-xl transition ${
-              filter.foodType === 'ALL'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
-            }`}
+ filter.foodType === 'ALL'
+ ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+ : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
+ }`}
           >
             All Menu
           </button>
           <button
             onClick={() => onFilterChange({ foodType: FoodType.VEG })}
             className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center space-x-1 border ${
-              filter.foodType === FoodType.VEG
-                ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/20'
-                : 'bg-slate-900 text-emerald-400 border-emerald-900/60 hover:bg-emerald-950/30'
-            }`}
+ filter.foodType === FoodType.VEG
+ ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-600/20'
+ : 'bg-slate-900 text-emerald-400 border-emerald-900/60 hover:bg-emerald-950/30'
+ }`}
           >
-            <span>🟢</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
             <span>Pure Veg</span>
           </button>
           <button
             onClick={() => onFilterChange({ foodType: FoodType.NON_VEG })}
             className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center space-x-1 border ${
-              filter.foodType === FoodType.NON_VEG
-                ? 'bg-red-600 text-white border-red-500 shadow-md shadow-sm'
-                : 'bg-slate-900 text-red-400 border-red-900/60 hover:bg-red-950/30'
-            }`}
+ filter.foodType === FoodType.NON_VEG
+ ? 'bg-red-600 text-white border-red-500 shadow-md shadow-sm'
+ : 'bg-slate-900 text-red-400 border-red-900/60 hover:bg-red-950/30'
+ }`}
           >
-            <span>🔴</span>
+            <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
             <span>Non-Veg</span>
           </button>
           <button
             onClick={() => onFilterChange({ foodType: FoodType.BEVERAGE })}
             className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center space-x-1 border ${
-              filter.foodType === FoodType.BEVERAGE
-                ? 'bg-sky-600 text-white border-sky-500 shadow-md shadow-sky-600/20'
-                : 'bg-slate-900 text-sky-400 border-sky-900/60 hover:bg-sky-950/30'
-            }`}
+ filter.foodType === FoodType.BEVERAGE
+ ? 'bg-sky-600 text-white border-sky-500 shadow-md shadow-sky-600/20'
+ : 'bg-slate-900 text-sky-400 border-sky-900/60 hover:bg-sky-950/30'
+ }`}
           >
-            <span>🔵</span>
+            <span className="w-2 h-2 rounded-full bg-sky-400 inline-block" />
             <span>Drinks</span>
           </button>
         </div>

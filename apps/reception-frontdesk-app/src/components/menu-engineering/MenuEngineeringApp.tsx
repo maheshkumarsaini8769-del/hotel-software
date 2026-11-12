@@ -126,8 +126,8 @@ export const MenuEngineeringApp: React.FC<MenuEngineeringAppProps> = ({
       {/* Main Content Workspace */}
       <main className="flex-1 p-6 space-y-6">
         {currentItems.length === 0 ? (
-          <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-12 text-center">
-            <span className="text-4xl">📊</span>
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-12 text-center">
+            <span className="text-4xl"></span>
             <h3 className="text-base font-bold text-white mt-3">No Menu Matrix Generated Yet</h3>
             <p className="text-xs text-zinc-400 mt-1 max-w-sm mx-auto">
               Click "Recalculate Live Matrix" in the top bar to analyze live sales volume, recipe portion costs, and classify all dishes into BCG quadrants.
@@ -169,7 +169,7 @@ export const MenuEngineeringApp: React.FC<MenuEngineeringAppProps> = ({
             {/* View 3: Full Page Simulator */}
             {activeTab === 'SIMULATOR' && (
               <div className="space-y-4">
-                <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center justify-between">
+                <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">
                       Menu Price Elasticity & Profit Optimization Simulator

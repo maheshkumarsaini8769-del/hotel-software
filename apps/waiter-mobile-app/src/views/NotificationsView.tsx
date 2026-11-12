@@ -16,7 +16,7 @@ import {
 import { AppNotificationItem } from '../components/notifications/NotificationCenterModal';
 
 interface NotificationsViewProps {
-  isDark: boolean;
+  isDark?: boolean;
   triggerToast: (msg: string) => void;
   notifications?: AppNotificationItem[];
   onMarkAllRead?: () => void;
@@ -26,7 +26,6 @@ interface NotificationsViewProps {
 }
 
 export const NotificationsView: React.FC<NotificationsViewProps> = ({
-  isDark,
   triggerToast,
   notifications: propNotifications,
   onMarkAllRead: propMarkAllRead,
@@ -88,8 +87,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       {/* Header */}
       <div
         className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}
+ 'bg-white border-slate-200'
+ }`}
       >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-500 flex items-center justify-center font-bold">
@@ -97,7 +96,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <h2 className={`font-black text-base ${'text-slate-900'}`}>
                 Live Notification Center
               </h2>
               {unreadCount > 0 && (
@@ -118,10 +117,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
             <button
               onClick={onSendTestAlert}
               className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition ${
-                isDark
-                  ? 'bg-slate-800 border-slate-700 text-orange-400 hover:bg-slate-700'
-                  : 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
-              }`}
+ 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
+ }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-orange-500" />
               <span>Send Test Alert</span>
@@ -132,10 +129,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
             onClick={handleMarkAllRead}
             disabled={unreadCount === 0}
             className={`px-3 py-1.5 rounded-xl text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition ${
-              unreadCount === 0
-                ? 'bg-slate-700 opacity-50 cursor-not-allowed'
-                : 'bg-orange-500 hover:bg-orange-600'
-            }`}
+ unreadCount === 0
+ ? 'bg-slate-700 opacity-50 cursor-not-allowed'
+ : 'bg-orange-600 hover:bg-emerald-600'
+ }`}
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Mark All as Read</span>
@@ -150,12 +147,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
             key={f}
             onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-              filter === f
-                ? 'bg-orange-500 text-white shadow-sm'
-                : isDark
-                ? 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-            }`}
+ filter === f
+ ? 'bg-emerald-600 text-white shadow-sm'
+ : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+ }`}
           >
             {f}
           </button>
@@ -178,33 +173,29 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
               <div
                 key={item.id}
                 className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
-                  !item.isRead
-                    ? isDark
-                      ? 'bg-slate-900 border-orange-500/40 shadow-sm'
-                      : 'bg-orange-50/70 border-orange-300 shadow-sm'
-                    : isDark
-                    ? 'bg-slate-900 border-slate-800/80 opacity-80'
-                    : 'bg-white border-slate-200 opacity-80'
-                }`}
+ !item.isRead
+ ? 'bg-orange-50/70 border-orange-300 shadow-sm'
+ : 'bg-white border-slate-200 opacity-80'
+ }`}
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div
                     className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                      isReady
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : isReq
-                        ? 'bg-amber-500/20 text-amber-400'
-                        : isOrd
-                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                        : 'bg-red-500/20 text-red-400'
-                    }`}
+ isReady
+ ? 'bg-emerald-500/20 text-emerald-400'
+ : isReq
+ ? 'bg-emerald-600/20 text-amber-400'
+ : isOrd
+ ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+ : 'bg-red-500/20 text-red-400'
+ }`}
                   >
                     {getIcon(item.type)}
                   </div>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className={`font-bold text-xs truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      <span className={`font-bold text-xs truncate ${'text-slate-900'}`}>
                         {item.title}
                       </span>
                       {item.tableNumber && (
@@ -214,7 +205,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                       )}
                       {!item.isRead && <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shrink-0" />}
                     </div>
-                    <p className={`text-xs mt-0.5 truncate ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    <p className={`text-xs mt-0.5 truncate ${'text-slate-600'}`}>
                       {item.message}
                     </p>
                   </div>

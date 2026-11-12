@@ -4,6 +4,7 @@ import {
   CorporateHelper,
   GroupBookingStatus,
 } from '@spicehub/ui';
+import { UserCheck, FileText, Plus, CreditCard, LogOut } from 'lucide-react';
 
 interface GroupBookingCardProps {
   group: IGroupBookingUI;
@@ -40,13 +41,13 @@ export const GroupBookingCard: React.FC<GroupBookingCardProps> = ({
   const hasActiveStays = checkedInRooms > 0;
 
   return (
-    <div className="bg-slate-900 rounded-2xl border border-zinc-800 hover:border-amber-500/40 p-5 transition-all shadow-lg flex flex-col justify-between">
+    <div className="bg-white rounded-2xl border border-slate-200/80 hover:border-slate-300 p-5 transition-all shadow-xs hover:shadow-md flex flex-col justify-between">
       <div>
         {/* Top Header: Code, Policy, Status */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-base font-extrabold text-amber-400">
+              <span className="font-mono text-base font-bold text-slate-900">
                 {group.groupBookingCode}
               </span>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusInfo.badgeClass} flex items-center gap-1.5`}>
@@ -54,14 +55,14 @@ export const GroupBookingCard: React.FC<GroupBookingCardProps> = ({
                 {statusInfo.label}
               </span>
             </div>
-            <h3 className="text-lg font-bold text-white mt-1 leading-snug">
+            <h3 className="text-lg font-bold text-slate-900 mt-1 leading-snug">
               {group.groupName}
             </h3>
             {group.companyName && (
-              <div className="text-xs text-zinc-400 flex items-center gap-2 mt-0.5">
-                <span className="font-semibold text-zinc-300">{group.companyName}</span>
+              <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                <span className="font-semibold text-slate-700">{group.companyName}</span>
                 {group.companyGst && (
-                  <span className="font-mono bg-zinc-800/80 px-1.5 py-0.5 rounded text-[11px] text-amber-300/90 border border-zinc-700/60">
+                  <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[11px] text-slate-600 border border-slate-200">
                     GST: {group.companyGst}
                   </span>
                 )}
@@ -80,18 +81,18 @@ export const GroupBookingCard: React.FC<GroupBookingCardProps> = ({
         </div>
 
         {/* Date & Contact Strip */}
-        <div className="grid grid-cols-2 gap-2 py-3 border-y border-zinc-800/70 text-xs mb-4">
+        <div className="grid grid-cols-2 gap-2 py-3 border-y border-slate-100 text-xs mb-4">
           <div>
-            <div className="text-zinc-500 font-medium">Dates ({nights} Nights)</div>
-            <div className="text-zinc-200 font-semibold mt-0.5">
+            <div className="text-slate-400 font-medium">Dates ({nights} Nights)</div>
+            <div className="text-slate-800 font-semibold mt-0.5">
               {new Date(group.checkInDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
               {' → '}
               {new Date(group.checkOutDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
             </div>
           </div>
           <div>
-            <div className="text-zinc-500 font-medium">Organizer</div>
-            <div className="text-zinc-200 font-semibold mt-0.5 truncate">
+            <div className="text-slate-400 font-medium">Organizer</div>
+            <div className="text-slate-800 font-semibold mt-0.5 truncate">
               {group.organizerName} ({group.organizerPhone})
             </div>
           </div>
@@ -100,92 +101,97 @@ export const GroupBookingCard: React.FC<GroupBookingCardProps> = ({
         {/* Room Block Progress Bar */}
         <div className="mb-4">
           <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="text-zinc-400 font-medium">
+            <span className="text-slate-500 font-medium">
               Room Allocation Progress
             </span>
-            <span className="text-zinc-200 font-bold">
+            <span className="text-slate-800 font-bold">
               {checkedInRooms} / {totalRooms} In-House ({occupancyPercent}%)
             </span>
           </div>
-          <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
+          <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 rounded-full transition-all duration-500"
+              className="h-full bg-emerald-500 rounded-full transition-all duration-500"
               style={{ width: `${occupancyPercent}%` }}
             />
           </div>
-          <div className="flex items-center justify-between text-[11px] text-zinc-500 mt-1">
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
             <span>Pending: {totalRooms - checkedInRooms - checkedOutRooms}</span>
             <span>Checked Out: {checkedOutRooms}</span>
           </div>
         </div>
 
         {/* Financial Highlights */}
-        <div className="bg-slate-950 p-3 rounded-xl border border-zinc-800/80 mb-4 grid grid-cols-2 gap-3 text-xs">
+        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 mb-4 grid grid-cols-2 gap-3 text-xs">
           <div>
-            <div className="text-zinc-500 font-medium">Total Contract Tariff</div>
-            <div className="text-sm font-bold text-zinc-200">
+            <div className="text-slate-500 font-medium">Total Contract Tariff</div>
+            <div className="text-sm font-bold text-slate-900 mt-0.5">
               ₹{netPayable.toLocaleString('en-IN')}
             </div>
-            <div className="text-[11px] text-emerald-400/90 mt-0.5">
+            <div className="text-[11px] text-emerald-700 mt-0.5">
               Paid / Adv: ₹{corporatePaid.toLocaleString('en-IN')}
             </div>
           </div>
           <div className="text-right">
-            <div className="text-zinc-500 font-medium">Corporate Due Balance</div>
-            <div className={`text-base font-black ${corporateDue > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+            <div className="text-slate-500 font-medium">Corporate Due Balance</div>
+            <div className={`text-base font-bold mt-0.5 ${corporateDue > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
               ₹{corporateDue.toLocaleString('en-IN')}
             </div>
-            <div className="text-[10px] text-zinc-500 mt-0.5">
+            <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
               {masterFolio?.folioNumber || 'Master Folio Active'}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Action Buttons (Zero Dead Buttons) */}
-      <div className="pt-2 border-t border-zinc-800/60 flex flex-wrap items-center gap-2">
+      {/* Action Buttons */}
+      <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
         {hasPendingCheckIn && (
           <button
             onClick={() => onBulkCheckIn(group)}
-            className="flex-1 py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs transition-all shadow-md text-center"
+            className="btn-glass-green flex-1 py-1.5 px-3 rounded-xl text-white font-semibold text-xs transition-all shadow-xs text-center flex items-center justify-center gap-1.5"
           >
-            ⚡ Bulk Check-In
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>Bulk Check-In</span>
           </button>
         )}
 
         <button
           onClick={() => onViewSplitFolio(group)}
-          className="flex-1 py-1.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium text-xs border border-zinc-700/60 transition-all text-center"
+          className="btn-glass-green-subtle flex-1 py-1.5 px-3 rounded-xl text-emerald-800 font-semibold text-xs border border-emerald-200 transition-all text-center flex items-center justify-center gap-1.5"
         >
-          📄 Split Folio & Tax Invoice
+          <FileText className="w-3.5 h-3.5" />
+          <span>Split Folio & Tax Invoice</span>
         </button>
 
         {hasActiveStays && (
           <button
             onClick={() => onPostIncidental(group)}
-            className="py-1.5 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-amber-300 font-medium text-xs border border-amber-500/30 transition-all text-center"
+            className="py-1.5 px-3 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs border border-slate-200 transition-all text-center shadow-xs flex items-center gap-1"
             title="Post Room Service or Banquet Charge"
           >
-            + Post Charge
+            <Plus className="w-3.5 h-3.5 text-slate-500" />
+            <span>Post Charge</span>
           </button>
         )}
 
         {corporateDue > 0 && (
           <button
             onClick={() => onSettleCorporate(group)}
-            className="py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shadow-md text-center"
+            className="btn-glass-green py-1.5 px-3 rounded-xl text-white font-semibold text-xs transition-all shadow-xs text-center flex items-center gap-1.5"
           >
-            💳 Settle Master
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>Settle Master</span>
           </button>
         )}
 
         {hasActiveStays && (
           <button
             onClick={() => onBulkCheckout(group)}
-            className="py-1.5 px-2.5 rounded-xl bg-red-950/60 hover:bg-red-900 text-red-300 font-medium text-xs border border-red-800/40 transition-all text-center"
+            className="py-1.5 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium text-xs border border-rose-200 transition-all text-center flex items-center gap-1"
             title="Checkout all in-house rooms"
           >
-            🚪 Group Checkout
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Group Checkout</span>
           </button>
         )}
       </div>

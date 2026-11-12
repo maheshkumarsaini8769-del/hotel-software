@@ -11,19 +11,181 @@ import {
 import { Room, RoomStatus } from '../models/Room';
 import { DiningTable, TableStatus } from '../models/DiningTable';
 import { TableSession, SessionStatus } from '../models/TableSession';
+import { ServiceRequest } from '../models/ServiceRequest';
+import { matchesTableSessionToken, verifyTableSessionToken } from '../utils/tableSessionToken';
 import { Stay } from '../models/Stay';
 import { MasterFolio } from '../models/MasterFolio';
 import { FolioLineItem, DepartmentType } from '../models/FolioLineItem';
 import {
   RestaurantOrder,
   OrderType,
+  OrderSource,
   OverallOrderStatus,
   ItemProductionStatus,
 } from '../models/RestaurantOrder';
 import { MenuItem } from '../models/MenuItem';
+import { Tenant } from '../models/Tenant';
+import { io } from '../index';
 import { generateReferenceNumber } from '../utils/referenceNumber';
+import { resolveTenantCapabilities, TenantCapability } from '../utils/tenantCapabilities';
+
+const loadServiceCapabilities = async (hotelId: string) => {
+  const tenant = await Tenant.findById(hotelId).select('enabledPortals featureFlags status');
+  if (!tenant || tenant.status === 'SUSPENDED') return null;
+  return resolveTenantCapabilities(tenant);
+};
+
+const capabilityForCustomerMode = (mode: CustomerServiceMode): TenantCapability =>
+  mode === CustomerServiceMode.IN_ROOM_DINING ? 'inRoomServices' : 'tableOrdering';
+
+const isServiceEnabled = (
+  capabilities: Awaited<ReturnType<typeof loadServiceCapabilities>>,
+  capability: TenantCapability
+): boolean => Boolean(capabilities?.[capability]);
+
+const sendDisabledService = (res: Response, capability: TenantCapability): void => {
+  res.status(403).json({
+    success: false,
+    errorCode: 'HOTEL_SERVICE_DISABLED',
+    message: `This hotel does not offer ${capability}.`,
+    capability,
+  });
+};
+
+const resolveActiveTableSession = async (hotelId: string, sessionToken: string) => {
+  const claims = verifyTableSessionToken(sessionToken);
+  if (!claims || claims.hotelId !== hotelId) return null;
+
+  const session = await TableSession.findOne({
+    _id: claims.tableSessionId,
+    hotelId: new Types.ObjectId(hotelId),
+    status: SessionStatus.ACTIVE,
+  });
+  return session && matchesTableSessionToken(sessionToken, session) ? session : null;
+};
 
 export class CustomerPortalController {
+  static async getPreferences(req: Request, res: Response): Promise<void> {
+    try {
+      const hotelId = String(req.header('x-hotel-id') || '');
+      const sessionToken = String(req.header('x-customer-session-token') || '');
+      if (!Types.ObjectId.isValid(hotelId) || !sessionToken) {
+        res.status(401).json({ success: false, message: 'An active customer session is required.' });
+        return;
+      }
+
+      const session = await UniversalCustomerSession.findOne({
+        hotelId: new Types.ObjectId(hotelId),
+        sessionToken,
+        status: { $ne: CustomerSessionStatus.CLOSED },
+      }).select('preferences serviceRequests');
+      if (session) {
+        res.status(200).json({
+          success: true,
+          data: {
+            preferences: session.preferences || { language: 'en', theme: 'light', fontSize: 'medium' },
+            callHistory: session.serviceRequests.map((request) => ({
+              requestType: request.requestType,
+              status: request.status,
+              requestedAt: request.requestedAt,
+            })),
+          },
+        });
+        return;
+      }
+
+      const tableSession = await resolveActiveTableSession(hotelId, sessionToken);
+      if (!tableSession) {
+        res.status(401).json({ success: false, message: 'Customer session is invalid or closed.' });
+        return;
+      }
+
+      const callHistory = await ServiceRequest.find({
+        hotelId: new Types.ObjectId(hotelId),
+        tableSessionId: tableSession._id,
+      })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .select('requestType status createdAt');
+      res.status(200).json({
+        success: true,
+        data: {
+          preferences: tableSession.preferences,
+          callHistory: callHistory.map((request) => ({
+            requestType: request.requestType,
+            status: request.status,
+            requestedAt: request.createdAt,
+          })),
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || 'Customer preferences could not be loaded.' });
+    }
+  }
+
+  static async updatePreferences(req: Request, res: Response): Promise<void> {
+    try {
+      const hotelId = String(req.header('x-hotel-id') || '');
+      const sessionToken = String(req.header('x-customer-session-token') || '');
+      const { language, theme, fontSize } = req.body || {};
+      if (!Types.ObjectId.isValid(hotelId) || !sessionToken) {
+        res.status(401).json({ success: false, message: 'An active customer session is required.' });
+        return;
+      }
+      if (
+        (language !== undefined && !['en', 'hi'].includes(language)) ||
+        (theme !== undefined && !['light', 'dark'].includes(theme)) ||
+        (fontSize !== undefined && !['small', 'medium', 'large'].includes(fontSize)) ||
+        (language === undefined && theme === undefined && fontSize === undefined)
+      ) {
+        res.status(400).json({ success: false, message: 'Provide valid language, theme, or font size preferences.' });
+        return;
+      }
+
+      const session = await UniversalCustomerSession.findOne({
+        hotelId: new Types.ObjectId(hotelId),
+        sessionToken,
+        status: { $ne: CustomerSessionStatus.CLOSED },
+      });
+      if (session) {
+        const currentPreferences = session.preferences || { language: 'en' as const, theme: 'light' as const, fontSize: 'medium' as const };
+        session.preferences = {
+          language: language ?? currentPreferences.language,
+          theme: theme ?? currentPreferences.theme,
+          fontSize: fontSize ?? currentPreferences.fontSize,
+        };
+        await session.save();
+        res.status(200).json({
+          success: true,
+          message: 'Settings saved',
+          data: session.preferences,
+        });
+        return;
+      }
+
+      const tableSession = await resolveActiveTableSession(hotelId, sessionToken);
+      if (!tableSession) {
+        res.status(401).json({ success: false, message: 'Customer session is invalid or closed.' });
+        return;
+      }
+      const currentPreferences = tableSession.preferences;
+      tableSession.preferences = {
+        language: language ?? currentPreferences.language,
+        theme: theme ?? currentPreferences.theme,
+        fontSize: fontSize ?? currentPreferences.fontSize,
+      };
+      await tableSession.save();
+
+      res.status(200).json({
+        success: true,
+        message: 'Settings saved',
+        data: tableSession.preferences,
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || 'Customer preferences could not be saved.' });
+    }
+  }
+
   /**
    * 1. Detect or Initialize Session from URL params or token
    * POST /api/v1/customer-portal/detect-or-init
@@ -37,6 +199,20 @@ export class CustomerPortalController {
       }
 
       const { sessionToken, roomNumber, tableNumber, mode } = req.body;
+      const capabilities = await loadServiceCapabilities(hotelId);
+      if (!capabilities) {
+        res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Hotel not found or suspended.' });
+        return;
+      }
+
+      if (roomNumber && !isServiceEnabled(capabilities, 'inRoomServices')) {
+        sendDisabledService(res, 'inRoomServices');
+        return;
+      }
+      if (tableNumber && !isServiceEnabled(capabilities, 'tableOrdering')) {
+        sendDisabledService(res, 'tableOrdering');
+        return;
+      }
 
       // A. If existing token provided, resume session
       if (sessionToken) {
@@ -46,6 +222,11 @@ export class CustomerPortalController {
         }).populate('activeOrders');
 
         if (session) {
+          const sessionCapability = capabilityForCustomerMode(session.serviceMode);
+          if (!isServiceEnabled(capabilities, sessionCapability)) {
+            sendDisabledService(res, sessionCapability);
+            return;
+          }
           session.lastActivityAt = new Date();
           await session.save();
           res.status(200).json({
@@ -104,29 +285,30 @@ export class CustomerPortalController {
       }
 
       // D. Fallback: Return allowed modes selector
+      const allowedModes = [
+        {
+          mode: CustomerServiceMode.IN_ROOM_DINING,
+          label: 'In-Room Dining',
+          description: 'Room service delivered directly to your guest room suite',
+          icon: 'bed',
+        },
+        {
+          mode: CustomerServiceMode.DINE_IN_RESTAURANT,
+          label: 'Dine-In Restaurant',
+          description: 'Table-side digital ordering for dine-in guests',
+          icon: 'utensils',
+        },
+        {
+          mode: CustomerServiceMode.TAKEAWAY_PICKUP,
+          label: 'Takeaway & Pickup',
+          description: 'Pre-order freshly prepared dishes for express pickup',
+          icon: 'shopping-bag',
+        },
+      ].filter((option) => isServiceEnabled(capabilities, capabilityForCustomerMode(option.mode)));
       res.status(200).json({
         success: true,
         action: 'SELECT_MODE_REQUIRED',
-        allowedModes: [
-          {
-            mode: CustomerServiceMode.IN_ROOM_DINING,
-            label: 'In-Room Dining',
-            description: 'Room service delivered directly to your guest room suite',
-            icon: 'bed',
-          },
-          {
-            mode: CustomerServiceMode.DINE_IN_RESTAURANT,
-            label: 'Dine-In Restaurant',
-            description: 'Table-side digital ordering for dine-in guests',
-            icon: 'utensils',
-          },
-          {
-            mode: CustomerServiceMode.TAKEAWAY_PICKUP,
-            label: 'Takeaway & Pickup',
-            description: 'Pre-order freshly prepared dishes for express pickup',
-            icon: 'shopping-bag',
-          },
-        ],
+        allowedModes,
       });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
@@ -158,6 +340,17 @@ export class CustomerPortalController {
 
       if (!serviceMode || !Object.values(CustomerServiceMode).includes(serviceMode)) {
         res.status(400).json({ success: false, message: 'Valid serviceMode is required' });
+        return;
+      }
+
+      const capabilities = await loadServiceCapabilities(hotelId);
+      if (!capabilities) {
+        res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Hotel not found or suspended.' });
+        return;
+      }
+      const requiredCapability = capabilityForCustomerMode(serviceMode);
+      if (!isServiceEnabled(capabilities, requiredCapability)) {
+        sendDisabledService(res, requiredCapability);
         return;
       }
 
@@ -316,6 +509,14 @@ export class CustomerPortalController {
         res.status(400).json({ success: false, message: 'sessionToken and newServiceMode are required' });
         return;
       }
+      if (!hotelId || !Types.ObjectId.isValid(hotelId)) {
+        res.status(400).json({ success: false, message: 'Valid Hotel/Tenant ID is required' });
+        return;
+      }
+      if (!Object.values(CustomerServiceMode).includes(newServiceMode)) {
+        res.status(400).json({ success: false, message: 'Valid newServiceMode is required' });
+        return;
+      }
 
       const session = await UniversalCustomerSession.findOne({
         hotelId: new Types.ObjectId(hotelId),
@@ -324,6 +525,13 @@ export class CustomerPortalController {
 
       if (!session) {
         res.status(404).json({ success: false, message: 'Customer session not found' });
+        return;
+      }
+
+      const capabilities = await loadServiceCapabilities(session.hotelId.toString());
+      const requiredCapability = capabilityForCustomerMode(newServiceMode);
+      if (!isServiceEnabled(capabilities, requiredCapability)) {
+        sendDisabledService(res, requiredCapability);
         return;
       }
 
@@ -395,6 +603,13 @@ export class CustomerPortalController {
         return;
       }
 
+      const capabilities = await loadServiceCapabilities(session.hotelId.toString());
+      const requiredCapability = capabilityForCustomerMode(session.serviceMode);
+      if (!isServiceEnabled(capabilities, requiredCapability)) {
+        sendDisabledService(res, requiredCapability);
+        return;
+      }
+
       // Compute Order Items & Subtotal
       let subTotal = 0;
       const orderItems = items.map((it: any) => {
@@ -460,6 +675,14 @@ export class CustomerPortalController {
         hotelId: session.hotelId,
         orderNumber,
         orderType,
+        source:
+          session.serviceMode === CustomerServiceMode.IN_ROOM_DINING
+            ? OrderSource.IN_ROOM_DINING
+            : session.serviceMode === CustomerServiceMode.DINE_IN_RESTAURANT
+              ? OrderSource.TABLE_QR
+              : session.serviceMode === CustomerServiceMode.POOLSIDE_LOUNGE
+                ? OrderSource.POOLSIDE
+                : OrderSource.TAKEAWAY,
         tableSessionId: session.dineInContext?.tableSessionId,
         tableId: session.dineInContext?.tableId,
         stayId: session.inRoomContext?.stayId,
@@ -528,6 +751,33 @@ export class CustomerPortalController {
       session.lastActivityAt = new Date();
       await session.save();
 
+      if (
+        session.serviceMode === CustomerServiceMode.IN_ROOM_DINING &&
+        session.inRoomContext?.roomNumber
+      ) {
+        const roomNumber = session.inRoomContext.roomNumber;
+        const roomOrderPayload = {
+          id: String(newOrder._id),
+          orderId: String(newOrder._id),
+          orderNumber: newOrder.orderNumber,
+          orderType: OrderType.ROOM_SERVICE,
+          orderStatus: newOrder.orderStatus,
+          roomId: newOrder.roomId,
+          roomNumber,
+          destination: `Room ${roomNumber}`,
+          items: newOrder.items,
+          cookingInstructions: newOrder.cookingInstructions,
+          placedAt: newOrder.placedAt,
+        };
+
+        io.to(`${session.hotelId}_kds`).emit('order:created', roomOrderPayload);
+        io.to(`${session.hotelId}_waiters`).emit('waiter:room_order', {
+          ...roomOrderPayload,
+          type: 'ROOM_SERVICE_DELIVERY',
+          itemsSummary: newOrder.items.map((item) => `${item.quantity}x ${item.name}`).join(', '),
+        });
+      }
+
       res.status(201).json({
         success: true,
         message: `Order #${orderNumber} placed successfully`,
@@ -561,6 +811,17 @@ export class CustomerPortalController {
 
       if (!session) {
         res.status(404).json({ success: false, message: 'Customer session not found' });
+        return;
+      }
+
+      const capabilities = await loadServiceCapabilities(session.hotelId.toString());
+      const requiredCapability = capabilityForCustomerMode(session.serviceMode);
+      if (!isServiceEnabled(capabilities, requiredCapability)) {
+        sendDisabledService(res, requiredCapability);
+        return;
+      }
+      if (requestType === ServiceRequestType.CALL_WAITER && !isServiceEnabled(capabilities, 'waiterDispatch')) {
+        sendDisabledService(res, 'waiterDispatch');
         return;
       }
 

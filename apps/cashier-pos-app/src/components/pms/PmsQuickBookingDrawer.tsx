@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { QuickReserveTarget, MatrixRoomCategory } from '../../../../../packages/ui/src/pms/types';
 import { MatrixHelper } from '../../../../../packages/ui/src/pms/MatrixHelper';
 import { formatCurrency } from '../../../../../packages/ui/src/index';
+import { NumericInput } from '@spicehub/ui';
 
 export interface PmsQuickBookingDrawerProps {
   target: QuickReserveTarget | null;
@@ -226,8 +227,7 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Adults</label>
-                <input
-                  type="number"
+                <NumericInput
                   min="1"
                   max="6"
                   value={adults}
@@ -253,8 +253,7 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Advance Deposit (₹)</label>
-              <input
-                type="number"
+              <NumericInput
                 min="0"
                 value={advanceAmount}
                 onChange={(e) => setAdvanceAmount(Number(e.target.value))}
@@ -310,7 +309,7 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-amber-950/40 transition active:scale-98 disabled:opacity-50"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 py-3 font-extrabold text-xs rounded-xl shadow-lg shadow-slate-900/40 transition active:scale-98 disabled:opacity-50"
             >
               {isSubmitting ? 'Confirming...' : '✨ Confirm & Block Room'}
             </button>

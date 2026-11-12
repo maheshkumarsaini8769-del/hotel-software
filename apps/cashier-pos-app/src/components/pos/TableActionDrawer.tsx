@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TableStatus } from '@spicehub/shared-types';
-import { TableStatusColorMap, formatCurrency, LiveTableCardModel, TableActionPayload } from '@spicehub/ui';
+import { TableStatusColorMap, formatCurrency, LiveTableCardModel, TableActionPayload, NumericInput } from '@spicehub/ui';
 
 export interface TableActionDrawerProps {
   table: LiveTableCardModel | null;
@@ -70,8 +70,7 @@ export const TableActionDrawer: React.FC<TableActionDrawerProps> = ({
               <div className="space-y-3">
                 <div className="flex items-center space-x-2">
                   <label className="text-xs font-medium text-slate-600 dark:text-slate-300">Guests:</label>
-                  <input
-                    type="number"
+                  <NumericInput
                     min={1}
                     max={table.capacity}
                     value={guestCount}

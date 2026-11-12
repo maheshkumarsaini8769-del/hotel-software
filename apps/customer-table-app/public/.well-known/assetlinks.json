@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.spicehub.customer",
+      "sha256_cert_fingerprints": [
+        "E2:CF:79:36:F5:FC:6C:2D:DA:BD:CC:4A:6C:D8:E0:BC:89:EC:08:E7:CB:1A:1B:FE:98:AA:D5:22:FF:A7:F1:A5"
+      ]
+    }
+  }
+]

@@ -3,8 +3,9 @@ import {
   MealPeriodUI,
   TableTypePreferenceUI,
   VIPTierUI,
-  INewDiningReservationPayload,
+  INewDiningReservationPayload, NumericInput,
 } from '@spicehub/ui';
+import { UtensilsCrossed, AlertTriangle, X } from 'lucide-react';
 
 interface VipDiningReservationModalProps {
   isOpen: boolean;
@@ -38,12 +39,12 @@ export const VipDiningReservationModal: React.FC<VipDiningReservationModalProps>
   if (!isOpen) return null;
 
   const allergenOptions = [
-    { id: 'PEANUTS_TREENUTS', label: '🥜 Peanuts / Tree Nuts' },
-    { id: 'GLUTEN', label: '🌾 Gluten / Wheat' },
-    { id: 'DAIRY_LACTOSE', label: '🥛 Dairy / Lactose' },
-    { id: 'SHELLFISH_SEAFOOD', label: '🦐 Shellfish / Crustaceans' },
-    { id: 'EGGS', label: '🥚 Eggs' },
-    { id: 'SOY', label: '🌱 Soy' },
+    { id: 'PEANUTS_TREENUTS', label: 'Peanuts / Tree Nuts' },
+    { id: 'GLUTEN', label: 'Gluten / Wheat' },
+    { id: 'DAIRY_LACTOSE', label: 'Dairy / Lactose' },
+    { id: 'SHELLFISH_SEAFOOD', label: 'Shellfish / Crustaceans' },
+    { id: 'EGGS', label: 'Eggs' },
+    { id: 'SOY', label: 'Soy' },
   ];
 
   const handleAllergenToggle = (id: string) => {
@@ -75,24 +76,25 @@ export const VipDiningReservationModal: React.FC<VipDiningReservationModalProps>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="bg-slate-900 border border-red-500/30 w-full max-w-2xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
+      <div className="bg-white border border-slate-200 w-full max-w-2xl rounded-2xl p-6 shadow-xl text-slate-900 max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <span className="text-red-400">🍽️</span> New Dining Table Reservation
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <UtensilsCrossed className="w-5 h-5 text-emerald-600" />
+              New Dining Table Reservation
             </h2>
-            <p className="text-xs text-zinc-400 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               Record guest booking, party size, VIP status, and critical kitchen allergen alerts.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-sm"
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg text-sm"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -100,7 +102,7 @@ export const VipDiningReservationModal: React.FC<VipDiningReservationModalProps>
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Guest Full Name *
               </label>
               <input
@@ -109,12 +111,12 @@ export const VipDiningReservationModal: React.FC<VipDiningReservationModalProps>
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="e.g. Rajesh Singhania"
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-red-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Phone Number (WhatsApp) *
               </label>
               <input
@@ -123,29 +125,28 @@ export const VipDiningReservationModal: React.FC<VipDiningReservationModalProps>
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 placeholder="e.g. 9876543210"
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-red-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Party Size
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="1"
                 max="30"
                 required
                 value={partySize}
                 onChange={(e) => setPartySize(Number(e.target.value))}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm font-bold text-white text-center focus:outline-none focus:border-red-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-900 text-center focus:outline-none focus:border-emerald-500 focus:bg-white"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Time Slot
               </label>
               <input
@@ -153,18 +154,18 @@ export const VipDiningReservationModal: React.FC<VipDiningReservationModalProps>
                 required
                 value={timeSlot}
                 onChange={(e) => setTimeSlot(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-red-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Meal Period
               </label>
               <select
                 value={mealPeriod}
                 onChange={(e) => setMealPeriod(e.target.value as MealPeriodUI)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-red-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
               >
                 <option value="LUNCH">Lunch</option>
                 <option value="DINNER">Dinner</option>
@@ -174,13 +175,13 @@ export const VipDiningReservationModal: React.FC<VipDiningReservationModalProps>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 VIP Tier
               </label>
               <select
                 value={vipTier}
                 onChange={(e) => setVipTier(e.target.value as VIPTierUI)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-2 text-xs font-bold text-amber-400 focus:outline-none focus:border-red-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-amber-700 focus:outline-none focus:border-emerald-500 focus:bg-white"
               >
                 <option value="REGULAR">Regular</option>
                 <option value="SILVER">Silver</option>
@@ -192,13 +193,13 @@ export const VipDiningReservationModal: React.FC<VipDiningReservationModalProps>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Seating Preference
               </label>
               <select
                 value={tableTypePreference}
                 onChange={(e) => setTableTypePreference(e.target.value as TableTypePreferenceUI)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
               >
                 <option value="STANDARD_DINING">Standard Dining Floor</option>
                 <option value="VIP_BOOTH">VIP Plush Booth</option>
@@ -210,29 +211,29 @@ export const VipDiningReservationModal: React.FC<VipDiningReservationModalProps>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Special Occasion
               </label>
               <select
                 value={specialOccasion}
                 onChange={(e) => setSpecialOccasion(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
               >
                 <option value="NONE">Regular Dining</option>
-                <option value="BIRTHDAY">🎂 Birthday Celebration</option>
-                <option value="ANNIVERSARY">🥂 Wedding Anniversary</option>
-                <option value="BUSINESS_MEETING">💼 Business Dinner</option>
-                <option value="DATE_NIGHT">🌹 Date Night</option>
-                <option value="PROPOSAL">💍 Marriage Proposal</option>
+                <option value="BIRTHDAY">Birthday Celebration</option>
+                <option value="ANNIVERSARY">Wedding Anniversary</option>
+                <option value="BUSINESS_MEETING">Business Dinner</option>
+                <option value="DATE_NIGHT">Date Night</option>
+                <option value="PROPOSAL">Marriage Proposal</option>
               </select>
             </div>
           </div>
 
           {/* Critical Allergens Checkbox Grid */}
-          <div className="bg-red-950/20 border border-red-500/30 p-3.5 rounded-2xl space-y-2">
+          <div className="bg-rose-50 border border-rose-200 p-3.5 rounded-2xl space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm">⚠️</span>
-              <span className="text-xs font-bold uppercase tracking-wider text-red-300">
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <span className="text-xs font-bold uppercase tracking-wider text-rose-800">
                 Critical Dietary Allergens (Direct Alert to KDS / Kitchen Station)
               </span>
             </div>
@@ -246,8 +247,8 @@ export const VipDiningReservationModal: React.FC<VipDiningReservationModalProps>
                     onClick={() => handleAllergenToggle(item.id)}
                     className={`p-2 rounded-xl text-xs font-semibold border text-left transition-all ${
                       isSelected
-                        ? 'bg-red-500/30 border-red-500 text-red-200 shadow-md'
-                        : 'bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                        ? 'bg-rose-100 border-rose-400 text-rose-900 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
                     }`}
                   >
                     {item.label}
@@ -258,7 +259,7 @@ export const VipDiningReservationModal: React.FC<VipDiningReservationModalProps>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
               Chef / Kitchen Preparation Warning Note
             </label>
             <textarea
@@ -266,23 +267,23 @@ export const VipDiningReservationModal: React.FC<VipDiningReservationModalProps>
               value={chefNotes}
               onChange={(e) => setChefNotes(e.target.value)}
               placeholder="e.g. Severe peanut allergy. Clean cookware & use separate prep station."
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-red-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
             />
           </div>
 
           {/* Footer */}
-          <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-3">
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-all"
+              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-sm"
+              className="btn-glass-green px-5 py-2 rounded-xl text-white text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50 shadow-xs"
             >
               {loading ? 'Confirming...' : 'Confirm Reservation'}
             </button>

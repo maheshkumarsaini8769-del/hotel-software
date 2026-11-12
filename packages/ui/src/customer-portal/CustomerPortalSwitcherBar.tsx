@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { X } from 'lucide-react';
 
 export interface CustomerPortalSwitcherBarProps {
   currentApp: 'customer' | 'guest';
@@ -56,43 +57,39 @@ export const CustomerPortalSwitcherBar: React.FC<CustomerPortalSwitcherBarProps>
     <aside
       data-testid="customer-switcher-bar"
       aria-label="Portal Mode Switcher"
-      className="w-full max-w-full box-border border-b border-slate-800 bg-slate-950/95 backdrop-blur-md text-slate-200 px-3 py-1.5 sm:px-4 z-40 relative flex items-center justify-between gap-2 overflow-x-hidden"
+      className="relative z-40 box-border w-full border-b border-slate-800 bg-slate-950 px-3 py-1.5 text-slate-200 sm:px-4"
     >
-      <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-        <span className="text-sm shrink-0">{isCustomer ? '🍽️' : '🛎️'}</span>
-        <div className="flex items-center gap-x-2 min-w-0 flex-1 overflow-hidden">
-          <span className="text-xs font-semibold text-slate-300 shrink-0">
-            {isCustomer ? 'Dine-In' : 'In-Room'}
-            {currentLocationName ? ` · ${currentLocationName}` : ''}
-          </span>
-          <span className="hidden sm:inline text-slate-600">|</span>
-          <a
-            data-testid="switcher-action-link"
-            href={destinationUrl}
-            className="min-h-[44px] inline-flex items-center text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline transition truncate min-w-0 flex-1"
-          >
-            {actionText}
-          </a>
+      <div className="mx-auto flex w-full max-w-md md:max-w-3xl items-center justify-between gap-2 overflow-x-hidden">
+        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+          <div className="flex items-center gap-x-2 min-w-0 flex-1 overflow-hidden">
+            <span className="shrink-0 text-xs font-semibold text-slate-200">
+              {isCustomer ? 'Dine-In' : 'In-Room'}
+              {currentLocationName ? ` · ${currentLocationName}` : ''}
+            </span>
+            <span className="hidden sm:inline text-slate-600">|</span>
+            <a
+              data-testid="switcher-action-link"
+              href={destinationUrl}
+              className="inline-flex min-h-[44px] min-w-0 flex-1 items-center truncate text-xs font-semibold text-emerald-300 transition hover:text-emerald-200 hover:underline"
+            >
+              <span className="hidden sm:inline">{actionText}</span>
+              <span className="sm:hidden truncate">
+                {isCustomer ? 'Room Service →' : 'Table Menu →'}
+              </span>
+            </a>
+          </div>
         </div>
-      </div>
 
-      <button
-        type="button"
-        data-testid="switcher-dismiss-btn"
-        onClick={handleDismiss}
-        aria-label="Dismiss switcher banner"
-        className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition shrink-0"
-      >
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          strokeWidth="2.5"
+        <button
+          type="button"
+          data-testid="switcher-dismiss-btn"
+          onClick={handleDismiss}
+          aria-label="Dismiss switcher banner"
+          className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-white cursor-pointer"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
+          <X className="w-4 h-4" />
+        </button>
+      </div>
     </aside>
   );
 };

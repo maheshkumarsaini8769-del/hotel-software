@@ -20,10 +20,10 @@ export const PmsCategoryFilter: React.FC<PmsCategoryFilterProps> = ({
       <button
         onClick={() => onSelectCategory('ALL')}
         className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap ${
-          selectedCategoryId === 'ALL'
-            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-            : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-        }`}
+ selectedCategoryId === 'ALL'
+ ? 'bg-emerald-600/20 text-amber-300 border border-emerald-600/40 shadow-sm'
+ : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+ }`}
       >
         <span>All Categories</span>
         <span className="bg-slate-800 text-[10px] px-1.5 py-0.5 rounded-md text-slate-300 font-extrabold">
@@ -38,10 +38,10 @@ export const PmsCategoryFilter: React.FC<PmsCategoryFilterProps> = ({
             key={rt.id}
             onClick={() => onSelectCategory(rt.id)}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-2 whitespace-nowrap ${
-              isSelected
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-            }`}
+ isSelected
+ ? 'bg-emerald-600/20 text-amber-300 border border-emerald-600/40 shadow-sm'
+ : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+ }`}
           >
             <span>{rt.name}</span>
             <span className="text-[10px] text-amber-400/80 font-mono">

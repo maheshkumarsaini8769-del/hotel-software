@@ -20,19 +20,6 @@ export interface Kds86ManagerDrawerProps {
   onBatchToggle86?: (itemIds: string[], isAvailable: boolean, reason?: string) => Promise<void> | void;
 }
 
-const FALLBACK_86_DISHES: Kds86DishItem[] = [
-  { id: 'dish-01', name: 'Paneer Butter Masala', category: 'Main Course', stationName: 'Curry Station', isAvailable: true },
-  { id: 'dish-02', name: 'Butter Chicken Grand Trunk', category: 'Main Course', stationName: 'Curry Station', isAvailable: true },
-  { id: 'dish-03', name: 'Dal Makhani Signature', category: 'Main Course', stationName: 'Curry Station', isAvailable: true },
-  { id: 'dish-04', name: 'Tandoori Murgh (Full)', category: 'Tandoor & Grills', stationName: 'Tandoor Station', isAvailable: true },
-  { id: 'dish-05', name: 'Paneer Tikka Angara', category: 'Tandoor & Grills', stationName: 'Tandoor Station', isAvailable: true },
-  { id: 'dish-06', name: 'Garlic Butter Naan', category: 'Breads', stationName: 'Tandoor Station', isAvailable: true },
-  { id: 'dish-07', name: 'Dum Handi Biryani (Hyderabadi)', category: 'Rice & Biryani', stationName: 'Curry Station', isAvailable: true },
-  { id: 'dish-08', name: 'Chilli Chicken Dry', category: 'Starters', stationName: 'Chinese & Wok', isAvailable: true },
-  { id: 'dish-09', name: 'Crispy Veg Spring Rolls', category: 'Starters', stationName: 'Chinese & Wok', isAvailable: true },
-  { id: 'dish-10', name: 'Fresh Lime Soda', category: 'Beverages', stationName: 'Kitchen Pass', isAvailable: true },
-];
-
 export const Kds86ManagerDrawer: React.FC<Kds86ManagerDrawerProps> = ({
   isOpen,
   dishes,
@@ -46,7 +33,7 @@ export const Kds86ManagerDrawer: React.FC<Kds86ManagerDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  const activeDishes = dishes && dishes.length > 0 ? dishes : FALLBACK_86_DISHES;
+  const activeDishes = dishes;
   const stations = Array.from(new Set(activeDishes.map((d) => d.stationName)));
 
   const filtered = activeDishes.filter((d) => {
@@ -133,10 +120,10 @@ export const Kds86ManagerDrawer: React.FC<Kds86ManagerDrawerProps> = ({
             <button
               onClick={() => setFilterStation('ALL')}
               className={`px-2.5 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap ${
-                filterStation === 'ALL'
-                  ? 'bg-amber-500 text-slate-950'
-                  : 'bg-slate-800 text-slate-400 hover:text-white'
-              }`}
+ filterStation === 'ALL'
+ ? 'bg-emerald-600 text-white'
+ : 'bg-slate-800 text-slate-400 hover:text-white'
+ }`}
             >
               All Stations ({dishes.length})
             </button>
@@ -148,10 +135,10 @@ export const Kds86ManagerDrawer: React.FC<Kds86ManagerDrawerProps> = ({
                   key={st}
                   onClick={() => setFilterStation(st)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1 ${
-                    filterStation === st
-                      ? 'bg-amber-500 text-slate-950'
-                      : 'bg-slate-800 text-slate-400 hover:text-white'
-                  }`}
+ filterStation === st
+ ? 'bg-emerald-600 text-white'
+ : 'bg-slate-800 text-slate-400 hover:text-white'
+ }`}
                 >
                   <span>{st}</span>
                   <span className="opacity-75">({count})</span>
@@ -168,7 +155,9 @@ export const Kds86ManagerDrawer: React.FC<Kds86ManagerDrawerProps> = ({
         <div className="flex-1 overflow-y-auto p-4 space-y-2.5 min-h-0 custom-scrollbar overscroll-contain">
           {filtered.length === 0 ? (
             <div className="py-24 text-center text-slate-500 text-xs">
-              No menu items match your search.
+              {activeDishes.length === 0
+                ? 'No menu items are configured for this hotel.'
+                : 'No menu items match your search.'}
             </div>
           ) : (
             filtered.map((dish) => {
@@ -177,10 +166,10 @@ export const Kds86ManagerDrawer: React.FC<Kds86ManagerDrawerProps> = ({
                 <div
                   key={dish.id}
                   className={`p-3.5 rounded-xl border transition-all flex items-center justify-between ${
-                    is86
-                      ? 'bg-red-950/20 border-red-800/40 text-slate-300'
-                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-white'
-                  }`}
+ is86
+ ? 'bg-red-950/20 border-red-800/40 text-slate-300'
+ : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-white'
+ }`}
                 >
                   <div className="flex-1 pr-3">
                     <div className="flex items-center gap-2">

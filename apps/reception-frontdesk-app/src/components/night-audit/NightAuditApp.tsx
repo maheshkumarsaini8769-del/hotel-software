@@ -126,13 +126,13 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
   const latestAudit = (history && history.length > 0 ? history[0] : null) as any;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 space-y-6">
+    <div className="heritage-light min-h-screen bg-slate-950 text-slate-100 p-6 space-y-6">
       {/* 5-Star Luxury Midnight Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-sm relative overflow-hidden">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-sm relative overflow-hidden">
 
         <div className="space-y-2 z-10">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-amber-500 text-slate-950 rounded-2xl flex items-center justify-center font-bold">
+            <div className="p-3 bg-amber-500 text-slate-950 rounded-xl flex items-center justify-center font-bold">
               <Moon className="w-6 h-6 stroke-[2.5]" />
             </div>
             <div>
@@ -180,7 +180,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
       {/* KPI Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Occupancy Rate */}
-        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg relative overflow-hidden">
+        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-xl space-y-2 shadow-lg relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">Occupancy Rate</span>
             <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -196,7 +196,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
         </div>
 
         {/* Total Room Revenue */}
-        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg">
+        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-xl space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">Room Revenue Pool</span>
             <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
@@ -210,7 +210,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
         </div>
 
         {/* F&B Revenue */}
-        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg">
+        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-xl space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">F&B Total Settled</span>
             <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
@@ -224,7 +224,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
         </div>
 
         {/* ADR (Average Daily Rate) */}
-        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg">
+        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-xl space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">ADR (Avg Daily Rate)</span>
             <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
@@ -238,7 +238,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
         </div>
 
         {/* RevPAR */}
-        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-2xl space-y-2 shadow-lg">
+        <div className="bg-slate-950 border border-amber-500/20 p-5 rounded-xl space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">RevPAR</span>
             <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
@@ -253,7 +253,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
       </div>
 
       {/* Pre-Audit Readiness Inspection Matrix */}
-      <div className="bg-slate-950 border border-amber-500/20 rounded-2xl p-6 space-y-4 shadow-xl">
+      <div className="bg-slate-950 border border-amber-500/20 rounded-xl p-6 space-y-4 shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400">
@@ -318,7 +318,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
       </div>
 
       {/* Historical Night Audit Sessions Table */}
-      <div className="bg-slate-950 border border-amber-500/20 rounded-2xl overflow-hidden shadow-sm dark:shadow-none">
+      <div className="bg-slate-950 border border-amber-500/20 rounded-xl overflow-hidden shadow-sm dark:shadow-none">
         <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
           <div className="flex items-center gap-2.5">
             <History className="w-5 h-5 text-amber-400" />
@@ -397,7 +397,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
           className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
           data-testid="night-audit-run-modal"
         >
-          <div className="bg-slate-950 border border-amber-500/30 rounded-2xl w-full max-w-lg overflow-hidden shadow-sm dark:shadow-none space-y-6 p-6">
+          <div className="bg-slate-950 border border-amber-500/30 rounded-xl w-full max-w-lg overflow-hidden shadow-sm dark:shadow-none space-y-6 p-6">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-amber-500 text-slate-950 rounded-xl font-bold">
@@ -487,11 +487,11 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
           className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4"
           data-testid="night-audit-cert-modal"
         >
-          <div className="bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-sm relative p-8 space-y-6">
+          <div className="bg-slate-950 border border-slate-800 rounded-xl w-full max-w-xl overflow-hidden shadow-sm relative p-8 space-y-6">
 
             {/* Crest Header */}
             <div className="text-center space-y-2 border-b border-amber-500/30 pb-6">
-              <div className="w-16 h-16 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center mx-auto">
+              <div className="w-16 h-16 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center mx-auto">
                 <Award className="w-8 h-8 stroke-[2.5]" />
               </div>
               <div className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-400">
@@ -510,7 +510,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
 
             {/* Certificate Details Matrix */}
             <div
-              className="bg-slate-950 border border-amber-500/20 rounded-2xl p-5 space-y-3.5 text-xs font-mono"
+              className="bg-slate-950 border border-amber-500/20 rounded-xl p-5 space-y-3.5 text-xs font-mono"
               data-testid="night-audit-certificate-card"
             >
               <div className="flex justify-between items-center text-slate-300">

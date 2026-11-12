@@ -176,7 +176,7 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
         {/* Tab 3: Tip Pool Distribution */}
         {activeTab === 'TIP_POOL' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between bg-emerald-950/20 border border-emerald-500/30 p-4 rounded-2xl">
+            <div className="flex items-center justify-between bg-emerald-950/20 border border-emerald-500/30 p-4 rounded-xl">
               <div>
                 <h3 className="text-sm font-bold text-emerald-300">
                   Gratuity & Tip Pool Settlement Sessions
@@ -195,7 +195,7 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
             </div>
 
             {state.tipSessions.length === 0 ? (
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-12 text-center text-zinc-400 text-xs">
+              <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-12 text-center text-zinc-400 text-xs">
                 No tip pool sessions generated yet. Click "+ New Tip Split Session" to calculate today's pool.
               </div>
             ) : (
@@ -203,7 +203,7 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
                 {state.tipSessions.map((session) => (
                   <div
                     key={session._id}
-                    className="bg-zinc-900/90 border border-zinc-800 p-5 rounded-2xl space-y-4"
+                    className="bg-zinc-900/90 border border-zinc-800 p-5 rounded-xl space-y-4"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
@@ -230,7 +230,7 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
                             onClick={() => handleApproveTipPayout(session._id)}
                             className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider transition-all"
                           >
-                            ✓ Approve Disbursement
+                             Approve Disbursement
                           </button>
                         )}
                       </div>

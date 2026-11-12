@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../config/api';
+
 /**
  * Authenticated fetch for the waiter floor terminal.
  *
@@ -7,7 +9,12 @@
  */
 export function getWaiterToken(): string {
   if (typeof window === 'undefined') return '';
-  return window.localStorage.getItem('spicehub_token') || window.localStorage.getItem('token') || '';
+  return (
+    window.localStorage.getItem('spicehub_token') ||
+    window.localStorage.getItem('spicehub_waiter_token') ||
+    window.localStorage.getItem('token') ||
+    ''
+  );
 }
 
 export function getWaiterHotelId(): string {
@@ -31,5 +38,10 @@ export function waiterFetch(input: RequestInfo | URL, init: RequestInit = {}): P
     headers.set('x-hotel-id', hotelId);
   }
 
-  return fetch(input, { ...init, headers });
+  let finalUrl = input;
+  if (typeof input === 'string' && input.startsWith('/')) {
+    finalUrl = `${API_BASE_URL}${input}`;
+  }
+
+  return fetch(finalUrl, { ...init, headers });
 }

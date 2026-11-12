@@ -113,7 +113,7 @@ export const SubFolioSplitCard: React.FC<SubFolioSplitCardProps> = ({
           </div>
           {subFolio.status === 'SETTLED' && (
             <div style={{ fontSize: '11px', color: '#059669', marginTop: '4px', fontWeight: 600 }}>
-              ✓ Paid via {subFolio.paymentMethod}
+               Paid via {subFolio.paymentMethod}
             </div>
           )}
         </div>
@@ -157,7 +157,7 @@ export const SubFolioSplitCard: React.FC<SubFolioSplitCardProps> = ({
                 minHeight: '44px',
               }}
             >
-              🖨️ Receipt
+              ️ Receipt
             </button>
           )}
         </div>

@@ -33,7 +33,7 @@ export const BanquetEventCard: React.FC<BanquetEventCardProps> = ({
   const balanceDue = booking.dueAmount;
 
   return (
-    <div className="bg-slate-900 rounded-2xl border border-zinc-800 hover:border-amber-500/40 p-5 transition-all shadow-lg flex flex-col justify-between">
+    <div className="bg-slate-900 rounded-xl border border-zinc-800 hover:border-amber-500/40 p-5 transition-all shadow-lg flex flex-col justify-between">
       <div>
         {/* Top Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
@@ -51,7 +51,7 @@ export const BanquetEventCard: React.FC<BanquetEventCardProps> = ({
               {booking.eventName}
             </h3>
             <div className="text-xs text-amber-300/90 font-medium flex items-center gap-1.5 mt-0.5">
-              <span>🏛️ {booking.venueName}</span>
+              <span>️ {booking.venueName}</span>
               <span className="text-zinc-600">•</span>
               <span className="text-zinc-400">{typeInfo.icon} {typeInfo.label}</span>
             </div>
@@ -101,19 +101,19 @@ export const BanquetEventCard: React.FC<BanquetEventCardProps> = ({
               Function Prospectus (FP Checklist)
             </span>
             <span className={`text-[11px] font-bold ${isFpReady ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {isFpReady ? '✓ All Departments Signed Off' : '⚠️ Pending Sign-Offs'}
+              {isFpReady ? ' All Departments Signed Off' : '️ Pending Sign-Offs'}
             </span>
           </div>
 
           <div className="grid grid-cols-3 gap-1.5 text-[11px]">
             <div className={`p-1.5 rounded-lg border text-center ${fp.chefSignOff ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
-              👨‍🍳 Kitchen Chef
+              ‍ Kitchen Chef
             </div>
             <div className={`p-1.5 rounded-lg border text-center ${fp.banquetManagerSignOff ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
-              🧑‍💼 Service Lead
+              ‍ Service Lead
             </div>
             <div className={`p-1.5 rounded-lg border text-center ${fp.electricianAvSignOff ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
-              🔊 AV & Stage
+               AV & Stage
             </div>
           </div>
 
@@ -152,7 +152,7 @@ export const BanquetEventCard: React.FC<BanquetEventCardProps> = ({
           onClick={() => onViewFP(booking)}
           className="flex-1 py-1.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-amber-300 font-bold text-xs border border-amber-500/30 transition-all text-center"
         >
-          📋 View FP (BEO)
+           View FP (BEO)
         </button>
 
         <button
@@ -168,7 +168,7 @@ export const BanquetEventCard: React.FC<BanquetEventCardProps> = ({
             onClick={() => onSettleFolio(booking)}
             className="py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all shadow-md text-center"
           >
-            💳 Settle Due
+             Settle Due
           </button>
         )}
 
@@ -178,7 +178,7 @@ export const BanquetEventCard: React.FC<BanquetEventCardProps> = ({
             className="py-1.5 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-xs border border-slate-200 dark:border-slate-800 transition-all text-center"
             title="Complete event and release venue"
           >
-            ✓ Complete
+             Complete
           </button>
         )}
       </div>

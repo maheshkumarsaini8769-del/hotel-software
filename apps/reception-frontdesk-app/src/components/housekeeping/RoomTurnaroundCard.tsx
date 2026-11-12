@@ -62,6 +62,20 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
             Out of Order
           </span>
         );
+      case RoomStatus.OCCUPIED:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-400 border border-red-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+            Occupied
+          </span>
+        );
+      case RoomStatus.RESERVED:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-300 border border-red-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+            Booked
+          </span>
+        );
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
@@ -72,7 +86,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
   };
 
   return (
-    <div className="bg-slate-900/80 border border-slate-800/90 hover:border-amber-500/40 rounded-2xl p-4 flex flex-col justify-between transition-all duration-200 hover:shadow-xl hover:shadow-black/50 group backdrop-blur-sm">
+    <div className="bg-slate-900/80 border border-slate-800/90 hover:border-amber-500/40 rounded-xl p-4 flex flex-col justify-between transition-all duration-200 hover:shadow-xl hover:shadow-black/50 group backdrop-blur-sm">
       {/* Top Row: Room number, Room Type, Status */}
       <div>
         <div className="flex items-start justify-between">
@@ -90,11 +104,11 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
           <div>{getStatusBadge()}</div>
         </div>
 
-        {/* Guest Occupancy Note */}
-        {room.guestInfo ? (
+        {/* Guest Occupancy Note (only for genuinely occupied rooms) */}
+        {room.guestInfo?.guestName && room.status === RoomStatus.OCCUPIED ? (
           <div className="mt-3 p-2 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 truncate">
-              <span className="text-slate-400">👤</span>
+              <span className="text-slate-400"></span>
               <span className="text-slate-200 font-medium truncate">{room.guestInfo.guestName}</span>
             </div>
             <span className="text-[10px] text-amber-400/80 bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-900/50 flex-shrink-0">
@@ -117,7 +131,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
 
             {room.activeTask?.assignedAttendantId ? (
               <span className="text-[11px] text-slate-400 truncate flex items-center gap-1">
-                <span>🧹</span>
+                <span></span>
                 <span className="text-slate-300 font-medium">{room.activeTask.assignedAttendantId.name}</span>
               </span>
             ) : (
@@ -128,7 +142,8 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
           </div>
         )}
 
-        {/* Turnaround Progress Bar */}
+        {/* Turnaround Progress Bar (housekeeping states only) */}
+        {[RoomStatus.DIRTY, RoomStatus.CLEANING, RoomStatus.INSPECTION, RoomStatus.OUT_OF_SERVICE].includes(room.status) && (
         <div className="mt-3">
           <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
             <span>Turnaround Cycle</span>
@@ -137,20 +152,21 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
           <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
-                room.status === RoomStatus.AVAILABLE
-                  ? 'bg-emerald-400'
-                  : room.status === RoomStatus.INSPECTION
-                  ? 'bg-amber-400'
-                  : room.status === RoomStatus.CLEANING
-                  ? 'bg-slate-800'
-                  : room.status === RoomStatus.OUT_OF_SERVICE
-                  ? 'bg-red-500'
-                  : 'bg-orange-500'
-              }`}
+ room.status === RoomStatus.AVAILABLE
+ ? 'bg-emerald-400'
+ : room.status === RoomStatus.INSPECTION
+ ? 'bg-amber-400'
+ : room.status === RoomStatus.CLEANING
+ ? 'bg-slate-800'
+ : room.status === RoomStatus.OUT_OF_SERVICE
+ ? 'bg-red-500'
+ : 'bg-orange-500'
+ }`}
               style={{ width: `${turnaround.percentage}%` }}
             ></div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Action Buttons Footer */}
@@ -177,7 +193,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
               }
             }}
             disabled={isLoading}
-            className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-semibold text-xs transition-all shadow-md shadow-orange-950/50 active:scale-95 disabled:opacity-50 cursor-pointer text-center"
+            className="bg-emerald-600 hover:bg-emerald-700 flex-1 py-1.5 px-3 rounded-xl text-white font-semibold text-xs transition-all shadow-md shadow-orange-950/50 active:scale-95 disabled:opacity-50 cursor-pointer text-center"
           >
             {room.activeTask ? 'Start Cleaning' : 'Create Task & Start'}
           </button>
@@ -187,7 +203,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
           <button
             onClick={() => onOpenCleaningModal(room)}
             disabled={isLoading}
-            className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold text-xs transition-all shadow-md shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer text-center"
+            className="bg-emerald-600 hover:bg-emerald-700 flex-1 py-1.5 px-3 rounded-xl text-white font-semibold text-xs transition-all shadow-md shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer text-center"
           >
             Audit & Complete
           </button>
@@ -197,7 +213,7 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
           <button
             onClick={() => onOpenInspectionModal(room)}
             disabled={isLoading}
-            className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold text-xs transition-all shadow-md shadow-amber-950/50 hover:brightness-110 active:scale-95 disabled:opacity-50 cursor-pointer text-center"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 py-1.5 px-3 rounded-xl font-bold text-xs transition-all shadow-md shadow-amber-950/50 active:scale-95 disabled:opacity-50 cursor-pointer text-center"
           >
             Inspect Room
           </button>
@@ -205,13 +221,13 @@ export const RoomTurnaroundCard: React.FC<RoomTurnaroundCardProps> = ({
 
         {room.status === RoomStatus.AVAILABLE && (
           <div className="flex-1 text-center py-1 text-xs text-emerald-400 font-medium">
-            ✓ Ready for Guest
+             Ready for Guest
           </div>
         )}
 
         {room.status === RoomStatus.OUT_OF_SERVICE && (
           <div className="flex-1 text-center py-1 text-xs text-red-400 font-medium">
-            ⚠️ Maintenance Ticket Active
+            ️ Maintenance Ticket Active
           </div>
         )}
       </div>

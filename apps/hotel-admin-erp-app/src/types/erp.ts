@@ -1,5 +1,6 @@
 export type ErpModuleKey =
   | 'DASHBOARD'
+  | 'LIVE_AVAILABILITY'
   | 'ROOM_MANAGEMENT'
   | 'TABLE_MANAGEMENT'
   | 'ORDERS_KITCHEN'
@@ -24,4 +25,7 @@ export type ErpModuleKey =
   | 'KOT_VOID'
   | 'RECIPE_COSTING'
   | 'STORE_REQUISITIONS'
-  | 'FLOOR_DUTY';
+  | 'FLOOR_DUTY'
+  | 'PAYROLL'
+  | 'COUPONS_VOUCHERS';
+

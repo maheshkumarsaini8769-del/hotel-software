@@ -340,12 +340,12 @@ export const SpiceHubPortalDirectoryModal: React.FC<SpiceHubPortalDirectoryModal
                         key={portal.id}
                         data-testid={`portal-card-${portal.id}`}
                         className={`rounded-2xl border p-4 sm:p-5 flex flex-col justify-between transition group relative ${
-                          !isSubscribed
-                            ? 'bg-slate-950/40 border-slate-900 opacity-60'
-                            : isCurrent
-                              ? 'bg-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-950/20'
-                              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
-                        }`}
+ !isSubscribed
+ ? 'bg-slate-950/40 border-slate-900 opacity-60'
+ : isCurrent
+ ? 'bg-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-950/20'
+ : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+ }`}
                       >
                         <div className="space-y-2.5">
                           <div className="flex items-start justify-between gap-2">
@@ -397,10 +397,10 @@ export const SpiceHubPortalDirectoryModal: React.FC<SpiceHubPortalDirectoryModal
                             href={portal.url}
                             onClick={(e) => handlePortalClick(e, portal)}
                             className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
-                              !isSubscribed
-                                ? 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white cursor-pointer'
-                                : 'bg-amber-500 text-slate-950 hover:bg-amber-400 active:scale-95'
-                            }`}
+ !isSubscribed
+ ? 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white cursor-pointer'
+ : 'bg-amber-500 text-slate-950 hover:bg-amber-400 active:scale-95'
+ }`}
                           >
                             <span>{!isSubscribed ? 'Not Subscribed' : portal.actionText}</span>
                             <span className="text-xs">{!isSubscribed ? '🔒' : '↗'}</span>

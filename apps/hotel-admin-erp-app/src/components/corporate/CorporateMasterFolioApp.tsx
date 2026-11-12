@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Briefcase } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
 import {
   IGroupBookingUI,
@@ -257,7 +258,7 @@ export const CorporateMasterFolioApp: React.FC<CorporateMasterFolioAppProps> = (
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Top Header & KPI Bar */}
       <CorporateHeader
         summary={summary}
@@ -277,19 +278,21 @@ export const CorporateMasterFolioApp: React.FC<CorporateMasterFolioAppProps> = (
       <div className="flex-1 p-6">
         {loading && groupBookings.length === 0 ? (
           <div className="py-24 text-center">
-            <span className="inline-block w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-            <div className="text-zinc-500 text-xs mt-3">Loading corporate bookings...</div>
+            <span className="inline-block w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+            <div className="text-slate-500 text-xs mt-3">Loading corporate bookings...</div>
           </div>
         ) : groupBookings.length === 0 ? (
-          <div className="py-20 text-center bg-slate-950 rounded-2xl border border-zinc-800 p-8 max-w-xl mx-auto">
-            <span className="text-4xl">🏢</span>
-            <h3 className="text-lg font-bold text-white mt-3">No Group Bookings Found</h3>
-            <p className="text-zinc-400 text-xs mt-1 mb-5">
+          <div className="py-20 text-center bg-white rounded-2xl border border-slate-200/80 p-8 max-w-xl mx-auto shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 mx-auto shadow-xs">
+              <Briefcase className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mt-4">No Group Bookings Found</h3>
+            <p className="text-slate-500 text-xs mt-1 mb-5">
               Create your first corporate room block with automated GST invoicing and split policies.
             </p>
             <button
               onClick={() => setActiveModal('NEW_GROUP')}
-              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs shadow-lg transition-all"
+              className="btn-glass-green px-5 py-2.5 rounded-xl text-white font-semibold text-xs shadow-xs transition-all"
             >
               + Create First Group Booking
             </button>

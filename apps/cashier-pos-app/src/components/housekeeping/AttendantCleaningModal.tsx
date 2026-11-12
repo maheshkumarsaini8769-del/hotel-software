@@ -76,7 +76,7 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-200">
           {/* Guest Occupancy Notice */}
           {room.guestInfo && (
-            <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/20 flex items-center justify-between text-xs">
+            <div className="p-3 rounded-xl bg-slate-900/20 border border-amber-500/20 flex items-center justify-between text-xs">
               <span className="text-amber-200 font-medium">Occupant: {room.guestInfo.guestName}</span>
               <span className="text-amber-400/80">Active Stay linked to Folio</span>
             </div>
@@ -98,17 +98,17 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
                   key={idx}
                   onClick={() => onToggleChecklist(idx)}
                   className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center gap-3 ${
-                    item.isDone
-                      ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-200'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
-                  }`}
+ item.isDone
+ ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-200'
+ : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+ }`}
                 >
                   <div
                     className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
-                      item.isDone
-                        ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-bold text-xs'
-                        : 'border-slate-600 bg-slate-800'
-                    }`}
+ item.isDone
+ ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-bold text-xs'
+ : 'border-slate-600 bg-slate-800'
+ }`}
                   >
                     {item.isDone && '✓'}
                   </div>
@@ -133,10 +133,10 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
               <div
                 onClick={() => onSetLinenAction('FULL_WASH')}
                 className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                  linenAction === 'FULL_WASH'
-                    ? 'bg-amber-500/10 border-amber-500/60 text-white shadow-sm shadow-amber-500/10'
-                    : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}
+ linenAction === 'FULL_WASH'
+ ? 'bg-emerald-600/10 border-emerald-600/60 text-white shadow-sm shadow-emerald-600/10'
+ : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700'
+ }`}
               >
                 <div className="text-xs font-bold text-amber-300">Complete Linen Change</div>
                 <div className="text-[11px] text-slate-400 mt-1">Full replacement of all sheets, duvets & pillowcases.</div>
@@ -145,10 +145,10 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
               <div
                 onClick={() => onSetLinenAction('TUCK_IN')}
                 className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                  linenAction === 'TUCK_IN'
-                    ? 'bg-emerald-500/15 border-emerald-500/60 text-white shadow-sm shadow-emerald-500/10'
-                    : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}
+ linenAction === 'TUCK_IN'
+ ? 'bg-emerald-500/15 border-emerald-500/60 text-white shadow-sm shadow-emerald-500/10'
+ : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700'
+ }`}
               >
                 <div className="text-xs font-bold text-emerald-300 flex items-center gap-1">
                   <span>🌿 Tuck-in (Eco Choice)</span>
@@ -192,7 +192,7 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
                     <span className="w-5 text-center font-bold text-amber-300 text-xs">{item.quantity}</span>
                     <button
                       onClick={() => onUpdateMinibar(item.id, 1)}
-                      className="w-7 h-7 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold flex items-center justify-center cursor-pointer transition-colors active:scale-95"
+                      className="w-7 h-7 rounded-lg bg-emerald-600 hover:bg-amber-400 text-white font-bold flex items-center justify-center cursor-pointer transition-colors active:scale-95"
                     >
                       +
                     </button>
@@ -202,7 +202,7 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
             </div>
 
             {minibarTotal > 0 && room.guestInfo && (
-              <p className="text-[10px] text-amber-400/90 mt-2 bg-amber-950/30 p-2 rounded-lg border border-amber-900/40">
+              <p className="text-[10px] text-amber-400/90 mt-2 bg-slate-900/30 p-2 rounded-lg border border-amber-900/40">
                 ⚡ ₹{minibarTotal} will be automatically charged to {room.guestInfo.guestName}&apos;s Master Folio.
               </p>
             )}
@@ -234,7 +234,7 @@ export const AttendantCleaningModal: React.FC<AttendantCleaningModalProps> = ({
           <button
             onClick={onComplete}
             disabled={isLoading || !allChecklistDone}
-            className="px-5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 transition-all shadow-lg shadow-amber-950/40 cursor-pointer disabled:opacity-50 disabled:pointer-events-none active:scale-95"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-lg shadow-slate-900/40 cursor-pointer disabled:opacity-50 disabled:pointer-events-none active:scale-95"
           >
             {isLoading ? 'Processing Turnaround...' : 'Submit & Ready for Inspection'}
           </button>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Building2 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
 import {
   IBanquetBookingUI,
@@ -219,7 +220,7 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       <BanquetHeader
         metrics={metrics}
         filterStatus={filterStatus}
@@ -236,19 +237,21 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
       <div className="flex-1 p-6">
         {loading && bookings.length === 0 ? (
           <div className="py-24 text-center">
-            <span className="inline-block w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-            <div className="text-zinc-500 text-xs mt-3">Loading banquet functions...</div>
+            <span className="inline-block w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+            <div className="text-slate-500 text-xs mt-3">Loading banquet functions...</div>
           </div>
         ) : bookings.length === 0 ? (
-          <div className="py-20 text-center bg-slate-950 rounded-2xl border border-zinc-800 p-8 max-w-xl mx-auto">
-            <span className="text-4xl">🏛️</span>
-            <h3 className="text-lg font-bold text-white mt-3">No Banquet Bookings Found</h3>
-            <p className="text-zinc-400 text-xs mt-1 mb-5">
+          <div className="py-20 text-center bg-white rounded-2xl border border-slate-200/80 p-8 max-w-xl mx-auto shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 mx-auto shadow-xs">
+              <Building2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mt-4">No Banquet Bookings Found</h3>
+            <p className="text-slate-500 text-xs mt-1 mb-5">
               Create your first luxury banquet event, configure the seating layout and issue the Function Prospectus (BEO).
             </p>
             <button
               onClick={() => setActiveModal('NEW_BOOKING')}
-              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs shadow-lg transition-all"
+              className="btn-glass-green px-5 py-2.5 rounded-xl text-white font-semibold text-xs shadow-xs transition-all"
             >
               + Book First Banquet Event
             </button>
@@ -316,26 +319,26 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
       )}
 
       {pendingComplete && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-amber-500/30 bg-slate-900 p-6 text-zinc-100 shadow-sm dark:shadow-none">
-            <h3 className="text-lg font-black text-white">Release banquet venue?</h3>
-            <p className="mt-2 text-xs leading-relaxed text-zinc-400">
-              Mark <span className="font-semibold text-amber-300">{pendingComplete.eventName}</span> as
-              completed and release <span className="font-semibold text-amber-300">{pendingComplete.venueName}</span>?
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xl">
+            <h3 className="text-lg font-bold text-slate-900">Release banquet venue?</h3>
+            <p className="mt-2 text-xs leading-relaxed text-slate-600">
+              Mark <span className="font-semibold text-emerald-700">{pendingComplete.eventName}</span> as
+              completed and release <span className="font-semibold text-emerald-700">{pendingComplete.venueName}</span>?
               This action is recorded in the event audit trail.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={() => setPendingComplete(null)}
                 disabled={loading}
-                className="rounded-xl border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
               >
                 Keep Event Open
               </button>
               <button
                 onClick={() => void confirmCompleteEvent()}
                 disabled={loading}
-                className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+                className="btn-glass-green rounded-xl px-4 py-2 text-xs font-bold disabled:opacity-50 cursor-pointer"
               >
                 {loading ? 'Releasing…' : 'Complete & Release'}
               </button>
@@ -346,10 +349,10 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
 
       {toast && (
         <div
-          className={`fixed bottom-5 right-5 z-[80] max-w-sm rounded-xl border px-4 py-3 text-xs font-semibold shadow-sm dark:shadow-none ${
+          className={`fixed bottom-5 right-5 z-[80] max-w-sm rounded-xl border px-4 py-3 text-xs font-semibold shadow-lg ${
             toast.tone === 'success'
-              ? 'border-emerald-500/40 bg-emerald-950 text-emerald-200'
-              : 'border-red-500/40 bg-red-950 text-red-200'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-rose-200 bg-rose-50 text-rose-800'
           }`}
           role="status"
         >

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IInventoryAuditSessionUI, ISubmitCountsPayload } from '@spicehub/ui';
+import { IInventoryAuditSessionUI, ISubmitCountsPayload, NumericInput } from '@spicehub/ui';
 
 interface BlindStocktakeSheetModalProps {
   session: IInventoryAuditSessionUI | null;
@@ -50,7 +50,7 @@ export const BlindStocktakeSheetModal: React.FC<BlindStocktakeSheetModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-slate-900 border border-amber-500/30 w-full max-w-3xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
+      <div className="bg-slate-900 border border-amber-500/30 w-full max-w-3xl rounded-xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div>
@@ -70,14 +70,14 @@ export const BlindStocktakeSheetModal: React.FC<BlindStocktakeSheetModalProps> =
             onClick={onClose}
             className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-sm"
           >
-            ✕
+            
           </button>
         </div>
 
         {/* Blind Count Notice */}
         {session.isBlindStocktake && (
           <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 flex items-center gap-2.5">
-            <span className="text-base">🛡️</span>
+            <span className="text-base">️</span>
             <div>
               <span className="font-bold">Blind Stocktake Protection Active:</span> System book balances are obscured from this counting sheet. Enter the exact physical shelf tally without bias.
             </div>
@@ -117,8 +117,7 @@ export const BlindStocktakeSheetModal: React.FC<BlindStocktakeSheetModalProps> =
                   <div className="flex items-center gap-3">
                     <label className="text-xs font-semibold text-zinc-400">Physical Count:</label>
                     <div className="flex items-center">
-                      <input
-                        type="number"
+                      <NumericInput
                         step="any"
                         min="0"
                         required
@@ -150,7 +149,7 @@ export const BlindStocktakeSheetModal: React.FC<BlindStocktakeSheetModalProps> =
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-amber-900/30"
+                className="bg-emerald-600 hover:bg-emerald-700 px-5 py-2 rounded-xl text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-amber-900/30"
               >
                 {loading ? 'Submitting Counts...' : 'Submit Physical Counts'}
               </button>

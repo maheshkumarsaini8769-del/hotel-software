@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   WaiterCashFloatDto,
   WaiterFloatStatus,
-  WaiterCashFloatHelper,
+  WaiterCashFloatHelper, NumericInput,
 } from '@spicehub/ui';
 
 interface WaiterCashFloatCardProps {
@@ -103,17 +103,17 @@ export const WaiterCashFloatCard: React.FC<WaiterCashFloatCardProps> = ({
           <button
             disabled={isLoading}
             onClick={() => setIsDropModalOpen(true)}
-            className="w-full h-12 min-h-[48px] rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-amber-950/40 flex items-center justify-center gap-2"
+            className="w-full h-12 min-h-[48px] rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-slate-900/40 flex items-center justify-center gap-2"
           >
             <span>📥</span>
             <span>Handover Cash to Cashier (End Shift)</span>
           </button>
         ) : float.status === WaiterFloatStatus.DROPPED_PENDING_APPROVAL ? (
-          <div className="w-full p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center text-xs text-amber-300">
+          <div className="w-full p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-center text-xs text-sky-300">
             ⏳ ₹{float.actualCashHandedOver?.toFixed(2)} handed over. Awaiting cashier count approval.
           </div>
         ) : (
-          <div className="w-full p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-center text-xs text-sky-300">
+          <div className="w-full p-3 rounded-xl bg-[#123C2B]/5 border border-[#CFE0D2] text-center text-xs text-[#2E6B4C]">
             ✅ Shift Settled! Receipt: {float.receiptNumber || 'N/A'}
           </div>
         )}
@@ -144,8 +144,7 @@ export const WaiterCashFloatCard: React.FC<WaiterCashFloatCardProps> = ({
                 <label className="text-xs text-zinc-300 font-medium">
                   Actual Physical Cash Count (₹)
                 </label>
-                <input
-                  type="number"
+                <NumericInput
                   min="0"
                   step="1"
                   value={actualCashInput}

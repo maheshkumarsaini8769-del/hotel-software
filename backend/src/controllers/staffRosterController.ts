@@ -219,6 +219,7 @@ export const clockInStaff = async (req: TenantRequest, res: Response): Promise<v
       }
     }
 
+    const dateKey = new Date(now.getTime() + 330 * 60 * 1000).toISOString().slice(0, 10);
     const log = new StaffAttendanceLog({
       hotelId,
       userId: targetUser._id,
@@ -226,10 +227,12 @@ export const clockInStaff = async (req: TenantRequest, res: Response): Promise<v
       staffName: targetUser.name,
       department: dept,
       attendanceDate: startOfDay,
+      dateKey,
       clockInTime: now,
       lateMinutes,
       status,
       clockMethod,
+      attendanceSource: clockMethod === ClockMethod.MANUAL_OVERRIDE ? 'ADMIN_MANUAL' : 'PIN_CLOCK',
     });
 
     await log.save();
@@ -279,7 +282,8 @@ export const clockOutStaff = async (req: TenantRequest, res: Response): Promise<
     log.clockOutTime = now;
 
     // Calculate hours worked
-    const diffHours = (now.getTime() - log.clockInTime.getTime()) / (1000 * 60 * 60);
+    const baseClockIn = log.clockInTime || log.attendanceDate || now;
+    const diffHours = Math.max(0, (now.getTime() - baseClockIn.getTime()) / (1000 * 60 * 60));
     log.totalHoursWorked = Math.round(diffHours * 10) / 10;
 
     // Overtime calculation (>8 hours standard)

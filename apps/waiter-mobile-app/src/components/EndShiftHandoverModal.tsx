@@ -23,7 +23,7 @@ export interface EndShiftHandoverModalProps {
     handoverNotes: string;
     cashDropConfirmed: boolean;
   }) => void;
-  isDark: boolean;
+  isDark?: boolean;
   staffName: string;
   staffId: string;
   shiftName: string;
@@ -37,7 +37,6 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
   isOpen,
   onClose,
   onConfirmEndShift,
-  isDark,
   staffName,
   staffId,
   shiftName,
@@ -63,10 +62,8 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-fadeIn">
       <div
         className={`w-full max-w-lg rounded-2xl border shadow-sm dark:shadow-none overflow-hidden transition-all duration-200 transform scale-100 ${
-          isDark
-            ? 'bg-slate-900 border-red-500/40 text-slate-100'
-            : 'bg-white border-red-200 text-slate-800'
-        }`}
+ 'bg-white border-red-200 text-slate-800'
+ }`}
       >
         {/* Header */}
         <div className="bg-slate-900 p-4 text-white flex items-center justify-between border-b border-slate-800">
@@ -101,13 +98,11 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
           {/* Staff Profile Bar */}
           <div
             className={`p-3 rounded-xl border flex items-center justify-between ${
-              isDark
-                ? 'bg-slate-900/80 border-slate-800 text-slate-300'
-                : 'bg-slate-50 border-slate-200 text-slate-700'
-            }`}
+ 'bg-slate-50 border-slate-200 text-slate-700'
+ }`}
           >
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-black flex items-center justify-center text-xs shadow-xs">
+              <div className="w-8 h-8 rounded-full bg-[#123C2B] text-white font-black flex items-center justify-center text-xs shadow-xs">
                 {staffName.slice(0, 2).toUpperCase()}
               </div>
               <div>
@@ -136,10 +131,8 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
               {/* Metric 1: Tables Served */}
               <div
                 className={`p-2.5 rounded-xl border flex flex-col justify-between ${
-                  isDark
-                    ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300'
-                    : 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                }`}
+ 'bg-emerald-50 border-emerald-200 text-emerald-900'
+ }`}
               >
                 <div className="text-[10px] font-bold text-slate-400">Tables Served</div>
                 <div className="text-xl font-black text-emerald-400 my-0.5">
@@ -153,10 +146,8 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
               {/* Metric 2: KOTs Handled */}
               <div
                 className={`p-2.5 rounded-xl border flex flex-col justify-between ${
-                  isDark
-                    ? 'bg-orange-950/20 border-orange-800/40 text-orange-300'
-                    : 'bg-orange-50 border-orange-200 text-orange-900'
-                }`}
+ 'bg-orange-50 border-orange-200 text-orange-900'
+ }`}
               >
                 <div className="text-[10px] font-bold text-slate-400">KOTs Fired</div>
                 <div className="text-xl font-black text-orange-400 my-0.5">
@@ -170,16 +161,14 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
               {/* Metric 3: Active Tables */}
               <div
                 className={`p-2.5 rounded-xl border flex flex-col justify-between ${
-                  isDark
-                    ? 'bg-blue-950/20 border-blue-800/40 text-blue-300'
-                    : 'bg-blue-50 border-blue-200 text-blue-900'
-                }`}
+ 'bg-[#EDF4EC] border-[#CFE0D2] text-[#123C2B]'
+ }`}
               >
                 <div className="text-[10px] font-bold text-slate-400">Active Tables</div>
-                <div className="text-xl font-black text-blue-400 my-0.5">
+                <div className="text-xl font-black text-[#2E6B4C] my-0.5">
                   {activeTablesCount}
                 </div>
-                <div className="text-[10px] font-medium text-blue-400 flex items-center gap-1">
+                <div className="text-[10px] font-medium text-[#2E6B4C] flex items-center gap-1">
                   <Grid className="w-3 h-3" /> Need Handover
                 </div>
               </div>
@@ -187,16 +176,14 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
               {/* Metric 4: Cash Float */}
               <div
                 className={`p-2.5 rounded-xl border flex flex-col justify-between ${
-                  isDark
-                    ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                    : 'bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                }`}
+ 'bg-slate-50 border-slate-200 text-slate-800'
+ }`}
               >
-                <div className="text-[10px] font-bold text-slate-400">Cash Float</div>
-                <div className="text-xl font-black text-slate-700 dark:text-slate-300 my-0.5">
+                <div className="text-[10px] font-bold text-slate-600">Cash Float</div>
+                <div className="text-xl font-black text-slate-900 my-0.5">
                   ₹{cashFloatBalance}
                 </div>
-                <div className="text-[10px] font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                <div className="text-[10px] font-medium text-slate-700 flex items-center gap-1">
                   <Banknote className="w-3 h-3" /> Ready for Drop
                 </div>
               </div>
@@ -212,10 +199,8 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
               value={buddyWaiter}
               onChange={(e) => setBuddyWaiter(e.target.value)}
               className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-red-500 transition cursor-pointer ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 text-white'
-                  : 'bg-white border-slate-300 text-slate-900'
-              }`}
+ 'bg-white border-slate-300 text-slate-900'
+ }`}
             >
               {buddyOptions.map((opt) => (
                 <option key={opt.id} value={opt.name}>
@@ -236,24 +221,18 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
               value={handoverNotes}
               onChange={(e) => setHandoverNotes(e.target.value)}
               className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-red-500 transition ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500'
-                  : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
-              }`}
+ 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+ }`}
             />
           </div>
 
           {/* Cash Settlement Checkbox */}
           <div
             className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer ${
-              cashDropConfirmed
-                ? isDark
-                  ? 'bg-emerald-950/20 border-emerald-800/60 text-emerald-300'
-                  : 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                : isDark
-                ? 'bg-slate-900 border-slate-800 text-slate-400'
-                : 'bg-slate-50 border-slate-200 text-slate-600'
-            }`}
+ cashDropConfirmed
+ ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+ : 'bg-slate-50 border-slate-200 text-slate-600'
+ }`}
             onClick={() => setCashDropConfirmed(!cashDropConfirmed)}
           >
             <input
@@ -271,17 +250,15 @@ export const EndShiftHandoverModal: React.FC<EndShiftHandoverModalProps> = ({
         {/* Footer Actions */}
         <div
           className={`p-4 border-t flex items-center justify-between gap-3 ${
-            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-          }`}
+ 'bg-slate-50 border-slate-200'
+ }`}
         >
           <button
             type="button"
             onClick={onClose}
             className={`px-4 py-2 rounded-xl font-bold text-xs transition border ${
-              isDark
-                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
-            }`}
+ 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+ }`}
           >
             Cancel / Back to Duty
           </button>

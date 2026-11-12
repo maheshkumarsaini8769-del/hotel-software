@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "echo 'Prebuilt dist ready'",
+  "buildCommand": "cd .. && npm run build:backend",
   "rewrites": [
     {
       "source": "/(.*)",

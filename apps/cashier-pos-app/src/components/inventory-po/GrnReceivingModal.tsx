@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IPurchaseOrderUI, INewGrnPayload, InventoryPoHelper } from '@spicehub/ui';
+import { IPurchaseOrderUI, INewGrnPayload, InventoryPoHelper, NumericInput } from '@spicehub/ui';
 
 interface GrnReceivingModalProps {
   isOpen: boolean;
@@ -200,8 +200,7 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
                       {it.orderedQty} {it.unit}
                     </div>
                     <div className="col-span-2">
-                      <input
-                        type="number"
+                      <NumericInput
                         step="0.1"
                         min="0"
                         value={it.receivedQty}
@@ -211,8 +210,7 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
                       />
                     </div>
                     <div className="col-span-2">
-                      <input
-                        type="number"
+                      <NumericInput
                         step="0.1"
                         min="0"
                         value={it.acceptedQty}

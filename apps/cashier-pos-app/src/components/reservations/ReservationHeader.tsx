@@ -31,7 +31,7 @@ export const ReservationHeader: React.FC<ReservationHeaderProps> = ({
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         {/* Brand & Dual Tab Selector */}
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 via-amber-400 to-yellow-200 p-[1px] shadow-lg shadow-amber-500/10">
+          <div className="bg-emerald-600 hover:bg-emerald-700 text-white w-10 h-10 rounded-xl p-[1px] shadow-lg shadow-emerald-600/10">
             <div className="w-full h-full bg-slate-950 rounded-[11px] flex items-center justify-center">
               <span className="text-xl">{activeTab === 'DINING' ? '🍽️' : '🛎️'}</span>
             </div>
@@ -53,20 +53,20 @@ export const ReservationHeader: React.FC<ReservationHeaderProps> = ({
             <button
               onClick={() => onTabChange('DINING')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'DINING'
-                  ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+ activeTab === 'DINING'
+ ? 'bg-emerald-600 hover:bg-emerald-700 font-bold shadow-md shadow-emerald-600/20'
+ : 'text-slate-400 hover:text-white'
+ }`}
             >
               🍽️ Dining Seating
             </button>
             <button
               onClick={() => onTabChange('ROOMS')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'ROOMS'
-                  ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+ activeTab === 'ROOMS'
+ ? 'bg-emerald-600 hover:bg-emerald-700 font-bold shadow-md shadow-emerald-600/20'
+ : 'text-slate-400 hover:text-white'
+ }`}
             >
               🛎️ Room Arrivals
             </button>
@@ -75,7 +75,7 @@ export const ReservationHeader: React.FC<ReservationHeaderProps> = ({
           {activeTab === 'DINING' && (
             <button
               onClick={onOpenNewDiningModal}
-              className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md shadow-amber-950/40 transition-all cursor-pointer active:scale-95"
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-amber-400 text-white font-bold text-xs shadow-md shadow-slate-900/40 transition-all cursor-pointer active:scale-95"
             >
               + New Table Booking
             </button>

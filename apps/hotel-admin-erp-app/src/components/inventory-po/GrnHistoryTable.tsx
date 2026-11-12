@@ -1,6 +1,7 @@
 import React from 'react';
 import { IGoodsReceivedNoteUI, InventoryPoHelper } from '@spicehub/ui';
 import { GrnStatusBadge } from './PoStatusBadge';
+import { Truck, FileCheck, Calendar, DollarSign, Package } from 'lucide-react';
 
 interface GrnHistoryTableProps {
   grns: IGoodsReceivedNoteUI[];
@@ -9,40 +10,53 @@ interface GrnHistoryTableProps {
 
 export const GrnHistoryTable: React.FC<GrnHistoryTableProps> = ({ grns, loading }) => {
   return (
-    <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 space-y-4 shadow-xl">
-      <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-        <div>
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
-            <span>Dock Goods Received Register (GRN)</span>
-          </h2>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Physical receipt audit trail, invoice matching and accepted value verification
-          </p>
+    <div className="bg-white rounded-2xl border border-slate-200/80 p-6 space-y-5 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shadow-xs">
+            <Truck className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              Dock Goods Received Register (GRN)
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Physical receipt audit trail, invoice 3-way matching, and accepted dock stock verification.
+            </p>
+          </div>
         </div>
-        <span className="text-xs text-zinc-400 font-mono">
-          {grns.length} Receiving Records
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+            {grns.length} Received Logs
+          </span>
+        </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-800">
-        <table className="w-full text-left text-xs text-zinc-300">
-          <thead className="bg-slate-900 text-zinc-400 uppercase font-semibold text-[11px] border-b border-zinc-800">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
+        <table className="w-full text-left text-xs text-slate-700">
+          <thead className="bg-slate-50 text-slate-500 uppercase font-semibold text-[11px] border-b border-slate-200">
             <tr>
-              <th className="px-4 py-3">GRN #</th>
-              <th className="px-4 py-3">Ref PO #</th>
-              <th className="px-4 py-3">Supplier Name</th>
-              <th className="px-4 py-3">Vendor Invoice #</th>
-              <th className="px-4 py-3 text-right">Accepted Value</th>
-              <th className="px-4 py-3">Inspection Status</th>
-              <th className="px-4 py-3">Dock Notes</th>
-              <th className="px-4 py-3">Receiving Date</th>
+              <th className="px-4 py-3.5">GRN #</th>
+              <th className="px-4 py-3.5">Ref PO #</th>
+              <th className="px-4 py-3.5">Supplier Name</th>
+              <th className="px-4 py-3.5">Supplier Invoice #</th>
+              <th className="px-4 py-3.5 text-right">Accepted Value</th>
+              <th className="px-4 py-3.5">Quality Inspection</th>
+              <th className="px-4 py-3.5">Dock Notes</th>
+              <th className="px-4 py-3.5">Receiving Date</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800/80 bg-zinc-950/40">
+          <tbody className="divide-y divide-slate-100 bg-white">
             {grns.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-zinc-500">
-                  No dock receiving notes generated yet
+                <td colSpan={8} className="px-4 py-16 text-center text-slate-400">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <Package className="w-8 h-8 text-slate-300" />
+                    <p className="font-semibold text-slate-700">No Dock Receiving Notes Recorded</p>
+                    <p className="text-xs text-slate-400">
+                      When vendors deliver stock against an approved PO, generate GRN at the dock.
+                    </p>
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -51,29 +65,29 @@ export const GrnHistoryTable: React.FC<GrnHistoryTableProps> = ({ grns, loading 
                 const poNumber = typeof grn.poId === 'object' ? grn.poId?.poNumber : 'PO';
 
                 return (
-                  <tr key={grn._id} className="hover:bg-zinc-900/50 transition-colors">
-                    <td className="px-4 py-3 font-mono font-bold text-emerald-400">
+                  <tr key={grn._id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-4 py-3.5 font-mono font-bold text-emerald-700">
                       {grn.grnNumber}
                     </td>
-                    <td className="px-4 py-3 font-mono font-semibold text-amber-400">
+                    <td className="px-4 py-3.5 font-mono font-semibold text-slate-800">
                       {poNumber}
                     </td>
-                    <td className="px-4 py-3 font-medium text-white max-w-[170px] truncate">
+                    <td className="px-4 py-3.5 font-semibold text-slate-900 max-w-[180px] truncate">
                       {vendorName}
                     </td>
-                    <td className="px-4 py-3 font-mono text-zinc-300">
+                    <td className="px-4 py-3.5 font-mono text-slate-600">
                       {grn.invoiceNumber}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono font-black text-white">
+                    <td className="px-4 py-3.5 text-right font-mono font-bold text-slate-900">
                       {InventoryPoHelper.formatCurrency(grn.finalInvoiceAmount)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5">
                       <GrnStatusBadge status={grn.status} />
                     </td>
-                    <td className="px-4 py-3 max-w-[200px] truncate text-zinc-400" title={grn.dockNotes}>
-                      {grn.dockNotes || 'No issues reported'}
+                    <td className="px-4 py-3.5 max-w-[200px] truncate text-slate-500" title={grn.dockNotes}>
+                      {grn.dockNotes || 'All items verified'}
                     </td>
-                    <td className="px-4 py-3 font-mono text-[11px] text-zinc-500">
+                    <td className="px-4 py-3.5 font-mono text-xs text-slate-500">
                       {new Date(grn.createdAt || grn.invoiceDate).toLocaleDateString('en-IN', {
                         day: '2-digit',
                         month: 'short',

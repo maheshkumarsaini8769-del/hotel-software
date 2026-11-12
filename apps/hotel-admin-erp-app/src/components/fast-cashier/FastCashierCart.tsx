@@ -2,8 +2,9 @@ import React from 'react';
 import {
   IFastCashierCartItem,
   IFastCashierFinancials,
-  FastCashierHelper,
+  FastCashierHelper, NumericInput,
 } from '@spicehub/ui';
+import { ShoppingCart, Banknote, QrCode, CreditCard, Trash2, Printer } from 'lucide-react';
 
 interface FastCashierCartProps {
   cart: IFastCashierCartItem[];
@@ -47,55 +48,55 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
   const isUnderpaid = paymentMethod === 'CASH' && tenderAmount < financials.grandTotal && tenderAmount > 0;
 
   return (
-    <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 flex flex-col justify-between shadow-sm dark:shadow-none h-full">
+    <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-xs h-full">
       {/* Header */}
       <div>
-        <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <span className="text-base font-bold text-white">Current Cart</span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+            <span className="text-base font-bold text-slate-900">Current Cart</span>
+            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               {cart.reduce((sum, item) => sum + item.quantity, 0)} items
             </span>
           </div>
-          <span className="text-xs text-zinc-400 font-mono">Takeaway Counter</span>
+          <span className="text-xs text-slate-500 font-medium">Takeaway Counter</span>
         </div>
 
         {/* Cart Items List */}
         <div className="mt-3 space-y-2 max-h-[220px] overflow-y-auto pr-1">
           {cart.length === 0 ? (
-            <div className="py-12 text-center text-zinc-500 text-xs flex flex-col items-center gap-2">
-              <span className="text-2xl">🛒</span>
-              <span>Cart is empty. Scan barcode or punch item code.</span>
+            <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
+              <ShoppingCart className="w-8 h-8 text-slate-300 stroke-[1.5]" />
+              <span>Cart is empty. Select items or scan barcode to add.</span>
             </div>
           ) : (
             cart.map((item) => (
               <div
                 key={item.menuItemId}
-                className="bg-zinc-900/80 border border-zinc-800/80 rounded-xl p-2.5 flex items-center justify-between gap-3 group hover:border-zinc-700 transition-all"
+                className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex items-center justify-between gap-3 group hover:border-slate-300 transition-all"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-zinc-200 truncate">{item.name}</div>
-                  <div className="text-[11px] text-zinc-400 font-mono">
+                  <div className="text-xs font-semibold text-slate-800 truncate">{item.name}</div>
+                  <div className="text-[11px] text-slate-500 font-mono">
                     ₹{item.unitPrice} each
                   </div>
                 </div>
 
                 {/* Quantity Controls */}
-                <div className="flex items-center gap-1.5 bg-black/40 rounded-lg p-1 border border-zinc-800">
+                <div className="flex items-center gap-1.5 bg-white rounded-lg p-1 border border-slate-200 shadow-2xs">
                   <button
                     type="button"
                     onClick={() => onUpdateQty(item.menuItemId, item.quantity - 1)}
-                    className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold transition-all flex items-center justify-center"
+                    className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center justify-center"
                   >
                     -
                   </button>
-                  <span className="w-6 text-center text-xs font-mono font-bold text-white">
+                  <span className="w-6 text-center text-xs font-mono font-bold text-slate-800">
                     {item.quantity}
                   </span>
                   <button
                     type="button"
                     onClick={() => onUpdateQty(item.menuItemId, item.quantity + 1)}
-                    className="w-6 h-6 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold transition-all flex items-center justify-center"
+                    className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center justify-center"
                   >
                     +
                   </button>
@@ -103,16 +104,16 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
 
                 {/* Subtotal & Delete */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono font-bold text-amber-400 w-16 text-right">
+                  <span className="text-xs font-mono font-bold text-slate-900 w-16 text-right">
                     ₹{item.subtotal}
                   </span>
                   <button
                     type="button"
                     onClick={() => onRemoveItem(item.menuItemId)}
-                    className="text-zinc-500 hover:text-red-400 p-1 transition-colors text-xs"
+                    className="text-slate-400 hover:text-rose-600 p-1 transition-colors text-xs"
                     title="Remove item"
                   >
-                    ✕
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -121,81 +122,84 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
         </div>
 
         {/* Customer Details & Cooking Notes Accordion */}
-        <div className="mt-4 pt-3 border-t border-zinc-800 grid grid-cols-2 gap-2">
+        <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
           <input
             type="text"
             value={customerName}
             onChange={(e) => onSetCustomerName(e.target.value)}
             placeholder="Customer Name (optional)"
-            className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-white placeholder:text-zinc-600 outline-none focus:border-amber-400"
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:bg-white focus:border-emerald-500 transition-colors"
           />
           <input
             type="tel"
             value={customerPhone}
             onChange={(e) => onSetCustomerPhone(e.target.value)}
             placeholder="Phone (optional)"
-            className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-white placeholder:text-zinc-600 outline-none focus:border-amber-400"
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:bg-white focus:border-emerald-500 transition-colors"
           />
           <input
             type="text"
             value={cookingInstructions}
             onChange={(e) => onSetCookingInstructions(e.target.value)}
             placeholder="Kitchen notes (e.g. extra spicy, packing)"
-            className="col-span-2 px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-white placeholder:text-zinc-600 outline-none focus:border-amber-400"
+            className="col-span-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:bg-white focus:border-emerald-500 transition-colors"
           />
         </div>
       </div>
 
       {/* Financials & Payment Section */}
-      <div className="mt-4 pt-3 border-t border-zinc-800 flex flex-col gap-3">
+      <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-3">
         {/* Bill Breakdown */}
-        <div className="space-y-1 text-xs">
-          <div className="flex justify-between text-zinc-400">
+        <div className="space-y-1.5 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+          <div className="flex justify-between text-slate-600">
             <span>Subtotal</span>
-            <span className="font-mono text-zinc-300">₹{financials.subtotal}</span>
+            <span className="font-mono text-slate-800">₹{financials.subtotal}</span>
           </div>
-          <div className="flex justify-between text-zinc-400">
+          <div className="flex justify-between text-slate-600">
             <span>GST (5%)</span>
-            <span className="font-mono text-zinc-300">₹{financials.taxAmount}</span>
+            <span className="font-mono text-slate-800">₹{financials.taxAmount}</span>
           </div>
-          <div className="flex justify-between items-center text-sm font-black text-white pt-1 border-t border-zinc-800/80">
-            <span className="text-amber-400">GRAND TOTAL</span>
-            <span className="font-mono text-xl text-amber-400">₹{financials.grandTotal}</span>
+          <div className="flex justify-between items-center text-sm font-bold text-slate-900 pt-1.5 border-t border-slate-200">
+            <span className="text-slate-900 uppercase tracking-wide">Grand Total</span>
+            <span className="font-mono text-lg font-black text-emerald-700">₹{financials.grandTotal}</span>
           </div>
         </div>
 
         {/* Payment Method Switcher */}
         <div className="grid grid-cols-3 gap-2">
-          {(['CASH', 'UPI', 'CARD'] as const).map((method) => (
-            <button
-              key={method}
-              type="button"
-              onClick={() => onSetPaymentMethod(method)}
-              className={`py-2 rounded-xl text-xs font-bold transition-all border ${
-                paymentMethod === method
-                  ? 'bg-amber-500 text-black border-amber-400 shadow-sm dark:shadow-none'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-              }`}
-            >
-              {method === 'CASH' && '💵 Cash'}
-              {method === 'UPI' && '📱 UPI QR'}
-              {method === 'CARD' && '💳 Card'}
-            </button>
-          ))}
+          {(['CASH', 'UPI', 'CARD'] as const).map((method) => {
+            const isSelected = paymentMethod === method;
+            return (
+              <button
+                key={method}
+                type="button"
+                onClick={() => onSetPaymentMethod(method)}
+                className={`py-2 px-2 rounded-xl text-xs font-semibold transition-all border flex items-center justify-center gap-1.5 ${
+                  isSelected
+                    ? 'btn-glass-green text-xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                {method === 'CASH' && <Banknote className="w-3.5 h-3.5" />}
+                {method === 'UPI' && <QrCode className="w-3.5 h-3.5" />}
+                {method === 'CARD' && <CreditCard className="w-3.5 h-3.5" />}
+                <span>{method === 'CASH' ? 'Cash' : method === 'UPI' ? 'UPI QR' : 'Card'}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Quick Cash Tender Notes (Only if CASH selected) */}
         {paymentMethod === 'CASH' && (
-          <div className="space-y-2 bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-800">
-            <div className="flex items-center justify-between text-[11px] text-zinc-400">
+          <div className="space-y-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <div className="flex items-center justify-between text-xs text-slate-600 font-medium">
               <span>Tender Cash:</span>
               <div className="flex items-center gap-1 font-mono">
                 <span>₹</span>
-                <input
-                  type="number"
+                <NumericInput
                   value={tenderAmount || ''}
                   onChange={(e) => onSetTenderAmount(Number(e.target.value))}
-                  className="w-20 px-2 py-0.5 bg-black border border-zinc-700 rounded text-amber-400 font-bold text-xs text-right outline-none focus:border-amber-400"
+                  className="w-20 px-2 py-1 bg-white border border-slate-300 rounded-lg text-emerald-800 font-bold text-xs text-right outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
@@ -207,10 +211,10 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
                   key={note}
                   type="button"
                   onClick={() => onSetTenderAmount(note)}
-                  className={`px-2 py-1 rounded text-[11px] font-mono font-bold transition-all border ${
+                  className={`px-2 py-1 rounded-lg text-xs font-mono font-bold transition-all border ${
                     tenderAmount === note
-                      ? 'bg-amber-400 text-black border-amber-300'
-                      : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:border-amber-500/50'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
                   ₹{note}
@@ -219,7 +223,7 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
               <button
                 type="button"
                 onClick={() => onSetTenderAmount(financials.grandTotal)}
-                className="px-2 py-1 rounded text-[11px] font-bold bg-zinc-800 text-amber-300 border border-zinc-700 hover:border-amber-400"
+                className="px-2 py-1 rounded-lg text-xs font-semibold bg-white text-emerald-800 border border-slate-200 hover:bg-emerald-50"
               >
                 Exact
               </button>
@@ -232,14 +236,14 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
           <div
             className={`p-3 rounded-xl border flex items-center justify-between font-mono ${
               isUnderpaid
-                ? 'bg-red-950/40 border-red-500/50 text-red-300'
-                : 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 shadow-sm dark:shadow-none'
+                ? 'bg-rose-50 border-rose-200 text-rose-800'
+                : 'bg-emerald-50 border-emerald-200 text-emerald-800 shadow-2xs'
             }`}
           >
             <span className="text-xs uppercase font-bold tracking-wider font-sans">
               {isUnderpaid ? 'Due Remaining:' : 'Change to Return:'}
             </span>
-            <span className="text-xl font-black">
+            <span className="text-lg font-black">
               {isUnderpaid
                 ? `₹${financials.grandTotal - tenderAmount}`
                 : `₹${changeDue}`}
@@ -252,14 +256,15 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
           type="button"
           onClick={onSubmitOrder}
           disabled={cart.length === 0 || loading || (paymentMethod === 'CASH' && tenderAmount < financials.grandTotal)}
-          className="w-full py-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 disabled:from-zinc-800 disabled:to-zinc-800 text-black disabled:text-zinc-600 font-black text-base uppercase tracking-wider transition-all shadow-sm dark:shadow-none disabled:shadow-none flex items-center justify-center gap-2 active:scale-[0.98]"
+          className="btn-glass-green w-full py-3.5 text-sm font-bold tracking-wide"
         >
           {loading ? (
             <span>Punching Order...</span>
           ) : (
             <>
-              <span>⚡ PUNCH & PRINT TOKEN</span>
-              <span className="font-mono text-sm">(F12 / ENTER)</span>
+              <Printer className="w-4 h-4" />
+              <span>PUNCH &amp; PRINT TOKEN</span>
+              <span className="font-mono text-xs opacity-80">(Enter)</span>
             </>
           )}
         </button>

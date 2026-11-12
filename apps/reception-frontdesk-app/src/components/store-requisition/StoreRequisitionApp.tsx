@@ -214,7 +214,7 @@ export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
         )}
 
         {activeTab === 'TRANSFERS' && (
-          <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 space-y-4">
+          <div className="bg-slate-900 rounded-xl border border-zinc-800 p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <div>
                 <h2 className="text-base font-bold text-white">Inter-Kitchen Stock Transfers</h2>
@@ -223,7 +223,7 @@ export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
               <button
                 type="button"
                 onClick={() => store.setActiveModal('NEW_TRANSFER')}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase"
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase"
               >
                 + Dispatch Transfer
               </button>
@@ -243,30 +243,34 @@ export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
         )}
       </div>
 
-      {/* New Requisition Modal */}
-      <NewRequisitionModal
-        isOpen={activeModal === 'NEW_REQ'}
-        onClose={() => store.setActiveModal(null)}
-        onSave={handleSaveRequisition}
-        loading={loading}
-      />
+      {/* Exclusive Modal Stack: Only one modal can mount and render at a time */}
+      {activeModal === 'NEW_REQ' && (
+        <NewRequisitionModal
+          isOpen={true}
+          onClose={() => store.setActiveModal(null)}
+          onSave={handleSaveRequisition}
+          loading={loading}
+        />
+      )}
 
-      {/* Issue Stock Modal */}
-      <IssueRequisitionModal
-        isOpen={activeModal === 'ISSUE_REQ'}
-        requisition={selectedReq}
-        onClose={() => store.setActiveModal(null)}
-        onSave={handleIssueRequisition}
-        loading={loading}
-      />
+      {activeModal === 'ISSUE_REQ' && (
+        <IssueRequisitionModal
+          isOpen={true}
+          requisition={selectedReq}
+          onClose={() => store.setActiveModal(null)}
+          onSave={handleIssueRequisition}
+          loading={loading}
+        />
+      )}
 
-      {/* Inter-Kitchen Transfer Modal */}
-      <InterKitchenTransferModal
-        isOpen={activeModal === 'NEW_TRANSFER'}
-        onClose={() => store.setActiveModal(null)}
-        onSave={handleSaveTransfer}
-        loading={loading}
-      />
+      {activeModal === 'NEW_TRANSFER' && (
+        <InterKitchenTransferModal
+          isOpen={true}
+          onClose={() => store.setActiveModal(null)}
+          onSave={handleSaveTransfer}
+          loading={loading}
+        />
+      )}
     </div>
   );
 };

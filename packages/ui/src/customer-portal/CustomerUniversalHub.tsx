@@ -1,4 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
+import {
+  MapPin,
+  Building,
+  Building2,
+  Utensils,
+  Bell,
+  Camera,
+  PenTool,
+  Key,
+  BedDouble,
+  AlertCircle,
+  AlertTriangle,
+  X,
+  Check,
+  Lock,
+  Unlock,
+  ArrowRight,
+} from 'lucide-react';
 
 export interface ActiveHotel {
   id: string;
@@ -76,7 +94,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
           }
         }
       } catch (err) {
-        console.warn('⚠️ [CustomerHub] Could not fetch active hotels:', err);
+        console.warn('[CustomerHub] Could not fetch active hotels:', err);
       } finally {
         if (isMounted) setLoadingHotels(false);
       }
@@ -124,7 +142,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
           }
         }
       } catch (err) {
-        console.warn('⚠️ [CustomerHub] Table load note:', err);
+        console.warn('[CustomerHub] Table load note:', err);
       } finally {
         if (isMounted) setLoadingTables(false);
       }
@@ -189,7 +207,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
 
   const processQrCodeValue = (rawCode: string) => {
     const trimmed = rawCode.trim();
-    setScanFeedback(`✨ Scanned code detected: "${trimmed}". Resolving...`);
+    setScanFeedback(`Scanned code detected: "${trimmed}". Resolving...`);
 
     let tableNum = '';
     let roomNum = '';
@@ -409,8 +427,18 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
         {/* Welcome Banner */}
         <div className="rounded-3xl bg-gradient-to-br from-slate-900 via-[#0f172a] to-[#1e1b4b]/40 border border-slate-800/90 p-5 shadow-xl relative overflow-hidden">
           <div className="relative z-10">
-            <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-amber-500/10 text-amber-400 border border-amber-500/30 mb-2">
-              {selectedHotel?.city ? `📍 ${selectedHotel.city}` : '🏨 5-Star Hospitality'}
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-amber-500/10 text-amber-400 border border-amber-500/30 mb-2">
+              {selectedHotel?.city ? (
+                <>
+                  <MapPin className="w-3 h-3 shrink-0" />
+                  <span>{selectedHotel.city}</span>
+                </>
+              ) : (
+                <>
+                  <Building2 className="w-3 h-3 shrink-0" />
+                  <span>5-Star Hospitality</span>
+                </>
+              )}
             </span>
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
               Welcome to {selectedHotel?.name || 'SpiceHub Luxury'}
@@ -419,16 +447,21 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
               Order gourmet dishes to your dining table or request verified in-room services.
             </p>
           </div>
-          <div className="absolute right-0 bottom-0 opacity-10 translate-x-4 translate-y-4 pointer-events-none text-9xl">
-            🍽️
+          <div className="absolute right-0 bottom-0 opacity-10 translate-x-4 translate-y-4 pointer-events-none text-slate-100">
+            <Utensils size={120} />
           </div>
         </div>
 
         {/* Validation Error Alert */}
         {validationError && (
           <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold flex items-center justify-between">
-            <span>⚠️ {validationError}</span>
-            <button onClick={() => setValidationError(null)} className="text-red-400 font-bold ml-2">✕</button>
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{validationError}</span>
+            </div>
+            <button onClick={() => setValidationError(null)} className="text-red-400 hover:text-red-200 font-bold ml-2 p-1">
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
@@ -447,13 +480,13 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                 setStayVerifyError(null);
               }}
               className={`p-4 rounded-2xl border text-left transition-all flex flex-col gap-2 min-h-[96px] ${
-                mode === 'table'
-                  ? 'border-amber-500/80 bg-amber-500/10 shadow-lg shadow-amber-500/10'
-                  : 'border-slate-800 bg-slate-900/60 hover:bg-slate-850 hover:border-slate-700'
-              }`}
+ mode === 'table'
+ ? 'border-amber-500/80 bg-amber-500/10 shadow-lg shadow-amber-500/10'
+ : 'border-slate-800 bg-slate-900/60 hover:bg-slate-850 hover:border-slate-700'
+ }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-2xl">🍽️</span>
+                <Utensils className="w-6 h-6 text-amber-400" />
                 {mode === 'table' && (
                   <span className="w-2 h-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400" />
                 )}
@@ -477,13 +510,13 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                 setStayVerifyError(null);
               }}
               className={`p-4 rounded-2xl border text-left transition-all flex flex-col gap-2 min-h-[96px] ${
-                mode === 'room'
-                  ? 'border-blue-500/80 bg-blue-500/10 shadow-lg shadow-blue-500/10'
-                  : 'border-slate-800 bg-slate-900/60 hover:bg-slate-850 hover:border-slate-700'
-              }`}
+ mode === 'room'
+ ? 'border-blue-500/80 bg-blue-500/10 shadow-lg shadow-blue-500/10'
+ : 'border-slate-800 bg-slate-900/60 hover:bg-slate-850 hover:border-slate-700'
+ }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-2xl">🛎️</span>
+                <Bell className="w-6 h-6 text-blue-400" />
                 {mode === 'room' && (
                   <span className="w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400" />
                 )}
@@ -510,7 +543,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-sm font-bold">
-                    📷
+                    <Camera className="w-4 h-4" />
                   </div>
                   <div>
                     <h3 className="text-sm font-extrabold text-white">
@@ -556,7 +589,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                   onClick={startCamera}
                   className="min-h-[50px] rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm tracking-wide shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2.5 transition active:scale-[0.99]"
                 >
-                  <span>📷</span>
+                  <Camera className="w-5 h-5 shrink-0" />
                   <span>Scan Table QR Code</span>
                 </button>
               )}
@@ -572,7 +605,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
             {/* Manual Table Number Input Form */}
             <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 flex flex-col gap-4">
               <div className="flex items-center gap-2">
-                <span className="text-sm">✍️</span>
+                <PenTool className="w-4 h-4 text-slate-400 shrink-0" />
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
                     Or Enter Table Number
@@ -655,7 +688,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                 }`}
               >
-                <span>🔑</span>
+                <Key className="w-3.5 h-3.5 shrink-0" />
                 <span>I Have a Room (In-Stay)</span>
               </button>
               <button
@@ -671,7 +704,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                 }`}
               >
-                <span>🛏️</span>
+                <BedDouble className="w-3.5 h-3.5 shrink-0" />
                 <span>Book a Room (Catalog)</span>
               </button>
             </div>
@@ -684,7 +717,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 text-sm font-bold">
-                        📷
+                        <Camera className="w-4 h-4" />
                       </div>
                       <div>
                         <h3 className="text-sm font-extrabold text-white">
@@ -730,7 +763,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                       onClick={startCamera}
                       className="min-h-[50px] rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-sm tracking-wide shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2.5 transition active:scale-[0.99]"
                     >
-                      <span>📷</span>
+                      <Camera className="w-5 h-5 shrink-0" />
                       <span>Scan In-Room QR Code</span>
                     </button>
                   )}
@@ -740,7 +773,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                 <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 flex flex-col gap-4">
                   <div>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                      <span>🔑</span>
+                      <Key className="w-3.5 h-3.5 text-slate-400" />
                       <span>Verify Checked-In Room Stay</span>
                     </h3>
                     <p className="text-[11px] text-slate-400 mt-0.5">
@@ -751,7 +784,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                   {stayVerifyError && (
                     <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex flex-col gap-2">
                       <div className="flex items-start gap-2">
-                        <span>⚠️</span>
+                        <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                         <span>{stayVerifyError}</span>
                       </div>
                       <button
@@ -760,9 +793,10 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                           setRoomFlowType('booking');
                           setStayVerifyError(null);
                         }}
-                        className="self-start text-[11px] font-bold text-amber-400 underline hover:text-amber-300"
+                        className="self-start text-[11px] font-bold text-amber-400 underline hover:text-amber-300 flex items-center gap-1"
                       >
-                        👉 Explore available rooms from hotel catalog instead
+                        <ArrowRight className="w-3 h-3" />
+                        <span>Explore available rooms from hotel catalog instead</span>
                       </button>
                     </div>
                   )}
@@ -810,7 +844,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                         </>
                       ) : (
                         <>
-                          <span>🔓</span>
+                          <Unlock className="w-4 h-4" />
                           <span>Verify Stay & Enter Room Portal</span>
                         </>
                       )}
@@ -825,7 +859,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
               <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 flex flex-col gap-4 shadow-xl">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-lg font-bold">
-                    🛏️
+                    <BedDouble className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="text-sm font-extrabold text-white">
@@ -839,19 +873,19 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
 
                 <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2.5 text-xs text-slate-300">
                   <div className="flex items-center gap-2">
-                    <span className="text-emerald-400 font-bold">✓</span>
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <span>Live Operational Statuses (Available, Cleaning Turnaround, Occupied)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-emerald-400 font-bold">✓</span>
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <span>Dynamic Check-in Dates & Multi-Night Tariff Calculation</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-emerald-400 font-bold">✓</span>
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <span>GPS Property Proximity Check (Walk-in vs Advance Online Booking)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-emerald-400 font-bold">✓</span>
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <span>Aadhaar / Government ID KYC Verification & Couple Stay Friendly</span>
                   </div>
                 </div>
@@ -862,7 +896,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                   onClick={() => handleLaunchRoomCatalog(selectedHotel)}
                   className="min-h-[50px] rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm uppercase tracking-wider shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition active:scale-[0.99]"
                 >
-                  <span>🏨</span>
+                  <Building2 className="w-4 h-4 shrink-0" />
                   <span>Explore Available Rooms & Book Now</span>
                 </button>
               </div>
@@ -889,7 +923,7 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                 onClick={() => setIsHotelSelectorOpen(false)}
                 className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-sm"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -917,23 +951,30 @@ export const CustomerUniversalHub: React.FC<CustomerUniversalHubProps> = ({
                       type="button"
                       onClick={() => handleSelectHotel(h)}
                       className={`p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                        isSelected
-                          ? 'border-amber-500/80 bg-amber-500/10'
-                          : 'border-slate-800 bg-slate-900/60 hover:bg-slate-850 hover:border-slate-700'
-                      }`}
+ isSelected
+ ? 'border-amber-500/80 bg-amber-500/10'
+ : 'border-slate-800 bg-slate-900/60 hover:bg-slate-850 hover:border-slate-700'
+ }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center font-bold text-amber-400 text-sm">
-                          🏨
+                          <Building2 className="w-5 h-5" />
                         </div>
                         <div>
                           <div className="text-xs font-bold text-white">{h.name}</div>
                           <div className="text-[11px] text-slate-400">
-                            {h.city ? `📍 ${h.city}` : 'SpiceHub Premier'}
+                            {h.city ? (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-slate-400" />
+                                {h.city}
+                              </span>
+                            ) : (
+                              'SpiceHub Premier'
+                            )}
                           </div>
                         </div>
                       </div>
-                      {isSelected && <span className="text-amber-400 text-sm font-bold">✓</span>}
+                      {isSelected && <Check className="w-4 h-4 text-amber-400 shrink-0" />}
                     </button>
                   );
                 })

@@ -32,12 +32,23 @@ export interface ITenant extends Document {
     logoUrl?: string;
     tagline?: string;
   };
+  adminLoginBranding?: {
+    heroTitle?: string;
+    heroSubtitle?: string;
+    heroImageUrl?: string;
+    formTitle?: string;
+    formSubtitle?: string;
+    updatedAt?: Date;
+  };
   wifiSsid?: string;
   wifiPassword?: string;
   contactEmail: string;
   contactPhone: string;
   currency: string;
   status: 'ACTIVE' | 'SUSPENDED' | 'TRIAL';
+  staffAccessCodeHash?: string;
+  staffAccessCodeVersion?: string;
+  staffAccessCodeUpdatedAt?: Date;
   subscriptionPlanId?: Types.ObjectId;
   subscriptionPlanCode?: string;
   subscriptionPlanName?: string;
@@ -64,8 +75,14 @@ export interface ITenant extends Document {
     paymentStatus?: 'PAID' | 'PENDING' | 'OVERDUE';
   };
   enabledPortals: string[];
+  subscribedFeatures?: string[];
   featureFlags: {
     pmsEnabled: boolean;
+    frontDeskEnabled?: boolean;
+    roomBookingEnabled?: boolean;
+    inRoomServicesEnabled?: boolean;
+    tableOrderingEnabled?: boolean;
+    waiterDispatchEnabled?: boolean;
     kdsEnabled: boolean;
     qrDineInEnabled: boolean;
     roomServiceEnabled: boolean;
@@ -85,11 +102,81 @@ export interface ITenant extends Document {
     roomGstTariffThreshold?: number;
     roundOffBills?: boolean;
     autoPrintKot?: boolean;
+    thermalPrinterWidth?: '58mm' | '80mm';
+    printHeaderWithLogo?: boolean;
     kotSoundAlert?: boolean;
     smsReceipts?: boolean;
     whatsappReceipts?: boolean;
     autoCloseShiftTime?: string;
     billFooterNote?: string;
+  };
+  operationalPolicies?: {
+    checkInTime?: string;
+    checkOutTime?: string;
+    gracePeriodMinutes?: number;
+    earlyCheckInChargePercent?: number;
+    lateCheckOutChargePercent?: number;
+    cancellationFreeHours?: number;
+    cancellationPenaltyPercent?: number;
+    cancellationStrictHours?: number;
+    securityDepositPerNight?: number;
+    maxKeycardsPerRoom?: number;
+    minInRoomDiningOrderAmount?: number;
+    inRoomDiningDeliverySlaMinutes?: number;
+    tableTurnoverLimitMinutes?: number;
+    kotVoidManagerPinThreshold?: number;
+    waiterMaxDiscountPercent?: number;
+    managerMaxDiscountPercent?: number;
+    openingCashFloatAmount?: number;
+    cashierVarianceToleranceAmount?: number;
+    cashierVarianceAlertThreshold?: number;
+    nightAuditExecutionWindow?: string;
+    housekeepingTurnaroundSlaMinutes?: number;
+    lostAndFoundStandardRetentionDays?: number;
+    lostAndFoundValuableRetentionDays?: number;
+    nonSmokingFineAmount?: number;
+    petSanitationFeePerNight?: number;
+    maxTablesPerWaiter?: number;
+    updatedAt?: Date;
+  };
+  payrollPolicy?: {
+    autoAttendanceEnabled?: boolean;
+    autoMarkAbsentAfterCutoff?: boolean;
+    autoApplyAbsenceDeduction?: boolean;
+    absenceCutoffTime?: string;
+    portalDeductionRules?: {
+      waiter?: {
+        deductOnAbsent: boolean;
+        mode: 'NO_DEDUCTION' | 'FIXED_AMOUNT' | 'PRO_RATA';
+        perDayAmount: number;
+        halfDayPercent: number;
+      };
+      kds?: {
+        deductOnAbsent: boolean;
+        mode: 'NO_DEDUCTION' | 'FIXED_AMOUNT' | 'PRO_RATA';
+        perDayAmount: number;
+        halfDayPercent: number;
+      };
+      cashier?: {
+        deductOnAbsent: boolean;
+        mode: 'NO_DEDUCTION' | 'FIXED_AMOUNT' | 'PRO_RATA';
+        perDayAmount: number;
+        halfDayPercent: number;
+      };
+      reception?: {
+        deductOnAbsent: boolean;
+        mode: 'NO_DEDUCTION' | 'FIXED_AMOUNT' | 'PRO_RATA';
+        perDayAmount: number;
+        halfDayPercent: number;
+      };
+      admin?: {
+        deductOnAbsent: boolean;
+        mode: 'NO_DEDUCTION' | 'FIXED_AMOUNT' | 'PRO_RATA';
+        perDayAmount: number;
+        halfDayPercent: number;
+      };
+    };
+    updatedAt?: Date;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -128,6 +215,14 @@ const TenantSchema = new Schema<ITenant>(
       logoUrl: { type: String },
       tagline: { type: String },
     },
+    adminLoginBranding: {
+      heroTitle: { type: String, trim: true },
+      heroSubtitle: { type: String, trim: true },
+      heroImageUrl: { type: String, trim: true },
+      formTitle: { type: String, trim: true },
+      formSubtitle: { type: String, trim: true },
+      updatedAt: { type: Date },
+    },
     wifiSsid: { type: String, trim: true, default: 'TajGateway_HighSpeed' },
     wifiPassword: { type: String, trim: true, default: 'SpiceGuest@2026' },
     contactEmail: { type: String, required: true, lowercase: true, trim: true },
@@ -139,6 +234,9 @@ const TenantSchema = new Schema<ITenant>(
       default: 'TRIAL',
       index: true,
     },
+    staffAccessCodeHash: { type: String, select: false },
+    staffAccessCodeVersion: { type: String, select: false },
+    staffAccessCodeUpdatedAt: { type: Date },
     subscriptionPlanId: { type: Schema.Types.ObjectId, ref: 'SubscriptionPlan' },
     subscriptionPlanCode: { type: String, uppercase: true, trim: true },
     subscriptionPlanName: { type: String, trim: true },
@@ -155,8 +253,17 @@ const TenantSchema = new Schema<ITenant>(
       default: ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'],
       index: true,
     },
+    subscribedFeatures: {
+      type: [String],
+      default: ['pms_inventory', 'qr_table_ordering', 'gst_invoicing', 'whatsapp_alerts', 'staff_attendance', 'kds_routing'],
+    },
     featureFlags: {
       pmsEnabled: { type: Boolean, default: true },
+      frontDeskEnabled: { type: Boolean },
+      roomBookingEnabled: { type: Boolean },
+      inRoomServicesEnabled: { type: Boolean },
+      tableOrderingEnabled: { type: Boolean },
+      waiterDispatchEnabled: { type: Boolean },
       kdsEnabled: { type: Boolean, default: true },
       qrDineInEnabled: { type: Boolean, default: true },
       roomServiceEnabled: { type: Boolean, default: true },
@@ -190,6 +297,8 @@ const TenantSchema = new Schema<ITenant>(
       roomGstTariffThreshold: { type: Number, default: 7500, min: 0 },
       roundOffBills: { type: Boolean, default: true },
       autoPrintKot: { type: Boolean, default: true },
+      thermalPrinterWidth: { type: String, enum: ['58mm', '80mm'], default: '80mm' },
+      printHeaderWithLogo: { type: Boolean, default: true },
       kotSoundAlert: { type: Boolean, default: true },
       smsReceipts: { type: Boolean, default: true },
       whatsappReceipts: { type: Boolean, default: true },
@@ -199,6 +308,74 @@ const TenantSchema = new Schema<ITenant>(
         trim: true,
         default: 'Thank you for dining with us! All prices subject to GST.',
       },
+    },
+    operationalPolicies: {
+      checkInTime: { type: String, default: '14:00' },
+      checkOutTime: { type: String, default: '11:00' },
+      gracePeriodMinutes: { type: Number, default: 60, min: 0, max: 1440 },
+      earlyCheckInChargePercent: { type: Number, default: 50, min: 0, max: 100 },
+      lateCheckOutChargePercent: { type: Number, default: 50, min: 0, max: 100 },
+      cancellationFreeHours: { type: Number, default: 48, min: 0, max: 8760 },
+      cancellationPenaltyPercent: { type: Number, default: 50, min: 0, max: 100 },
+      cancellationStrictHours: { type: Number, default: 24, min: 0, max: 8760 },
+      securityDepositPerNight: { type: Number, default: 2000, min: 0 },
+      maxKeycardsPerRoom: { type: Number, default: 2, min: 1, max: 20 },
+      minInRoomDiningOrderAmount: { type: Number, default: 300, min: 0 },
+      inRoomDiningDeliverySlaMinutes: { type: Number, default: 30, min: 1, max: 1440 },
+      tableTurnoverLimitMinutes: { type: Number, default: 90, min: 1, max: 1440 },
+      kotVoidManagerPinThreshold: { type: Number, default: 500, min: 0 },
+      waiterMaxDiscountPercent: { type: Number, default: 0, min: 0, max: 100 },
+      managerMaxDiscountPercent: { type: Number, default: 10, min: 0, max: 100 },
+      openingCashFloatAmount: { type: Number, default: 5000, min: 0 },
+      cashierVarianceToleranceAmount: { type: Number, default: 0, min: 0 },
+      cashierVarianceAlertThreshold: { type: Number, default: 100, min: 0 },
+      nightAuditExecutionWindow: { type: String, default: '02:00 AM - 04:00 AM', trim: true },
+      housekeepingTurnaroundSlaMinutes: { type: Number, default: 25, min: 1, max: 1440 },
+      lostAndFoundStandardRetentionDays: { type: Number, default: 90, min: 1 },
+      lostAndFoundValuableRetentionDays: { type: Number, default: 180, min: 1 },
+      nonSmokingFineAmount: { type: Number, default: 5000, min: 0 },
+      petSanitationFeePerNight: { type: Number, default: 1500, min: 0 },
+      maxTablesPerWaiter: { type: Number, default: 6, min: 1, max: 100 },
+      updatedAt: { type: Date },
+    },
+    payrollPolicy: {
+      autoAttendanceEnabled: { type: Boolean, default: true },
+      autoMarkAbsentAfterCutoff: { type: Boolean, default: true },
+      autoApplyAbsenceDeduction: { type: Boolean, default: true },
+      absenceCutoffTime: { type: String, default: '11:30' },
+      portalDeductionRules: {
+        waiter: {
+          deductOnAbsent: { type: Boolean, default: true },
+          mode: { type: String, enum: ['NO_DEDUCTION', 'FIXED_AMOUNT', 'PRO_RATA'], default: 'PRO_RATA' },
+          perDayAmount: { type: Number, default: 0, min: 0 },
+          halfDayPercent: { type: Number, default: 50, min: 0, max: 100 },
+        },
+        kds: {
+          deductOnAbsent: { type: Boolean, default: true },
+          mode: { type: String, enum: ['NO_DEDUCTION', 'FIXED_AMOUNT', 'PRO_RATA'], default: 'PRO_RATA' },
+          perDayAmount: { type: Number, default: 0, min: 0 },
+          halfDayPercent: { type: Number, default: 50, min: 0, max: 100 },
+        },
+        cashier: {
+          deductOnAbsent: { type: Boolean, default: true },
+          mode: { type: String, enum: ['NO_DEDUCTION', 'FIXED_AMOUNT', 'PRO_RATA'], default: 'PRO_RATA' },
+          perDayAmount: { type: Number, default: 0, min: 0 },
+          halfDayPercent: { type: Number, default: 50, min: 0, max: 100 },
+        },
+        reception: {
+          deductOnAbsent: { type: Boolean, default: true },
+          mode: { type: String, enum: ['NO_DEDUCTION', 'FIXED_AMOUNT', 'PRO_RATA'], default: 'PRO_RATA' },
+          perDayAmount: { type: Number, default: 0, min: 0 },
+          halfDayPercent: { type: Number, default: 50, min: 0, max: 100 },
+        },
+        admin: {
+          deductOnAbsent: { type: Boolean, default: false },
+          mode: { type: String, enum: ['NO_DEDUCTION', 'FIXED_AMOUNT', 'PRO_RATA'], default: 'NO_DEDUCTION' },
+          perDayAmount: { type: Number, default: 0, min: 0 },
+          halfDayPercent: { type: Number, default: 50, min: 0, max: 100 },
+        },
+      },
+      updatedAt: { type: Date },
     },
   },
   { timestamps: true }

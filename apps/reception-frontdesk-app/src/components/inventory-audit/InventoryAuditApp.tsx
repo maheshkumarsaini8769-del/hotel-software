@@ -175,7 +175,7 @@ export const InventoryAuditApp: React.FC<InventoryAuditAppProps> = ({
       {/* Main Workspace Content */}
       <main className="flex-1 p-6 space-y-6">
         {/* Filter Bar */}
-        <div className="bg-zinc-900/60 border border-zinc-800 p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+        <div className="bg-zinc-900/60 border border-zinc-800 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">
@@ -250,7 +250,7 @@ export const InventoryAuditApp: React.FC<InventoryAuditAppProps> = ({
         {/* Tab 2: Direct Blind Count Sheet */}
         {activeTab === 'BLIND_ENTRY' && (
           <div className="space-y-6">
-            <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl flex items-center justify-between">
+            <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-amber-300">
                   Select an In-Progress Session to Complete Shelf Counts
@@ -280,7 +280,7 @@ export const InventoryAuditApp: React.FC<InventoryAuditAppProps> = ({
         {/* Tab 3: Discrepancy Reconciliation Board */}
         {activeTab === 'RECONCILE' && (
           <div className="space-y-6">
-            <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center justify-between">
+            <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">
                   Financial Controller Discrepancy Review Board

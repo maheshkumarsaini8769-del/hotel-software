@@ -34,6 +34,9 @@ export interface IRecipeMetricsUI {
   highCostRecipesCount: number;
   averageFoodCostPercentage: number;
   targetFoodCostPercentage: number;
+  menuItemCount: number;
+  recipeCoverageCount: number;
+  recipeCoveragePercentage: number;
 }
 
 export type WasteTypeUI =

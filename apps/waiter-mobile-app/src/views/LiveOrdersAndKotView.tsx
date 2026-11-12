@@ -28,7 +28,7 @@ export interface OrderTicketItem {
 }
 
 interface LiveOrdersAndKotViewProps {
-  isDark: boolean;
+  isDark?: boolean;
   initialTab?: 'All' | 'Ready' | 'Preparing' | 'Served';
   readyPickups?: {
     id: string;
@@ -67,7 +67,6 @@ interface LiveOrdersAndKotViewProps {
 }
 
 export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
-  isDark,
   initialTab,
   readyPickups = [],
   servedOrders = [],
@@ -171,14 +170,14 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-5 gap-3 sm:gap-4">
       {/* Header Banner */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
+ 'bg-white border-slate-200'
+ }`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
             <ChefHat className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            <h2 className={`font-black text-base ${'text-slate-900'}`}>
               Kitchen Food Pickups & KOT Cooking Tracking
             </h2>
             <p className="text-xs text-slate-400">
@@ -190,23 +189,23 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
         {/* Counter Badges */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${
-            isDark ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-800'
-          }`}>
+ 'bg-slate-100 border-slate-200 text-slate-800'
+ }`}>
             Total KOTs: <span className="font-black text-orange-500">{allTickets.length}</span>
           </span>
           <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${
-            isDark ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : 'bg-emerald-100 border-emerald-300 text-emerald-800 font-bold'
-          }`}>
+ 'bg-emerald-100 border-emerald-300 text-emerald-800 font-bold'
+ }`}>
             Ready Pickups (Hot Pass): <span className="font-black">{readyCount}</span>
           </span>
           <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${
-            isDark ? 'bg-amber-500/15 border-amber-500/40 text-amber-400' : 'bg-amber-100 border-amber-300 text-amber-800 font-bold'
-          }`}>
+ 'bg-amber-100 border-amber-300 text-amber-800 font-bold'
+ }`}>
             Cooking in Kitchen: <span className="font-black">{prepCount}</span>
           </span>
           <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${
-            isDark ? 'bg-blue-500/15 border-blue-500/40 text-blue-400' : 'bg-blue-100 border-blue-300 text-blue-800 font-bold'
-          }`}>
+ 'bg-[#EDF4EC] border-[#CFE0D2] text-[#123C2B] font-bold'
+ }`}>
             Served: <span className="font-black">{servedCount}</span>
           </span>
         </div>
@@ -214,17 +213,17 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
 
       {/* Direct Flow Notice: No Customer Approval Required */}
       <div className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-colors ${
-        isDark ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-950'
-      }`}>
+ 'bg-emerald-50 border-emerald-300 text-emerald-950'
+ }`}>
         <div className="flex items-center gap-2">
-          <Zap className={`w-4 h-4 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+          <Zap className={`w-4 h-4 shrink-0 ${'text-emerald-600'}`} />
           <span>
             <strong>Direct Kitchen KOT Routing:</strong> Customer QR orders go directly to Kitchen KDS. Waiters receive food alerts <strong>ONLY from Kitchen Hot Pass</strong> when dishes are cooked and ready to serve.
           </span>
         </div>
         <span className={`hidden sm:inline-flex items-center gap-1 text-[10px] uppercase font-mono font-black px-2 py-0.5 rounded border shrink-0 ${
-          isDark ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-        }`}>
+ 'bg-emerald-100 text-emerald-800 border-emerald-300'
+ }`}>
           <ShieldCheck className="w-3 h-3 text-emerald-500" />
           Direct Chef Dispatch
         </span>
@@ -234,19 +233,17 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
       <div className="flex flex-col md:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-1">
           {[
-            { id: 'Ready', label: `Ready for Pickup (Kitchen Pass) (${readyCount})`, badgeColor: 'bg-emerald-500' },
-            { id: 'Preparing', label: `Cooking in Kitchen (Chef KOTs) (${prepCount})`, badgeColor: 'bg-amber-500' },
+            { id: 'Ready', label: `Ready (${readyCount})`, badgeColor: 'bg-emerald-500' },
+            { id: 'Preparing', label: `Cooking (${prepCount})`, badgeColor: 'bg-amber-500' },
             { id: 'All', label: `All Orders (${allTickets.length})`, badgeColor: 'bg-slate-500' },
-            { id: 'Served', label: `Served to Table (${servedCount})`, badgeColor: 'bg-blue-500' },
+            { id: 'Served', label: `Served (${servedCount})`, badgeColor: 'bg-[#123C2B]' },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap shrink-0 ${
                 activeTab === tab.id
-                  ? 'bg-orange-500 text-white shadow-sm'
-                  : isDark
-                  ? 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  ? 'bg-emerald-600 text-white shadow-sm'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
               }`}
             >
@@ -261,7 +258,7 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
             className="py-1.5 px-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition whitespace-nowrap shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>+ Take Order</span>
+            <span>Take Order</span>
           </button>
           <div className="relative w-full md:w-64">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
@@ -271,8 +268,8 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className={`w-full pl-8 pr-3 py-1.5 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-                isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
-              }`}
+ 'bg-white border-slate-200 text-slate-800'
+ }`}
             />
           </div>
         </div>
@@ -296,50 +293,44 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
                   key={ticket.id}
                   data-testid={`card-live-ticket-${ticket.orderNumber}`}
                   className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 shadow-xs transition hover:shadow-md ${
-                    isReady
-                      ? isDark
-                        ? 'bg-slate-900 border-emerald-500/60'
-                        : 'bg-emerald-50/70 border-emerald-300 shadow-2xs'
-                      : isPreparing
-                      ? isDark
-                        ? 'bg-slate-900 border-amber-500/40'
-                        : 'bg-amber-50/70 border-amber-300 shadow-2xs'
-                      : isDark
-                      ? 'bg-slate-900 border-slate-800'
-                      : 'bg-white border-slate-200'
-                  }`}
+ isReady
+ ? 'bg-emerald-50/70 border-emerald-300 shadow-2xs'
+ : isPreparing
+ ? 'bg-amber-50/70 border-amber-300 shadow-2xs'
+ : 'bg-white border-slate-200'
+ }`}
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className={`font-black text-sm font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        <span className={`font-black text-sm font-mono ${'text-slate-900'}`}>
                           {ticket.orderNumber}
                         </span>
                         <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${
-                          isDark ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-800 border border-slate-200'
-                        }`}>
+ 'bg-slate-100 text-slate-800 border border-slate-200'
+ }`}>
                           {ticket.destination}
                         </span>
                       </div>
 
                       <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
-                        isReady
-                          ? 'bg-emerald-600 text-white shadow-2xs'
-                          : isPreparing
-                          ? isDark ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-amber-100 text-amber-800 border border-amber-300'
-                          : isDark ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40' : 'bg-blue-100 text-blue-800 border border-blue-300'
-                      }`}>
+ isReady
+ ? 'bg-emerald-600 text-white shadow-2xs'
+ : isPreparing
+ ? 'bg-amber-100 text-amber-800 border border-amber-300'
+ : 'bg-[#EDF4EC] text-[#123C2B] border border-[#CFE0D2]'
+ }`}>
                         {isReady ? 'READY AT PASS' : isPreparing ? 'COOKING' : 'SERVED'}
                       </span>
                     </div>
 
-                    <div className={`text-[11px] flex items-center justify-between ${isDark ? 'text-slate-400' : 'text-slate-600 font-medium'}`}>
+                    <div className={`text-[11px] flex items-center justify-between ${'text-slate-600 font-medium'}`}>
                       <div className="flex items-center gap-1.5">
-                        <Clock className={`w-3.5 h-3.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                        <Clock className={`w-3.5 h-3.5 ${'text-slate-500'}`} />
                         <span>{ticket.timeAgo}</span>
                       </div>
                       {isReady && (
-                        <span className={`font-bold flex items-center gap-1 text-[10px] ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                        <span className={`font-bold flex items-center gap-1 text-[10px] ${'text-emerald-700'}`}>
                           <Zap className="w-3 h-3" />
                           <span>60s Pickup SLA</span>
                         </span>
@@ -354,21 +345,21 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
                     {/* Dispatched info for Ready orders */}
                     {isReady && (
                       <div className={`text-[10px] px-2 py-1 rounded-lg flex items-center gap-1.5 font-semibold ${
-                        isDark ? 'bg-emerald-950/60 text-emerald-300' : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
-                      }`}>
-                        <ChefHat className={`w-3 h-3 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+ 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+ }`}>
+                        <ChefHat className={`w-3 h-3 shrink-0 ${'text-emerald-600'}`} />
                         <span>Dispatched by Kitchen Chef KDS • Ready for table pickup</span>
                       </div>
                     )}
 
                     {/* Items List */}
                     <div className={`p-2.5 rounded-xl border space-y-1 text-xs ${
-                      isDark ? 'bg-slate-900/60 border-slate-800 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
-                    }`}>
+ 'bg-white border-slate-200 text-slate-800'
+ }`}>
                       {ticket.items.map((it, idx) => (
                         <div key={idx} className="flex items-center justify-between text-[11px] font-medium">
                           <span>{it}</span>
-                          <CheckCircle2 className={`w-3 h-3 ${isReady ? 'text-emerald-500' : isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                          <CheckCircle2 className={`w-3 h-3 ${isReady ? 'text-emerald-500' : 'text-slate-400'}`} />
                         </div>
                       ))}
                     </div>
@@ -376,14 +367,14 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
                     {/* Preparing Progress Bar */}
                     {isPreparing && ticket.progress && (
                       <div className="space-y-1 pt-1">
-                        <div className={`flex items-center justify-between text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        <div className={`flex items-center justify-between text-[10px] font-semibold ${'text-slate-600'}`}>
                           <span className="flex items-center gap-1">
                             <Flame className="w-3 h-3 text-amber-500" />
                             <span>Chef Cooking Progress</span>
                           </span>
-                          <span className={`font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>{ticket.progress}%</span>
+                          <span className={`font-bold ${'text-amber-700'}`}>{ticket.progress}%</span>
                         </div>
-                        <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
+                        <div className={`w-full h-1.5 rounded-full overflow-hidden ${'bg-slate-200'}`}>
                           <div className="bg-amber-500 h-full rounded-full transition-all" style={{ width: `${ticket.progress}%` }} />
                         </div>
                       </div>
@@ -391,7 +382,7 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
                   </div>
 
                   {/* Actions Row */}
-                  <div className={`pt-2 border-t flex items-center gap-2 ${isDark ? 'border-slate-800/80' : 'border-slate-200'}`}>
+                  <div className={`pt-2 border-t flex items-center gap-2 ${'border-slate-200'}`}>
                     {isReady ? (
                       <>
                         <button
@@ -405,8 +396,8 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
                         <button
                           onClick={() => triggerToast(`KOT #${ticket.orderNumber} receipt reprinted.`)}
                           className={`p-2 rounded-xl border text-xs transition ${
-                            isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                          }`}
+ 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+ }`}
                           title="Print Ticket"
                         >
                           <Printer className="w-4 h-4" />
@@ -417,8 +408,8 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
                         <button
                           onClick={() => triggerToast(`Kitchen alerted: Inquiring about ${ticket.orderNumber}`)}
                           className={`flex-1 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition border ${
-                            isDark ? 'bg-amber-950/40 hover:bg-amber-900/60 border-amber-800/60 text-amber-300' : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-200'
-                          }`}
+ 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-200'
+ }`}
                         >
                           <PhoneCall className="w-3.5 h-3.5" />
                           <span>Check with Kitchen</span>
@@ -426,24 +417,24 @@ export const LiveOrdersAndKotView: React.FC<LiveOrdersAndKotViewProps> = ({
                         <button
                           onClick={() => triggerToast(`Viewing KOT slip for ${ticket.orderNumber}`)}
                           className={`px-3 py-2 rounded-xl border text-xs font-bold transition flex items-center gap-1 ${
-                            isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
-                          }`}
+ 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
+ }`}
                         >
                           <Printer className="w-3.5 h-3.5" />
                           <span>KOT</span>
                         </button>
                       </>
                     ) : (
-                      <div className={`w-full flex items-center justify-between text-xs px-1 py-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                        <span className={`flex items-center gap-1 font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                      <div className={`w-full flex items-center justify-between text-xs px-1 py-1 ${'text-slate-600'}`}>
+                        <span className={`flex items-center gap-1 font-bold ${'text-emerald-700'}`}>
                           <Check className="w-3.5 h-3.5" />
                           <span>Served to Guest</span>
                         </span>
                         <button
                           onClick={() => triggerToast(`Bill printed for ${ticket.destination}`)}
                           className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold ${
-                            isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
-                          }`}
+ 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
+ }`}
                         >
                           Print Bill
                         </button>

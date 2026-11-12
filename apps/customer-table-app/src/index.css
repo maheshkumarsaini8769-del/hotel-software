@@ -5,23 +5,41 @@
 @layer base {
   :root {
     color-scheme: light dark;
-    --apple-bg: #FBFBFD;
-    --apple-text: #1D1D1F;
-    --apple-secondary: #86868B;
-    --apple-accent: #007AFF;
-    --apple-destructive: #FF3B30;
-    --apple-border: #D2D2D7;
+    --lux-cream: #F2F7F2;
+    --lux-cream-deep: #E8F1E9;
+    --lux-surface: #FFFFFF;
+    --lux-surface-soft: #EDF5EE;
+    --lux-border: #D7E5D9;
+    --lux-border-strong: #B8D0BE;
+    --lux-green: #123C2B;
+    --lux-green-soft: #12804E;
+    --lux-green-tint: #E4F1E6;
+    --lux-green-tint-border: #B8D7C1;
+    --lux-green-text: #123C2B;
+    --lux-gold: #F7E2B4;
+    --lux-gold-border: #E9C98A;
+    --lux-gold-text: #6B4A12;
+    --lux-ink: #123C2B;
+    --lux-muted: #5E7163;
+    --lux-shadow: 0 10px 30px rgba(18, 60, 43, 0.08);
+
+    --apple-bg: #F2F7F2;
+    --apple-text: #123C2B;
+    --apple-secondary: #5E7163;
+    --apple-accent: #12804E;
+    --apple-destructive: #EF4444;
+    --apple-border: #D7E5D9;
     --apple-card: #FFFFFF;
   }
 
   .dark {
-    --apple-bg: #000000;
-    --apple-text: #F5F5F7;
-    --apple-secondary: #86868B;
-    --apple-accent: #0A84FF;
+    --apple-bg: #0C2118;
+    --apple-text: #F2F7F2;
+    --apple-secondary: #9DB4A3;
+    --apple-accent: #12804E;
     --apple-destructive: #FF453A;
-    --apple-border: #38383A;
-    --apple-card: #1C1C1E;
+    --apple-border: #1E4A35;
+    --apple-card: #123C2B;
   }
 
   html,
@@ -35,12 +53,13 @@
     -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
     text-rendering: optimizeLegibility;
+    background: #F2F7F2;
   }
 
   body {
     margin: 0;
-    background-color: var(--apple-bg);
-    color: var(--apple-text);
+    background-color: #F2F7F2;
+    color: #123C2B;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Inter, sans-serif;
     letter-spacing: -0.01em;
   }

@@ -57,7 +57,7 @@ export const ReceptionStandaloneApp: React.FC<ReceptionStandaloneAppProps> = ({
               rel="noreferrer"
               className="font-bold text-slate-700 dark:text-slate-300 hover:text-slate-700 dark:text-slate-300 underline shrink-0 inline-flex items-center gap-1 min-h-[32px]"
             >
-              <span>Launch Dedicated Terminal (:3008)</span>
+              <span>Launch Dedicated Terminal</span>
               <span>↗</span>
             </a>
           </div>

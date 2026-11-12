@@ -40,10 +40,10 @@ export const ReservationTimelineBoard: React.FC<ReservationTimelineBoardProps> =
               type="button"
               onClick={() => setStatusFilter(st)}
               className={`px-3 py-1.5 rounded-xl font-semibold transition-all ${
-                statusFilter === st
-                  ? 'bg-red-500 text-white shadow-md shadow-sm'
-                  : 'bg-zinc-800 text-zinc-400 hover:text-white'
-              }`}
+ statusFilter === st
+ ? 'bg-red-500 text-white shadow-md shadow-sm'
+ : 'bg-zinc-800 text-zinc-400 hover:text-white'
+ }`}
             >
               {st}
             </button>

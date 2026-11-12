@@ -168,6 +168,10 @@ export class HousekeepingStore {
     });
   }
 
+  public getAllRooms(): HousekeepingBoardRoom[] {
+    return this.rooms;
+  }
+
   public getSelectedRoom(): HousekeepingBoardRoom | null {
     return this.selectedRoom;
   }

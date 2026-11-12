@@ -1,4 +1,5 @@
 import React from 'react';
+import { BedDouble, Utensils, ShoppingBag, ArrowRight } from 'lucide-react';
 import { CustomerServiceMode } from '@spicehub/ui';
 
 export interface UniversalModeSelectorProps {
@@ -14,28 +15,28 @@ export const UniversalModeSelector: React.FC<UniversalModeSelectorProps> = ({
     mode: CustomerServiceMode;
     title: string;
     description: string;
-    icon: string;
+    icon: React.ReactNode;
     color: string;
   }> = [
     {
       mode: 'IN_ROOM_DINING',
       title: 'In-Room Dining',
       description: 'Delivered directly to your hotel room. Charge to room folio or pay UPI.',
-      icon: '🛏️',
+      icon: <BedDouble size={22} className="text-indigo-600" />,
       color: '#4F46E5', // Indigo
     },
     {
       mode: 'DINE_IN_RESTAURANT',
       title: 'Restaurant Dine-In',
       description: 'Table-side service in dining hall, garden or rooftop. Direct KOT to kitchen.',
-      icon: '🍽️',
+      icon: <Utensils size={22} className="text-emerald-700" />,
       color: '#059669', // Emerald Green
     },
     {
       mode: 'TAKEAWAY_PICKUP',
       title: 'Takeaway & Pickup',
       description: 'Order ahead and collect freshly prepared food at the express counter.',
-      icon: '🛍️',
+      icon: <ShoppingBag size={22} className="text-amber-600" />,
       color: '#D97706', // Amber
     },
   ];
@@ -75,7 +76,21 @@ export const UniversalModeSelector: React.FC<UniversalModeSelectorProps> = ({
                 transition: 'all 0.15s ease-in-out',
               }}
             >
-              <span style={{ fontSize: '32px', flexShrink: 0 }}>{m.icon}</span>
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  backgroundColor: isSelected ? '#FFFFFF' : '#F3F4F6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                }}
+              >
+                {m.icon}
+              </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '16px', fontWeight: 600, color: '#111827' }}>
@@ -100,7 +115,7 @@ export const UniversalModeSelector: React.FC<UniversalModeSelectorProps> = ({
                   {m.description}
                 </div>
               </div>
-              <span style={{ fontSize: '18px', color: '#9CA3AF' }}>➔</span>
+              <ArrowRight size={18} className="text-slate-400" />
             </button>
           );
         })}

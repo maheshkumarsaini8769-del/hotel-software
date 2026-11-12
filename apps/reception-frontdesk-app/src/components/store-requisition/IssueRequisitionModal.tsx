@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IStoreRequisitionUI, IIssueRequisitionPayload, StoreRequisitionHelper } from '@spicehub/ui';
+import { IStoreRequisitionUI, IIssueRequisitionPayload, StoreRequisitionHelper, NumericInput } from '@spicehub/ui';
 
 interface IssueRequisitionModalProps {
   isOpen: boolean;
@@ -70,11 +70,11 @@ export const IssueRequisitionModal: React.FC<IssueRequisitionModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border-2 border-emerald-500/40 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
+      <div className="bg-slate-900 border-2 border-emerald-500/40 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="bg-slate-900 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl">📦</span>
+            <span className="text-xl"></span>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-white">
@@ -94,7 +94,7 @@ export const IssueRequisitionModal: React.FC<IssueRequisitionModalProps> = ({
             onClick={onClose}
             className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -110,7 +110,7 @@ export const IssueRequisitionModal: React.FC<IssueRequisitionModalProps> = ({
           </div>
 
           {/* Items Fulfillment Table */}
-          <div className="bg-zinc-950/70 border border-zinc-800 rounded-2xl overflow-hidden p-3 space-y-2">
+          <div className="bg-zinc-950/70 border border-zinc-800 rounded-xl overflow-hidden p-3 space-y-2">
             <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-zinc-400 uppercase pb-1 border-b border-zinc-800 px-2">
               <span className="col-span-6">Ingredient</span>
               <span className="col-span-3 text-right">Requested Qty</span>
@@ -127,8 +127,7 @@ export const IssueRequisitionModal: React.FC<IssueRequisitionModalProps> = ({
                   {it.requestedQuantity} {it.unit}
                 </div>
                 <div className="col-span-3">
-                  <input
-                    type="number"
+                  <NumericInput
                     step="0.1"
                     min="0"
                     max={it.requestedQuantity}
@@ -156,7 +155,7 @@ export const IssueRequisitionModal: React.FC<IssueRequisitionModalProps> = ({
               disabled={loading}
               className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
             >
-              {loading ? 'Fulfilling...' : '✓ Confirm & Issue Stock'}
+              {loading ? 'Fulfilling...' : ' Confirm & Issue Stock'}
             </button>
           </div>
         </form>

@@ -19,7 +19,8 @@ const config: CapacitorConfig = {
       'https://*.onrender.com',
       'http://localhost:*',
       'http://127.0.0.1:*',
-      'http://10.208.156.216:*',
+      'http://10.0.2.2:*',
+      'http://192.168.1.14:*',
       'http://*:*',
       'https://*:*'
     ]

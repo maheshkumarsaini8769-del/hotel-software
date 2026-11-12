@@ -12,7 +12,7 @@ import { TableStatusItem } from '../WaiterMobileApp';
 import { useTableBills } from '../utils/useTableBills';
 
 interface TableTransferViewProps {
-  isDark: boolean;
+  isDark?: boolean;
   tablesList: TableStatusItem[];
   onTransferSuccess: (sourceTable: string, destTable: string, reason: string) => void;
   triggerToast: (msg: string) => void;
@@ -20,7 +20,6 @@ interface TableTransferViewProps {
 }
 
 export const TableTransferView: React.FC<TableTransferViewProps> = ({
-  isDark,
   tablesList,
   onTransferSuccess,
   triggerToast,
@@ -71,14 +70,14 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-5 gap-3 sm:gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
+ 'bg-white border-slate-200'
+ }`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-500 flex items-center justify-center font-bold">
             <ArrowRightLeft className="w-5 h-5" />
           </div>
           <div>
-            <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            <h2 className={`font-black text-base ${'text-slate-900'}`}>
               Table Transfer & Consolidation Console
             </h2>
             <p className="text-xs text-slate-400">
@@ -89,13 +88,13 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
 
         <div className="flex items-center gap-2">
           <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${
-            isDark ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' : 'bg-orange-100 text-orange-800 border-orange-300'
-          }`}>
+ 'bg-orange-100 text-orange-800 border-orange-300'
+ }`}>
             Active Tables: {occupiedTables.length}
           </span>
           <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${
-            isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-          }`}>
+ 'bg-emerald-100 text-emerald-800 border-emerald-300'
+ }`}>
             Available: {availableTables.length}
           </span>
         </div>
@@ -105,22 +104,22 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 overflow-y-auto pr-1 custom-scrollbar pb-32 lg:pb-8">
         {/* Left Form (7 cols) */}
         <div className={`lg:col-span-7 p-4 sm:p-6 rounded-2xl border space-y-5 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-        }`}>
-          <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}>
+          <h3 className={`font-black text-sm flex items-center gap-2 ${'text-slate-900'}`}>
             <span>Transfer Parameters</span>
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Source Table */}
             <div className="space-y-1.5">
-              <label className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>1. From Source Table (Occupied)</label>
+              <label className={`text-xs font-bold ${'text-slate-700'}`}>1. From Source Table (Occupied)</label>
               <select
                 value={sourceTable}
                 onChange={(e) => setSourceTable(e.target.value)}
                 className={`w-full p-2.5 rounded-xl border text-xs font-bold focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-                  isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-900'
-                }`}
+ 'bg-slate-50 border-slate-300 text-slate-900'
+ }`}
               >
                 {occupiedTables.map((t) => (
                   <option key={t.id} value={`Table ${t.name}`}>
@@ -132,13 +131,13 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
 
             {/* Destination Table */}
             <div className="space-y-1.5">
-              <label className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>2. To Destination Table (Available)</label>
+              <label className={`text-xs font-bold ${'text-slate-700'}`}>2. To Destination Table (Available)</label>
               <select
                 value={destTable}
                 onChange={(e) => setDestTable(e.target.value)}
                 className={`w-full p-2.5 rounded-xl border text-xs font-bold focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-                  isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-900'
-                }`}
+ 'bg-slate-50 border-slate-300 text-slate-900'
+ }`}
               >
                 {availableTables.map((t) => (
                   <option key={t.id} value={`Table ${t.name}`}>
@@ -151,13 +150,13 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
 
           {/* Transfer Reason */}
           <div className="space-y-1.5">
-            <label className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>3. Transfer Reason / Authorization</label>
+            <label className={`text-xs font-bold ${'text-slate-700'}`}>3. Transfer Reason / Authorization</label>
             <select
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className={`w-full p-2.5 rounded-xl border text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-                isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-900'
-              }`}
+ 'bg-slate-50 border-slate-300 text-slate-900'
+ }`}
             >
               <option value="Guest requested window / view seat">Guest requested window / view seat</option>
               <option value="AC cooling too cold / warm">AC cooling too cold / warm</option>
@@ -170,15 +169,15 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
 
           {/* Transfer Preview Box */}
           <div className={`p-4 rounded-xl border space-y-2 text-xs ${
-            isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-orange-50/80 border-orange-200'
-          }`}>
+ 'bg-orange-50/80 border-orange-200'
+ }`}>
             <div className="font-bold text-orange-600 flex items-center justify-between">
               <span>Transfer Preview</span>
-              <span className={`text-[11px] font-normal ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Auto-routes to KDS Pass</span>
+              <span className={`text-[11px] font-normal ${'text-slate-600'}`}>Auto-routes to KDS Pass</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Transferred Order:</span>
-              <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <span className={'text-slate-600'}>Transferred Order:</span>
+              <span className={`font-bold ${'text-slate-900'}`}>
                 {sourceTable
                   ? `${sourceTable} (${tableBills[sourceTable]?.items.length || 0} items, ₹${(
                       tableBills[sourceTable]?.grandTotal || 0
@@ -187,8 +186,8 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Assigned Waiter:</span>
-              <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{waiterName} (Unchanged)</span>
+              <span className={'text-slate-600'}>Assigned Waiter:</span>
+              <span className={`font-bold ${'text-slate-900'}`}>{waiterName} (Unchanged)</span>
             </div>
           </div>
 
@@ -201,7 +200,7 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
                 onChange={(e) => setNotifyKds(e.target.checked)}
                 className="w-4 h-4 rounded text-orange-500 focus:ring-orange-500"
               />
-              <span className={`font-semibold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
+              <span className={`font-semibold ${'text-slate-800'}`}>
                 Notify Kitchen Display System (KDS) immediately of table change
               </span>
             </label>
@@ -212,7 +211,7 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
                 onChange={(e) => setPrintToken(e.target.checked)}
                 className="w-4 h-4 rounded text-orange-500 focus:ring-orange-500"
               />
-              <span className={`font-semibold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
+              <span className={`font-semibold ${'text-slate-800'}`}>
                 Print Table Transfer thermal slip for floor captain
               </span>
             </label>
@@ -232,9 +231,9 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
         <div className="lg:col-span-5 space-y-4">
           {/* Recent Transfers Log */}
           <div className={`p-5 rounded-2xl border space-y-3 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-          }`}>
-            <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}>
+            <h3 className={`font-black text-sm flex items-center gap-2 ${'text-slate-900'}`}>
               <Clock className="w-4 h-4 text-orange-500" />
               <span>Recent Shift Transfers</span>
             </h3>
@@ -244,17 +243,17 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
                 <div
                   key={i}
                   className={`p-3 rounded-xl border text-xs space-y-1 ${
-                    isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-                  }`}
+ 'bg-slate-50 border-slate-200'
+ }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-orange-600">
                       {rt.from} ➔ {rt.to}
                     </span>
-                    <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{rt.time}</span>
+                    <span className={`text-[10px] ${'text-slate-500'}`}>{rt.time}</span>
                   </div>
-                  <div className={`text-[11px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>{rt.reason}</div>
-                  <div className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Authorized by: {rt.waiter}</div>
+                  <div className={`text-[11px] font-medium ${'text-slate-700'}`}>{rt.reason}</div>
+                  <div className={`text-[10px] ${'text-slate-600'}`}>Authorized by: {rt.waiter}</div>
                 </div>
               ))}
             </div>
@@ -262,10 +261,10 @@ export const TableTransferView: React.FC<TableTransferViewProps> = ({
 
           {/* SOP Card */}
           <div className={`p-4 rounded-2xl border space-y-2 text-xs ${
-            isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-700'
-          }`}>
-            <div className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-900'}`}>
-              <FileText className="w-4 h-4 text-blue-500" />
+ 'bg-slate-50 border-slate-200 text-slate-700'
+ }`}>
+            <div className={`font-bold flex items-center gap-1.5 ${'text-slate-900'}`}>
+              <FileText className="w-4 h-4 text-[#2E6B4C]" />
               <span>Standard Operating Procedure (SOP)</span>
             </div>
             <p>

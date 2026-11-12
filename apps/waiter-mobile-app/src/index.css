@@ -4,7 +4,20 @@
 
 @layer base {
   :root {
-    color-scheme: light dark;
+    color-scheme: light;
+    /* Heritage green x cream (matches Reception front desk) */
+    --lux-cream: #F6F1E6;
+    --lux-cream-deep: #EFE8D9;
+    --lux-surface: #FFFDF8;
+    --lux-border: #E7DFCE;
+    --lux-green: #123C2B;
+    --lux-green-soft: #1B5138;
+    --lux-green-tint: #EDF4EC;
+    --lux-gold: #F7E2B4;
+    --lux-gold-border: #E9C98A;
+    --lux-gold-text: #8A5A12;
+    --lux-ink: #1B2A22;
+    --lux-muted: #7C7566;
     --apple-bg: #FBFBFD;
     --apple-text: #1D1D1F;
     --apple-secondary: #86868B;
@@ -39,8 +52,8 @@
 
   body {
     margin: 0;
-    background-color: var(--apple-bg);
-    color: var(--apple-text);
+    background-color: var(--lux-cream);
+    color: var(--lux-ink);
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Inter, sans-serif;
     letter-spacing: -0.01em;
   }

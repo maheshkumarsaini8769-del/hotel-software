@@ -32,9 +32,9 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         {/* Brand / Title */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 via-amber-400 to-yellow-200 p-[1px] shadow-lg shadow-amber-500/10">
+          <div className="bg-emerald-600 hover:bg-emerald-700 text-white w-10 h-10 rounded-xl p-[1px] shadow-lg shadow-amber-500/10">
             <div className="w-full h-full bg-slate-950 rounded-[11px] flex items-center justify-center">
-              <span className="text-xl">✨</span>
+              <span className="text-xl"></span>
             </div>
           </div>
           <div>
@@ -52,7 +52,7 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
         <div className="flex items-center gap-3">
           {ecoWaterSavedLiters > 0 && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs shadow-inner">
-              <span>🌿</span>
+              <span></span>
               <span>
                 <strong className="font-semibold text-emerald-200">{ecoWaterSavedLiters}L</strong> Water Saved (Eco Tidy)
               </span>
@@ -76,10 +76,10 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
         <div
           onClick={() => onSelectStatus('ALL')}
           className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
-            selectedStatus === 'ALL'
-              ? 'bg-amber-500/10 border-amber-500/50 shadow-md shadow-amber-500/5'
-              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-          }`}
+ selectedStatus === 'ALL'
+ ? 'bg-amber-500/10 border-amber-500/50 shadow-md shadow-amber-500/5'
+ : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+ }`}
         >
           <div className="text-[11px] font-medium text-slate-400">Total Rooms</div>
           <div className="text-xl font-bold text-white mt-0.5">{summary.total}</div>
@@ -88,10 +88,10 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
         <div
           onClick={() => onSelectStatus(RoomStatus.AVAILABLE)}
           className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
-            selectedStatus === RoomStatus.AVAILABLE
-              ? 'bg-emerald-500/15 border-emerald-500/50 shadow-md shadow-emerald-500/5'
-              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-          }`}
+ selectedStatus === RoomStatus.AVAILABLE
+ ? 'bg-emerald-500/15 border-emerald-500/50 shadow-md shadow-emerald-500/5'
+ : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+ }`}
         >
           <div className="text-[11px] font-medium text-emerald-400 flex items-center justify-between">
             <span>Ready Clean</span>
@@ -103,10 +103,10 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
         <div
           onClick={() => onSelectStatus(RoomStatus.DIRTY)}
           className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
-            selectedStatus === RoomStatus.DIRTY
-              ? 'bg-orange-500/15 border-orange-500/50 shadow-md shadow-orange-500/5'
-              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-          }`}
+ selectedStatus === RoomStatus.DIRTY
+ ? 'bg-orange-500/15 border-orange-500/50 shadow-md shadow-orange-500/5'
+ : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+ }`}
         >
           <div className="text-[11px] font-medium text-orange-400 flex items-center justify-between">
             <span>Dirty / Turnaround</span>
@@ -118,10 +118,10 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
         <div
           onClick={() => onSelectStatus(RoomStatus.CLEANING)}
           className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
-            selectedStatus === RoomStatus.CLEANING
-              ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 shadow-md shadow-sm'
-              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-          }`}
+ selectedStatus === RoomStatus.CLEANING
+ ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 shadow-md shadow-sm'
+ : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+ }`}
         >
           <div className="text-[11px] font-medium text-slate-700 dark:text-slate-300 flex items-center justify-between">
             <span>In Cleaning</span>
@@ -133,10 +133,10 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
         <div
           onClick={() => onSelectStatus(RoomStatus.INSPECTION)}
           className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
-            selectedStatus === RoomStatus.INSPECTION
-              ? 'bg-amber-500/15 border-amber-500/50 shadow-md shadow-amber-500/5'
-              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-          }`}
+ selectedStatus === RoomStatus.INSPECTION
+ ? 'bg-amber-500/15 border-amber-500/50 shadow-md shadow-amber-500/5'
+ : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+ }`}
         >
           <div className="text-[11px] font-medium text-amber-400 flex items-center justify-between">
             <span>Awaiting Inspect</span>
@@ -148,10 +148,10 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
         <div
           onClick={() => onSelectStatus(RoomStatus.OUT_OF_SERVICE)}
           className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
-            selectedStatus === RoomStatus.OUT_OF_SERVICE
-              ? 'bg-red-500/15 border-red-500/50 shadow-md shadow-sm'
-              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-          }`}
+ selectedStatus === RoomStatus.OUT_OF_SERVICE
+ ? 'bg-red-500/15 border-red-500/50 shadow-md shadow-sm'
+ : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+ }`}
         >
           <div className="text-[11px] font-medium text-red-400 flex items-center justify-between">
             <span>Out of Order</span>
@@ -167,10 +167,10 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
           <button
             onClick={() => onSelectFloor('ALL')}
             className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-              selectedFloor === 'ALL'
-                ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-            }`}
+ selectedFloor === 'ALL'
+ ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
+ : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+ }`}
           >
             All Floors
           </button>
@@ -179,10 +179,10 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
               key={floor}
               onClick={() => onSelectFloor(floor)}
               className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                selectedFloor === floor
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-              }`}
+ selectedFloor === floor
+ ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
+ : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+ }`}
             >
               Floor {floor}
             </button>
@@ -202,7 +202,7 @@ export const HousekeepingHeader: React.FC<HousekeepingHeaderProps> = ({
               onClick={() => onSearchChange('')}
               className="absolute right-2.5 top-2 text-slate-400 hover:text-white text-xs cursor-pointer"
             >
-              ✕
+              
             </button>
           )}
         </div>

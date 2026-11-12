@@ -3,7 +3,7 @@ import {
   MealPeriodUI,
   TableTypePreferenceUI,
   VIPTierUI,
-  INewDiningReservationPayload,
+  INewDiningReservationPayload, NumericInput,
 } from '@spicehub/ui';
 
 interface NewDiningReservationModalProps {
@@ -38,12 +38,12 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
   if (!isOpen) return null;
 
   const allergenOptions = [
-    { id: 'PEANUTS_TREENUTS', label: '🥜 Peanuts / Tree Nuts' },
-    { id: 'GLUTEN', label: '🌾 Gluten / Wheat' },
-    { id: 'DAIRY_LACTOSE', label: '🥛 Dairy / Lactose' },
-    { id: 'SHELLFISH_SEAFOOD', label: '🦐 Shellfish / Crustaceans' },
-    { id: 'EGGS', label: '🥚 Eggs' },
-    { id: 'SOY', label: '🌱 Soy' },
+    { id: 'PEANUTS_TREENUTS', label: ' Peanuts / Tree Nuts' },
+    { id: 'GLUTEN', label: ' Gluten / Wheat' },
+    { id: 'DAIRY_LACTOSE', label: ' Dairy / Lactose' },
+    { id: 'SHELLFISH_SEAFOOD', label: ' Shellfish / Crustaceans' },
+    { id: 'EGGS', label: ' Eggs' },
+    { id: 'SOY', label: ' Soy' },
   ];
 
   const handleAllergenToggle = (id: string) => {
@@ -76,12 +76,12 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="bg-slate-900 border border-red-500/30 w-full max-w-2xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[92vh] flex flex-col">
+      <div className="bg-slate-900 border border-red-500/30 w-full max-w-2xl rounded-xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <span className="text-red-400">🍽️</span> New Dining Table Reservation
+              <span className="text-red-400">️</span> New Dining Table Reservation
             </h2>
             <p className="text-xs text-zinc-400 mt-0.5">
               Record guest booking, party size, VIP status, and critical kitchen allergen alerts.
@@ -92,7 +92,7 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
             onClick={onClose}
             className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-sm"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -133,8 +133,7 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
               <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
                 Party Size
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="1"
                 max="30"
                 required
@@ -219,19 +218,19 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
                 className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500"
               >
                 <option value="NONE">Regular Dining</option>
-                <option value="BIRTHDAY">🎂 Birthday Celebration</option>
-                <option value="ANNIVERSARY">🥂 Wedding Anniversary</option>
-                <option value="BUSINESS_MEETING">💼 Business Dinner</option>
-                <option value="DATE_NIGHT">🌹 Date Night</option>
-                <option value="PROPOSAL">💍 Marriage Proposal</option>
+                <option value="BIRTHDAY"> Birthday Celebration</option>
+                <option value="ANNIVERSARY"> Wedding Anniversary</option>
+                <option value="BUSINESS_MEETING"> Business Dinner</option>
+                <option value="DATE_NIGHT"> Date Night</option>
+                <option value="PROPOSAL"> Marriage Proposal</option>
               </select>
             </div>
           </div>
 
           {/* Critical Allergens Checkbox Grid */}
-          <div className="bg-red-950/20 border border-red-500/30 p-3.5 rounded-2xl space-y-2">
+          <div className="bg-red-950/20 border border-red-500/30 p-3.5 rounded-xl space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm">⚠️</span>
+              <span className="text-sm">️</span>
               <span className="text-xs font-bold uppercase tracking-wider text-red-300">
                 Critical Dietary Allergens (Direct Alert to KDS / Kitchen Station)
               </span>
@@ -245,10 +244,10 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
                     type="button"
                     onClick={() => handleAllergenToggle(item.id)}
                     className={`p-2 rounded-xl text-xs font-semibold border text-left transition-all ${
-                      isSelected
-                        ? 'bg-red-500/30 border-red-500 text-red-200 shadow-md'
-                        : 'bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-                    }`}
+ isSelected
+ ? 'bg-red-500/30 border-red-500 text-red-200 shadow-md'
+ : 'bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+ }`}
                   >
                     {item.label}
                   </button>
@@ -282,7 +281,7 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-sm"
+              className="bg-emerald-600 hover:bg-emerald-700 px-5 py-2 rounded-xl text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-sm"
             >
               {loading ? 'Confirming...' : 'Confirm Reservation'}
             </button>

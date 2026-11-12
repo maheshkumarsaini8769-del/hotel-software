@@ -4,24 +4,14 @@
 
 @layer base {
   :root {
-    color-scheme: light dark;
-    --apple-bg: #FBFBFD;
-    --apple-text: #1D1D1F;
-    --apple-secondary: #86868B;
-    --apple-accent: #007AFF;
-    --apple-destructive: #FF3B30;
-    --apple-border: #D2D2D7;
+    color-scheme: light;
+    --apple-bg: #F8FAFC;
+    --apple-text: #0F172A;
+    --apple-secondary: #64748B;
+    --apple-accent: #2563EB;
+    --apple-destructive: #EF4444;
+    --apple-border: #E2E8F0;
     --apple-card: #FFFFFF;
-  }
-
-  .dark {
-    --apple-bg: #000000;
-    --apple-text: #F5F5F7;
-    --apple-secondary: #86868B;
-    --apple-accent: #0A84FF;
-    --apple-destructive: #FF453A;
-    --apple-border: #38383A;
-    --apple-card: #1C1C1E;
   }
 
   html,
@@ -117,3 +107,29 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+@layer components {
+  /* Primary Blue CTA (White / Slate / Blue design system) */
+  .btn-glass-green {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-white rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    border: 1px solid rgba(37, 99, 235, 0.45);
+    box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.08), inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+  }
+  .btn-glass-green:hover:not(:disabled) {
+    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+    box-shadow: 0 4px 12px -2px rgba(37, 99, 235, 0.28), inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+  }
+
+  /* Secondary Blue Subtle Action */
+  .btn-glass-green-subtle {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-semibold text-blue-700 rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+  }
+  .btn-glass-green-subtle:hover:not(:disabled) {
+    background: #dbeafe;
+    border-color: #93c5fd;
+  }
+}
+

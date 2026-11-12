@@ -1,3 +1,4 @@
+import { IMAGE_PLACEHOLDER, NumericInput } from '@spicehub/ui';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiFetch, getStoredHotelId } from '../../config/api';
 import { getPortalUrl } from '../../config/portalUrls';
@@ -33,6 +34,8 @@ import {
   ArrowUpRight,
   PhoneCall,
   Crown,
+  Star,
+  Upload,
 } from 'lucide-react';
 
 export interface RoomTypeDTO {
@@ -71,20 +74,28 @@ export interface PhysicalRoomDTO {
 
 const ROOM_PRESET_PHOTOS = [
   {
-    name: 'Royal Maharaja Suite',
-    url: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&auto=format&fit=crop&q=80',
+    name: 'Heritage Palace Suite',
+    url: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80',
   },
   {
-    name: 'Modern AC Deluxe',
-    url: 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=800&auto=format&fit=crop&q=80',
+    name: 'Royal King Bedroom',
+    url: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    name: 'Modern Luxury Deluxe',
+    url: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80',
   },
   {
     name: 'Garden View Executive',
-    url: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&auto=format&fit=crop&q=80',
+    url: 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=800&q=80',
   },
   {
-    name: 'Heritage Palace Room',
-    url: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800&auto=format&fit=crop&q=80',
+    name: 'Premium Ensuite Bathroom',
+    url: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    name: 'Balcony & Panoramic View',
+    url: 'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=800&q=80',
   },
 ];
 
@@ -149,10 +160,48 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
     photos: [] as string[],
   });
 
-  // Photo upload refs
+  // Photo upload refs & Target Mode
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [compressingImage, setCompressingImage] = useState(false);
+  const [photoUploadTarget, setPhotoUploadTarget] = useState<'room_modal' | 'category_modal' | 'photo_manager'>('room_modal');
+
+  // Room Dedicated Photo Manager Modal State
+  const [photoManagerTarget, setPhotoManagerTarget] = useState<PhysicalRoomDTO | null>(null);
+  const [photoManagerPhotos, setPhotoManagerPhotos] = useState<string[]>([]);
+  const [isPhotoManagerSaving, setIsPhotoManagerSaving] = useState(false);
+
+  const openPhotoManagerModal = (room: PhysicalRoomDTO) => {
+    setPhotoManagerTarget(room);
+    const existing = Array.isArray(room.photos) && room.photos.length > 0 ? [...room.photos] : [];
+    setPhotoManagerPhotos(existing);
+  };
+
+  const handleSaveRoomPhotos = async () => {
+    if (!photoManagerTarget) return;
+    setIsPhotoManagerSaving(true);
+    try {
+      const res = await apiFetch(`/pms/rooms/${photoManagerTarget.id || photoManagerTarget._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          photos: photoManagerPhotos,
+        }),
+      });
+      if (res.ok) {
+        triggerToast(`Room ${photoManagerTarget.roomNumber} photos saved successfully!`);
+        setPhotoManagerTarget(null);
+        fetchData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || 'Failed to save photos.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to save photos.');
+    } finally {
+      setIsPhotoManagerSaving(false);
+    }
+  };
 
   const triggerToast = (msg: string) => {
     setToast(msg);
@@ -197,21 +246,31 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
     });
   };
 
-  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>, isCategory = false) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     try {
       setCompressingImage(true);
-      const compressedDataUrl = await compressImage(file);
-      if (isCategory) {
+      const compressedList: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const compressed = await compressImage(files[i]);
+        compressedList.push(compressed);
+      }
+
+      if (photoUploadTarget === 'category_modal') {
         setCategoryForm((prev) => ({
           ...prev,
-          photos: [compressedDataUrl, ...(prev.photos || [])],
+          photos: [...compressedList, ...(prev.photos || [])],
         }));
+      } else if (photoUploadTarget === 'photo_manager') {
+        setPhotoManagerPhotos((prev) => [...compressedList, ...prev]);
       } else {
-        setRoomForm((prev) => ({ ...prev, photo: compressedDataUrl }));
+        setRoomForm((prev) => ({
+          ...prev,
+          photo: compressedList[0] || prev.photo,
+        }));
       }
-      triggerToast('📸 Photo uploaded & canvas-optimized (~60KB)!');
+      triggerToast(`Attached ${compressedList.length} image(s)!`);
     } catch (err: any) {
       alert('Could not compress photo: ' + err.message);
     } finally {
@@ -272,8 +331,8 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
     }
     triggerToast(
       hide
-        ? '❄️ 100% AC Mode: "Non-AC" wording removed from all menus & guest portals.'
-        : '💨 Non-AC filter & tags restored.'
+        ? '100% AC Mode: "Non-AC" wording removed from all menus & guest portals.'
+        : 'Non-AC filter & tags restored.'
     );
   };
 
@@ -325,7 +384,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
         body: JSON.stringify({ status: newStatus }),
       });
       if (res.ok) {
-        triggerToast(`✅ Room status updated to ${newStatus}`);
+        triggerToast(`Room status updated to ${newStatus}`);
       } else {
         const err = await res.json();
         alert(err.message || 'Status update failed');
@@ -346,7 +405,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
       });
       if (res.ok) {
         setRooms((prev) => prev.filter((r) => r.id !== roomId && r._id !== roomId));
-        triggerToast(`🗑️ Room ${roomNumber} deleted successfully.`);
+        triggerToast(`Room ${roomNumber} deleted successfully.`);
       } else {
         const err = await res.json();
         alert(err.message || 'Could not delete room');
@@ -387,7 +446,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
 
       if (res.ok) {
         const data = await res.json();
-        triggerToast(`🎉 Room ${roomForm.roomNumber} created successfully!`);
+        triggerToast(`Room ${roomForm.roomNumber} created successfully!`);
         setIsAddRoomModalOpen(false);
         setRoomForm({ roomNumber: '', roomTypeId: '', floorNumber: 1, wing: 'East Wing', photo: '', isAc: true });
         fetchData();
@@ -433,8 +492,8 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
       if (res.ok) {
         triggerToast(
           isEdit
-            ? `✅ Room category "${categoryForm.name}" updated!`
-            : `🎉 Room category "${categoryForm.name}" created!`
+            ? `Room category "${categoryForm.name}" updated!`
+            : `Room category "${categoryForm.name}" created!`
         );
         setIsCategoryModalOpen(false);
         setEditingCategory(null);
@@ -472,7 +531,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
         method: 'DELETE',
       });
       if (res.ok) {
-        triggerToast(`🗑️ Room category "${name}" deleted.`);
+        triggerToast(`Room category "${name}" deleted.`);
         fetchData();
       } else {
         const err = await res.json();
@@ -490,8 +549,9 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
         ref={galleryInputRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
-        onChange={(e) => handleImageFileChange(e, isCategoryModalOpen)}
+        onChange={(e) => handleImageFileChange(e)}
       />
       <input
         ref={cameraInputRef}
@@ -499,7 +559,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={(e) => handleImageFileChange(e, isCategoryModalOpen)}
+        onChange={(e) => handleImageFileChange(e)}
       />
 
       {/* Floating Toast Notification */}
@@ -537,10 +597,10 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
             <button
               onClick={() => setActiveTab('ROOMS')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                activeTab === 'ROOMS'
-                  ? 'bg-white text-blue-600 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+ activeTab === 'ROOMS'
+ ? 'bg-white text-blue-600 shadow-xs'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
             >
               <BedDouble className="w-3.5 h-3.5" />
               <span>Physical Rooms ({rooms.length})</span>
@@ -548,33 +608,15 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
             <button
               onClick={() => setActiveTab('CATEGORIES')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                activeTab === 'CATEGORIES'
-                  ? 'bg-white text-blue-600 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+ activeTab === 'CATEGORIES'
+ ? 'bg-white text-blue-600 shadow-xs'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
             >
               <Layers className="w-3.5 h-3.5" />
               <span>Room Tariffs ({roomTypes.length})</span>
             </button>
           </div>
-
-          {onOpenMatrix && (
-            <button
-              onClick={onOpenMatrix}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white text-xs font-bold text-slate-700 hover:text-slate-900 transition shadow-xs"
-            >
-              Timeline Matrix
-            </button>
-          )}
-
-          {onOpenFrontDesk && (
-            <button
-              onClick={onOpenFrontDesk}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white text-xs font-bold text-slate-700 hover:text-slate-900 transition shadow-xs"
-            >
-              Front Desk Check-in
-            </button>
-          )}
 
           {activeTab === 'ROOMS' ? (
             <button
@@ -596,7 +638,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                 });
                 setIsAddRoomModalOpen(true);
               }}
-              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5"
+              className="btn-glass-green px-3.5 py-1.5 rounded-xl text-white font-semibold text-xs shadow-xs transition flex items-center gap-1.5"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Room</span>
@@ -617,7 +659,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                 });
                 setIsCategoryModalOpen(true);
               }}
-              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5"
+              className="btn-glass-green px-3.5 py-1.5 rounded-xl text-white font-semibold text-xs shadow-xs transition flex items-center gap-1.5"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>New Category</span>
@@ -647,19 +689,19 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
             <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200">
               {[
                 { label: 'All', value: 'ALL' },
-                { label: '🟢 Free', value: 'AVAILABLE' },
-                { label: '🔴 Occupied', value: 'OCCUPIED' },
-                { label: '🧹 Cleaning', value: 'CLEANING' },
-                { label: '🟡 Reserved', value: 'RESERVED' },
+                { label: 'Available', value: 'AVAILABLE' },
+                { label: 'Occupied', value: 'OCCUPIED' },
+                { label: 'Cleaning', value: 'CLEANING' },
+                { label: 'Reserved', value: 'RESERVED' },
               ].map((s) => (
                 <button
                   key={s.value}
                   onClick={() => setFilterStatus(s.value)}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
-                    filterStatus === s.value
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
+ filterStatus === s.value
+ ? 'btn-glass-green text-white shadow-xs'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
                 >
                   {s.label}
                 </button>
@@ -672,20 +714,20 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
             <button
               onClick={() => setFilterAcMode('ALL')}
               className={`px-2 py-1 rounded-lg text-[11px] font-bold transition ${
-                filterAcMode === 'ALL'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+ filterAcMode === 'ALL'
+ ? 'btn-glass-green text-white shadow-xs'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
             >
               All Types
             </button>
             <button
               onClick={() => setFilterAcMode('AC')}
               className={`px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 ${
-                filterAcMode === 'AC'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+ filterAcMode === 'AC'
+ ? 'btn-glass-green text-white shadow-xs'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
             >
               <Snowflake className="w-3 h-3" />
               <span>AC</span>
@@ -695,10 +737,10 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
               <button
                 onClick={() => setFilterAcMode('NON_AC')}
                 className={`px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 ${
-                  filterAcMode === 'NON_AC'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+ filterAcMode === 'NON_AC'
+ ? 'btn-glass-green text-white shadow-xs'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
               >
                 <Wind className="w-3 h-3" />
                 <span>Non-AC</span>
@@ -718,10 +760,10 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                 key={c.value}
                 onClick={() => setFilterCapacity(c.value)}
                 className={`px-2 py-1 rounded-lg text-[11px] font-bold transition ${
-                  filterCapacity === c.value
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+ filterCapacity === c.value
+ ? 'btn-glass-green text-white shadow-xs'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
               >
                 {c.label}
               </button>
@@ -793,7 +835,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                 </p>
                 <button
                   onClick={() => setIsAddRoomModalOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs"
+                  className="btn-glass-green px-4 py-2 rounded-xl text-white text-xs font-semibold shadow-xs"
                 >
                   Create First Room
                 </button>
@@ -819,17 +861,17 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                     <div
                       key={room.id || room._id}
                       className={`bg-white rounded-xl border border-slate-200 shadow-xs transition-all duration-200 flex flex-col justify-between overflow-hidden group hover:shadow-md ${
-                        isAvailable
-                          ? 'border-l-4 border-l-emerald-500'
-                          : isOccupied
-                          ? 'border-l-4 border-l-red-500'
-                          : isCleaning
-                          ? 'border-l-4 border-l-amber-500'
-                          : 'border-l-4 border-l-blue-500'
-                      }`}
+ isAvailable
+ ? 'border-l-4 border-l-emerald-500'
+ : isOccupied
+ ? 'border-l-4 border-l-red-500'
+ : isCleaning
+ ? 'border-l-4 border-l-amber-500'
+ : 'border-l-4 border-l-blue-500'
+ }`}
                     >
                       {/* Top Photo Thumbnail or Compact Header */}
-                      <div className="relative h-24 bg-slate-100 overflow-hidden">
+                      <div className="relative h-24 bg-slate-100 overflow-hidden group/thumb cursor-pointer" onClick={() => openPhotoManagerModal(room)}>
                         {photoUrl ? (
                           <img
                             src={photoUrl}
@@ -837,9 +879,24 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400">
-                            <BedDouble className="w-6 h-6 text-slate-300 mb-1" />
-                            <span className="text-[9px] font-semibold">No Photo</span>
+                          <img
+                            src={ROOM_PRESET_PHOTOS[Math.abs(parseInt(room.roomNumber, 10) || 0) % ROOM_PRESET_PHOTOS.length].url}
+                            alt={`Room ${room.roomNumber}`}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        )}
+
+                        {/* Hover Overlay Button to Manage Photos */}
+                        <div className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center gap-1.5 text-white font-bold text-[11px] transition duration-200">
+                          <Camera className="w-3.5 h-3.5 text-blue-400" />
+                          <span>Photos</span>
+                        </div>
+
+                        {/* Multi-Photo Count Badge */}
+                        {room.photos && room.photos.length > 1 && (
+                          <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-slate-900/80 text-white text-[9px] font-bold flex items-center gap-1 shadow-xs border border-white/20">
+                            <ImageIcon className="w-2.5 h-2.5 text-blue-300" />
+                            <span>{room.photos.length}</span>
                           </div>
                         )}
 
@@ -852,14 +909,14 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                         <div className="absolute top-2 right-2">
                           <span
                             className={`px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tight shadow-xs ${
-                              isAvailable
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : isOccupied
-                                ? 'bg-red-50 text-red-700 border border-red-200'
-                                : isCleaning
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                : 'bg-blue-50 text-blue-700 border border-blue-200'
-                            }`}
+ isAvailable
+ ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+ : isOccupied
+ ? 'bg-red-50 text-red-700 border border-red-200'
+ : isCleaning
+ ? 'bg-amber-50 text-amber-700 border border-amber-200'
+ : 'bg-blue-50 text-blue-700 border border-blue-200'
+ }`}
                           >
                             {room.status === 'AVAILABLE'
                               ? 'Ready'
@@ -924,15 +981,23 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                             onChange={(e) => handleQuickStatusChange(room.id || room._id, e.target.value as any)}
                             className="bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-1 text-[10px] font-bold text-slate-700 focus:outline-none"
                           >
-                            <option value="AVAILABLE">🟢 Available</option>
-                            <option value="CLEANING">🧹 Cleaning</option>
-                            <option value="DIRTY">⚠️ Dirty</option>
-                            <option value="OCCUPIED">🔴 Occupied</option>
-                            <option value="RESERVED">🟡 Reserved</option>
-                            <option value="OUT_OF_SERVICE">⛔ Out of Service</option>
+                            <option value="AVAILABLE">Available</option>
+                            <option value="CLEANING">Cleaning</option>
+                            <option value="DIRTY">Dirty</option>
+                            <option value="OCCUPIED">Occupied</option>
+                            <option value="RESERVED">Reserved</option>
+                            <option value="OUT_OF_SERVICE">Out of Service</option>
                           </select>
 
                           <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openPhotoManagerModal(room)}
+                              title="Room Images & Gallery"
+                              className="p-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 border border-blue-200 transition"
+                            >
+                              <ImageIcon className="w-3 h-3" />
+                            </button>
                             <button
                               onClick={() => {
                                 setEditingRoom(room);
@@ -992,7 +1057,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                         alt={rt.name}
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                      <div className="bg-gradient-to-t absolute inset-0 from-black/60" />
                       <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-xs text-white font-black text-xs border border-white/20">
                         {rt.code}
                       </div>
@@ -1060,7 +1125,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                       <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                         <button
                           onClick={() => handleOpenEditCategory(rt)}
-                          className="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-xs"
+                          className="btn-glass-green flex-1 py-2 px-3 rounded-xl text-white font-semibold text-xs transition flex items-center justify-center gap-1.5 shadow-xs"
                         >
                           <Edit2 className="w-3 h-3" />
                           <span>Edit Tariff & Photos</span>
@@ -1121,7 +1186,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                       }),
                     });
                     if (res.ok) {
-                      triggerToast(`✅ Room ${roomForm.roomNumber} updated!`);
+                      triggerToast(`Room ${roomForm.roomNumber} updated!`);
                       setIsEditRoomModalOpen(false);
                       setEditingRoom(null);
                       fetchData();
@@ -1152,8 +1217,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Floor Number *</label>
-                  <input
-                    type="number"
+                  <NumericInput
                     required
                     min={0}
                     max={50}
@@ -1182,7 +1246,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                   >
                     {roomTypes.map((rt) => (
                       <option key={rt.id || rt._id} value={rt.id || rt._id}>
-                        {rt.name} (₹{rt.basePriceOvernight}/night) {rt.isAc ? '❄️ AC' : '💨 Non-AC'}
+                        {rt.name} (₹{rt.basePriceOvernight}/night) {rt.isAc ? 'AC' : 'Non-AC'}
                       </option>
                     ))}
                   </select>
@@ -1209,31 +1273,31 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                     type="button"
                     onClick={() => setRoomForm((prev) => ({ ...prev, isAc: true }))}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                      roomForm.isAc
-                        ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-xs ring-1 ring-blue-500'
-                        : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
-                    }`}
+ roomForm.isAc
+ ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-xs ring-1 ring-blue-500'
+ : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+ }`}
                   >
                     <Snowflake className="w-3.5 h-3.5 text-blue-600" />
-                    <span>❄️ AC Room</span>
+                    <span>AC Room</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setRoomForm((prev) => ({ ...prev, isAc: false }))}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                      !roomForm.isAc
-                        ? 'bg-amber-50 border-amber-500 text-amber-800 shadow-xs ring-1 ring-amber-500'
-                        : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
-                    }`}
+ !roomForm.isAc
+ ? 'bg-amber-50 border-emerald-600 text-amber-800 shadow-xs ring-1 ring-emerald-600'
+ : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+ }`}
                   >
                     <Wind className="w-3.5 h-3.5 text-amber-600" />
-                    <span>🌀 Non-AC Room</span>
+                    <span>Non-AC Room</span>
                   </button>
                 </div>
                 <p className="text-[10px] text-slate-500">
                   {roomForm.isAc
-                    ? '❄️ This room is equipped with dedicated Air Conditioning / Climate Control.'
-                    : '🌀 This room is equipped with high-airflow Ceiling Fan & Natural Air Ventilation (Non-AC).'}
+                    ? 'This room is equipped with dedicated Air Conditioning / Climate Control.'
+                    : 'This room is equipped with high-airflow Ceiling Fan & Natural Air Ventilation (Non-AC).'}
                 </p>
               </div>
 
@@ -1300,7 +1364,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition"
+                  className="btn-glass-green px-5 py-2 rounded-xl text-white font-semibold text-xs shadow-xs transition"
                 >
                   {isEditRoomModalOpen ? 'Save Changes' : 'Create Room'}
                 </button>
@@ -1359,8 +1423,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Overnight Rate (₹) *</label>
-                  <input
-                    type="number"
+                  <NumericInput
                     required
                     min={0}
                     value={categoryForm.basePriceOvernight}
@@ -1370,8 +1433,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Weekend Rate (₹)</label>
-                  <input
-                    type="number"
+                  <NumericInput
                     min={0}
                     value={categoryForm.weekendPrice}
                     onChange={(e) => setCategoryForm((prev) => ({ ...prev, weekendPrice: Number(e.target.value) }))}
@@ -1380,8 +1442,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Max Capacity (Adults)</label>
-                  <input
-                    type="number"
+                  <NumericInput
                     min={1}
                     max={10}
                     value={categoryForm.maxCapacity}
@@ -1415,10 +1476,10 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                   type="button"
                   onClick={() => setCategoryForm((prev) => ({ ...prev, isAc: !prev.isAc }))}
                   className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
-                    categoryForm.isAc
-                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
+ categoryForm.isAc
+ ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+ : 'bg-blue-600 hover:bg-blue-700 text-white'
+ }`}
                 >
                   {categoryForm.isAc ? 'Switch to Non-AC' : 'Switch to AC'}
                 </button>
@@ -1523,7 +1584,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs"
+                  className="btn-glass-green px-5 py-2 rounded-xl text-white font-semibold text-xs shadow-xs"
                 >
                   {editingCategory ? 'Save Changes' : 'Create Category'}
                 </button>
@@ -1594,7 +1655,7 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
                     `Upgrade Your Plan:\n\nContact your dedicated SpiceHub Account Executive at +91 98765 43210 or email corporate@spicehub.app to upgrade to the Professional (50 Rooms) or Enterprise (500 Rooms) tier!`
                   );
                 }}
-                className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-95"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-95"
               >
                 <Crown className="w-3.5 h-3.5 text-slate-950" />
                 <span>Upgrade Plan</span>
@@ -1609,6 +1670,239 @@ export const RoomCatalogStudioApp: React.FC<RoomCatalogStudioAppProps> = ({
             >
               Dismiss
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ROOM IMAGES STUDIO & GALLERY CONTROLS */}
+      {photoManagerTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 sm:p-6 overflow-y-auto"
+        >
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-600 text-white rounded-xl">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900">
+                      Room {photoManagerTarget.roomNumber} — Image Management
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200">
+                      {photoManagerTarget.roomTypeId?.name || 'Room'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Upload gallery photos, take live camera snaps, or pick luxury hotel room presets.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPhotoManagerTarget(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              {/* Upload Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  data-testid="upload-room-gallery-btn"
+                  onClick={() => {
+                    setPhotoUploadTarget('photo_manager');
+                    galleryInputRef.current?.click();
+                  }}
+                  className="p-3.5 rounded-xl border border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 hover:bg-blue-50/50 text-slate-700 flex items-center justify-center gap-2.5 transition group"
+                >
+                  <div className="p-2 rounded-lg bg-blue-100 text-blue-700 group-hover:bg-blue-600 group-hover:text-white transition">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-xs font-bold text-slate-900">Pick from Device Gallery</div>
+                    <div className="text-[10px] text-slate-500">Select multiple photos, auto-compressed</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="take-room-camera-btn"
+                  onClick={() => {
+                    setPhotoUploadTarget('photo_manager');
+                    cameraInputRef.current?.click();
+                  }}
+                  className="p-3.5 rounded-xl border border-dashed border-slate-300 hover:border-emerald-500 bg-slate-50 hover:bg-emerald-50/50 text-slate-700 flex items-center justify-center gap-2.5 transition group"
+                >
+                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition">
+                    <Camera className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-xs font-bold text-slate-900">Take Live Camera Photo</div>
+                    <div className="text-[10px] text-slate-500">Capture direct from phone / tablet</div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Current Attached Photos */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Attached Room Photos ({photoManagerPhotos.length})
+                  </h4>
+                  <span className="text-[10px] text-slate-400">
+                    The first image is the primary cover photo
+                  </span>
+                </div>
+
+                {photoManagerPhotos.length === 0 ? (
+                  <div className="p-8 rounded-xl border border-dashed border-slate-200 text-center space-y-2 bg-slate-50/50">
+                    <ImageIcon className="w-8 h-8 text-slate-300 mx-auto" />
+                    <p className="text-xs font-semibold text-slate-600">No photos attached yet</p>
+                    <p className="text-[10px] text-slate-400">
+                      Upload photos from your gallery above or choose from curated presets below.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {photoManagerPhotos.map((photoUrl, idx) => (
+                      <div
+                        key={idx}
+                        className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 group shadow-xs"
+                      >
+                        <div className="h-28 overflow-hidden">
+                          <img
+                            src={photoUrl}
+                            alt={`Room ${photoManagerTarget.roomNumber} photo ${idx + 1}`}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                          />
+                        </div>
+
+                        {/* Primary Badge */}
+                        {idx === 0 ? (
+                          <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-blue-600 text-white font-bold text-[9px] shadow-xs flex items-center gap-1">
+                            <Star className="w-2.5 h-2.5 fill-white" />
+                            <span>Cover</span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Move to front
+                              const updated = [
+                                photoUrl,
+                                ...photoManagerPhotos.filter((_, i) => i !== idx),
+                              ];
+                              setPhotoManagerPhotos(updated);
+                            }}
+                            className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-white/90 hover:bg-white text-slate-700 font-bold text-[9px] shadow-xs border border-slate-200 opacity-0 group-hover:opacity-100 transition"
+                          >
+                            Set Cover
+                          </button>
+                        )}
+
+                        {/* Delete Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPhotoManagerPhotos((prev) => prev.filter((_, i) => i !== idx));
+                          }}
+                          className="absolute top-1.5 right-1.5 p-1 rounded-md bg-red-600 hover:bg-red-700 text-white shadow-xs opacity-0 group-hover:opacity-100 transition"
+                          title="Remove Photo"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Curated Presets */}
+              <div className="space-y-2 pt-3 border-t border-slate-200">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Curated Hotel Room Presets
+                  </h4>
+                  <span className="text-[10px] text-slate-400">
+                    Click to add to Room {photoManagerTarget.roomNumber}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {ROOM_PRESET_PHOTOS.map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setPhotoManagerPhotos((prev) => [preset.url, ...prev]);
+                        triggerToast(`Added "${preset.name}" preset!`);
+                      }}
+                      className="p-2 rounded-xl border border-slate-200 hover:border-blue-400 bg-white hover:bg-blue-50/30 text-left transition group shadow-2xs"
+                    >
+                      <div className="h-16 rounded-lg overflow-hidden bg-slate-100 mb-1.5">
+                        <img
+                          src={preset.url}
+                          alt={preset.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                      </div>
+                      <div className="text-[11px] font-bold text-slate-800 truncate">
+                        {preset.name}
+                      </div>
+                      <div className="text-[9px] text-blue-600 font-semibold flex items-center gap-0.5 mt-0.5">
+                        <Plus className="w-2.5 h-2.5" />
+                        <span>Add Photo</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-xs text-slate-500 font-medium">
+                {photoManagerPhotos.length} photo(s) selected
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPhotoManagerTarget(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="save-room-photos-btn"
+                  onClick={handleSaveRoomPhotos}
+                  disabled={isPhotoManagerSaving}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+                >
+                  {isPhotoManagerSaving ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Save & Sync Photos</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

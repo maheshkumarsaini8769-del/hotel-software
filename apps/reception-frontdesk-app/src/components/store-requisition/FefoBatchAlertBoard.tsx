@@ -15,7 +15,7 @@ export const FefoBatchAlertBoard: React.FC<FefoBatchAlertBoardProps> = ({
   return (
     <div className="space-y-6">
       {/* Banner */}
-      <div className="bg-gradient-to-r from-amber-950/40 via-red-950/30 to-zinc-900 border border-amber-500/40 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-amber-950/40 via-red-950/30 to-zinc-900 border border-amber-500/40 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xl">⏱️</span>
@@ -52,13 +52,13 @@ export const FefoBatchAlertBoard: React.FC<FefoBatchAlertBoardProps> = ({
             return (
               <div
                 key={b._id}
-                className={`p-5 rounded-2xl bg-slate-900 border transition-all shadow-md flex flex-col justify-between ${
-                  b.status === 'EXPIRING_SOON'
-                    ? 'border-amber-500/60 shadow-sm dark:shadow-none'
-                    : b.status === 'EXPIRED'
-                    ? 'border-red-500/60 shadow-sm dark:shadow-none'
-                    : 'border-zinc-800 hover:border-zinc-700'
-                }`}
+                className={`p-5 rounded-xl bg-slate-900 border transition-all shadow-md flex flex-col justify-between ${
+ b.status === 'EXPIRING_SOON'
+ ? 'border-amber-500/60 shadow-sm dark:shadow-none'
+ : b.status === 'EXPIRED'
+ ? 'border-red-500/60 shadow-sm dark:shadow-none'
+ : 'border-zinc-800 hover:border-zinc-700'
+ }`}
               >
                 <div>
                   {/* Top Bar: Batch # & Freshness Pill */}
@@ -74,7 +74,7 @@ export const FefoBatchAlertBoard: React.FC<FefoBatchAlertBoardProps> = ({
                   {/* Item Name & Category */}
                   <div className="mt-3">
                     <h3 className="text-base font-bold text-white line-clamp-1">{b.itemName}</h3>
-                    <p className="text-xs text-zinc-400 mt-0.5">{b.category} • 📍 {b.location}</p>
+                    <p className="text-xs text-zinc-400 mt-0.5">{b.category} •  {b.location}</p>
                   </div>
 
                   {/* Stock Quantity & Value */}

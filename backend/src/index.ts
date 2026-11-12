@@ -21,6 +21,7 @@ import reservationRoutes from './routes/reservationRoutes';
 import groupBookingRoutes from './routes/groupBookingRoutes';
 import crmRoutes from './routes/crmRoutes';
 import superAdminRoutes from './routes/superAdminRoutes';
+import supportRoutes from './routes/supportRoutes';
 import banquetRoutes from './routes/banquetRoutes';
 import fastCashierRoutes from './routes/fastCashierRoutes';
 import recipeCostingRoutes from './routes/recipeCostingRoutes';
@@ -44,9 +45,11 @@ import multiTenderRoutes from './routes/multiTenderRoutes';
 import dynamicUpiRoutes from './routes/dynamicUpiRoutes';
 import waiterCashFloatRoutes from './routes/waiterCashFloatRoutes';
 import adminControlRoutes from './routes/adminControlRoutes';
+import userPreferenceRoutes from './routes/userPreferenceRoutes';
 import guestReviewRoutes from './routes/guestReviewRoutes';
 import kotLockVoidRoutes from './routes/kotLockVoidRoutes';
 import hotelStaffRoutes from './routes/hotelStaffRoutes';
+import payrollRoutes from './routes/payrollRoutes';
 import menuCatalogRoutes from './routes/menuCatalogRoutes';
 import tableManagementRoutes from './routes/tableManagementRoutes';
 import restaurantOperationsRoutes from './routes/restaurantOperationsRoutes';
@@ -804,8 +807,8 @@ app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/pos', posRoutes);
 app.use('/api/v1/requests', requestRoutes);
 app.use('/api/v1/billing', requirePortal('cashier'), billingRoutes);
-app.use('/api/v1/pms', requirePortal('reception'), pmsRoutes);
-app.use('/api/v1/guest-portal', requirePortal('guest'), roomServiceRoutes);
+app.use('/api/v1/pms', requireAnyPortal(['reception', 'admin']), pmsRoutes);
+app.use('/api/v1/guest-portal', requireAnyPortal(['guest', 'reception', 'admin']), roomServiceRoutes);
 app.use('/api/v1/housekeeping', housekeepingRoutes);
 app.use('/api/v1/maintenance', maintenanceRoutes);
 app.use('/api/v1/reservations', requirePortal('reception'), reservationRoutes);
@@ -834,11 +837,14 @@ app.use('/api/v1/multi-tender', requirePortal('cashier'), multiTenderRoutes);
 app.use('/api/v1/dynamic-upi', requirePortal('cashier'), dynamicUpiRoutes);
 app.use('/api/v1/waiter-cash-float', requirePortal('waiter'), waiterCashFloatRoutes);
 app.use('/api/v1/admin-control', adminControlRoutes);
+app.use('/api/v1/user-preferences', userPreferenceRoutes);
 app.use('/api/v1/guest-reviews', guestReviewRoutes);
 app.use('/api/v1/superadmin', superAdminRoutes);
+app.use('/api/v1/support', supportRoutes);
 app.use('/api/v1/kot-void', kotLockVoidRoutes);
 app.use('/api/v1/hotel-staff', hotelStaffRoutes);
 app.use('/api/v1/staff', hotelStaffRoutes);
+app.use('/api/v1/payroll', payrollRoutes);
 app.use('/api/v1/menu-catalog', menuCatalogRoutes);
 app.use('/api/v1/table-management', tableManagementRoutes);
 app.use('/api/v1/restaurant-operations', restaurantOperationsRoutes);
@@ -929,6 +935,44 @@ const handleRevParAnalytics = async (req: TenantRequest, res: Response) => {
 };
 app.get('/api/v1/revpar-analytics', authenticateJWT, requireTenant, handleRevParAnalytics);
 app.get('/api/v1/revenue-manager/revpar-analytics', authenticateJWT, requireTenant, handleRevParAnalytics);
+
+app.get('/api/v1/analytics/revenue', async (req: Request, res: Response) => {
+  try {
+    const range = String(req.query.range || '30d');
+    const hotelId = typeof req.query.hotelId === 'string' ? req.query.hotelId : undefined;
+    const normalizedRange = range.endsWith('d') ? Number(range.replace(/d$/, '')) || 30 : 30;
+    const startDate = new Date(Date.now() - normalizedRange * 24 * 60 * 60 * 1000);
+    const endDate = new Date();
+
+    let targetHotelId = hotelId;
+    if (!targetHotelId) {
+      const firstTenant = await Tenant.findOne({ status: 'ACTIVE' }).lean();
+      targetHotelId = firstTenant?._id?.toString();
+    }
+
+    if (!targetHotelId || !mongoose.Types.ObjectId.isValid(String(targetHotelId))) {
+      res.status(400).json({ success: false, error: 'INVALID_HOTEL_ID', message: 'Valid hotelId is required.' });
+      return;
+    }
+
+    const metrics = await RevParAnalyticsService.calculateRevPar(new mongoose.Types.ObjectId(String(targetHotelId)), startDate, endDate);
+    res.status(200).json({
+      success: true,
+      hotelId: String(targetHotelId),
+      range,
+      adr: metrics.adr,
+      revPar: metrics.revPar,
+      occupancyPercent: metrics.occupancyPercent,
+      totalRoomRevenue: metrics.totalRoomRevenue,
+      roomsSold: metrics.roomsSold,
+      totalAvailableRooms: metrics.totalAvailableRooms,
+      dailyTrends: metrics.dailyTrends,
+    });
+  } catch (err: any) {
+    console.error('[Revenue Analytics] Error generating metrics:', err);
+    res.status(500).json({ success: false, message: err.message || 'Analytics generation failed.' });
+  }
+});
 
 // 6. Audit Logs Endpoint
 app.get('/api/v1/admin-control/audit-logs', authenticateJWT, requireTenant, async (req: TenantRequest, res: Response) => {

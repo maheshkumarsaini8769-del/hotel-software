@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { IGroupBookingUI } from '@spicehub/ui';
+import { IGroupBookingUI, NumericInput } from '@spicehub/ui';
 
 interface SettleFolioModalProps {
   group: IGroupBookingUI;
@@ -60,8 +60,7 @@ export const SettleFolioModal: React.FC<SettleFolioModalProps> = ({
 
           <div>
             <label className="block text-zinc-400 font-medium mb-1">Settlement Amount (₹) *</label>
-            <input
-              type="number"
+            <NumericInput
               min="1"
               max={initialDue}
               required
@@ -98,7 +97,7 @@ export const SettleFolioModal: React.FC<SettleFolioModalProps> = ({
             <button
               type="submit"
               disabled={loading || amount <= 0}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+              className="bg-emerald-600 hover:bg-emerald-700 px-6 py-2.5 rounded-xl text-white font-bold text-xs shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
             >
               {loading && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
               <span>Confirm Payment ₹{amount.toLocaleString('en-IN')}</span>

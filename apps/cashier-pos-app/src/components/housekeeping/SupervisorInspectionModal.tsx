@@ -45,7 +45,7 @@ export const SupervisorInspectionModal: React.FC<SupervisorInspectionModalProps>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-white">Quality Inspection - Room {room.roomNumber}</h3>
-                <span className="text-[10px] bg-amber-950/60 text-amber-300 border border-amber-800/60 px-2 py-0.5 rounded-full font-semibold">
+                <span className="text-[10px] bg-slate-900/60 text-amber-300 border border-amber-800/60 px-2 py-0.5 rounded-full font-semibold">
                   Supervisor Level
                 </span>
               </div>
@@ -106,7 +106,7 @@ export const SupervisorInspectionModal: React.FC<SupervisorInspectionModalProps>
           <button
             onClick={() => handleAction(true)}
             disabled={isLoading}
-            className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs transition-all shadow-md shadow-emerald-950/40 cursor-pointer disabled:opacity-50 active:scale-95"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 py-2 px-3 rounded-xl font-bold text-xs transition-all shadow-md shadow-emerald-950/40 cursor-pointer disabled:opacity-50 active:scale-95"
           >
             ✓ Pass & Make Available
           </button>

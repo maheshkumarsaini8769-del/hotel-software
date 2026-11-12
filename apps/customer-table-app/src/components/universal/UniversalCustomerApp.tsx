@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Utensils, Package, ShoppingCart } from 'lucide-react';
 import { CustomerPortalStore, CustomerServiceMode, ServiceRequestType, CustomerPortalHelper } from '@spicehub/ui';
 import { UniversalModeSelector } from './UniversalModeSelector';
 import { UniversalInRoomModal } from './UniversalInRoomModal';
@@ -82,7 +83,9 @@ export const UniversalCustomerApp: React.FC<UniversalCustomerAppProps> = ({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '22px' }}>🍽️</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#F3F4F6', color: '#123C2B' }}>
+            <Utensils size={18} />
+          </div>
           <div>
             <h1 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827' }}>
               SpiceHub Self-Service
@@ -202,8 +205,9 @@ export const UniversalCustomerApp: React.FC<UniversalCustomerAppProps> = ({
                   border: '1px solid #E5E7EB',
                 }}
               >
-                <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827', marginBottom: '12px' }}>
-                  📦 Active Kitchen Orders ({activeOrders.length})
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Package size={16} className="text-slate-700" />
+                  <span>Active Kitchen Orders ({activeOrders.length})</span>
                 </div>
                 {activeOrders.map((ord: any) => (
                   <div
@@ -251,8 +255,9 @@ export const UniversalCustomerApp: React.FC<UniversalCustomerAppProps> = ({
                   border: '1px solid #E5E7EB',
                 }}
               >
-                <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827', marginBottom: '12px' }}>
-                  🛒 Current Order Cart ({cartTotals.totalItemCount} items)
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#111827', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ShoppingCart size={16} className="text-slate-700" />
+                  <span>Current Order Cart ({cartTotals.totalItemCount} items)</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {cartItems.map((item) => (

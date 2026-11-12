@@ -160,7 +160,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-6 rounded-2xl shadow-xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-6 rounded-xl shadow-xl">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300">
@@ -200,7 +200,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
       {/* Main Grid: Interactive Dynamic Pricing Simulator */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Interactive Simulation Controls */}
-        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 space-y-6">
+        <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-6 space-y-6">
           <div className="flex items-center gap-2 text-base font-semibold text-slate-200 border-b border-slate-800 pb-3">
             <Sliders className="w-5 h-5 text-slate-700 dark:text-slate-300" />
             <span>Real-Time Yield Simulation</span>
@@ -269,8 +269,8 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
                 fetchDynamicQuote(selectedRoomTypeId, simulatedOccupancy, nextVal);
               }}
               className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
-                simulatedWeekend ? 'bg-slate-800 dark:bg-slate-200 justify-end' : 'bg-slate-800 justify-start'
-              }`}
+ simulatedWeekend ? 'bg-slate-800 dark:bg-slate-200 justify-end' : 'bg-slate-800 justify-start'
+ }`}
             >
               <div className="w-4 h-4 bg-white rounded-full shadow-md" />
             </button>
@@ -298,7 +298,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
         {/* Center & Right Column: Calculated Dynamic Rate Quote & Competitor Benchmark */}
         <div className="lg:col-span-2 space-y-6">
           {/* Main Calculated Quote Card */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/30 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm dark:shadow-none relative overflow-hidden">
+          <div className="bg-gradient-to-t from-slate-900 via-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm dark:shadow-none relative overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
               <div>
                 <span
@@ -320,7 +320,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
                 <button
                   onClick={handleApplyToLiveInventory}
                   disabled={isApplyingRate || !currentQuote}
-                  className="flex items-center gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-sm transition-all cursor-pointer text-sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 flex items-center gap-2 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-sm transition-all cursor-pointer text-sm"
                 >
                   {isApplyingRate ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -350,8 +350,8 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
                   </span>
                   <div
                     className={`flex items-center text-xs font-bold px-2 py-0.5 rounded-md ${
-                      lift.isSurge ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400'
-                    }`}
+ lift.isSurge ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400'
+ }`}
                   >
                     {lift.isSurge ? <ArrowUpRight className="w-3.5 h-3.5" /> : null}
                     <span>{lift.liftPercent > 0 ? `+${lift.liftPercent}%` : `${lift.liftPercent}%`}</span>
@@ -382,7 +382,7 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
           </div>
 
           {/* Competitor Market Parity Benchmark Table */}
-          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+          <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
             <div className="p-4 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Building className="w-4 h-4 text-slate-700 dark:text-slate-300" />
@@ -422,8 +422,8 @@ export const RevenueManagerApp: React.FC<RevenueManagerAppProps> = ({
                         <td className="py-3 px-4">
                           <span
                             className={`font-semibold ${
-                              comp.priceDelta >= 0 ? 'text-emerald-400' : 'text-amber-400'
-                            }`}
+ comp.priceDelta >= 0 ? 'text-emerald-400' : 'text-amber-400'
+ }`}
                           >
                             {comp.priceDelta >= 0
                               ? `+₹${comp.priceDelta} (Premium)`

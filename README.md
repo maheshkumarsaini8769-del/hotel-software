@@ -1,6 +1,6 @@
 # SpiceHub — Enterprise Hospitality ERP Monorepo
 
-Multi-tenant hotel PMS + fine-dining restaurant POS platform built with Node.js/Express, MongoDB, Socket.IO, eight React micro-frontends, and native Android mobile apps (Customer & Staff).
+Multi-tenant hotel PMS + fine-dining restaurant POS platform built with Node.js/Express, MongoDB, Socket.IO, eight React micro-frontends, a customer Android app, and staff PWAs.
 
 ---
 
@@ -17,15 +17,20 @@ Multi-tenant hotel PMS + fine-dining restaurant POS platform built with Node.js/
 | **SuperAdmin SaaS** | `3006` | `npm run dev:superadmin` | Multi-tenant hotel onboarding, portal gating |
 | **Cashier POS Terminal** | `3007` | `npm run dev:cashier` | Fast numpad, split billing, cash settlement |
 | **Reception Front Desk** | `3008` | `npm run dev:reception` | KYC verification, check-in approval, keycards |
+| **Staff PWA shell** | `3011` | `npm run dev --workspace @spicehub/staff-pwa` | Browser-installable staff portal launcher |
 
 ---
 
-## 📱 Mobile APKs (Standalone Over Wi-Fi)
+## 📱 Customer App & Staff PWA
 
-Both mobile applications operate **100% untethered over local Wi-Fi / hotspot** without requiring USB cables or `adb reverse`:
-
-- **Customer App (`com.spicehub.customer`):** Guest room booking, Aadhaar/Passport KYC upload, hotel radius check, and Table QR standee scanner.
-- **Staff Workstation App (`com.spicehub.staff`):** Dynamic hotel switcher, role-based staff picker, encrypted 4-digit PIN authentication, and embedded workstation iframes with hardware back-button navigation.
+- **Customer Android App (`com.spicehub.customer`):** Guest room booking, KYC upload, hotel radius check, and Table QR scanning. Build a debug APK with:
+  ```bash
+  cd apps/spicehub-customer-android
+  npm run build
+  npx cap sync android
+  cd android && ./gradlew assembleDebug
+  ```
+- **Staff Workstations:** Staff portals are PWAs and run in the browser; install them from the browser's **Install app** / **Add to Home Screen** action. There is no separate Staff Android APK.
 
 ---
 
@@ -34,7 +39,7 @@ Both mobile applications operate **100% untethered over local Wi-Fi / hotspot** 
 ### 1. Prerequisites
 - Node.js 20+ (Node 22 recommended)
 - Docker & Docker Compose (for MongoDB replica set + Redis)
-- Android SDK & ADB (optional, for mobile APK builds)
+- Android SDK & ADB (optional, for customer APK builds)
 
 ### 2. First Run & Development Boot
 ```bash
@@ -90,15 +95,13 @@ curl http://localhost:5000/health
 4. Click **"+ Add Staff Member"**.
 5. Fill in Full Name, Phone, Email, Department, and Select Role (`WAITER`, `CHEF`, `CASHIER`, `FRONT_DESK`, `HOUSEKEEPING`).
 6. Set an encrypted **4-digit PIN** for fast terminal access.
-7. Click **Create Staff Account**. The staff member will immediately be selectable in the Mobile Staff App.
+7. Click **Create Staff Account**. The staff member can then sign in to the appropriate staff PWA.
 
-### C. Mobile Staff Login & Workstation Navigation
-1. Open the **SpiceHub Staff App** on Android.
-2. Select your Hotel from the dynamic hotel directory.
-3. Select the Workstation portal (e.g., Waiter Terminal or Kitchen KDS).
-4. Tap your Profile / Name from the staff picker grid.
-5. Enter your **4-Digit Security PIN** to unlock the workstation.
-6. **Physical Back Button Behavior:** Pressing the device back button navigates backwards hierarchically (`Workstation -> Person Picker -> Portal Selector -> Hotel Picker -> Exit App`) without terminating the session unexpectedly.
+### C. Staff PWA Login & Workstation Navigation
+1. Open the required staff portal in a browser on desktop or mobile.
+2. On mobile, use the browser's **Install app** / **Add to Home Screen** action for an app-like shortcut.
+3. Sign in with the staff account and PIN/password configured by the hotel administrator.
+4. Choose the appropriate workstation (for example, Waiter, Kitchen KDS, Cashier, or Reception).
 
 ### D. Guest Journey: Booking, Dining & Checkout
 1. **Browse & Book:** Guest opens the Customer App, selects hotel, and browses real-time available rooms.

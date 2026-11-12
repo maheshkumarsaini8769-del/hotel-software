@@ -92,30 +92,30 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
           <button
             onClick={() => setActiveTab('SPLIT_VIEW')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
-              activeTab === 'SPLIT_VIEW'
-                ? 'bg-amber-500 text-zinc-950 shadow-md'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
-            }`}
+ activeTab === 'SPLIT_VIEW'
+ ? 'bg-emerald-600 text-zinc-950 shadow-md'
+ : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+ }`}
           >
             ⚡ Split Overview (B2B + Guests)
           </button>
           <button
             onClick={() => setActiveTab('CORPORATE_B2B')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
-              activeTab === 'CORPORATE_B2B'
-                ? 'bg-amber-500 text-zinc-950 shadow-md'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
-            }`}
+ activeTab === 'CORPORATE_B2B'
+ ? 'bg-emerald-600 text-zinc-950 shadow-md'
+ : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+ }`}
           >
             🏢 Corporate B2B Invoice
           </button>
           <button
             onClick={() => setActiveTab('INDIVIDUAL_FOLIOS')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
-              activeTab === 'INDIVIDUAL_FOLIOS'
-                ? 'bg-amber-500 text-zinc-950 shadow-md'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
-            }`}
+ activeTab === 'INDIVIDUAL_FOLIOS'
+ ? 'bg-emerald-600 text-zinc-950 shadow-md'
+ : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+ }`}
           >
             👤 Individual Room Folios ({individualInvoices.length})
           </button>
@@ -192,7 +192,7 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
                     {(corporateInvoice?.dueAmount || 0) > 0 ? (
                       <button
                         onClick={() => onSettleCorporate(group, corporateInvoice?.dueAmount || 0)}
-                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs shadow-lg transition-all"
+                        className="bg-emerald-600 hover:bg-emerald-700 w-full py-2.5 rounded-xl text-white font-bold text-xs shadow-lg transition-all"
                       >
                         💳 Settle Corporate Master Account
                       </button>

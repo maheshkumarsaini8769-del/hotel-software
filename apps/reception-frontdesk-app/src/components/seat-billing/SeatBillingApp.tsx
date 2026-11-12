@@ -63,7 +63,7 @@ export const SeatBillingApp: React.FC<SeatBillingAppProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#111827' }}>
-            🧾 Table {tableNumber} • Independent Seat Bills
+             Table {tableNumber} • Independent Seat Bills
           </h1>
           <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#6B7280' }}>
             Settle individual seat sub-folios (Bill A vs Bill B) independently without affecting other diners.
@@ -148,10 +148,10 @@ export const SeatBillingApp: React.FC<SeatBillingAppProps> = ({
                       minHeight: '44px',
                     }}
                   >
-                    {method === 'UPI' && '📱 UPI QR'}
-                    {method === 'CASH' && '💵 Cash'}
-                    {method === 'CARD' && '💳 Card EDC'}
-                    {method === 'POST_TO_ROOM' && '🛏️ Room Folio'}
+                    {method === 'UPI' && ' UPI QR'}
+                    {method === 'CASH' && ' Cash'}
+                    {method === 'CARD' && ' Card EDC'}
+                    {method === 'POST_TO_ROOM' && '️ Room Folio'}
                   </button>
                 ))}
               </div>
@@ -245,7 +245,7 @@ export const SeatBillingApp: React.FC<SeatBillingAppProps> = ({
             }}
           >
             <h3 style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 700, color: '#111827' }}>
-              🖨️ Thermal Print Receipt
+              ️ Thermal Print Receipt
             </h3>
             <pre
               style={{

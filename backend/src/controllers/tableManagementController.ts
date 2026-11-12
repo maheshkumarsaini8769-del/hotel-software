@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Types } from 'mongoose';
 import { DiningTable, TableStatus } from '../models/DiningTable';
-import { TableSession } from '../models/TableSession';
+import { TableSession, SessionStatus } from '../models/TableSession';
 import { RestaurantOrder, OverallOrderStatus } from '../models/RestaurantOrder';
 import { Tenant } from '../models/Tenant';
 import { io } from '../index';
@@ -41,6 +41,8 @@ export interface TableDTO {
   assignedWaiter?: string;
   assignedWaiterId?: string;
   activeSessionId?: string;
+  actualGuests?: number;
+  customerClaimedGuests?: number;
   activeOrderTotal: number;
   activeItemsCount: number;
   sessionStartTime?: string;
@@ -284,20 +286,25 @@ export const getTableManagementOverview = async (req: Request, res: Response): P
       if (tables.length === 0) {
         const dbTables = await DiningTable.find({ hotelId: new Types.ObjectId(hotelIdStr) }).lean();
         for (const dt of dbTables) {
+          const tableId = dt._id.toString();
+          if (tables.some((table) => table.id === tableId)) continue;
+
+          const floorLevel = dt.floorLevel || '';
+          const floorMatch = floorLevel.match(/\d+/);
           tables.push({
-            id: dt._id.toString(),
+            id: tableId,
             tableNumber: dt.tableNumber,
-            floorNumber: parseInt(dt.floorLevel?.replace(/\D/g, '') || '1') || 1,
-            floorLevel: dt.floorLevel || '1st Floor',
-            hallId: 'hall-1-1',
-            section: dt.section || 'Grand AC Dining Hall',
-            capacity: dt.capacity || 4,
+            floorNumber: floorMatch ? Number(floorMatch[0]) : 0,
+            floorLevel,
+            hallId: dt.section || '',
+            section: dt.section,
+            capacity: dt.capacity,
             shape: 'SQUARE',
-            currentStatus: (dt.currentStatus as any) || TableStatus.AVAILABLE,
-            assignedWaiter: 'Floor Staff',
+            currentStatus: dt.currentStatus,
+            assignedWaiterId: dt.assignedWaiterId ? dt.assignedWaiterId.toString() : undefined,
             activeOrderTotal: 0,
             activeItemsCount: 0,
-            createdAt: (dt as any).createdAt ? (dt as any).createdAt.toISOString() : new Date().toISOString(),
+            createdAt: dt.createdAt?.toISOString() || '',
           });
         }
       }
@@ -483,24 +490,63 @@ export const getTables = async (req: Request, res: Response): Promise<void> => {
   try {
     const tables = getTablesForHotel(req);
     const hotelIdStr = getHotelKey(req);
-    if (Types.ObjectId.isValid(hotelIdStr) && tables.length === 0) {
+    if (Types.ObjectId.isValid(hotelIdStr)) {
       const dbTables = await DiningTable.find({ hotelId: new Types.ObjectId(hotelIdStr) }).lean();
-      for (const dt of dbTables) {
-        tables.push({
-          id: dt._id.toString(),
-          tableNumber: dt.tableNumber,
-          floorNumber: parseInt(dt.floorLevel?.replace(/\D/g, '') || '1') || 1,
-          floorLevel: dt.floorLevel || '1st Floor',
-          hallId: 'hall-1-1',
-          section: dt.section || 'Grand AC Dining Hall',
-          capacity: dt.capacity || 4,
-          shape: 'SQUARE',
-          currentStatus: (dt.currentStatus as any) || TableStatus.AVAILABLE,
-          assignedWaiter: 'Floor Staff',
-          activeOrderTotal: 0,
-          activeItemsCount: 0,
-          createdAt: (dt as any).createdAt ? (dt as any).createdAt.toISOString() : new Date().toISOString(),
-        });
+      if (dbTables.length > 0) {
+        const activeSessions = await TableSession.find({
+          hotelId: new Types.ObjectId(hotelIdStr),
+          status: SessionStatus.ACTIVE,
+        }).lean();
+        const sessionMap = new Map(activeSessions.map((s) => [s.tableId.toString(), s]));
+
+        const activeOrders = await RestaurantOrder.find({
+          hotelId: new Types.ObjectId(hotelIdStr),
+          orderStatus: { $in: ['PENDING', 'ACCEPTED', 'PREPARING', 'READY'] },
+        }).lean();
+
+        // Clear and rebuild tables directly from live MongoDB state
+        tables.length = 0;
+        for (const dt of dbTables) {
+          const tableId = dt._id.toString();
+          const liveSession = sessionMap.get(tableId);
+          const tableOrders = activeOrders.filter(
+            (o: any) => o.tableNumber === dt.tableNumber || (liveSession && String(o.tableSessionId) === String(liveSession._id))
+          );
+          const activeOrderTotal = tableOrders.reduce(
+            (sum, o) => sum + Number((o as any).totalAmount || (o as any).netAmount || 0),
+            0
+          );
+          const activeItemsCount = tableOrders.reduce(
+            (sum, o) => sum + (Array.isArray(o.items) ? o.items.length : 0),
+            0
+          );
+
+          let currentStatus = (dt.currentStatus as any) || TableStatus.AVAILABLE;
+          if (liveSession && currentStatus === TableStatus.AVAILABLE) {
+            currentStatus = TableStatus.OCCUPIED;
+          }
+
+          tables.push({
+            id: tableId,
+            tableNumber: dt.tableNumber,
+            floorNumber: parseInt(dt.floorLevel?.replace(/\D/g, '') || '1') || 1,
+            floorLevel: dt.floorLevel || '1st Floor',
+            hallId: 'hall-1-1',
+            section: dt.section || 'Grand AC Dining Hall',
+            capacity: dt.capacity || 4,
+            shape: 'SQUARE',
+            currentStatus,
+            assignedWaiter: (dt as any).assignedWaiterName || 'Floor Staff',
+            assignedWaiterId: (dt as any).assignedWaiterId ? String((dt as any).assignedWaiterId) : undefined,
+            activeSessionId: liveSession?._id ? String(liveSession._id) : undefined,
+            actualGuests: liveSession?.guestCount || dt.capacity || 2,
+            customerClaimedGuests: liveSession?.guestCount || dt.capacity || 2,
+            activeOrderTotal,
+            activeItemsCount,
+            sessionStartTime: liveSession?.createdAt ? (liveSession as any).createdAt.toISOString() : undefined,
+            createdAt: (dt as any).createdAt ? (dt as any).createdAt.toISOString() : new Date().toISOString(),
+          });
+        }
       }
     }
     const { floorNumber, floorLevel, hallId, section, status, search } = req.query;

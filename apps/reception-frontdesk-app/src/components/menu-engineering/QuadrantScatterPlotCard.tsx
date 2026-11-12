@@ -31,7 +31,7 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
     }
   ) => {
     return (
-      <div className={`rounded-2xl border ${theme.border} ${theme.bg} p-4 flex flex-col min-h-[300px]`}>
+      <div className={`rounded-xl border ${theme.border} ${theme.bg} p-4 flex flex-col min-h-[300px]`}>
         <div className={`p-3 rounded-xl ${theme.headerBg} flex items-center justify-between mb-3`}>
           <div>
             <div className="flex items-center gap-2">
@@ -86,7 +86,7 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
                   className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-700 dark:text-slate-300 text-[11px] font-semibold border border-zinc-700 hover:border-slate-200 dark:border-slate-800 transition-all"
                   title="Simulate Price Elasticity"
                 >
-                  🔮 Test Price
+                   Test Price
                 </button>
               </div>
             ))
@@ -118,7 +118,7 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
             bg: 'bg-slate-100 dark:bg-slate-800',
             headerBg: 'bg-slate-100 dark:bg-slate-800',
             titleColor: 'text-slate-700 dark:text-slate-300',
-            icon: '🧩',
+            icon: '',
             advice: 'Upsell via staff & menu redesign',
           }
         )}
@@ -133,7 +133,7 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
             bg: 'bg-amber-950/10',
             headerBg: 'bg-amber-900/20',
             titleColor: 'text-amber-400',
-            icon: '⭐',
+            icon: '',
             advice: 'Maintain recipe consistency',
           }
         )}
@@ -148,7 +148,7 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
             bg: 'bg-red-950/10',
             headerBg: 'bg-red-900/20',
             titleColor: 'text-red-400',
-            icon: '🐕',
+            icon: '',
             advice: 'Phase-out or overhaul recipe',
           }
         )}
@@ -163,7 +163,7 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
             bg: 'bg-blue-950/10',
             headerBg: 'bg-blue-900/20',
             titleColor: 'text-blue-400',
-            icon: '🐎',
+            icon: '',
             advice: 'Increase price or trim portion cost',
           }
         )}

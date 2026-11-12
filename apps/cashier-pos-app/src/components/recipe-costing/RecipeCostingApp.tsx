@@ -32,6 +32,9 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
     highCostRecipesCount: 0,
     averageFoodCostPercentage: 0,
     targetFoodCostPercentage: 32,
+    menuItemCount: 0,
+    recipeCoverageCount: 0,
+    recipeCoveragePercentage: 0,
   });
   const [wasteLogs, setWasteLogs] = useState<IFoodWasteLogUI[]>([]);
   const [wasteSummary, setWasteSummary] = useState<IFoodWasteSummaryUI>({
@@ -235,7 +238,7 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
                       store.setSelectedRecipe(null);
                       store.setActiveModal('EDIT_RECIPE');
                     }}
-                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs"
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-amber-400 text-white font-bold text-xs"
                   >
                     + Create First Recipe BOM
                   </button>

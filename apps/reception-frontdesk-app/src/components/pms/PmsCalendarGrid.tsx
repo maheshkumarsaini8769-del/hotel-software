@@ -1,4 +1,5 @@
 import React from 'react';
+import { Tag } from 'lucide-react';
 import {
   MatrixDateHeader,
   MatrixRoomCategory,
@@ -79,8 +80,8 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
                   key={d.date}
                   style={{ width: `${CELL_WIDTH_PX}px` }}
                   className={`text-center py-2 px-1 border-r border-slate-800/60 font-mono transition ${
-                    d.isWeekend ? 'bg-amber-950/20 text-amber-200' : 'text-slate-300'
-                  }`}
+ d.isWeekend ? 'bg-amber-950/20 text-amber-200' : 'text-slate-300'
+ }`}
                 >
                   <div className="text-[10px] uppercase font-bold text-slate-400">{d.dayName}</div>
                   <div className="text-sm font-extrabold text-white">{d.dayNumber}</div>
@@ -98,9 +99,12 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
                 <tr className="bg-slate-900/70 border-b border-slate-800">
                   <td
                     colSpan={dates.length + 1}
-                    className="px-4 py-2 text-xs font-bold text-amber-400 tracking-wide uppercase bg-gradient-to-r from-slate-900 to-slate-950"
+                    className="bg-gradient-to-t px-4 py-2 text-xs font-bold text-amber-400 tracking-wide uppercase from-slate-900 to-slate-950"
                   >
-                    <span>🏷️ {category.name}</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-amber-500" />
+                      <span>{category.name}</span>
+                    </span>
                     <span className="text-[10px] text-slate-400 ml-2 font-normal">
                       ({category.rooms.length} Rooms Available)
                     </span>
@@ -151,8 +155,8 @@ export const PmsCalendarGrid: React.FC<PmsCalendarGridProps> = ({
                                 )
                               }
                               className={`border-r border-slate-850/40 h-full flex items-center justify-center transition cursor-pointer hover:bg-amber-500/10 group/cell ${
-                                d.isWeekend ? 'bg-amber-950/5' : ''
-                              }`}
+ d.isWeekend ? 'bg-amber-950/5' : ''
+ }`}
                               title={`Click to reserve ${room.roomNumber} starting ${d.date}`}
                             >
                               <span className="opacity-0 group-hover/cell:opacity-100 text-[10px] font-bold text-amber-400 bg-slate-900/90 px-1 py-0.5 rounded border border-amber-500/30 transition">

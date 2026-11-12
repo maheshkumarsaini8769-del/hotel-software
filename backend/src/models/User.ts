@@ -8,7 +8,6 @@ export interface IUser extends Document {
   email: string;
   phone: string;
   passwordHash: string;
-  pinCode?: string;
   pinCodeHash?: string;
   pinApprovedByAdmin?: boolean;
   pendingPinHash?: string;
@@ -27,6 +26,13 @@ export interface IUser extends Document {
   assignedTableStart?: number;
   assignedTableEnd?: number;
   assignedCounter?: string;
+  baseSalary?: number;
+  salaryCycle?: 'MONTHLY' | 'WEEKLY' | 'DAILY';
+  payrollDeductionOverride?: {
+    mode: 'INHERIT_PORTAL' | 'NO_DEDUCTION' | 'FIXED_AMOUNT' | 'PRO_RATA';
+    perDayDeductionAmount: number;
+    halfDayPercent?: number;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,7 +52,6 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, lowercase: true, trim: true },
     phone: { type: String, required: true, trim: true },
     passwordHash: { type: String, required: true },
-    pinCode: { type: String, default: '1234' },
     pinCodeHash: { type: String },
     pinApprovedByAdmin: { type: Boolean, default: true },
     pendingPinHash: { type: String, select: false },
@@ -78,6 +83,17 @@ const UserSchema = new Schema<IUser>(
     assignedTableStart: { type: Number },
     assignedTableEnd: { type: Number },
     assignedCounter: { type: String },
+    baseSalary: { type: Number, default: 0, min: 0 },
+    salaryCycle: { type: String, enum: ['MONTHLY', 'WEEKLY', 'DAILY'], default: 'MONTHLY' },
+    payrollDeductionOverride: {
+      mode: {
+        type: String,
+        enum: ['INHERIT_PORTAL', 'NO_DEDUCTION', 'FIXED_AMOUNT', 'PRO_RATA'],
+        default: 'INHERIT_PORTAL',
+      },
+      perDayDeductionAmount: { type: Number, default: 0, min: 0 },
+      halfDayPercent: { type: Number, default: 50, min: 0, max: 100 },
+    },
     isActive: { type: Boolean, default: true, index: true },
   },
   { timestamps: true }

@@ -27,7 +27,7 @@ export const FoodWasteAuditTable: React.FC<FoodWasteAuditTableProps> = ({
   ];
 
   return (
-    <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 space-y-4 shadow-xl">
+    <div className="bg-slate-900 rounded-xl border border-zinc-800 p-5 space-y-4 shadow-xl">
       {/* Table Header & Category Tabs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-zinc-800">
         <div>
@@ -47,10 +47,10 @@ export const FoodWasteAuditTable: React.FC<FoodWasteAuditTableProps> = ({
               type="button"
               onClick={() => onFilterChange(tab.key)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                selectedFilter === tab.key
-                  ? 'bg-red-500/20 text-red-300 border-red-500/40'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-              }`}
+ selectedFilter === tab.key
+ ? 'bg-red-500/20 text-red-300 border-red-500/40'
+ : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+ }`}
             >
               {tab.label}
             </button>

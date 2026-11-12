@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { INewTransferPayload } from '@spicehub/ui';
+import { INewTransferPayload, NumericInput } from '@spicehub/ui';
 
 interface InterKitchenTransferModalProps {
   isOpen: boolean;
@@ -147,8 +147,7 @@ export const InterKitchenTransferModal: React.FC<InterKitchenTransferModalProps>
                     />
                   </div>
                   <div className="col-span-3">
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.1"
                       min="0.1"
                       value={it.quantity}

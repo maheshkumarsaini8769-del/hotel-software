@@ -64,8 +64,57 @@ export async function fetchServerLanIp(): Promise<string> {
   return localStorage.getItem('spicehub_lan_ip') || '10.65.226.216';
 }
 
+/**
+ * Sentinel QR host meaning "the deployed https portal". Only the hosted origin
+ * can match the Android App Link / intent hand-off, so printed standees must
+ * use it instead of a Wi-Fi IP.
+ */
+export const LIVE_QR_HOST = 'live';
+
+const LIVE_CUSTOMER_PORTAL_URL = 'https://spicehub-customer-table.vercel.app';
+const LIVE_GUEST_PORTAL_URL = 'https://spicehub-guest-portal.vercel.app';
+
+const LIVE_PORTAL_URLS: Partial<Record<PortalKey, string>> = {
+  customer: LIVE_CUSTOMER_PORTAL_URL,
+  guest: LIVE_GUEST_PORTAL_URL,
+};
+
+export function isLiveQrHost(host?: string | null): boolean {
+  return (host || '').trim().toLowerCase() === LIVE_QR_HOST;
+}
+
+/** Direct .apk download link for the QR standee. The LAN backend serves it at
+ *  :5000, while the live-host mode points at the production download endpoint. */
+export function getApkDownloadUrl(overrideHost?: string): string {
+  const configured = (import.meta as any).env?.VITE_APK_DOWNLOAD_URL?.trim();
+  if (configured) return trimTrailingSlash(configured);
+  if (isLiveQrHost(overrideHost)) {
+    return 'https://spicehub-backend.vercel.app/download/customer-apk';
+  }
+  const stored = typeof window !== 'undefined' ? localStorage.getItem('spicehub_qr_host') : null;
+  const host = overrideHost?.trim() || stored || 'localhost';
+  if (host.startsWith('http://') || host.startsWith('https://')) return trimTrailingSlash(host);
+  return `http://${host}:5000/download/customer-apk`;
+}
+
+function resolveOrigin(portal: PortalKey, host: string): string {
+  const cleanHost = trimTrailingSlash(host.trim());
+  if (cleanHost.startsWith('http://') || cleanHost.startsWith('https://')) return cleanHost;
+  return `http://${cleanHost}:${LOCAL_PORTS[portal]}`;
+}
+
 export function getPortalUrl(portal: PortalKey, path = '', overrideHost?: string): string {
   const configured = ENV_URLS[portal]?.trim();
+
+  // A live-host QR always prefers the deployed portal, which is the only origin
+  // the installed app can intercept.
+  const liveOrigin = LIVE_PORTAL_URLS[portal];
+  if (isLiveQrHost(overrideHost) && liveOrigin) {
+    const origin = trimTrailingSlash(liveOrigin);
+    if (!path) return origin;
+    return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
+  }
+
   if (configured) {
     const origin = trimTrailingSlash(configured);
     if (!path) return origin;
@@ -74,11 +123,7 @@ export function getPortalUrl(portal: PortalKey, path = '', overrideHost?: string
 
   // 1. If an override host is explicitly supplied (e.g. from QR Center selector)
   if (overrideHost && overrideHost.trim()) {
-    const cleanHost = overrideHost.trim();
-    const port = LOCAL_PORTS[portal];
-    const origin = cleanHost.startsWith('http://') || cleanHost.startsWith('https://')
-      ? trimTrailingSlash(cleanHost)
-      : `http://${cleanHost}:${port}`;
+    const origin = resolveOrigin(portal, overrideHost);
     if (!path) return origin;
     return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
   }
@@ -86,11 +131,7 @@ export function getPortalUrl(portal: PortalKey, path = '', overrideHost?: string
   // 2. Check localStorage for persistent QR host selection
   const storedQrHost = typeof window !== 'undefined' ? localStorage.getItem('spicehub_qr_host') : null;
   if (storedQrHost && storedQrHost.trim()) {
-    const cleanHost = storedQrHost.trim();
-    const port = LOCAL_PORTS[portal];
-    const origin = cleanHost.startsWith('http://') || cleanHost.startsWith('https://')
-      ? trimTrailingSlash(cleanHost)
-      : `http://${cleanHost}:${port}`;
+    const origin = resolveOrigin(portal, storedQrHost);
     if (!path) return origin;
     return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
   }

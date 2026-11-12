@@ -2,7 +2,7 @@ import React from 'react';
 import {
   IFastCashierCartItem,
   IFastCashierFinancials,
-  FastCashierHelper,
+  FastCashierHelper, NumericInput,
 } from '@spicehub/ui';
 
 interface FastCashierCartProps {
@@ -172,10 +172,10 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
               type="button"
               onClick={() => onSetPaymentMethod(method)}
               className={`py-2 rounded-xl text-xs font-bold transition-all border ${
-                paymentMethod === method
-                  ? 'bg-amber-500 text-black border-amber-400 shadow-sm dark:shadow-none'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-              }`}
+ paymentMethod === method
+ ? 'bg-emerald-600 text-white border-amber-400 shadow-sm dark:shadow-none'
+ : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+ }`}
             >
               {method === 'CASH' && '💵 Cash'}
               {method === 'UPI' && '📱 UPI QR'}
@@ -191,8 +191,7 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
               <span>Tender Cash:</span>
               <div className="flex items-center gap-1 font-mono">
                 <span>₹</span>
-                <input
-                  type="number"
+                <NumericInput
                   value={tenderAmount || ''}
                   onChange={(e) => onSetTenderAmount(Number(e.target.value))}
                   className="w-20 px-2 py-0.5 bg-black border border-zinc-700 rounded text-amber-400 font-bold text-xs text-right outline-none focus:border-amber-400"
@@ -208,10 +207,10 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
                   type="button"
                   onClick={() => onSetTenderAmount(note)}
                   className={`px-2 py-1 rounded text-[11px] font-mono font-bold transition-all border ${
-                    tenderAmount === note
-                      ? 'bg-amber-400 text-black border-amber-300'
-                      : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:border-amber-500/50'
-                  }`}
+ tenderAmount === note
+ ? 'bg-amber-400 text-black border-amber-300'
+ : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:border-emerald-600/50'
+ }`}
                 >
                   ₹{note}
                 </button>
@@ -231,10 +230,10 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
         {paymentMethod === 'CASH' && financials.grandTotal > 0 && (
           <div
             className={`p-3 rounded-xl border flex items-center justify-between font-mono ${
-              isUnderpaid
-                ? 'bg-red-950/40 border-red-500/50 text-red-300'
-                : 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 shadow-sm dark:shadow-none'
-            }`}
+ isUnderpaid
+ ? 'bg-red-950/40 border-red-500/50 text-red-300'
+ : 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 shadow-sm dark:shadow-none'
+ }`}
           >
             <span className="text-xs uppercase font-bold tracking-wider font-sans">
               {isUnderpaid ? 'Due Remaining:' : 'Change to Return:'}

@@ -184,7 +184,7 @@ export const DynamicUpiQrModal: React.FC<DynamicUpiQrModalProps> = ({
               <button
                 disabled={isProcessing || isExpired || isCancelled}
                 onClick={handleManualCheck}
-                className="w-full h-12 min-h-[48px] rounded-xl bg-sky-600 text-white font-semibold text-sm hover:bg-sky-500 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                className="w-full h-12 min-h-[48px] rounded-xl bg-[#123C2B] text-white font-semibold text-sm hover:bg-[#1B5138] disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
               >
                 <span>🔄</span>
                 <span>{isProcessing ? 'Verifying...' : 'Check Payment Status'}</span>

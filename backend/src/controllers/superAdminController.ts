@@ -19,15 +19,21 @@ import { KitchenStation } from '../models/KitchenStation';
 import { MenuCategory } from '../models/MenuCategory';
 import { MenuItem, FoodType } from '../models/MenuItem';
 import { TenantRequest, UserRole, ShiftStatus } from '../types';
+import { resolveTenantCapabilities } from '../utils/tenantCapabilities';
+import {
+  generateStaffHotelCode,
+  hashStaffHotelCode,
+  normalizeStaffHotelCode,
+  isValidStaffHotelCode,
+} from '../utils/staffHotelAccess';
+import {
+  emitGlobalTenantEvent,
+  getSocketIOInstance,
+  serializePublicHotelSummary,
+} from '../utils/tenantPublicSummary';
 
 function getSocketIO(): any {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const serverModule = require('../index');
-    return serverModule?.io;
-  } catch {
-    return null;
-  }
+  return getSocketIOInstance();
 }
 
 function parseRange(req: TenantRequest): { start: Date; end: Date } {
@@ -52,6 +58,14 @@ export const listAllTenants = async (req: TenantRequest, res: Response): Promise
 
     const tenantList = await Promise.all(
       tenants.map(async (t) => {
+        const hotelFilter = {
+          $or: [
+            { hotelId: t._id },
+            { hotelId: String(t._id) },
+            { tenantId: t._id },
+            { tenantId: String(t._id) },
+          ],
+        };
         const [
           roomCount,
           occupiedRoomCount,
@@ -62,11 +76,11 @@ export const listAllTenants = async (req: TenantRequest, res: Response): Promise
           periodRevenue,
           adminUser,
         ] = await Promise.all([
-          Room.countDocuments({ hotelId: t._id }),
-          Room.countDocuments({ hotelId: t._id, status: RoomStatus.OCCUPIED }),
-          DiningTable.countDocuments({ hotelId: t._id }),
+          Room.countDocuments(hotelFilter),
+          Room.countDocuments({ ...hotelFilter, status: RoomStatus.OCCUPIED }),
+          DiningTable.countDocuments(hotelFilter),
           DiningTable.countDocuments({
-            hotelId: t._id,
+            ...hotelFilter,
             currentStatus: {
               $in: [
                 TableStatus.OCCUPIED,
@@ -75,9 +89,9 @@ export const listAllTenants = async (req: TenantRequest, res: Response): Promise
               ],
             },
           }),
-          Booking.countDocuments({ hotelId: t._id }),
+          Booking.countDocuments(hotelFilter),
           RestaurantOrder.countDocuments({
-            hotelId: t._id,
+            ...hotelFilter,
             placedAt: { $gte: start, $lte: end },
           }),
           Payment.aggregate([
@@ -150,13 +164,20 @@ export const listAllTenants = async (req: TenantRequest, res: Response): Promise
             t.enabledPortals && t.enabledPortals.length > 0
               ? t.enabledPortals
               : ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'],
+          serviceCapabilities: resolveTenantCapabilities(t),
           billingCycle: t.billingCycle || 'MONTHLY',
           customPricingAdjustmentINR: Number(t.customPricingAdjustmentINR || 0),
-          featureFlags: t.featureFlags,
+          subscribedFeatures:
+            t.subscribedFeatures && t.subscribedFeatures.length > 0
+              ? t.subscribedFeatures
+              : ['pms_inventory', 'qr_table_ordering', 'gst_invoicing', 'whatsapp_alerts', 'staff_attendance', 'kds_routing'],
+          subscription: t.subscription,
+          paymentStatus: t.subscription?.paymentStatus || 'PAID',
           plan,
           planCode: storedPlanCode || plan,
           planName: t.subscriptionPlanName || '',
-          monthlyPriceINR: Number(t.subscriptionMonthlyINR || 0),
+          monthlyPriceINR: Number(t.subscriptionMonthlyINR || t.subscription?.monthlyRateINR || t.subscription?.effectiveRateINR || 0),
+          effectiveRateINR: Number(t.subscription?.effectiveRateINR || t.subscriptionMonthlyINR || 0),
           maxRooms: Number(t.maxRooms || 30),
           maxTables: Number(t.maxTables || 20),
           roomCount,
@@ -241,6 +262,7 @@ export const toggleTenantStatus = async (req: TenantRequest, res: Response): Pro
         newStatus: status,
         reason,
       });
+      emitGlobalTenantEvent('tenant:updated', tenant);
     }
 
     res.status(200).json({
@@ -265,7 +287,10 @@ export const updateTenantFeatureFlags = async (req: TenantRequest, res: Response
       return;
     }
 
-    const tenant = await Tenant.findById(new Types.ObjectId(tenantId));
+    const tenantFilter = Types.ObjectId.isValid(tenantId)
+      ? { _id: new Types.ObjectId(tenantId) }
+      : { slug: tenantId };
+    const tenant = await Tenant.findOne(tenantFilter);
     if (!tenant) {
       res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Tenant not found' });
       return;
@@ -307,6 +332,8 @@ export const updateTenantFeatureFlags = async (req: TenantRequest, res: Response
       qrDineInEnabled: tenant.enabledPortals.includes('customer'),
       roomServiceEnabled: tenant.enabledPortals.includes('guest'),
     };
+    tenant.markModified('featureFlags');
+    tenant.markModified('enabledPortals');
     await tenant.save();
 
     const socketIO = getSocketIO();
@@ -342,6 +369,7 @@ export const updateTenantPortalsAndPricing = async (
       planName,
       planCode,
       featureFlags,
+      capabilities,
     } = req.body;
 
     if (!Array.isArray(enabledPortals)) {
@@ -353,7 +381,10 @@ export const updateTenantPortalsAndPricing = async (
       return;
     }
 
-    const tenant = await Tenant.findById(new Types.ObjectId(tenantId));
+    const tenantFilter = Types.ObjectId.isValid(tenantId)
+      ? { _id: new Types.ObjectId(tenantId) }
+      : { slug: tenantId };
+    const tenant = await Tenant.findOne(tenantFilter);
     if (!tenant) {
       res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Tenant not found' });
       return;
@@ -395,6 +426,36 @@ export const updateTenantPortalsAndPricing = async (
       ...(featureFlags || {}),
     };
 
+    if (capabilities !== undefined && typeof capabilities === 'object' && !Array.isArray(capabilities)) {
+      const capabilityPortalMap: Record<string, string> = {
+        roomBooking: 'guest',
+        reception: 'reception',
+        inRoomServices: 'guest',
+        tableOrdering: 'customer',
+        waiterDispatch: 'waiter',
+      };
+      const capabilityFlagMap: Record<string, string> = {
+        roomBooking: 'roomBookingEnabled',
+        reception: 'frontDeskEnabled',
+        inRoomServices: 'inRoomServicesEnabled',
+        tableOrdering: 'tableOrderingEnabled',
+        waiterDispatch: 'waiterDispatchEnabled',
+      };
+
+      // Auto-synchronize: if a portal is shut down / disabled, automatically turn off any linked capability
+      for (const [capability, requiredPortal] of Object.entries(capabilityPortalMap)) {
+        if (!portals.includes(requiredPortal)) {
+          capabilities[capability] = false;
+        }
+        if (capabilities[capability] !== undefined) {
+          const flag = capabilityFlagMap[capability];
+          (tenant.featureFlags as any)[flag] = Boolean(capabilities[capability]);
+        }
+      }
+    }
+
+    tenant.markModified('featureFlags');
+    tenant.markModified('enabledPortals');
     await tenant.save();
 
     // Broadcast real-time socket events across the tenant
@@ -410,6 +471,7 @@ export const updateTenantPortalsAndPricing = async (
         monthlyPriceINR: tenant.subscriptionMonthlyINR,
         featureFlags: tenant.featureFlags,
       });
+      emitGlobalTenantEvent('tenant:updated', tenant);
     }
 
     res.status(200).json({
@@ -475,7 +537,7 @@ export const createSubscriptionPlan = async (req: TenantRequest, res: Response):
 // 5. Get Subscription Plans
 export const getSubscriptionPlans = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
-    const plans = await SubscriptionPlan.find({ isActive: true }).sort({ monthlyPriceINR: 1 });
+    const plans = await SubscriptionPlan.find().sort({ monthlyPriceINR: 1 });
     res.status(200).json({ success: true, count: plans.length, plans });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
@@ -488,7 +550,11 @@ export const updateSubscriptionPlan = async (req: TenantRequest, res: Response):
     const planId = String(req.params.planId);
     const { name, monthlyPriceINR, annualPriceINR, limits, featureFlags, isActive } = req.body;
 
-    const plan = await SubscriptionPlan.findById(new Types.ObjectId(planId));
+    const filter = Types.ObjectId.isValid(planId)
+      ? { _id: new Types.ObjectId(planId) }
+      : { code: planId.toUpperCase() };
+
+    const plan = await SubscriptionPlan.findOne(filter);
     if (!plan) {
       res.status(404).json({ success: false, errorCode: 'PLAN_NOT_FOUND', message: 'Subscription plan not found' });
       return;
@@ -499,9 +565,9 @@ export const updateSubscriptionPlan = async (req: TenantRequest, res: Response):
     if (annualPriceINR !== undefined) plan.annualPriceINR = Math.max(0, Number(annualPriceINR));
     if (limits && typeof limits === 'object') {
       plan.limits = {
-        maxRooms: limits.maxRooms !== undefined ? Number(limits.maxRooms) : plan.limits.maxRooms,
-        maxTables: limits.maxTables !== undefined ? Number(limits.maxTables) : plan.limits.maxTables,
-        maxStaffUsers: limits.maxStaffUsers !== undefined ? Number(limits.maxStaffUsers) : plan.limits.maxStaffUsers,
+        maxRooms: limits.maxRooms !== undefined ? Number(limits.maxRooms) : plan.limits?.maxRooms || 25,
+        maxTables: limits.maxTables !== undefined ? Number(limits.maxTables) : plan.limits?.maxTables || 15,
+        maxStaffUsers: limits.maxStaffUsers !== undefined ? Number(limits.maxStaffUsers) : plan.limits?.maxStaffUsers || 10,
       };
     }
     if (featureFlags && typeof featureFlags === 'object') {
@@ -525,12 +591,30 @@ export const updateSubscriptionPlan = async (req: TenantRequest, res: Response):
   }
 };
 
-// 5b. Deactivate / Delete Subscription Plan
+// 5c. Deactivate / Reactivate / Toggle Subscription Plan
 export const deleteSubscriptionPlan = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
     const planId = String(req.params.planId);
-    await SubscriptionPlan.findByIdAndUpdate(new Types.ObjectId(planId), { isActive: false });
-    res.status(200).json({ success: true, message: 'Plan deactivated successfully' });
+    const filter = Types.ObjectId.isValid(planId)
+      ? { _id: new Types.ObjectId(planId) }
+      : { code: planId.toUpperCase() };
+
+    const plan = await SubscriptionPlan.findOne(filter);
+    if (!plan) {
+      res.status(404).json({ success: false, errorCode: 'PLAN_NOT_FOUND', message: 'Subscription plan not found' });
+      return;
+    }
+
+    // If target status is provided in body, use it; otherwise toggle current state
+    const targetState = req.body?.isActive !== undefined ? Boolean(req.body.isActive) : !plan.isActive;
+    plan.isActive = targetState;
+    await plan.save();
+
+    res.status(200).json({
+      success: true,
+      message: targetState ? 'Plan reactivated successfully' : 'Plan deactivated successfully',
+      plan,
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
   }
@@ -838,7 +922,7 @@ export const provisionTenantCapacity = async (
       const roomDocs = [];
       let created = 0;
       for (let index = existingRooms.length; created < roomCount; index += 1) {
-        const roomNumber = String(100 + index);
+        const roomNumber = String(101 + index);
         if (existingNumbers.has(roomNumber)) continue;
         roomDocs.push({
           hotelId: tenant._id,
@@ -1054,17 +1138,43 @@ export const updateTenantBranding = async (req: TenantRequest, res: Response): P
       return;
     }
 
-    const { logoUrl, coverImageUrl, photos, tagline, primaryColor, secondaryColor, domain } = req.body;
+    const {
+      name,
+      contactPhone,
+      contactEmail,
+      city,
+      state,
+      street,
+      logoUrl,
+      coverImageUrl,
+      stayImageUrl,
+      diningImageUrl,
+      photos,
+      tagline,
+      primaryColor,
+      secondaryColor,
+      domain,
+    } = req.body;
 
     const updateFields: any = {};
+    if (name !== undefined && String(name).trim()) updateFields.name = String(name).trim();
+    if (contactPhone !== undefined) updateFields.contactPhone = String(contactPhone).trim();
+    if (contactEmail !== undefined && String(contactEmail).trim()) updateFields.contactEmail = String(contactEmail).trim().toLowerCase();
+    if (city !== undefined) updateFields['address.city'] = String(city).trim();
+    if (state !== undefined) updateFields['address.state'] = String(state).trim();
+    if (street !== undefined) updateFields['address.street'] = String(street).trim();
     if (logoUrl !== undefined) updateFields.logoUrl = String(logoUrl).trim();
     if (coverImageUrl !== undefined) updateFields.coverImageUrl = String(coverImageUrl).trim();
+    if (stayImageUrl !== undefined) updateFields.stayImageUrl = String(stayImageUrl).trim();
+    if (diningImageUrl !== undefined) updateFields.diningImageUrl = String(diningImageUrl).trim();
     if (tagline !== undefined) updateFields.tagline = String(tagline).trim();
     if (primaryColor !== undefined) {
       updateFields.primaryColor = String(primaryColor).trim();
       updateFields['branding.primaryColor'] = String(primaryColor).trim();
     }
-    if (secondaryColor !== undefined) updateFields.secondaryColor = String(secondaryColor).trim();
+    if (secondaryColor !== undefined) {
+      updateFields['branding.secondaryColor'] = String(secondaryColor).trim();
+    }
     if (domain !== undefined) updateFields.domain = String(domain).trim().toLowerCase();
     if (photos !== undefined) {
       updateFields.photos = Array.isArray(photos) ? photos.map((p: any) => String(p).trim()).filter(Boolean) : [];
@@ -1083,15 +1193,7 @@ export const updateTenantBranding = async (req: TenantRequest, res: Response): P
 
     const socketIO = getSocketIO();
     if (socketIO) {
-      socketIO.emit('tenant:updated', {
-        id: tenant._id.toString(),
-        slug: tenant.slug,
-        name: tenant.name,
-        logoUrl: tenant.logoUrl,
-        coverImageUrl: tenant.coverImageUrl,
-        tagline: tenant.tagline,
-        photos: tenant.photos,
-      });
+      emitGlobalTenantEvent('tenant:updated', tenant);
       socketIO.emit('restaurant:info_updated', {
         name: tenant.name,
         tagline: tenant.tagline,
@@ -1104,13 +1206,10 @@ export const updateTenantBranding = async (req: TenantRequest, res: Response): P
       success: true,
       message: `Branding updated successfully for ${tenant.name}`,
       tenant: {
-        id: tenant._id,
-        name: tenant.name,
-        slug: tenant.slug,
-        logoUrl: tenant.logoUrl,
-        coverImageUrl: tenant.coverImageUrl,
-        photos: tenant.photos,
-        tagline: tenant.tagline,
+        ...serializePublicHotelSummary(tenant),
+        primaryColor: tenant.primaryColor || tenant.branding?.primaryColor,
+        secondaryColor: tenant.branding?.secondaryColor || '',
+        domain: tenant.domain,
       },
     });
   } catch (error: any) {
@@ -1173,6 +1272,10 @@ export const createTenant = async (req: TenantRequest, res: Response): Promise<v
       $or: [{ code: planCode.toLowerCase() }, { isDefault: true }],
     }).sort({ monthlyPriceINR: 1 });
 
+    // Generate staff hotel access code so newly created hotels work immediately in Staff APK
+    const requestedHotelCode = normalizeStaffHotelCode(req.body?.hotelCode || '');
+    const hotelCode = requestedHotelCode || generateStaffHotelCode(tenantName);
+
     const tenant = await Tenant.create({
       name: tenantName,
       slug: uniqueSlug,
@@ -1180,6 +1283,12 @@ export const createTenant = async (req: TenantRequest, res: Response): Promise<v
       contactPhone: contactPhone || '9876543210',
       currency: 'INR',
       status: 'ACTIVE',
+      logoUrl: req.body?.logoUrl ? String(req.body.logoUrl).trim() : '',
+      coverImageUrl: req.body?.coverImageUrl ? String(req.body.coverImageUrl).trim() : '',
+      tagline: req.body?.tagline ? String(req.body.tagline).trim() : '',
+      staffAccessCodeHash: hashStaffHotelCode(hotelCode),
+      staffAccessCodeVersion: crypto.randomUUID(),
+      staffAccessCodeUpdatedAt: new Date(),
       subscriptionPlanId: plan?._id,
       subscriptionPlanCode: plan?.code || 'starter',
       subscriptionPlanName: plan?.name || 'Starter Tier',
@@ -1217,7 +1326,11 @@ export const createTenant = async (req: TenantRequest, res: Response): Promise<v
 
     // Create Hotel Admin User with argon2 hashes
     const passwordHash = await argon2.hash(String(adminPassword));
-    const pinCodeHash = await argon2.hash('1111');
+    const rawStaffPin = req.body?.staffPin;
+    const staffPin = rawStaffPin && /^\d{4}$/.test(String(rawStaffPin).trim())
+      ? String(rawStaffPin).trim()
+      : '1111';
+    const pinCodeHash = await argon2.hash(staffPin);
 
     await User.create({
       hotelId: tenant._id,
@@ -1386,25 +1499,23 @@ export const createTenant = async (req: TenantRequest, res: Response): Promise<v
       },
     ]);
 
+    emitGlobalTenantEvent('tenant:created', tenant);
+
     res.status(201).json({
       success: true,
       message: `Hotel tenant "${tenant.name}" created successfully!`,
       tenant: {
-        id: tenant._id,
-        name: tenant.name,
-        slug: tenant.slug,
-        contactEmail: tenant.contactEmail,
-        contactPhone: tenant.contactPhone,
-        status: tenant.status,
+        ...serializePublicHotelSummary(tenant),
+        hotelCode,
         planName: tenant.subscriptionPlanName,
         planCode: tenant.subscriptionPlanCode,
         monthlyPriceINR: tenant.subscriptionMonthlyINR,
-        enabledPortals: tenant.enabledPortals,
       },
       credentials: {
         email: effectiveEmail,
         password: String(adminPassword),
         pin: '1111',
+        hotelCode,
         portalUrl: 'http://localhost:3005',
       },
     });
@@ -1828,16 +1939,15 @@ export const updateTenantLocation = async (req: TenantRequest, res: Response): P
 
     await tenant.save();
 
+    emitGlobalTenantEvent('tenant:updated', tenant);
+
     res.status(200).json({
       success: true,
       message: `Real location and Google Maps coordinates updated successfully for ${tenant.name}`,
       tenant: {
-        id: tenant._id,
-        name: tenant.name,
-        coordinates: tenant.coordinates,
+        ...serializePublicHotelSummary(tenant),
         latitude: newLat,
         longitude: newLng,
-        address: tenant.address,
         googleMapUrl: tenant.googleMapUrl,
         locationNotes: tenant.locationNotes,
       },
@@ -1848,5 +1958,114 @@ export const updateTenantLocation = async (req: TenantRequest, res: Response): P
   }
 };
 
+// 18. Update Tenant General Profile & Metadata (Super Admin)
+export const updateTenantDetails = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const tenantIdStr = Array.isArray(req.params.tenantId)
+      ? req.params.tenantId[0]
+      : String(req.params.tenantId || '').trim();
+    if (!tenantIdStr || !Types.ObjectId.isValid(tenantIdStr)) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_ID', message: 'Valid tenantId is required' });
+      return;
+    }
 
+    const {
+      name,
+      contactEmail,
+      contactPhone,
+      tagline,
+      logoUrl,
+      coverImageUrl,
+      stayImageUrl,
+      diningImageUrl,
+      city,
+      state,
+      street,
+      pincode,
+      country,
+      status,
+    } = req.body;
+
+    const updateFields: any = {};
+    if (name !== undefined && String(name).trim()) updateFields.name = String(name).trim();
+    if (contactEmail !== undefined && String(contactEmail).trim()) updateFields.contactEmail = String(contactEmail).trim().toLowerCase();
+    if (contactPhone !== undefined) updateFields.contactPhone = String(contactPhone).trim();
+    if (tagline !== undefined) updateFields.tagline = String(tagline).trim();
+    if (logoUrl !== undefined) updateFields.logoUrl = String(logoUrl).trim();
+    if (coverImageUrl !== undefined) updateFields.coverImageUrl = String(coverImageUrl).trim();
+    if (stayImageUrl !== undefined) updateFields.stayImageUrl = String(stayImageUrl).trim();
+    if (diningImageUrl !== undefined) updateFields.diningImageUrl = String(diningImageUrl).trim();
+    if (city !== undefined) updateFields['address.city'] = String(city).trim();
+    if (state !== undefined) updateFields['address.state'] = String(state).trim();
+    if (street !== undefined) updateFields['address.street'] = String(street).trim();
+    if (pincode !== undefined) updateFields['address.pincode'] = String(pincode).trim();
+    if (country !== undefined) updateFields['address.country'] = String(country).trim();
+    if (status && ['ACTIVE', 'SUSPENDED', 'TRIAL'].includes(status)) updateFields.status = status;
+    if (req.body?.hotelCode) {
+      const customCode = normalizeStaffHotelCode(req.body.hotelCode);
+      if (isValidStaffHotelCode(customCode)) {
+        updateFields.staffAccessCodeHash = hashStaffHotelCode(customCode);
+        updateFields.staffAccessCodeVersion = crypto.randomUUID();
+        updateFields.staffAccessCodeUpdatedAt = new Date();
+      }
+    }
+
+    const tenant = await Tenant.findByIdAndUpdate(
+      new Types.ObjectId(tenantIdStr),
+      { $set: updateFields },
+      { new: true }
+    );
+
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Tenant not found' });
+      return;
+    }
+
+    emitGlobalTenantEvent('tenant:updated', tenant);
+
+    res.status(200).json({
+      success: true,
+      message: `Property "${tenant.name}" updated successfully`,
+      tenant: serializePublicHotelSummary(tenant),
+    });
+  } catch (error: any) {
+    console.error('❌ [updateTenantDetails] Error:', error);
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// 21. Super Admin Cross-Tenant Fleet Rooms
+export const listFleetRooms = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const { hotelId, status } = req.query;
+    const filter: any = {};
+    if (hotelId) {
+      filter.$or = [{ hotelId: hotelId }, { hotelId: String(hotelId) }];
+    }
+    if (status && status !== 'ALL') {
+      filter.status = status;
+    }
+    const rooms = await Room.find(filter)
+      .populate('hotelId', 'name slug')
+      .populate('roomTypeId', 'name basePriceOvernight')
+      .sort({ roomNumber: 1 })
+      .limit(300)
+      .lean();
+
+    const formatted = rooms.map((r: any) => ({
+      id: String(r._id),
+      roomNumber: r.roomNumber,
+      hotelName: r.hotelId?.name || 'Hotel Property',
+      hotelId: String(r.hotelId?._id || r.hotelId),
+      category: r.roomTypeId?.name || (r.isAc ? 'Deluxe AC' : 'Standard Non-AC'),
+      status: r.status,
+      ratePerNight: r.roomTypeId?.basePriceOvernight || 2500,
+      currentGuest: r.currentGuestName || (r.status === 'OCCUPIED' ? 'In-House Guest' : null),
+      cleanliness: r.status === 'DIRTY' ? 'Dirty' : 'Clean',
+    }));
+    res.status(200).json({ success: true, count: formatted.length, rooms: formatted });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: err.message });
+  }
+};
 

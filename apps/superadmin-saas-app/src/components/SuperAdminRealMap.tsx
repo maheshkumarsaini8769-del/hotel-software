@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import { Map, Globe, Building2, MapPin, ExternalLink, Edit3, Lock } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 export interface RealMapBranch {
@@ -29,6 +30,7 @@ interface SuperAdminRealMapProps {
   theme?: 'dark' | 'light';
   onLocationPick?: (lat: number, lng: number) => void;
   onEditLocation?: (branch: RealMapBranch) => void;
+  heightClass?: string;
 }
 
 const CITY_COORDINATES: Record<string, [number, number]> = {
@@ -105,6 +107,7 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
   theme = 'dark',
   onLocationPick,
   onEditLocation,
+  heightClass,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -199,10 +202,10 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
               ? 'bg-emerald-600 border-white shadow-md shadow-emerald-900/50 hover:scale-110'
               : 'bg-red-600 border-white shadow-md shadow-sm hover:scale-110'
           } transition-transform duration-200">
-            <span class="text-xs font-black text-white">${isOnline ? '🏨' : '🔒'}</span>
+            ${isOnline ? '<svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>' : '<svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>'}
           </div>
           <!-- Label pill -->
-          <div class="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap px-1.5 py-0.5 rounded bg-slate-950/90 text-[10px] font-bold text-white shadow border border-white/10 pointer-events-none">
+          <div class="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap px-1.5 py-0.5 rounded bg-white text-[10px] font-bold text-slate-800 shadow-md border border-slate-200 pointer-events-none">
             ${branch.name.length > 14 ? branch.name.slice(0, 14) + '...' : branch.name}
           </div>
         </div>
@@ -223,7 +226,7 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
         `<div class="p-1 font-sans">
           <p class="font-bold text-xs text-white">${branch.name}</p>
           <p class="text-[10px] text-slate-300">${addressLine || branch.city + ', ' + branch.state}</p>
-          <p class="text-[10px] font-mono text-amber-300">📍 ${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}</p>
+          <p class="text-[10px] font-mono text-emerald-600 font-semibold">GPS: ${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}</p>
           <p class="text-[10px] text-slate-400 mt-0.5"><span class="${
           isOnline ? 'text-emerald-400 font-bold' : 'text-red-400'
         }">${branch.status}</span> &bull; Rev: ₹${branch.todayRevenue.toLocaleString('en-IN')}</p>
@@ -266,40 +269,40 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
   };
 
   return (
-    <div className="relative w-full h-[400px] rounded-xl overflow-hidden border border-slate-700/60 shadow-inner">
+    <div className={`relative isolate z-0 w-full ${heightClass || 'h-[400px]'} rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-50`}>
       {/* Top Controls Bar (Google Maps Style) */}
-      <div className="absolute top-3 left-3 z-[1000] flex flex-wrap items-center gap-2">
+      <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-2">
         {/* Layer Switcher (Streets vs Satellite) */}
-        <div className="flex items-center rounded-lg bg-slate-900/90 backdrop-blur-md p-1 border border-slate-700/80 shadow-lg text-xs font-bold text-white">
+        <div className="flex items-center rounded-lg bg-white/95 backdrop-blur-md p-1 border border-slate-200 shadow-md text-xs font-semibold text-slate-700">
           <button
             type="button"
             onClick={() => setMapType('streets')}
-            className={`px-2.5 py-1 rounded transition flex items-center gap-1.5 ${
-              mapType === 'streets' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white shadow' : 'text-slate-300 hover:text-white'
+            className={`px-2.5 py-1 rounded-md transition flex items-center gap-1.5 ${
+              mapType === 'streets' ? 'btn-glass-green text-xs font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <span>🗺️</span>
+            <Map className="w-3.5 h-3.5" />
             <span>Google Streets</span>
           </button>
           <button
             type="button"
             onClick={() => setMapType('satellite')}
-            className={`px-2.5 py-1 rounded transition flex items-center gap-1.5 ${
-              mapType === 'satellite' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white shadow' : 'text-slate-300 hover:text-white'
+            className={`px-2.5 py-1 rounded-md transition flex items-center gap-1.5 ${
+              mapType === 'satellite' ? 'btn-glass-green text-xs font-semibold shadow-sm' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <span>🛰️</span>
+            <Globe className="w-3.5 h-3.5" />
             <span>Satellite</span>
           </button>
         </div>
 
         {/* City Quick Jumper */}
-        <div className="hidden sm:flex items-center rounded-lg bg-slate-900/90 backdrop-blur-md p-1 border border-slate-700/80 shadow-lg text-[11px] font-bold text-slate-300 gap-1">
+        <div className="hidden sm:flex items-center rounded-lg bg-white/95 backdrop-blur-md p-1 border border-slate-200 shadow-md text-[11px] font-semibold text-slate-600 gap-1">
           <button
             type="button"
             onClick={() => jumpToCity('ALL')}
             className={`px-2 py-0.5 rounded transition ${
-              activeCityJump === 'ALL' ? 'bg-slate-700 text-white' : 'hover:text-white'
+              activeCityJump === 'ALL' ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200' : 'hover:text-slate-900'
             }`}
           >
             India View
@@ -308,7 +311,7 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
             type="button"
             onClick={() => jumpToCity('Mumbai', CITY_COORDINATES.mumbai)}
             className={`px-2 py-0.5 rounded transition ${
-              activeCityJump === 'Mumbai' ? 'bg-slate-700 text-white' : 'hover:text-white'
+              activeCityJump === 'Mumbai' ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200' : 'hover:text-slate-900'
             }`}
           >
             Mumbai
@@ -317,7 +320,7 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
             type="button"
             onClick={() => jumpToCity('Delhi', CITY_COORDINATES.delhi)}
             className={`px-2 py-0.5 rounded transition ${
-              activeCityJump === 'Delhi' ? 'bg-slate-700 text-white' : 'hover:text-white'
+              activeCityJump === 'Delhi' ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200' : 'hover:text-slate-900'
             }`}
           >
             Delhi
@@ -326,7 +329,7 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
             type="button"
             onClick={() => jumpToCity('Bengaluru', CITY_COORDINATES.bengaluru)}
             className={`px-2 py-0.5 rounded transition ${
-              activeCityJump === 'Bengaluru' ? 'bg-slate-700 text-white' : 'hover:text-white'
+              activeCityJump === 'Bengaluru' ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200' : 'hover:text-slate-900'
             }`}
           >
             Bengaluru
@@ -335,7 +338,7 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
             type="button"
             onClick={() => jumpToCity('Jaipur', CITY_COORDINATES.jaipur)}
             className={`px-2 py-0.5 rounded transition ${
-              activeCityJump === 'Jaipur' ? 'bg-slate-700 text-white' : 'hover:text-white'
+              activeCityJump === 'Jaipur' ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200' : 'hover:text-slate-900'
             }`}
           >
             Jaipur
@@ -344,7 +347,7 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
             type="button"
             onClick={() => jumpToCity('Goa', CITY_COORDINATES.goa)}
             className={`px-2 py-0.5 rounded transition ${
-              activeCityJump === 'Goa' ? 'bg-slate-700 text-white' : 'hover:text-white'
+              activeCityJump === 'Goa' ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200' : 'hover:text-slate-900'
             }`}
           >
             Goa
@@ -353,11 +356,11 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
       </div>
 
       {/* Zoom Buttons (Bottom Right, Google Maps Style) */}
-      <div className="absolute bottom-5 right-3 z-[1000] flex flex-col rounded-lg bg-slate-900/90 backdrop-blur-md border border-slate-700/80 shadow-lg overflow-hidden">
+      <div className="absolute bottom-5 right-3 z-10 flex flex-col rounded-lg bg-white/95 backdrop-blur-md border border-slate-200 shadow-md overflow-hidden text-slate-700">
         <button
           type="button"
           onClick={() => mapInstanceRef.current?.zoomIn()}
-          className="w-8 h-8 flex items-center justify-center text-white hover:bg-slate-800 text-base font-black transition border-b border-slate-700/60"
+          className="w-8 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-100 text-base font-black transition border-b border-slate-200"
           title="Zoom In"
         >
           +
@@ -365,7 +368,7 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
         <button
           type="button"
           onClick={() => mapInstanceRef.current?.zoomOut()}
-          className="w-8 h-8 flex items-center justify-center text-white hover:bg-slate-800 text-base font-black transition"
+          className="w-8 h-8 flex items-center justify-center text-slate-700 hover:bg-slate-100 text-base font-black transition"
           title="Zoom Out"
         >
           &minus;
@@ -374,14 +377,14 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
 
       {/* Floating Real Hotel Details Card (Bottom-Left) */}
       {selectedBranch && (
-        <div className="absolute bottom-3 left-3 z-[1000] max-w-sm w-[90%] sm:w-80 bg-slate-900/95 backdrop-blur-md rounded-xl p-3 border border-slate-700/80 shadow-sm dark:shadow-none text-xs text-white animate-in fade-in slide-in-from-bottom-2 duration-150">
+        <div className="absolute bottom-3 left-3 z-20 max-w-sm w-[90%] sm:w-80 bg-white/95 backdrop-blur-md rounded-xl p-3.5 border border-slate-200 shadow-xl text-xs text-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-150">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm">🏨</span>
-                <h4 className="font-bold text-sm text-white truncate">{selectedBranch.name}</h4>
+                <Building2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <h4 className="font-bold text-sm text-slate-800 truncate">{selectedBranch.name}</h4>
               </div>
-              <p className="text-[11px] text-slate-300 mt-0.5 truncate">
+              <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                 {selectedBranch.street ? `${selectedBranch.street}, ` : ''}
                 {selectedBranch.city}, {selectedBranch.state}
                 {selectedBranch.pincode ? ` - ${selectedBranch.pincode}` : ''}
@@ -390,8 +393,8 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
             <span
               className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                 selectedBranch.status === 'ONLINE'
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                  : 'bg-red-500/20 text-red-400 border border-red-500/40'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-rose-50 text-rose-700 border border-rose-200'
               }`}
             >
               {selectedBranch.status}
@@ -399,22 +402,22 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
           </div>
 
           {/* Coordinates and Revenue */}
-          <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-            <span className="font-mono text-amber-300 flex items-center gap-1">
-              <span>📍</span>
+          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span className="font-mono text-slate-700 flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5 text-emerald-600" />
               <span>
                 {selectedBranch.latitude && selectedBranch.longitude
                   ? `${selectedBranch.latitude.toFixed(5)}, ${selectedBranch.longitude.toFixed(5)}`
                   : 'Default India Map'}
               </span>
             </span>
-            <span className="font-semibold text-emerald-400">
+            <span className="font-semibold text-emerald-600">
               ₹{selectedBranch.todayRevenue.toLocaleString('en-IN')} rev
             </span>
           </div>
 
           {/* Actions: Open in Google Maps & Edit Pin */}
-          <div className="mt-2 pt-2 border-t border-slate-800 flex items-center gap-1.5">
+          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-2">
             <a
               href={
                 selectedBranch.googleMapUrl ||
@@ -422,19 +425,19 @@ export const SuperAdminRealMap: React.FC<SuperAdminRealMapProps> = ({
               }
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 font-bold text-[11px] flex items-center justify-center gap-1.5 transition shadow"
+              className="btn-glass-green flex-1 py-1.5 px-2.5 rounded-lg text-[11px] flex items-center justify-center gap-1.5 shadow-sm font-semibold"
             >
-              <span>🌐</span>
+              <ExternalLink className="w-3.5 h-3.5" />
               <span>Google Maps ↗</span>
             </a>
             {onEditLocation && (
               <button
                 type="button"
                 onClick={() => onEditLocation(selectedBranch)}
-                className="py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[11px] flex items-center justify-center gap-1 transition border border-slate-700"
+                className="btn-glass-green-subtle py-1.5 px-2.5 rounded-lg text-[11px] flex items-center justify-center gap-1 font-semibold"
                 title="Edit Exact GPS Coordinates & Address"
               >
-                <span>✏️</span>
+                <Edit3 className="w-3.5 h-3.5" />
                 <span>Edit Pin</span>
               </button>
             )}

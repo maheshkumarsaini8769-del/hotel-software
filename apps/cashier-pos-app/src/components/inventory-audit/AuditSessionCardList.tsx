@@ -40,10 +40,10 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
             key={session._id}
             onClick={() => onSelectSession(session)}
             className={`cursor-pointer rounded-2xl p-5 border transition-all flex flex-col justify-between ${
-              isSelected
-                ? 'bg-zinc-900/95 border-emerald-500 shadow-xl shadow-emerald-950/30 ring-1 ring-emerald-500'
-                : 'bg-zinc-900/70 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'
-            }`}
+ isSelected
+ ? 'bg-zinc-900/95 border-emerald-500 shadow-xl shadow-emerald-950/30 ring-1 ring-emerald-500'
+ : 'bg-zinc-900/70 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'
+ }`}
           >
             <div>
               {/* Header */}

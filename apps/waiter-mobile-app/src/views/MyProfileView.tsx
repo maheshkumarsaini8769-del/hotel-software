@@ -26,7 +26,7 @@ import { waiterFetch } from '../lib/waiterApi';
 export const DEFAULT_WAITER_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24" fill="%2394a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
 
 interface MyProfileViewProps {
-  isDark: boolean;
+  isDark?: boolean;
   waiterSession?: WaiterStaffProfile;
   onLogout?: () => void;
   onOpenCashFloatModal: () => void;
@@ -49,7 +49,6 @@ interface MyProfileViewProps {
 }
 
 export const MyProfileView: React.FC<MyProfileViewProps> = ({
-  isDark,
   waiterSession,
   onLogout,
   onOpenCashFloatModal,
@@ -58,17 +57,36 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
   liveMetrics,
   waiterFloat,
 }) => {
-  const staffName = waiterSession?.name || 'Ravi Kumar';
-  const staffRole = waiterSession?.role || 'Captain';
-  const staffId = waiterSession?.staffId || 'W-101';
+  const staffName = waiterSession?.name || 'Staff member';
+  const staffRole = waiterSession?.role || 'Waiter';
+  const staffId = waiterSession?.staffId || '';
   const staffAvatar = waiterSession?.avatar || DEFAULT_WAITER_AVATAR;
-  const shiftTime = waiterSession?.shift || '09:00 AM - 05:00 PM';
-  const tableRange = `Tables T-${String(waiterSession?.assignedTableStart || 1).padStart(2, '0')} to T-${String(waiterSession?.assignedTableEnd || 6).padStart(2, '0')}`;
-  const section = waiterSession?.assignedSection || 'Indoor AC Dining Hall';
+  const shiftTime = waiterSession?.shift || 'Not assigned';
+  const hasTableAssignment = Boolean(
+    waiterSession && waiterSession.assignedTableStart > 0 &&
+    waiterSession.assignedTableEnd >= waiterSession.assignedTableStart
+  );
+  const assignedTableStart = waiterSession?.assignedTableStart ?? 0;
+  const assignedTableEnd = waiterSession?.assignedTableEnd ?? 0;
+  const tableRange = hasTableAssignment
+    ? `Tables T-${String(assignedTableStart).padStart(2, '0')} to T-${String(assignedTableEnd).padStart(2, '0')}`
+    : 'No table assignment';
+  const section = waiterSession?.assignedSection || 'Not assigned';
 
   const [currentAvatar, setCurrentAvatar] = useState(staffAvatar);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(staffAvatar);
+
+  // Salary Ledger State (Read-Only)
+  const [salaryLedger, setSalaryLedger] = useState<{
+    baseSalary: number;
+    totalPaid: number;
+    advancesTaken: number;
+    netPayable: number;
+    salaryCycle: string;
+    lastPaymentDate?: string;
+  } | null>(null);
+  const [salaryLoading, setSalaryLoading] = useState(false);
 
   useEffect(() => {
     if (waiterSession?.avatar) {
@@ -76,6 +94,38 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
       setSelectedPhoto(waiterSession.avatar);
     }
   }, [waiterSession?.avatar]);
+
+  useEffect(() => {
+    if (!staffId) return;
+    let isMounted = true;
+    const fetchSalary = async () => {
+      setSalaryLoading(true);
+      try {
+        const res = await waiterFetch(`${API_BASE_URL}/api/v1/payroll/ledger/${staffId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && isMounted) {
+            setSalaryLedger({
+              baseSalary: data.summary?.baseSalary || data.staff?.baseSalary || 0,
+              totalPaid: data.summary?.totalPaid || 0,
+              advancesTaken: data.summary?.advancesTaken || 0,
+              netPayable: data.summary?.netPayable || 0,
+              salaryCycle: data.staff?.salaryCycle || 'MONTHLY',
+              lastPaymentDate: data.transactions?.[0]?.date,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Salary ledger fetch error:', e);
+      } finally {
+        if (isMounted) setSalaryLoading(false);
+      }
+    };
+    fetchSalary();
+    return () => {
+      isMounted = false;
+    };
+  }, [staffId]);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -145,14 +195,14 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-5 gap-3 sm:gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
+ 'bg-white border-slate-200'
+ }`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-500 flex items-center justify-center font-bold">
             <User className="w-5 h-5" />
           </div>
           <div>
-            <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            <h2 className={`font-black text-base ${'text-slate-900'}`}>
               Waiter Staff Profile & Register
             </h2>
             <p className="text-xs text-slate-400">
@@ -163,8 +213,8 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
 
         <div className="flex items-center gap-2">
           <span className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border ${
-            isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-          }`}>
+ 'bg-emerald-100 text-emerald-800 border-emerald-300'
+ }`}>
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             Shift: Active ({shiftTime})
           </span>
@@ -175,8 +225,8 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
       <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-4 pb-32 lg:pb-8">
         {/* User Card */}
         <div className={`p-4 sm:p-6 rounded-2xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-        }`}>
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}>
           <div className="flex items-center gap-3 sm:gap-4">
             <div
               className="relative group cursor-pointer shrink-0"
@@ -198,15 +248,15 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className={`font-black text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                <h3 className={`font-black text-lg ${'text-slate-900'}`}>
                   {staffName}
                 </h3>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
-                  isDark ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-100 text-orange-800 border border-orange-200'
-                }`}>
+ 'bg-orange-100 text-orange-800 border border-orange-200'
+ }`}>
                   {staffRole}
                 </span>
-                <span className={`text-xs font-mono font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                <span className={`text-xs font-mono font-bold ${'text-slate-600'}`}>
                   ({staffId})
                 </span>
                 <button
@@ -218,18 +268,18 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
                   <span>Update Photo</span>
                 </button>
               </div>
-              <p className={`text-xs mt-1 flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              <p className={`text-xs mt-1 flex items-center gap-1.5 ${'text-slate-600'}`}>
                 <Grid className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                <span>Assigned Zone: <strong className={isDark ? 'text-white' : 'text-slate-900'}>{tableRange}</strong> ({section})</span>
+                <span>Assigned Zone: <strong className={'text-slate-900'}>{tableRange}</strong> ({section})</span>
               </p>
-              <div className={`flex flex-wrap items-center gap-2 sm:gap-3 text-xs mt-2 font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              <div className={`flex flex-wrap items-center gap-2 sm:gap-3 text-xs mt-2 font-medium ${'text-slate-600'}`}>
                 <span className="flex items-center gap-1">
-                  <Mail className={`w-3.5 h-3.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                  <Mail className={`w-3.5 h-3.5 ${'text-slate-500'}`} />
                   <span>{staffName.toLowerCase().replace(/\s+/g, '.')}@spicehub.internal</span>
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
-                  <Phone className={`w-3.5 h-3.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                  <Phone className={`w-3.5 h-3.5 ${'text-slate-500'}`} />
                   <span>+91 98765 43210</span>
                 </span>
               </div>
@@ -240,8 +290,8 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
             <button
               onClick={() => triggerToast('15-Minute meal break activated.')}
               className={`flex-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition ${
-                isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200'
-              }`}
+ 'bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200'
+ }`}
             >
               <Coffee className="w-4 h-4 text-amber-500" />
               <span>Take Break</span>
@@ -249,10 +299,10 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
             <button
               onClick={() => triggerToast('Shift handed over to Evening Captain.')}
               className={`flex-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition ${
-                isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200'
-              }`}
+ 'bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200'
+ }`}
             >
-              <ShieldCheck className="w-4 h-4 text-blue-500" />
+              <ShieldCheck className="w-4 h-4 text-[#2E6B4C]" />
               <span>Shift Handover</span>
             </button>
             <button
@@ -274,76 +324,141 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
         {/* 4 Performance Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className={`p-4 rounded-2xl border space-y-1 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-          }`}>
-            <div className={`flex items-center justify-between text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}>
+            <div className={`flex items-center justify-between text-xs font-bold ${'text-slate-600'}`}>
               <span>Today's Sales</span>
               <DollarSign className="w-4 h-4 text-emerald-600" />
             </div>
-            <div className={`text-2xl font-black ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+            <div className={`text-2xl font-black ${'text-emerald-700'}`}>
               ₹{Number(liveMetrics?.runningBillValue || 0).toLocaleString('en-IN')}
             </div>
-            <div className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            <div className={`text-[10px] font-semibold ${'text-slate-600'}`}>
               Live running bills on your {liveMetrics?.tablesAssigned || 0} assigned tables
             </div>
           </div>
 
           <div className={`p-4 rounded-2xl border space-y-1 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-          }`}>
-            <div className={`flex items-center justify-between text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}>
+            <div className={`flex items-center justify-between text-xs font-bold ${'text-blue-600'}`}>
               <span>Tables Served</span>
-              <TrendingUp className="w-4 h-4 text-blue-600" />
+              <TrendingUp className="w-4 h-4 text-[#123C2B]" />
             </div>
-            <div className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            <div className={`text-2xl font-black ${'text-slate-900'}`}>
               {liveMetrics?.tablesServed || 0} Tables
             </div>
-            <div className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            <div className={`text-[10px] font-semibold ${'text-slate-600'}`}>
               {liveMetrics?.servedOrdersToday || 0} orders served today
             </div>
           </div>
 
           <div className={`p-4 rounded-2xl border space-y-1 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-          }`}>
-            <div className={`flex items-center justify-between text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}>
+            <div className={`flex items-center justify-between text-xs font-bold ${'text-slate-600'}`}>
               <span>Avg Turnaround</span>
               <Clock className="w-4 h-4 text-orange-500" />
             </div>
-            <div className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>—</div>
-            <div className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            <div className={`text-2xl font-black ${'text-slate-900'}`}>—</div>
+            <div className={`text-[10px] font-semibold ${'text-slate-600'}`}>
               Turnaround timing is not captured by the API yet
             </div>
           </div>
 
           <div className={`p-4 rounded-2xl border space-y-1 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-          }`}>
-            <div className={`flex items-center justify-between text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}>
+            <div className={`flex items-center justify-between text-xs font-bold ${'text-slate-600'}`}>
               <span>Guest Rating</span>
               <Award className="w-4 h-4 text-amber-500" />
             </div>
-            <div className={`text-2xl font-black ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>—</div>
-            <div className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            <div className={`text-2xl font-black ${'text-amber-600'}`}>—</div>
+            <div className={`text-[10px] font-semibold ${'text-slate-600'}`}>
               Guest review feed is not connected to this terminal
+            </div>
+          </div>
+        </div>
+
+        {/* My Salary & Compensation Card */}
+        <div className="p-4 sm:p-6 rounded-2xl border bg-white border-slate-200 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center font-bold">
+                <Banknote className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  My Salary & Compensation
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Official disbursement summary & advance tracking · Cycle: {salaryLedger?.salaryCycle || 'MONTHLY'}
+                </p>
+              </div>
+            </div>
+
+            <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
+              Verified Ledger
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Base Salary
+              </span>
+              <div className="text-lg font-black text-slate-900 mt-0.5">
+                ₹{Number(salaryLedger?.baseSalary || 0).toLocaleString('en-IN')}
+              </div>
+              <span className="text-[10px] text-slate-400">Fixed rate</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                Total Paid
+              </span>
+              <div className="text-lg font-black text-emerald-700 mt-0.5">
+                ₹{Number(salaryLedger?.totalPaid || 0).toLocaleString('en-IN')}
+              </div>
+              <span className="text-[10px] text-emerald-600">Disbursed</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                Advances Taken
+              </span>
+              <div className="text-lg font-black text-amber-700 mt-0.5">
+                ₹{Number(salaryLedger?.advancesTaken || 0).toLocaleString('en-IN')}
+              </div>
+              <span className="text-[10px] text-amber-600">Pre-settled</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800">
+                Net Payable
+              </span>
+              <div className="text-lg font-black text-blue-700 mt-0.5">
+                ₹{Number(salaryLedger?.netPayable || 0).toLocaleString('en-IN')}
+              </div>
+              <span className="text-[10px] text-blue-600">Pending balance</span>
             </div>
           </div>
         </div>
 
         {/* Cash Float Register Widget */}
         <div className={`p-4 sm:p-6 rounded-2xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-        }`}>
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-600 flex items-center justify-center font-bold shrink-0">
               <Banknote className="w-6 h-6" />
             </div>
             <div>
-              <div className={`text-xs font-bold uppercase ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Cash Float in Hand</div>
-              <div className={`text-2xl font-black ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+              <div className={`text-xs font-bold uppercase ${'text-slate-600'}`}>Cash Float in Hand</div>
+              <div className={`text-2xl font-black ${'text-emerald-700'}`}>
                 ₹{Number(waiterFloat?.expectedCashInHand || 0).toLocaleString('en-IN')}
               </div>
-              <div className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              <div className={`text-xs mt-0.5 ${'text-slate-600'}`}>
                 {waiterFloat
                   ? `Opening Float: ₹${Number(waiterFloat.openingFloat || 0).toLocaleString('en-IN')} • Cash Collected: ₹${Number(
                       waiterFloat.totalCashCollected || 0
@@ -364,8 +479,8 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
             <button
               onClick={onOpenCashFloatModal}
               className={`flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-bold border transition text-center ${
-                isDark ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700' : 'bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200'
-              }`}
+ 'bg-slate-100 border-slate-300 text-slate-800 hover:bg-slate-200'
+ }`}
             >
               {waiterFloat ? 'Request Cash Drop' : 'Open Cash Float'}
             </button>
@@ -377,8 +492,8 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
       {isPhotoModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
           <div className={`w-full max-w-md rounded-2xl border p-5 space-y-4 shadow-sm dark:shadow-none ${
-            isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-          }`}>
+ 'bg-white border-slate-300 text-slate-900'
+ }`}>
             <div className="flex items-center justify-between pb-3 border-b border-slate-700/40">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-orange-500/20 text-orange-400 flex items-center justify-center font-bold">

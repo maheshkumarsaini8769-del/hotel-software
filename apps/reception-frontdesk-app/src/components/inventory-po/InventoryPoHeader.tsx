@@ -31,7 +31,7 @@ export const InventoryPoHeader: React.FC<InventoryPoHeaderProps> = ({
               Central Store Purchase Orders & GRN Receiving
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-              Shift 25 • Procurement & Dock
+              Procurement & Dock
             </span>
           </div>
           <p className="text-xs text-zinc-400 mt-1">
@@ -47,20 +47,20 @@ export const InventoryPoHeader: React.FC<InventoryPoHeaderProps> = ({
             className="p-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-xs border border-zinc-700 transition-all disabled:opacity-50"
             title="Refresh"
           >
-            🔄
+            
           </button>
           <button
             type="button"
             onClick={onNewVendorClick}
             className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-amber-300 font-bold text-xs uppercase tracking-wider border border-amber-500/30 transition-all flex items-center gap-2"
           >
-            <span>🏢</span>
+            <span></span>
             <span>+ Vendor Profile</span>
           </button>
           <button
             type="button"
             onClick={onNewPoClick}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-2"
           >
             <span>+</span>
             <span>Raise Purchase Order</span>
@@ -70,7 +70,7 @@ export const InventoryPoHeader: React.FC<InventoryPoHeaderProps> = ({
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between">
+        <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
           <span className="text-xs text-zinc-400 uppercase font-semibold">Total Purchase Orders</span>
           <div className="text-2xl font-black text-white font-mono mt-2">
             {metrics.totalPoCount}
@@ -78,17 +78,17 @@ export const InventoryPoHeader: React.FC<InventoryPoHeaderProps> = ({
           <span className="text-[11px] text-zinc-500 mt-1">Active Procurement Pipeline</span>
         </div>
 
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between">
+        <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
           <span className="text-xs text-zinc-400 uppercase font-semibold">Awaiting Approval</span>
           <div className={`text-2xl font-black font-mono mt-2 ${metrics.pendingApprovalCount > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
             {metrics.pendingApprovalCount}
           </div>
           <span className="text-[11px] text-zinc-500 mt-1">
-            {metrics.pendingApprovalCount > 0 ? 'Action required by Manager' : '✓ All orders approved'}
+            {metrics.pendingApprovalCount > 0 ? 'Action required by Manager' : ' All orders approved'}
           </span>
         </div>
 
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between">
+        <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
           <span className="text-xs text-zinc-400 uppercase font-semibold">Open Committed Value</span>
           <div className="text-2xl font-black text-amber-400 font-mono mt-2">
             {InventoryPoHelper.formatCurrency(metrics.totalOpenPoValue)}
@@ -96,7 +96,7 @@ export const InventoryPoHeader: React.FC<InventoryPoHeaderProps> = ({
           <span className="text-[11px] text-zinc-500 mt-1">Approved + In-transit shipments</span>
         </div>
 
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between">
+        <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
           <span className="text-xs text-zinc-400 uppercase font-semibold">Fulfilled / Completed</span>
           <div className="text-2xl font-black text-emerald-400 font-mono mt-2">
             {metrics.completedPoCount}
@@ -111,34 +111,34 @@ export const InventoryPoHeader: React.FC<InventoryPoHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('PURCHASE_ORDERS')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'PURCHASE_ORDERS'
-              ? 'text-amber-400 border-amber-400 bg-amber-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'PURCHASE_ORDERS'
+ ? 'text-amber-400 border-amber-400 bg-amber-500/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
-          📦 Purchase Orders (PO)
+           Purchase Orders (PO)
         </button>
         <button
           type="button"
           onClick={() => onTabChange('GRN_HISTORY')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'GRN_HISTORY'
-              ? 'text-emerald-400 border-emerald-400 bg-emerald-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'GRN_HISTORY'
+ ? 'text-emerald-400 border-emerald-400 bg-emerald-500/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
-          🚚 Dock Receiving Register (GRN)
+           Dock Receiving Register (GRN)
         </button>
         <button
           type="button"
           onClick={() => onTabChange('VENDORS')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'VENDORS'
-              ? 'text-blue-400 border-blue-400 bg-blue-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'VENDORS'
+ ? 'text-blue-400 border-blue-400 bg-blue-500/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
-          🏢 Supplier Directory
+           Supplier Directory
         </button>
       </div>
     </div>

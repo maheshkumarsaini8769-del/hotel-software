@@ -156,7 +156,7 @@ export const KotVoidAuditApp: React.FC<KotVoidAuditAppProps> = ({
                 KOT Lock & Manager Security PIN Void Control
               </h1>
               <p className="text-xs text-slate-400">
-                Shift 50: Anti-Theft Protection, Item Deletion Lock & Real-time Kitchen Food Waste Auditor
+                Anti-Theft Protection, Item Deletion Lock & Real-time Kitchen Food Waste Auditor
               </p>
             </div>
           </div>
@@ -174,7 +174,7 @@ export const KotVoidAuditApp: React.FC<KotVoidAuditAppProps> = ({
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400 text-xs">
             <span>Total Void Events</span>
             <ShieldAlert className="w-4 h-4 text-slate-500" />
@@ -185,7 +185,7 @@ export const KotVoidAuditApp: React.FC<KotVoidAuditAppProps> = ({
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400 text-xs">
             <span>Total Void Value</span>
             <DollarSign className="w-4 h-4 text-red-400" />
@@ -198,7 +198,7 @@ export const KotVoidAuditApp: React.FC<KotVoidAuditAppProps> = ({
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-red-500/30 bg-red-500/5 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
+        <div className="bg-slate-900 border border-red-500/30 bg-red-500/5 rounded-xl p-5 shadow-lg flex flex-col justify-between">
           <div className="flex items-center justify-between text-red-300 text-xs font-semibold">
             <span>Kitchen Scrap (Wasted Food)</span>
             <Trash2 className="w-4 h-4 text-red-400" />
@@ -211,7 +211,7 @@ export const KotVoidAuditApp: React.FC<KotVoidAuditAppProps> = ({
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-emerald-500/30 bg-emerald-500/5 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
+        <div className="bg-slate-900 border border-emerald-500/30 bg-emerald-500/5 rounded-xl p-5 shadow-lg flex flex-col justify-between">
           <div className="flex items-center justify-between text-emerald-300 text-xs font-semibold">
             <span>Pre-Cook Savings / Reused</span>
             <TrendingDown className="w-4 h-4 text-emerald-400" />

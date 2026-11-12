@@ -53,10 +53,10 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
               type="button"
               onClick={() => onFilterChange(tab.key)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                selectedFilter === tab.key
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-              }`}
+ selectedFilter === tab.key
+ ? 'bg-emerald-600/20 text-amber-300 border-emerald-600/40'
+ : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+ }`}
             >
               {tab.label}
             </button>
@@ -154,7 +154,7 @@ export const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({
                       type="button"
                       onClick={() => onApprovePo(po._id)}
                       disabled={loading}
-                      className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider transition-all shadow-sm"
+                      className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-amber-400 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-sm"
                     >
                       ✓ Approve PO
                     </button>

@@ -7,6 +7,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { getApiClient } from '../lib/apiClient';
+import { NumericInput } from '@spicehub/ui';
 
 export interface CashierDrawerBalance {
   openingFloat: number;
@@ -31,7 +32,7 @@ interface CashDrawerViewProps {
 const DENOMINATIONS = [500, 200, 100, 50, 20, 10];
 
 export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
-  isDark = true,
+
   onToast,
   drawerBalance,
   shiftId,
@@ -102,10 +103,10 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
+ 'bg-white border-slate-200 shadow-sm'
+ }`}>
         <div>
-          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${'text-slate-900'}`}>
             <DollarSign className="w-5 h-5 text-amber-500" />
             <span>Cash Drawer Terminal & Currency Denomination Counter</span>
           </h2>
@@ -115,8 +116,7 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <input
-            type="number"
+          <NumericInput
             min="1"
             value={dropAmount}
             onChange={(event) => setDropAmount(event.target.value)}
@@ -186,8 +186,8 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
 
       <div className="grid grid-cols-12 gap-4">
         <div className={`col-span-12 lg:col-span-8 p-4 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+ 'bg-white border-slate-200'
+ }`}>
           <h3 className="font-black text-xs text-white flex items-center justify-between">
             <span className="flex items-center gap-1.5">
               <Banknote className="w-4 h-4 text-emerald-500" />
@@ -216,8 +216,7 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
                     >
                       -
                     </button>
-                    <input
-                      type="number"
+                    <NumericInput
                       min="0"
                       value={count}
                       onChange={(event) => updateCount(value, parseInt(event.target.value, 10) || 0)}
@@ -241,8 +240,8 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
         </div>
 
         <div className={`col-span-12 lg:col-span-4 p-4 rounded-2xl border flex flex-col justify-between space-y-4 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+ 'bg-white border-slate-200'
+ }`}>
           <div className="space-y-4">
             <h3 className="font-black text-xs text-white">Drawer Balance Verification</h3>
 
@@ -274,7 +273,7 @@ export const CashDrawerView: React.FC<CashDrawerViewProps> = ({
                 <span>Drawer tally matches the system balance perfectly.</span>
               </div>
             ) : (
-              <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-300 text-xs flex items-center gap-2">
+              <div className="p-3 rounded-xl bg-slate-900/40 border border-amber-500/40 text-amber-300 text-xs flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
                 <span>Variance of ₹{Math.abs(variance).toLocaleString('en-IN')} detected. Re-verify the cash count.</span>
               </div>

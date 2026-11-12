@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config/api';
 import {
+  normalizeHotelAccessCode,
+  isValidHotelAccessCode,
+  readHotelAccessHotelId,
+  readHotelAccessToken,
+  verifyHotelAccessCode,
+  clearHotelAccessToken, NumericInput,
+} from '@spicehub/ui';
+import {
   ChefHat,
   Lock,
   User,
@@ -33,115 +41,26 @@ export interface WaiterStaffProfile {
   assignedTableCount: number;
   shift: string;
   permissions: string[];
+  hasPin?: boolean;
+  pinApprovedByAdmin?: boolean;
+  pinStatus?: string;
 }
 
-export const PRECONFIGURED_WAITERS: WaiterStaffProfile[] = [
-  {
-    staffId: '6ae06e27ddbafddfbb0a81f2',
-    name: 'Mahesh',
-    email: 'maheshkumarsaini8769@gmail.com',
-    role: 'Floor Steward',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-    assignedSection: 'Indoor AC Hall',
-    assignedTableStart: 1,
-    assignedTableEnd: 6,
-    assignedTableCount: 6,
-    shift: 'Evening Shift (04:00 PM - 12:00 AM)',
-    permissions: ['KOT Punching', 'Food Pickup & Serving', 'Table Transfer', 'Bill Settle Request', 'Guest Calls'],
-  },
-  {
-    staffId: 'W-101',
-    name: 'Ravi Kumar',
-    email: 'maheshsaini10101@gmail.com',
-    role: 'Captain',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-    assignedSection: 'Indoor AC Dining Hall',
-    assignedTableStart: 1,
-    assignedTableEnd: 6,
-    assignedTableCount: 6,
-    shift: 'Morning Shift (09:00 AM - 05:00 PM)',
-    permissions: ['KOT Punching', 'Food Pickup & Serving', 'Table Transfer', 'Bill Settle Request', 'Guest Calls'],
-  },
-  {
-    staffId: 'W-102',
-    name: 'Ramesh Kumar',
-    email: 'ashishsaini8saini@gmail.com',
-    role: 'Senior Waiter',
-    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
-    assignedSection: 'AC Hall & Lounge',
-    assignedTableStart: 7,
-    assignedTableEnd: 12,
-    assignedTableCount: 6,
-    shift: 'Evening Shift (04:00 PM - 12:00 AM)',
-    permissions: ['KOT Punching', 'Food Pickup & Serving', 'Table Transfer', 'Bill Settle Request', 'Guest Calls'],
-  },
-  {
-    staffId: 'W-103',
-    name: 'Amit Singh',
-    email: 'praveensinghshekhawat43@gmail.com',
-    role: 'Floor Steward',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    assignedSection: 'Lounge & Rooftop Terrace',
-    assignedTableStart: 13,
-    assignedTableEnd: 18,
-    assignedTableCount: 6,
-    shift: 'Night Shift (08:00 PM - 04:00 AM)',
-    permissions: ['KOT Punching', 'Food Pickup & Serving', 'Table Transfer', 'Bill Settle Request', 'Guest Calls'],
-  },
-];
+const EMPTY_WAITER: WaiterStaffProfile = {
+  staffId: '',
+  name: '',
+  role: 'Floor Steward',
+  avatar: '',
+  assignedSection: '',
+  assignedTableStart: 0,
+  assignedTableEnd: 0,
+  assignedTableCount: 0,
+  shift: '',
+  permissions: [],
+};
 
 export const getHotelAdminAllocatedWaiters = (): WaiterStaffProfile[] => {
-  try {
-    const raw = localStorage.getItem('spicehub_admin_waiter_allocations');
-    const customAvatarsRaw = localStorage.getItem('spicehub_custom_waiter_avatars');
-    const createdStaffRaw = localStorage.getItem('spicehub_admin_created_staff');
-
-    const parsed = raw ? JSON.parse(raw) : {};
-    const customAvatars = customAvatarsRaw ? JSON.parse(customAvatarsRaw) : {};
-    const createdStaffList = createdStaffRaw ? JSON.parse(createdStaffRaw) : [];
-
-    const baseWaiters = PRECONFIGURED_WAITERS.map((w) => {
-      const alloc = parsed[w.staffId];
-      const start = alloc ? Number(alloc.start) || w.assignedTableStart : w.assignedTableStart;
-      const end = alloc ? Number(alloc.end) || w.assignedTableEnd : w.assignedTableEnd;
-      const section = alloc?.section || w.assignedSection;
-      const avatar = customAvatars[w.staffId] || alloc?.avatar || w.avatar;
-      return {
-        ...w,
-        assignedTableStart: start,
-        assignedTableEnd: end,
-        assignedTableCount: end - start + 1,
-        assignedSection: section,
-        avatar,
-      };
-    });
-
-    if (Array.isArray(createdStaffList) && createdStaffList.length > 0) {
-      const extraWaiters: WaiterStaffProfile[] = createdStaffList
-        .filter((s: any) => s && String(s.role).toUpperCase().includes('WAITER'))
-        .filter((s: any) => !baseWaiters.some((bw) => bw.staffId === s.id || bw.name === s.name))
-        .map((s: any) => {
-          const start = Number(s.assignedTableStart) || 1;
-          const end = Number(s.assignedTableEnd) || 6;
-          return {
-            staffId: s.id || `W-${Math.floor(100 + Math.random() * 800)}`,
-            name: s.name,
-            role: 'Senior Waiter',
-            avatar: customAvatars[s.id] || s.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-            assignedSection: s.assignedSection || 'Indoor AC Hall',
-            assignedTableStart: start,
-            assignedTableEnd: end,
-            assignedTableCount: end - start + 1,
-            shift: s.shift || 'Morning Shift (09:00 AM - 05:00 PM)',
-            permissions: ['KOT Punching', 'Food Pickup & Serving', 'Table Transfer', 'Bill Settle Request', 'Guest Calls'],
-          };
-        });
-      return [...extraWaiters, ...baseWaiters];
-    }
-
-    return baseWaiters;
-  } catch (_) {}
-  return PRECONFIGURED_WAITERS;
+  return [];
 };
 
 export interface WaiterAuthSession {
@@ -160,14 +79,32 @@ export interface WaiterAuthSession {
 /** Maps the server-verified staff identity onto the local roster profile. */
 function resolveStaffProfile(
   localProfile: WaiterStaffProfile,
-  user?: { name?: string; role?: string; id?: string }
+  user?: {
+    name?: string;
+    role?: string;
+    id?: string;
+    avatar?: string;
+    shift?: string;
+    permissions?: string[];
+    assignedSection?: string;
+    assignedTableStart?: number;
+    assignedTableEnd?: number;
+  }
 ): WaiterStaffProfile {
   if (!user) return localProfile;
+  const start = Number(user.assignedTableStart) || 0;
+  const end = Number(user.assignedTableEnd) || 0;
   return {
     ...localProfile,
     staffId: user.id || localProfile.staffId,
     name: user.name || localProfile.name,
-    role: localProfile.role,
+    avatar: user.avatar || localProfile.avatar,
+    shift: user.shift || '',
+    assignedSection: user.assignedSection || '',
+    assignedTableStart: start,
+    assignedTableEnd: end,
+    assignedTableCount: start > 0 && end >= start ? end - start + 1 : 0,
+    permissions: Array.isArray(user.permissions) ? user.permissions : [],
   };
 }
 
@@ -183,16 +120,79 @@ interface WaiterLoginScreenProps {
 }
 
 export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
-  hotelName = 'Hotel Taj Gateway & Luxury Dining',
+  hotelName = 'Staff Workstation',
   onLoginSuccess,
   onOpenPortalsSwitcher,
 }) => {
-  const [waitersList, setWaitersList] = useState<WaiterStaffProfile[]>(getHotelAdminAllocatedWaiters);
-  const [selectedStaff, setSelectedStaff] = useState<WaiterStaffProfile>(waitersList[0]);
+  const [hotelCode, setHotelCode] = useState('');
+  const [hotelAccessToken, setHotelAccessToken] = useState(() => readHotelAccessToken());
+  const [hotelCodeStatus, setHotelCodeStatus] = useState<'idle' | 'verifying' | 'verified'>(() =>
+    readHotelAccessToken() && readHotelAccessHotelId() ? 'verified' : 'idle'
+  );
+  const [hotelCodeError, setHotelCodeError] = useState('');
+  const [verifiedHotelName, setVerifiedHotelName] = useState('');
+  const [selectedHotelId, setSelectedHotelId] = useState(() =>
+    readHotelAccessToken() ? readHotelAccessHotelId() : ''
+  );
+  const [rosterStatus, setRosterStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [rosterError, setRosterError] = useState('');
+  const [rosterRefresh, setRosterRefresh] = useState(0);
+  const [waitersList, setWaitersList] = useState<WaiterStaffProfile[]>([]);
+  const [selectedStaff, setSelectedStaff] = useState<WaiterStaffProfile>(EMPTY_WAITER);
   const [enteredPin, setEnteredPin] = useState<string>('');
   const [pinError, setPinError] = useState<string | null>(null);
   const [failedPinAttempts, setFailedPinAttempts] = useState(0);
   const [pinLockedUntil, setPinLockedUntil] = useState(0);
+
+  useEffect(() => {
+    if (selectedHotelId) localStorage.setItem('spicehub_hotel_id', selectedHotelId);
+  }, [selectedHotelId]);
+
+  const handleVerifyHotelCode = async () => {
+    const normalized = normalizeHotelAccessCode(hotelCode);
+    if (!isValidHotelAccessCode(normalized)) {
+      setHotelCodeError('Enter the hotel code shared by your Hotel Admin (for example: MP2024).');
+      return;
+    }
+    setHotelCodeStatus('verifying');
+    setHotelCodeError('');
+    setRosterError('');
+    try {
+      const verified = await verifyHotelAccessCode(API_BASE_URL, normalized);
+      setSelectedHotelId(verified.hotel.id);
+      setHotelAccessToken(verified.accessToken);
+      setHotelCodeStatus('verified');
+      setVerifiedHotelName(verified.hotel.name || '');
+      setHotelCode('');
+    } catch (error) {
+      clearHotelAccessToken();
+      setHotelAccessToken('');
+      setSelectedHotelId('');
+      setHotelCodeStatus('idle');
+      setHotelCodeError(
+        error instanceof Error ? error.message : 'Could not verify the hotel code.'
+      );
+    }
+  };
+
+  const handleChangeHotelCode = () => {
+    clearHotelAccessToken();
+    setHotelAccessToken('');
+    setSelectedHotelId('');
+    setHotelCodeStatus('idle');
+    setVerifiedHotelName('');
+    setHotelCode('');
+    setHotelCodeError('');
+    setWaitersList([]);
+    setSelectedStaff(EMPTY_WAITER);
+    setEnteredPin('');
+    setPinError(null);
+    setFailedPinAttempts(0);
+    setPinLockedUntil(0);
+    setRosterError('');
+    setRosterStatus('idle');
+    localStorage.removeItem('spicehub_hotel_id');
+  };
 
   // Admin Table Allocation Settings Modal
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
@@ -241,46 +241,76 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
   const [otpStatusMsg, setOtpStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [isOtpSubmitting, setIsOtpSubmitting] = useState(false);
 
-  // Fetch live staff roster from MongoDB backend
+  // Load only this property's public, PIN-safe roster; never merge placeholder staff into production.
   useEffect(() => {
+    if (!selectedHotelId || !hotelAccessToken) {
+      setWaitersList([]);
+      setSelectedStaff(EMPTY_WAITER);
+      setRosterStatus('idle');
+      setRosterError('');
+      return;
+    }
+
+    const controller = new AbortController();
     const fetchLiveStaff = async () => {
+      setRosterStatus('loading');
+      setRosterError('');
       try {
-        const hotelId = localStorage.getItem('spicehub_hotel_id') || localStorage.getItem('hotelId') || '';
-        const res = await fetch(`${API_BASE_URL}/hotel-staff?hotelId=${hotelId}`);
-        if (!res.ok) return;
+        const res = await fetch(
+          `${API_BASE_URL}/auth/hotels/${encodeURIComponent(selectedHotelId)}/staff-roster?portal=waiter`,
+          { signal: controller.signal, headers: { 'x-hotel-access-token': hotelAccessToken } }
+        );
         const body = await res.json().catch(() => null);
-        if (body?.success && Array.isArray(body?.data)) {
+        if (!res.ok || !body?.success || !Array.isArray(body.data)) {
+          if (body?.errorCode === 'HOTEL_CODE_REQUIRED') {
+            clearHotelAccessToken();
+            setHotelAccessToken('');
+            setSelectedHotelId('');
+            setHotelCodeStatus('idle');
+            setHotelCodeError('Your hotel code session expired. Enter the code again.');
+            return;
+          }
+          throw new Error(body?.message || 'Could not load the staff roster.');
+        }
+        if (!controller.signal.aborted) {
           const liveWaiters: WaiterStaffProfile[] = body.data
-            .filter((u: any) => ['WAITER', 'CAPTAIN', 'STEWARD', 'ADMIN'].includes(String(u.role).toUpperCase()))
-            .map((u: any, idx: number) => {
-              const start = Number(u.assignedTableStart) || (idx * 6 + 1);
-              const end = Number(u.assignedTableEnd) || (start + 5);
+            .filter((u: any) => ['WAITER', 'CAPTAIN', 'STEWARD'].includes(String(u.role).toUpperCase()))
+            .map((u: any) => {
               return {
                 staffId: u.id || u._id,
                 name: u.name,
                 email: u.email || '',
                 role: (String(u.role).toUpperCase() === 'CAPTAIN' ? 'Captain' : 'Senior Waiter') as WaiterStaffProfile['role'],
-                avatar: u.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-                assignedSection: u.assignedSection || 'Indoor AC Dining Hall',
-                assignedTableStart: start,
-                assignedTableEnd: end,
-                assignedTableCount: end - start + 1,
+                avatar: u.avatar || '',
+                assignedSection: '',
+                assignedTableStart: 0,
+                assignedTableEnd: 0,
+                assignedTableCount: 0,
                 shift: u.shift || 'General Shift',
-                permissions: ['KOT Punching', 'Food Pickup & Serving', 'Table Transfer', 'Bill Settle Request', 'Guest Calls'],
+                permissions: [],
+                hasPin: Boolean(u.hasPin),
+                pinApprovedByAdmin: u.pinApprovedByAdmin !== false,
+                pinStatus: String(u.pinStatus || 'NONE'),
               };
             });
-          if (liveWaiters.length > 0) {
-            setWaitersList((prev) => {
-              const ids = new Set(liveWaiters.map((w) => w.staffId));
-              const nonDuplicatedPrev = prev.filter((p) => !ids.has(p.staffId) && !liveWaiters.some((lw) => lw.email && lw.email.toLowerCase() === (p.email || '').toLowerCase()));
-              return [...liveWaiters, ...nonDuplicatedPrev];
-            });
-          }
+          setWaitersList(liveWaiters);
+          setSelectedStaff((current) =>
+            liveWaiters.find((staff) => staff.staffId === current.staffId) || liveWaiters[0] || EMPTY_WAITER
+          );
+          setRosterStatus('ready');
         }
-      } catch (_) {}
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error('Could not load live waiter roster:', error);
+        setWaitersList([]);
+        setSelectedStaff(EMPTY_WAITER);
+        setRosterStatus('error');
+        setRosterError('Could not load this hotel’s waiter roster. Retry or choose another property.');
+      }
     };
-    fetchLiveStaff();
-  }, []);
+    void fetchLiveStaff();
+    return () => controller.abort();
+  }, [hotelAccessToken, selectedHotelId, rosterRefresh]);
 
   const handleSendPinOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -356,7 +386,7 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
       if (res.ok && data?.success) {
         setOtpStatusMsg({
           type: 'success',
-          text: '🎉 PIN successfully reset and activated! Signing you in...',
+          text: 'PIN successfully reset and activated! Signing you in...',
         });
         setEnteredPin(newOtpPin.trim());
         setTimeout(() => {
@@ -389,7 +419,11 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
 
     setIsVerifying(true);
     try {
-      const hotelId = localStorage.getItem('spicehub_hotel_id') || localStorage.getItem('hotelId') || '';
+      const hotelId =
+        selectedHotelId ||
+        localStorage.getItem('spicehub_hotel_id') ||
+        localStorage.getItem('hotelId') ||
+        '';
       const response = await fetch(`${API_BASE_URL}/auth/waiter-login`, {
         method: 'POST',
         headers: {
@@ -402,11 +436,21 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
           staffId: staff.staffId,
           email: staff.email,
           portal: 'waiter',
+          hotelAccessToken,
         }),
       });
       const body = await response.json().catch(() => null);
 
       if (!response.ok || !body?.success) {
+        if (body?.errorCode === 'HOTEL_CODE_REQUIRED') {
+          clearHotelAccessToken();
+          setHotelAccessToken('');
+          setSelectedHotelId('');
+          setHotelCodeStatus('idle');
+          setHotelCodeError('Your hotel code session expired. Enter the code again.');
+          setEnteredPin('');
+          return;
+        }
         if (body?.errorCode === 'PORTAL_NOT_SUBSCRIBED') {
           setPinError(
             body?.message ||
@@ -438,187 +482,685 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
       setFailedPinAttempts(0);
       setPinLockedUntil(0);
       setPinError(null);
-      onLoginSuccess(resolveStaffProfile(staff, body.data?.user), body.data);
-    } catch {
-      setPinError('Cannot reach the SpiceHub server. Check your connection and retry.');
+      const token = String(body.data?.token || '');
+      if (!token) throw new Error('The server did not return a staff session. Please try again.');
+      const profileResponse = await fetch(`${API_BASE_URL}/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-hotel-id': hotelId,
+        },
+      });
+      const profileBody = await profileResponse.json().catch(() => null);
+      const authenticatedUser = profileBody?.data?.user;
+      if (
+        !profileResponse.ok ||
+        !profileBody?.success ||
+        String(authenticatedUser?.id || '') !== staff.staffId ||
+        String(authenticatedUser?.role || '').toUpperCase() !== 'WAITER'
+      ) {
+        throw new Error(profileBody?.message || 'Could not verify this waiter account. Please sign in again.');
+      }
+      onLoginSuccess(
+        resolveStaffProfile(staff, authenticatedUser),
+        { ...body.data, user: body.data.user },
+      );
+    } catch (error) {
+      setPinError(error instanceof Error ? error.message : 'Cannot reach the SpiceHub server. Check your connection and retry.');
       setEnteredPin('');
     } finally {
       setIsVerifying(false);
     }
   };
 
-  /** Local demo helper: the server issues a demo staff session (dev bypass only). */
-  const handleQuickLogin = async (staff: WaiterStaffProfile) => {
-    setIsVerifying(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/waiter-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ demo: true }),
-      });
-      const body = await response.json().catch(() => null);
-      if (!response.ok || !body?.success) {
-        setPinError(body?.message || 'Demo login is not available on this server.');
-        return;
-      }
-      setPinError(null);
-      onLoginSuccess(resolveStaffProfile(staff, body.data?.user), body.data);
-    } catch {
-      setPinError('Cannot reach the SpiceHub server. Check your connection and retry.');
-    } finally {
-      setIsVerifying(false);
-    }
-  };
+  const initials = String(selectedStaff.name || '?')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white flex flex-col justify-center items-center p-0 md:p-4 font-sans select-none">
-      {/* Centered Staff Login Card (Tablet/Desktop: max-w-md mx-auto mt-20, Mobile: full-screen white card) */}
-      <div className="w-full min-h-screen md:min-h-0 md:max-w-md mx-auto md:mt-20 bg-white dark:bg-slate-900 md:border md:border-slate-200 md:dark:border-slate-800 md:rounded-2xl p-6 shadow-sm flex flex-col items-center text-center justify-center">
-        {/* Optional Multi-Waiter Selector Bar if multiple profiles configured */}
-        {waitersList.length > 1 && (
-          <div className="w-full flex items-center justify-center gap-1.5 overflow-x-auto pb-3 mb-4 border-b border-slate-200 dark:border-slate-800 custom-scrollbar">
-            {waitersList.map((staff) => {
-              const isSelected = selectedStaff.staffId === staff.staffId;
-              return (
+    <div
+      className="w-full flex flex-col"
+      style={{ minHeight: '100dvh', background: '#FFFFFF', color: '#0F172A' }}
+    >
+      {/* Masthead */}
+      <header style={{ borderBottom: '1px solid #E2E8F0' }}>
+        <div
+          className="mx-auto flex w-full items-center justify-between gap-3 px-5 py-3.5"
+          style={{ maxWidth: 440 }}
+        >
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 900,
+                letterSpacing: '0.22em',
+                textTransform: 'uppercase',
+                color: '#0F172A',
+              }}
+            >
+              SpiceHub
+            </span>
+            <span style={{ height: 12, width: 1, background: '#CBD5E1', flexShrink: 0 }} />
+            <span
+              className="truncate"
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: '#64748B',
+              }}
+            >
+              {verifiedHotelName || hotelName}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenPortalsSwitcher}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              fontSize: 9,
+              fontWeight: 800,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: '#94A3B8',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            Portals →
+          </button>
+        </div>
+      </header>
+
+      <main className="flex flex-1 items-center justify-center px-5 py-8">
+        <div className="w-full" style={{ maxWidth: 380 }}>
+          <p
+            style={{
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: '0.2em',
+              textTransform: 'uppercase',
+              color: '#2563EB',
+              margin: 0,
+            }}
+          >
+            Floor Service
+          </p>
+          <h2
+            style={{
+              fontFamily: 'inherit',
+              fontSize: 26,
+              fontWeight: 600,
+              lineHeight: 1.15,
+              letterSpacing: '-0.01em',
+              color: '#0F172A',
+              margin: '8px 0 0',
+            }}
+          >
+            Waiter Terminal
+          </h2>
+
+          <div style={{ marginTop: 18 }}>
+            {hotelCodeStatus === 'verified' ? (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p
+                    className="truncate"
+                    style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#0F172A' }}
+                  >
+                    {verifiedHotelName || hotelName}
+                  </p>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748B' }}>
+                    Hotel code verified
+                  </p>
+                </div>
                 <button
-                  key={staff.staffId}
                   type="button"
-                  data-testid={`card-staff-${staff.name.toLowerCase()}`}
-                  onClick={() => {
-                    setSelectedStaff(staff);
-                    setEnteredPin('');
-                    setPinError(null);
-                    setFailedPinAttempts(0);
-                    setPinLockedUntil(0);
+                  onClick={handleChangeHotelCode}
+                  style={{
+                    flexShrink: 0,
+                    border: 0,
+                    background: 'none',
+                    padding: 0,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#2563EB',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition border ${
-                    isSelected
-                      ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white'
-                      : 'bg-white text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 hover:bg-slate-50'
-                  }`}
                 >
-                  {staff.name}
+                  Change
                 </button>
+              </div>
+            ) : (
+              <div>
+                <label
+                  htmlFor="waiter-hotel-code"
+                  style={{
+                    display: 'block',
+                    marginBottom: 7,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    letterSpacing: '0.16em',
+                    textTransform: 'uppercase',
+                    color: '#64748B',
+                  }}
+                >
+                  Hotel Code
+                </label>
+                <input
+                  id="waiter-hotel-code"
+                  type="text"
+                  inputMode="text"
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={10}
+                  data-testid="waiter-hotel-code-input"
+                  value={hotelCode}
+                  onChange={(event) => {
+                    setHotelCode(event.target.value.toUpperCase());
+                    setHotelCodeError('');
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void handleVerifyHotelCode();
+                    }
+                  }}
+                  placeholder="Write hotel code"
+                  aria-invalid={Boolean(hotelCodeError)}
+                  style={{
+                    width: '100%',
+                    minHeight: 46,
+                    padding: '0 12px',
+                    border: `1px solid ${hotelCodeError ? '#DC2626' : '#E2E8F0'}`,
+                    borderRadius: 4,
+                    background: '#FFFFFF',
+                    color: '#0F172A',
+                    fontSize: 15,
+                    fontWeight: 600,
+                    letterSpacing: '0.12em',
+                  }}
+                />
+                {hotelCodeError && (
+                  <div role="alert" style={{ marginTop: 8, color: '#B91C1C', fontSize: 12 }}>
+                    {hotelCodeError}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  data-testid="waiter-verify-hotel-code"
+                  onClick={() => void handleVerifyHotelCode()}
+                  disabled={
+                    hotelCodeStatus === 'verifying' ||
+                    !isValidHotelAccessCode(hotelCode)
+                  }
+                  style={{
+                    marginTop: 10,
+                    width: '100%',
+                    minHeight: 46,
+                    border: 0,
+                    borderRadius: 4,
+                    background:
+                      hotelCodeStatus === 'verifying' ||
+                      !isValidHotelAccessCode(hotelCode)
+                        ? '#E2E8F0'
+                        : '#0F172A',
+                    color:
+                      hotelCodeStatus === 'verifying' ||
+                      !isValidHotelAccessCode(hotelCode)
+                        ? '#64748B'
+                        : '#FFFFFF',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    cursor:
+                      hotelCodeStatus === 'verifying' ||
+                      !isValidHotelAccessCode(hotelCode)
+                        ? 'not-allowed'
+                        : 'pointer',
+                  }}
+                >
+                  {hotelCodeStatus === 'verifying' ? 'Verifying code…' : 'Verify hotel code'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {selectedStaff.staffId ? (
+            <>
+          {/* Roster selector — underline tabs */}
+          {waitersList.length > 1 && (
+            <div
+              className="flex flex-wrap items-center gap-x-3.5"
+              data-testid="waiter-roster-tabs"
+              style={{ borderBottom: '1px solid #E2E8F0', marginTop: 18 }}
+            >
+              {waitersList.map((staff) => {
+                const isSelected = selectedStaff.staffId === staff.staffId;
+                return (
+                  <button
+                    key={staff.staffId}
+                    type="button"
+                    data-testid={`card-staff-${staff.name.toLowerCase()}`}
+                    onClick={() => {
+                      setSelectedStaff(staff);
+                      setEnteredPin('');
+                      setPinError(null);
+                      setFailedPinAttempts(0);
+                      setPinLockedUntil(0);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: isSelected ? '2px solid #0F172A' : '2px solid transparent',
+                      padding: '7px 0 8px',
+                      fontSize: 10,
+                      fontWeight: 800,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: isSelected ? '#0F172A' : '#64748B',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      minHeight: 32,
+                    }}
+                  >
+                    {staff.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Identity */}
+          <div className="flex items-center" style={{ gap: 12, marginTop: 20 }}>
+            <div
+              style={{
+                width: 46,
+                height: 46,
+                flexShrink: 0,
+                borderRadius: 2,
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: 'inherit',
+                fontSize: 16,
+                fontWeight: 600,
+                color: '#0F172A',
+              }}
+            >
+              {initials}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontFamily: 'inherit',
+                  fontSize: 19,
+                  fontWeight: 600,
+                  lineHeight: 1.2,
+                  color: '#0F172A',
+                }}
+              >
+                {selectedStaff.name}
+              </div>
+              <div
+                style={{
+                  fontSize: 9,
+                  fontWeight: 800,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: '#2563EB',
+                  marginTop: 3,
+                }}
+              >
+                {selectedStaff.role}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 11, color: '#475569', marginTop: 10, lineHeight: 1.5 }}>
+            {selectedStaff.assignedTableStart > 0 && selectedStaff.assignedTableEnd >= selectedStaff.assignedTableStart
+              ? `${selectedStaff.assignedSection ? `${selectedStaff.assignedSection} · ` : ''}Tables T-${String(selectedStaff.assignedTableStart).padStart(2, '0')}–T-${String(selectedStaff.assignedTableEnd).padStart(2, '0')}`
+              : 'Your table assignment is loaded after sign-in.'}
+            {selectedStaff.shift ? ` · ${selectedStaff.shift}` : ''}
+          </div>
+
+          <div style={{ height: 1, background: '#E2E8F0', marginTop: 16 }} />
+
+          {/* PIN */}
+          <div className="flex items-baseline justify-between" style={{ marginTop: 18 }}>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 800,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: '#334155',
+              }}
+            >
+              Staff PIN
+            </span>
+            <span style={{ fontSize: 10, color: '#94A3B8' }}>4 digits</span>
+          </div>
+
+          <div className="flex items-center" style={{ gap: 14, marginTop: 8 }}>
+            {[0, 1, 2, 3].map((idx) => {
+              const isFilled = enteredPin.length > idx;
+              const isCurrent = enteredPin.length === idx;
+              return (
+                <div
+                  key={idx}
+                  className="flex flex-1 items-center justify-center"
+                  style={{
+                    height: 44,
+                    borderBottom: `2px solid ${
+                      isFilled ? '#0F172A' : isCurrent ? '#2563EB' : '#E2E8F0'
+                    }`,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: isFilled ? '#0F172A' : 'transparent',
+                    }}
+                  />
+                </div>
               );
             })}
           </div>
-        )}
 
-        {/* Staff Card: Photo, Name, Role */}
-        <img
-          src={selectedStaff.avatar}
-          alt={selectedStaff.name}
-          className="w-20 h-20 rounded-full border-2 border-slate-200 dark:border-slate-700 object-cover mb-3"
-        />
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {selectedStaff.name}
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
-          {selectedStaff.role}
-        </p>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">
-          {selectedStaff.assignedSection} • Tables T-{String(selectedStaff.assignedTableStart).padStart(2, '0')} to T-{String(selectedStaff.assignedTableEnd).padStart(2, '0')}
-        </p>
-
-        {/* 4-Digit PIN Dots */}
-        <div className="flex items-center gap-4 mb-5 justify-center">
-          {[0, 1, 2, 3].map((idx) => (
+          {pinError && (
             <div
-              key={idx}
-              className={`w-4 h-4 rounded-full border-2 transition-all ${
-                enteredPin.length > idx
-                  ? 'bg-slate-900 border-slate-900 dark:bg-white dark:border-white'
-                  : 'border-slate-300 dark:border-slate-700 bg-transparent'
-              }`}
-            />
-          ))}
-        </div>
-
-        {pinError && (
-          <div className="text-xs text-red-600 dark:text-red-400 font-semibold mb-3">
-            {pinError}
-          </div>
-        )}
-
-        {/* 3-Column Numpad */}
-        <div className="grid grid-cols-3 gap-3 w-full mb-4">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-            <button
-              key={digit}
-              type="button"
-              data-testid={`btn-digit-${digit}`}
-              onClick={() => handlePinDigit(digit)}
-              className="h-16 text-2xl font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white transition flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
+              role="alert"
+              style={{
+                marginTop: 14,
+                borderLeft: '2px solid #B91C1C',
+                background: '#FEF2F2',
+                color: '#B91C1C',
+                fontSize: 11.5,
+                fontWeight: 600,
+                lineHeight: 1.45,
+                padding: '8px 12px',
+              }}
             >
-              {digit}
-            </button>
-          ))}
-          <button
-            type="button"
-            data-testid="btn-digit-clear"
-            onClick={() => setEnteredPin('')}
-            className="h-16 text-base font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition flex items-center justify-center cursor-pointer active:scale-95"
-          >
-            Clear
-          </button>
-          <button
-            type="button"
-            data-testid="btn-digit-0"
-            onClick={() => handlePinDigit('0')}
-            className="h-16 text-2xl font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white transition flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
-          >
-            0
-          </button>
-          <button
-            type="button"
-            data-testid="btn-digit-delete"
-            onClick={handleBackspace}
-            className="h-16 text-xl font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition flex items-center justify-center cursor-pointer active:scale-95"
-          >
-            ⌫
-          </button>
-        </div>
+              {pinError}
+            </div>
+          )}
 
-        {/* Login Button */}
-        <button
-          type="button"
-          data-testid="btn-login-pin"
-          onClick={() => verifyPin(enteredPin, selectedStaff)}
-          disabled={enteredPin.length !== 4 || isVerifying}
-          className="h-14 w-full bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-xl text-lg font-bold hover:opacity-90 disabled:opacity-40 transition flex items-center justify-center cursor-pointer shadow-sm active:scale-95 mb-3"
-        >
-          {isVerifying ? 'Authenticating...' : 'Sign In'}
-        </button>
+          {selectedStaff.hasPin === false && (
+            <div
+              role="status"
+              style={{
+                marginTop: 12,
+                background: '#F1F5F9',
+                color: '#1D4ED8',
+                fontSize: 12,
+                lineHeight: 1.45,
+                padding: '10px 12px',
+              }}
+            >
+              PIN is not set for this profile yet. Contact the hotel administrator to activate sign-in.
+            </div>
+          )}
 
-        {/* Reset via OTP & Admin Configuration Actions */}
-        <div className="flex items-center justify-between w-full pt-3 border-t border-slate-200 dark:border-slate-800 text-xs">
-          <button
-            type="button"
-            data-testid="btn-forgot-pin-otp"
-            onClick={() => {
-              setOtpEmail(selectedStaff.email || '');
-              setOtpCode('');
-              setNewOtpPin('');
-              setConfirmOtpPin('');
-              setOtpStep('request');
-              setOtpStatusMsg(null);
-              setShowOtpModal(true);
+          {selectedStaff.pinApprovedByAdmin === false && (
+            <div
+              role="status"
+              style={{
+                marginTop: 12,
+                background: '#F1F5F9',
+                color: '#1D4ED8',
+                fontSize: 12,
+                lineHeight: 1.45,
+                padding: '10px 12px',
+              }}
+            >
+              This staff PIN is awaiting hotel administrator approval.
+            </div>
+          )}
+
+          {/* Numpad — hairline ledger grid */}
+          <div
+            className="grid grid-cols-3"
+            style={{
+              marginTop: 20,
+              borderTop: '1px solid #E2E8F0',
+              borderLeft: '1px solid #E2E8F0',
             }}
-            className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-medium underline cursor-pointer"
           >
-            Forgot PIN? Reset with OTP
-          </button>
+            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+              <button
+                key={digit}
+                type="button"
+                data-testid={`btn-digit-${digit}`}
+                onClick={() => handlePinDigit(digit)}
+                style={{
+                  height: 58,
+                  background: 'transparent',
+                  border: 'none',
+                  borderRight: '1px solid #E2E8F0',
+                  borderBottom: '1px solid #E2E8F0',
+                  fontFamily: 'inherit',
+                  fontSize: 21,
+                  fontWeight: 500,
+                  color: '#0F172A',
+                  cursor: 'pointer',
+                }}
+              >
+                {digit}
+              </button>
+            ))}
+            <button
+              type="button"
+              data-testid="btn-digit-clear"
+              onClick={() => setEnteredPin('')}
+              style={{
+                height: 58,
+                background: 'transparent',
+                border: 'none',
+                borderRight: '1px solid #E2E8F0',
+                borderBottom: '1px solid #E2E8F0',
+                fontSize: 9.5,
+                fontWeight: 800,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: '#64748B',
+                cursor: 'pointer',
+              }}
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              data-testid="btn-digit-0"
+              onClick={() => handlePinDigit('0')}
+              style={{
+                height: 58,
+                background: 'transparent',
+                border: 'none',
+                borderRight: '1px solid #E2E8F0',
+                borderBottom: '1px solid #E2E8F0',
+                fontFamily: 'inherit',
+                fontSize: 21,
+                fontWeight: 500,
+                color: '#0F172A',
+                cursor: 'pointer',
+              }}
+            >
+              0
+            </button>
+            <button
+              type="button"
+              data-testid="btn-digit-delete"
+              onClick={handleBackspace}
+              style={{
+                height: 58,
+                background: 'transparent',
+                border: 'none',
+                borderRight: '1px solid #E2E8F0',
+                borderBottom: '1px solid #E2E8F0',
+                fontSize: 16,
+                color: '#64748B',
+                cursor: 'pointer',
+              }}
+            >
+              ⌫
+            </button>
+          </div>
 
           <button
             type="button"
-            onClick={() => setIsAdminModalOpen(true)}
-            className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-medium flex items-center gap-1 cursor-pointer"
+            data-testid="btn-login-pin"
+            onClick={() => verifyPin(enteredPin, selectedStaff)}
+            disabled={enteredPin.length !== 4 || isVerifying || selectedStaff.hasPin === false || selectedStaff.pinApprovedByAdmin === false}
+            style={{
+              width: '100%',
+              height: 48,
+              marginTop: 18,
+              background: enteredPin.length === 4 && !isVerifying && selectedStaff.hasPin !== false && selectedStaff.pinApprovedByAdmin !== false ? '#0F172A' : '#CBD5E1',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: 3,
+              fontSize: 11.5,
+              fontWeight: 800,
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              cursor: enteredPin.length === 4 && !isVerifying && selectedStaff.hasPin !== false && selectedStaff.pinApprovedByAdmin !== false ? 'pointer' : 'not-allowed',
+            }}
           >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>Set Tables</span>
+            {isVerifying ? 'Checking…' : 'Sign in'}
           </button>
+
+          <div
+            className="flex items-center justify-between"
+            style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #E2E8F0' }}
+          >
+            <button
+              type="button"
+              data-testid="btn-forgot-pin-otp"
+              onClick={() => {
+                setOtpEmail(selectedStaff.email || '');
+                setOtpCode('');
+                setNewOtpPin('');
+                setConfirmOtpPin('');
+                setOtpStep('request');
+                setOtpStatusMsg(null);
+                setShowOtpModal(true);
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                fontSize: 10.5,
+                fontWeight: 700,
+                color: '#475569',
+                textDecoration: 'underline',
+                textUnderlineOffset: 2,
+                cursor: 'pointer',
+              }}
+            >
+              Forgot PIN?
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsAdminModalOpen(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: 9,
+                fontWeight: 800,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: '#94A3B8',
+                cursor: 'pointer',
+              }}
+            >
+              <SlidersHorizontal style={{ width: 12, height: 12 }} />
+              <span>Set tables</span>
+            </button>
+          </div>
+            </>
+          ) : (
+            <div
+              role={rosterStatus === 'error' ? 'alert' : 'status'}
+              aria-live="polite"
+              style={{
+                marginTop: 22,
+                padding: '18px 14px',
+                borderTop: '1px solid #E2E8F0',
+                borderBottom: '1px solid #E2E8F0',
+                color: '#475569',
+                fontSize: 13,
+                lineHeight: 1.5,
+              }}
+            >
+              {hotelCodeStatus !== 'verified' || !selectedHotelId
+                ? 'Enter the hotel code from your Hotel Admin to load this property’s waiters.'
+                : rosterStatus === 'loading'
+                  ? 'Loading live staff…'
+                  : rosterStatus === 'error'
+                    ? (
+                      <>
+                        {rosterError}{' '}
+                        <button
+                          type="button"
+                          onClick={() => setRosterRefresh((current) => current + 1)}
+                          style={{ border: 0, background: 'none', color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}
+                        >
+                          Retry roster
+                        </button>
+                      </>
+                    )
+                    : rosterStatus === 'ready'
+                      ? (
+                        <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                          <div style={{ fontSize: 24, marginBottom: 6 }}>👥</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>
+                            No staff members added yet
+                          </div>
+                          <div style={{ fontSize: 12, color: '#64748B' }}>
+                            Please add waiters and staff members from your Hotel Admin ERP Console.
+                          </div>
+                        </div>
+                      )
+                      : 'Enter the hotel code to continue.'}
+            </div>
+          )}
         </div>
-      </div>
+      </main>
+
+      <footer style={{ borderTop: '1px solid #E2E8F0', padding: '12px 20px' }}>
+        <div
+          className="mx-auto flex w-full items-center justify-between"
+          style={{
+            maxWidth: 440,
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: '#94A3B8',
+          }}
+        >
+          <span>Authorised staff only</span>
+          <span>SpiceHub · Hospitality OS</span>
+        </div>
+      </footer>
 
       {/* Hotel Admin Table Allocation Configuration Modal */}
       {isAdminModalOpen && (
@@ -668,8 +1210,7 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
                         <label className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold block mb-1">
                           Start Table # (From)
                         </label>
-                        <input
-                          type="number"
+                        <NumericInput
                           min={1}
                           max={50}
                           value={alloc.start}
@@ -687,8 +1228,7 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
                         <label className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold block mb-1">
                           End Table # (To)
                         </label>
-                        <input
-                          type="number"
+                        <NumericInput
                           min={1}
                           max={50}
                           value={alloc.end}
@@ -774,11 +1314,17 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
 
             {/* Selected staff preview */}
             <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-              <img
-                src={selectedStaff.avatar}
-                alt={selectedStaff.name}
-                className="w-10 h-10 rounded-full object-cover border border-slate-300 dark:border-slate-600"
-              />
+              {selectedStaff.avatar ? (
+                <img
+                  src={selectedStaff.avatar}
+                  alt=""
+                  className="h-10 w-10 shrink-0 rounded-full border border-slate-200 object-cover"
+                />
+              ) : (
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-600">
+                  {(selectedStaff.name || '?').charAt(0).toUpperCase()}
+                </span>
+              )}
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm text-slate-900 dark:text-white truncate">{selectedStaff.name}</div>
                 <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
@@ -793,10 +1339,10 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
             {otpStatusMsg && (
               <div
                 className={`p-3 rounded-xl text-xs font-semibold border ${
-                  otpStatusMsg.type === 'success'
-                    ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800/80 text-emerald-800 dark:text-emerald-300'
-                    : 'bg-red-50 dark:bg-red-950/60 border-red-200 dark:border-red-800/80 text-red-800 dark:text-red-300'
-                }`}
+ otpStatusMsg.type === 'success'
+ ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800/80 text-emerald-800 dark:text-emerald-300'
+ : 'bg-red-50 dark:bg-red-950/60 border-red-200 dark:border-red-800/80 text-red-800 dark:text-red-300'
+ }`}
               >
                 {otpStatusMsg.text}
               </div>
@@ -815,7 +1361,7 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
                       required
                       value={otpEmail}
                       onChange={(e) => setOtpEmail(e.target.value)}
-                      placeholder="e.g. staff@hotel.com"
+                      placeholder="Write email"
                       className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-slate-500 transition"
                     />
                   </div>
@@ -853,7 +1399,7 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
                     maxLength={6}
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="Enter 6-digit code"
+                    placeholder="Write 6-digit code"
                     className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-center font-mono text-lg tracking-widest text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-slate-500 transition"
                   />
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -872,7 +1418,7 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
                       maxLength={4}
                       value={newOtpPin}
                       onChange={(e) => setNewOtpPin(e.target.value.replace(/\D/g, ''))}
-                      placeholder="••••"
+                      placeholder="Write new 4-digit PIN"
                       className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-center font-mono text-base tracking-widest text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-slate-500 transition"
                     />
                   </div>
@@ -886,7 +1432,7 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
                       maxLength={4}
                       value={confirmOtpPin}
                       onChange={(e) => setConfirmOtpPin(e.target.value.replace(/\D/g, ''))}
-                      placeholder="••••"
+                      placeholder="Confirm 4-digit PIN"
                       className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-center font-mono text-base tracking-widest text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-slate-500 transition"
                     />
                   </div>

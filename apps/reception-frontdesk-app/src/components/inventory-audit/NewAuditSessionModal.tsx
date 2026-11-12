@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AuditTypeUI, INewAuditSessionPayload } from '@spicehub/ui';
+import { AuditTypeUI, INewAuditSessionPayload, NumericInput } from '@spicehub/ui';
 
 interface NewAuditSessionModalProps {
   isOpen: boolean;
@@ -101,12 +101,12 @@ export const NewAuditSessionModal: React.FC<NewAuditSessionModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-slate-900 border border-emerald-500/30 w-full max-w-3xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
+      <div className="bg-slate-900 border border-emerald-500/30 w-full max-w-3xl rounded-xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <span className="text-emerald-400">📋</span> Initiate Stocktake Audit Session
+              <span className="text-emerald-400"></span> Initiate Stocktake Audit Session
             </h2>
             <p className="text-xs text-zinc-400 mt-0.5">
               Launch physical stock count with optional Blind Count protection against inventory collusion.
@@ -117,7 +117,7 @@ export const NewAuditSessionModal: React.FC<NewAuditSessionModalProps> = ({
             onClick={onClose}
             className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-sm"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -158,7 +158,7 @@ export const NewAuditSessionModal: React.FC<NewAuditSessionModalProps> = ({
           <div className="bg-zinc-900/80 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between">
             <div>
               <span className="text-xs font-bold text-amber-300 block">
-                🛡️ Blind Stocktake Mode (Recommended)
+                ️ Blind Stocktake Mode (Recommended)
               </span>
               <span className="text-[11px] text-zinc-400">
                 Hides system book quantities from counting staff to prevent pencil-whipping and force authentic physical counts.
@@ -226,8 +226,7 @@ export const NewAuditSessionModal: React.FC<NewAuditSessionModalProps> = ({
                     />
                   </div>
                   <div>
-                    <input
-                      type="number"
+                    <NumericInput
                       placeholder="Book Qty"
                       value={item.systemBookQuantity}
                       onChange={(e) =>
@@ -239,8 +238,7 @@ export const NewAuditSessionModal: React.FC<NewAuditSessionModalProps> = ({
                     />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
+                    <NumericInput
                       placeholder="Cost (₹)"
                       value={item.unitCost}
                       onChange={(e) => handleItemChange(index, 'unitCost', Number(e.target.value))}
@@ -254,7 +252,7 @@ export const NewAuditSessionModal: React.FC<NewAuditSessionModalProps> = ({
                         onClick={() => handleRemoveItem(index)}
                         className="text-red-400 hover:text-red-300 p-1.5 rounded-lg hover:bg-zinc-800 text-xs"
                       >
-                        ✕
+                        
                       </button>
                     )}
                   </div>

@@ -61,10 +61,10 @@ export const RequisitionCardList: React.FC<RequisitionCardListProps> = ({
               type="button"
               onClick={() => onStatusChange(tab.key)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                selectedStatus === tab.key
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-              }`}
+ selectedStatus === tab.key
+ ? 'bg-emerald-600/20 text-amber-300 border-emerald-600/40'
+ : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+ }`}
             >
               {tab.label}
             </button>
@@ -162,7 +162,7 @@ export const RequisitionCardList: React.FC<RequisitionCardListProps> = ({
                       type="button"
                       onClick={() => onIssueClick(req)}
                       disabled={loading}
-                      className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center justify-center gap-1.5"
+                      className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-amber-400 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center justify-center gap-1.5"
                     >
                       <span>📦</span>
                       <span>Issue Stock (Storekeeper)</span>

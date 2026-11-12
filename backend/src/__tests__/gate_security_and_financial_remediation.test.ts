@@ -26,6 +26,7 @@ import { MatrixStore } from '../../../packages/ui/src/pms/MatrixStore';
 describe('--- REMEDIATION GATE: ADVERSARIAL FINANCIAL, SECURITY & STORE TESTS ---', () => {
   let tenantId: string;
   let client: SpiceHubClient;
+  let adminClient: SpiceHubClient;
   let testServerUrl: string;
   let cashierToken: string;
   let testDish: any;
@@ -71,6 +72,16 @@ describe('--- REMEDIATION GATE: ADVERSARIAL FINANCIAL, SECURITY & STORE TESTS --
       permissions: ['pos:orders:create', 'billing:manage'],
     });
 
+    const adminUser = await User.create({
+      hotelId: tenant._id,
+      name: 'Hotel Admin',
+      email: `admin_${Date.now()}@spicehub.com`,
+      phone: '9876543212',
+      passwordHash,
+      role: UserRole.HOTEL_ADMIN,
+      isActive: true,
+    });
+
     testStation = await KitchenStation.create({
       hotelId: tenant._id,
       stationName: 'Main Kitchen',
@@ -110,6 +121,17 @@ describe('--- REMEDIATION GATE: ADVERSARIAL FINANCIAL, SECURITY & STORE TESTS --
     });
     cashierToken = loginRes.data.token;
     client.setAuthToken(cashierToken);
+
+    adminClient = new SpiceHubClient({
+      baseUrl: testServerUrl,
+      hotelId: tenantId,
+    });
+    const adminLoginRes = await adminClient.auth.login({
+      email: adminUser.email,
+      password: userPassword,
+      hotelId: tenantId,
+    });
+    adminClient.setAuthToken(adminLoginRes.data.token);
   });
 
   afterAll(async () => {
@@ -367,7 +389,14 @@ describe('--- REMEDIATION GATE: ADVERSARIAL FINANCIAL, SECURITY & STORE TESTS --
     });
 
     // Run Night Audit for today
-    const auditRes = await client.request<any>('POST', '/api/v1/night-audit/run', {
+    await expect(
+      client.request('POST', '/api/v1/night-audit/run', {
+        auditDate: todayStr,
+        notes: 'Cashier role must not run hotel night audit',
+      })
+    ).rejects.toMatchObject({ status: 403 });
+
+    const auditRes = await adminClient.request<any>('POST', '/api/v1/night-audit/run', {
       auditDate: todayStr,
       notes: 'Testing Date Filter Quarantine',
     });

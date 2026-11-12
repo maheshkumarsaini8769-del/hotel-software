@@ -169,14 +169,14 @@ export const GuestConciergeGrid: React.FC<GuestConciergeGridProps> = ({
 
                 <span
                   className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${
-                    req.status === 'COMPLETED'
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                      : req.status === 'IN_PROGRESS'
-                      ? 'bg-blue-500/20 text-blue-300 border-blue-500/30 animate-pulse'
-                      : req.status === 'ASSIGNED'
-                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                  }`}
+ req.status === 'COMPLETED'
+ ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+ : req.status === 'IN_PROGRESS'
+ ? 'bg-blue-500/20 text-blue-300 border-blue-500/30 animate-pulse'
+ : req.status === 'ASSIGNED'
+ ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+ : 'bg-emerald-600/20 text-amber-300 border-emerald-600/30'
+ }`}
                 >
                   {req.status === 'COMPLETED'
                     ? '✅ Delivered'

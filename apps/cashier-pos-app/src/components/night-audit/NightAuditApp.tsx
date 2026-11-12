@@ -132,7 +132,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
 
         <div className="space-y-2 z-10">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-amber-500 text-slate-950 rounded-2xl flex items-center justify-center font-bold">
+            <div className="p-3 bg-emerald-600 text-white rounded-2xl flex items-center justify-center font-bold">
               <Moon className="w-6 h-6 stroke-[2.5]" />
             </div>
             <div>
@@ -169,7 +169,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
           <button
             onClick={() => setShowRunModal(true)}
             data-testid="night-audit-open-run-modal-btn"
-            className="flex items-center gap-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-3 rounded-xl transition-all transform active:scale-95 cursor-pointer uppercase tracking-wider text-xs"
+            className="flex items-center gap-2.5 bg-emerald-600 hover:bg-amber-400 text-white font-black px-6 py-3 rounded-xl transition-all transform active:scale-95 cursor-pointer uppercase tracking-wider text-xs"
           >
             <Lock className="w-4 h-4 stroke-[2.5]" />
             <span>Execute Midnight Day Close</span>
@@ -400,7 +400,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
           <div className="bg-slate-950 border border-amber-500/30 rounded-2xl w-full max-w-lg overflow-hidden shadow-sm dark:shadow-none space-y-6 p-6">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-amber-500 text-slate-950 rounded-xl font-bold">
+                <div className="p-3 bg-emerald-600 text-white rounded-xl font-bold">
                   <Moon className="w-5 h-5 stroke-[2.5]" />
                 </div>
                 <div>
@@ -462,7 +462,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
                 onClick={handleExecuteAudit}
                 disabled={isExecutingAudit}
                 data-testid="night-audit-confirm-btn"
-                className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs transition-all uppercase tracking-wider cursor-pointer"
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-amber-400 text-white font-black px-5 py-2.5 rounded-xl text-xs transition-all uppercase tracking-wider cursor-pointer"
               >
                 {isExecutingAudit ? (
                   <>
@@ -491,7 +491,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
 
             {/* Crest Header */}
             <div className="text-center space-y-2 border-b border-amber-500/30 pb-6">
-              <div className="w-16 h-16 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center mx-auto">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-600 text-white flex items-center justify-center mx-auto">
                 <Award className="w-8 h-8 stroke-[2.5]" />
               </div>
               <div className="text-[11px] font-black uppercase tracking-[0.25em] text-amber-400">
@@ -561,7 +561,7 @@ export const NightAuditApp: React.FC<NightAuditAppProps> = ({
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 onClick={() => setSelectedAuditReport(null)}
-                className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider cursor-pointer"
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-amber-400 text-white font-black rounded-xl text-xs uppercase tracking-wider cursor-pointer"
               >
                 Acknowledge & Close
               </button>

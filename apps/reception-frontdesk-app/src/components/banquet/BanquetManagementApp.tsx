@@ -225,8 +225,8 @@ export const BanquetManagementApp: React.FC<BanquetManagementAppProps> = ({
             <div className="text-zinc-500 text-xs mt-3">Loading banquet functions...</div>
           </div>
         ) : bookings.length === 0 ? (
-          <div className="py-20 text-center bg-slate-950 rounded-2xl border border-zinc-800 p-8 max-w-xl mx-auto">
-            <span className="text-4xl">🏛️</span>
+          <div className="py-20 text-center bg-slate-950 rounded-xl border border-zinc-800 p-8 max-w-xl mx-auto">
+            <span className="text-4xl">️</span>
             <h3 className="text-lg font-bold text-white mt-3">No Banquet Bookings Found</h3>
             <p className="text-zinc-400 text-xs mt-1 mb-5">
               Create your first luxury banquet event, configure the seating layout and issue the Function Prospectus (BEO).

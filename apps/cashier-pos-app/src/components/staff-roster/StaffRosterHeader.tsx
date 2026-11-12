@@ -54,14 +54,14 @@ export const StaffRosterHeader: React.FC<StaffRosterHeaderProps> = ({
           <button
             type="button"
             onClick={onOpenClockTerminal}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-sm transition-all flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 rounded-xl text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-sm transition-all flex items-center gap-2"
           >
             <span>⏰</span> PIN Clock Terminal
           </button>
           <button
             type="button"
             onClick={onOpenTipPoolModal}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 rounded-xl text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-900/30 transition-all flex items-center gap-2"
           >
             <span>💰</span> Tip Pool Split
           </button>
@@ -126,10 +126,10 @@ export const StaffRosterHeader: React.FC<StaffRosterHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('ROSTER')}
           className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
-            activeTab === 'ROSTER'
-              ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
+ activeTab === 'ROSTER'
+ ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
+ : 'border-transparent text-zinc-400 hover:text-zinc-200'
+ }`}
         >
           📅 Shift Roster & Schedule Planner
         </button>
@@ -137,10 +137,10 @@ export const StaffRosterHeader: React.FC<StaffRosterHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('ATTENDANCE')}
           className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
-            activeTab === 'ATTENDANCE'
-              ? 'border-blue-400 text-blue-400 bg-blue-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
+ activeTab === 'ATTENDANCE'
+ ? 'border-blue-400 text-blue-400 bg-blue-500/10'
+ : 'border-transparent text-zinc-400 hover:text-zinc-200'
+ }`}
         >
           ⏱️ Clock Attendance & Overtime Audit
         </button>
@@ -148,10 +148,10 @@ export const StaffRosterHeader: React.FC<StaffRosterHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('TIP_POOL')}
           className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
-            activeTab === 'TIP_POOL'
-              ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
+ activeTab === 'TIP_POOL'
+ ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10'
+ : 'border-transparent text-zinc-400 hover:text-zinc-200'
+ }`}
         >
           💰 Gratuity Tip Pool Distribution
         </button>

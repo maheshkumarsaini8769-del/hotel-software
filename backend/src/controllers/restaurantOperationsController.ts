@@ -1,8 +1,11 @@
 import { Request, Response } from 'express';
 import { Types } from 'mongoose';
+import { z } from 'zod';
 import { io } from '../index';
-import { Tenant } from '../models/Tenant';
+import { ITenant, Tenant } from '../models/Tenant';
 import { TaxRule, TaxApplicability, TaxType } from '../models/TaxRule';
+import { TenantRequest } from '../types';
+import { serializePublicHotelSummary } from '../utils/tenantPublicSummary';
 
 // In-Memory Realistic Master State with MongoDB Sync hooks
 let restaurantInfo: any = {
@@ -30,65 +33,6 @@ let restaurantInfo: any = {
   wifiPassword: 'SpiceGuest@2026',
   totalRooms: 48,
   totalDiningCapacity: 230,
-};
-
-let operationalSettings = {
-  cgstPercent: 2.5,
-  sgstPercent: 2.5,
-  serviceChargePercent: 5.0,
-  autoPrintKot: true,
-  kotSoundAlert: true,
-  roundOffBills: true,
-  smsReceipts: true,
-  whatsappReceipts: true,
-  autoCloseShiftTime: '02:00 AM',
-  billFooterNote: 'Thank you for dining with us! Visit again. All prices subject to 5% GST.',
-  currency: 'INR',
-  currencySymbol: '₹',
-};
-
-let hotelPolicies = {
-  // PMS Front Desk & Room Policies
-  checkInTime: '14:00',
-  checkOutTime: '11:00',
-  gracePeriodMinutes: 60,
-  earlyCheckInChargePercent: 50,
-  lateCheckOutChargePercent: 50,
-  cancellationFreeHours: 48,
-  cancellationPenaltyPercent: 50,
-  cancellationStrictHours: 24,
-  securityDepositPerNight: 2000,
-  maxKeycardsPerRoom: 2,
-
-  // Taxation & Financial Slabs
-  roomGstUnderThresholdPercent: 12,
-  roomGstAboveThresholdPercent: 18,
-  roomGstTariffThreshold: 7500,
-  restaurantGstPercent: 5,
-  serviceChargePercent: 5,
-
-  // F&B & KDS Policies
-  minInRoomDiningOrderAmount: 300,
-  inRoomDiningDeliverySlaMinutes: 30,
-  tableTurnoverLimitMinutes: 90,
-  kotVoidManagerPinThreshold: 500,
-  waiterMaxDiscountPercent: 0,
-  managerMaxDiscountPercent: 10,
-
-  // Cashier & Night Audit Policies
-  openingCashFloatAmount: 5000,
-  cashierVarianceToleranceAmount: 0,
-  cashierVarianceAlertThreshold: 100,
-  nightAuditExecutionWindow: '02:00 AM - 04:00 AM',
-
-  // Housekeeping & Vault Policies
-  housekeepingTurnaroundSlaMinutes: 25,
-  lostAndFoundStandardRetentionDays: 90,
-  lostAndFoundValuableRetentionDays: 180,
-  nonSmokingFineAmount: 5000,
-  petSanitationFeePerNight: 1500,
-  maxTablesPerWaiter: 6,
-  updatedAt: new Date().toISOString(),
 };
 
 let kitchenSections = [
@@ -166,11 +110,11 @@ let kitchenSections = [
   },
 ];
 
-let vouchers = [
+let vouchers: any[] = [
   {
     id: 'vc-1',
     code: 'WELCOME10',
-    description: '10% Welcome Discount for New Diners',
+    description: '10% Welcome Discount on Entire Menu',
     discountType: 'PERCENT',
     discountValue: 10,
     minBillAmount: 500,
@@ -179,37 +123,86 @@ let vouchers = [
     timesUsed: 42,
     validUntil: '2026-12-31',
     isActive: true,
+    scope: 'ALL_ITEMS',
+    applicableItemIds: [],
+    applicableItemNames: [],
+    isScheduled: false,
+    scheduledDays: [],
+    dayNames: [],
+    startTime: '',
+    endTime: '',
+    isRecurringWeekly: false,
   },
   {
     id: 'vc-2',
-    code: 'FLAT100',
-    description: 'Flat ₹100 Off on Family Dining Bills',
-    discountType: 'FLAT',
-    discountValue: 100,
-    minBillAmount: 800,
-    maxDiscountCap: 100,
-    usageLimit: 1000,
-    timesUsed: 68,
-    validUntil: '2026-11-30',
+    code: 'SUNBRUNCH30',
+    description: 'Sunday Morning Brunch 30% Off (08:00 AM - 02:00 PM)',
+    discountType: 'PERCENT',
+    discountValue: 30,
+    minBillAmount: 400,
+    maxDiscountCap: 300,
+    usageLimit: 300,
+    timesUsed: 54,
+    validUntil: '2026-12-31',
     isActive: true,
+    scope: 'ALL_ITEMS',
+    applicableItemIds: [],
+    applicableItemNames: [],
+    isScheduled: true,
+    scheduledDays: [0], // 0 = Sunday
+    dayNames: ['Sun'],
+    startTime: '08:00',
+    endTime: '14:00',
+    isRecurringWeekly: true,
   },
   {
     id: 'vc-3',
-    code: 'FESTIVE20',
-    description: 'Festive Season 20% Special Promotion',
-    discountType: 'PERCENT',
-    discountValue: 20,
-    minBillAmount: 1200,
-    maxDiscountCap: 500,
-    usageLimit: 200,
-    timesUsed: 19,
-    validUntil: '2026-10-31',
+    code: 'PANEER50',
+    description: 'Special ₹50 Off on Paneer Butter Masala & Dal Makhani',
+    discountType: 'FLAT',
+    discountValue: 50,
+    minBillAmount: 250,
+    maxDiscountCap: 50,
+    usageLimit: 500,
+    timesUsed: 31,
+    validUntil: '2026-12-31',
     isActive: true,
+    scope: 'SPECIFIC_ITEMS',
+    applicableItemIds: ['6ae0bd8930c000828a8bbd56', '6ae06d00ddbafddfbb0a8033'],
+    applicableItemNames: ['Paneer Butter Masala', 'Dal Makhani'],
+    isScheduled: false,
+    scheduledDays: [],
+    dayNames: [],
+    startTime: '',
+    endTime: '',
+    isRecurringWeekly: false,
   },
   {
     id: 'vc-4',
+    code: 'HAPPYHOUR20',
+    description: 'Weekday Evening Happy Hours 20% Off (04:00 PM - 07:00 PM)',
+    discountType: 'PERCENT',
+    discountValue: 20,
+    minBillAmount: 300,
+    maxDiscountCap: 200,
+    usageLimit: 1000,
+    timesUsed: 88,
+    validUntil: '2026-12-31',
+    isActive: true,
+    scope: 'ALL_ITEMS',
+    applicableItemIds: [],
+    applicableItemNames: [],
+    isScheduled: true,
+    scheduledDays: [1, 2, 3, 4, 5], // Mon to Fri
+    dayNames: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+    startTime: '16:00',
+    endTime: '19:00',
+    isRecurringWeekly: true,
+  },
+  {
+    id: 'vc-5',
     code: 'ROYAL500',
-    description: 'Banquet & VIP Suite Privilege Voucher',
+    description: 'VIP Banquet & Suite Privilege Voucher Flat ₹500',
     discountType: 'FLAT',
     discountValue: 500,
     minBillAmount: 3000,
@@ -218,8 +211,18 @@ let vouchers = [
     timesUsed: 7,
     validUntil: '2026-12-31',
     isActive: true,
+    scope: 'ALL_ITEMS',
+    applicableItemIds: [],
+    applicableItemNames: [],
+    isScheduled: false,
+    scheduledDays: [],
+    dayNames: [],
+    startTime: '',
+    endTime: '',
+    isRecurringWeekly: false,
   },
 ];
+
 
 let customerWallets = [
   {
@@ -376,11 +379,24 @@ export const getRestaurantInfo = async (req: Request, res: Response) => {
     }
 
     if (tenant) {
-      const addressStr = typeof tenant.address === 'object' && tenant.address
-        ? [tenant.address.street, tenant.address.city, tenant.address.state, tenant.address.pincode].filter(Boolean).join(', ')
-        : (tenant.address || restaurantInfo.address);
+      const tenantAddr = typeof tenant.address === 'object' && tenant.address ? tenant.address : {};
+      const street = tenantAddr.street || (tenant as any).street || '';
+      const city = tenantAddr.city || (tenant as any).city || 'Jaipur';
+      const state = tenantAddr.state || (tenant as any).state || 'Rajasthan';
+      const country = tenantAddr.country || (tenant as any).country || 'India';
+      const pincode = tenantAddr.pincode || (tenant as any).pincode || '';
+      const coordinates = (tenant as any).coordinates || {
+        latitude: typeof (tenant as any).latitude === 'number' ? (tenant as any).latitude : 26.9124,
+        longitude: typeof (tenant as any).longitude === 'number' ? (tenant as any).longitude : 75.7873,
+      };
+      const googleMapUrl = (tenant as any).googleMapUrl || `https://www.google.com/maps/search/?api=1&query=${coordinates.latitude},${coordinates.longitude}`;
+      const locationNotes = (tenant as any).locationNotes || '';
 
-      restaurantInfo = {
+      const addressStr = [street, city, state, pincode].filter(Boolean).join(', ') ||
+        (typeof tenant.address === 'string' ? tenant.address : restaurantInfo.address);
+
+      const tenantLoginBranding = (tenant as any).adminLoginBranding || {};
+      const resolvedInfo = {
         ...restaurantInfo,
         name: tenant.name || restaurantInfo.name,
         tagline: tenant.tagline || restaurantInfo.tagline,
@@ -388,7 +404,16 @@ export const getRestaurantInfo = async (req: Request, res: Response) => {
         coverImageUrl: tenant.coverImageUrl || restaurantInfo.coverImageUrl,
         stayImageUrl: (tenant as any).stayImageUrl || (restaurantInfo as any).stayImageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80',
         diningImageUrl: (tenant as any).diningImageUrl || (restaurantInfo as any).diningImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80',
-        coordinates: (tenant as any).coordinates || { latitude: 26.9124, longitude: 75.7873 },
+        coordinates,
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        street,
+        city,
+        state,
+        country,
+        pincode,
+        googleMapUrl,
+        locationNotes,
         photos: Array.isArray(tenant.photos) && tenant.photos.length > 0 ? tenant.photos : restaurantInfo.photos,
         contactPhone: tenant.contactPhone || restaurantInfo.contactPhone,
         contactEmail: tenant.contactEmail || restaurantInfo.contactEmail,
@@ -397,7 +422,16 @@ export const getRestaurantInfo = async (req: Request, res: Response) => {
         wifiSsid: (tenant as any).wifiSsid || restaurantInfo.wifiSsid || 'TajGateway_HighSpeed',
         wifiPassword: (tenant as any).wifiPassword || restaurantInfo.wifiPassword || 'SpiceGuest@2026',
         address: addressStr || restaurantInfo.address,
+        adminLoginBranding: {
+          heroTitle: tenantLoginBranding.heroTitle || '',
+          heroSubtitle: tenantLoginBranding.heroSubtitle || '',
+          heroImageUrl: tenantLoginBranding.heroImageUrl || '',
+          formTitle: tenantLoginBranding.formTitle || '',
+          formSubtitle: tenantLoginBranding.formSubtitle || '',
+          updatedAt: tenantLoginBranding.updatedAt || null,
+        },
       };
+      restaurantInfo = resolvedInfo;
     }
 
     res.json({ success: true, data: restaurantInfo });
@@ -427,31 +461,83 @@ export const updateRestaurantInfo = async (req: Request, res: Response) => {
       if (req.body.coverImageUrl !== undefined) updateData.coverImageUrl = String(req.body.coverImageUrl).trim();
       if (req.body.stayImageUrl !== undefined) updateData.stayImageUrl = String(req.body.stayImageUrl).trim();
       if (req.body.diningImageUrl !== undefined) updateData.diningImageUrl = String(req.body.diningImageUrl).trim();
-      if (req.body.coordinates !== undefined) updateData.coordinates = req.body.coordinates;
+      if (req.body.coordinates !== undefined) {
+        updateData.coordinates = req.body.coordinates;
+      } else if (req.body.latitude !== undefined || req.body.longitude !== undefined) {
+        const curCoords = (tenant as any).coordinates || {};
+        const lat = req.body.latitude !== undefined ? Number(req.body.latitude) : (curCoords.latitude ?? 26.9124);
+        const lng = req.body.longitude !== undefined ? Number(req.body.longitude) : (curCoords.longitude ?? 75.7873);
+        updateData.coordinates = { latitude: lat, longitude: lng };
+      }
       if (req.body.photos !== undefined) {
         updateData.photos = Array.isArray(req.body.photos) ? req.body.photos : [];
       }
-      if (req.body.contactPhone) updateData.contactPhone = String(req.body.contactPhone).trim();
-      if (req.body.contactEmail) updateData.contactEmail = String(req.body.contactEmail).trim();
+      if (req.body.contactPhone !== undefined) updateData.contactPhone = String(req.body.contactPhone).trim();
+      if (req.body.contactEmail !== undefined) updateData.contactEmail = String(req.body.contactEmail).trim();
+      if (req.body.city !== undefined) updateData['address.city'] = String(req.body.city).trim();
+      if (req.body.state !== undefined) updateData['address.state'] = String(req.body.state).trim();
+      if (req.body.street !== undefined) updateData['address.street'] = String(req.body.street).trim();
+      if (req.body.pincode !== undefined) updateData['address.pincode'] = String(req.body.pincode).trim();
+      if (req.body.country !== undefined) updateData['address.country'] = String(req.body.country).trim();
+      if (req.body.googleMapUrl !== undefined) updateData.googleMapUrl = String(req.body.googleMapUrl).trim();
+      if (req.body.locationNotes !== undefined) updateData.locationNotes = String(req.body.locationNotes).trim();
+      if (req.body.address && typeof req.body.address === 'object') {
+        if (req.body.address.street !== undefined) updateData['address.street'] = String(req.body.address.street).trim();
+        if (req.body.address.city !== undefined) updateData['address.city'] = String(req.body.address.city).trim();
+        if (req.body.address.state !== undefined) updateData['address.state'] = String(req.body.address.state).trim();
+        if (req.body.address.pincode !== undefined) updateData['address.pincode'] = String(req.body.address.pincode).trim();
+        if (req.body.address.country !== undefined) updateData['address.country'] = String(req.body.address.country).trim();
+      }
       if (req.body.gstin) updateData.gstin = String(req.body.gstin).trim();
       if (req.body.fssaiNumber) updateData.fssai = String(req.body.fssaiNumber).trim();
       if (req.body.wifiSsid !== undefined) updateData.wifiSsid = String(req.body.wifiSsid).trim();
       if (req.body.wifiPassword !== undefined) updateData.wifiPassword = String(req.body.wifiPassword).trim();
+      if (req.body.adminLoginBranding && typeof req.body.adminLoginBranding === 'object') {
+        const currentBranding = (tenant as any).adminLoginBranding || {};
+        const nextBranding = req.body.adminLoginBranding;
+        updateData.adminLoginBranding = {
+          heroTitle:
+            nextBranding.heroTitle !== undefined
+              ? String(nextBranding.heroTitle).trim().slice(0, 240)
+              : currentBranding.heroTitle || '',
+          heroSubtitle:
+            nextBranding.heroSubtitle !== undefined
+              ? String(nextBranding.heroSubtitle).trim().slice(0, 500)
+              : currentBranding.heroSubtitle || '',
+          heroImageUrl:
+            nextBranding.heroImageUrl !== undefined
+              ? String(nextBranding.heroImageUrl).trim()
+              : currentBranding.heroImageUrl || '',
+          formTitle:
+            nextBranding.formTitle !== undefined
+              ? String(nextBranding.formTitle).trim().slice(0, 140)
+              : currentBranding.formTitle || '',
+          formSubtitle:
+            nextBranding.formSubtitle !== undefined
+              ? String(nextBranding.formSubtitle).trim().slice(0, 320)
+              : currentBranding.formSubtitle || '',
+          updatedAt: new Date(),
+        };
+      }
 
       const updatedTenant = await Tenant.findByIdAndUpdate(tenant._id, { $set: updateData }, { new: true });
 
-      if (updatedTenant && io) {
-        io.emit('tenant:updated', {
-          id: updatedTenant._id.toString(),
-          slug: updatedTenant.slug,
-          name: updatedTenant.name,
-          logoUrl: updatedTenant.logoUrl,
-          coverImageUrl: updatedTenant.coverImageUrl,
-          tagline: updatedTenant.tagline,
-          wifiSsid: (updatedTenant as any).wifiSsid,
-          wifiPassword: (updatedTenant as any).wifiPassword,
-          photos: updatedTenant.photos,
-        });
+      if (updatedTenant) {
+        restaurantInfo = {
+          ...restaurantInfo,
+          adminLoginBranding: (updatedTenant as any).adminLoginBranding || restaurantInfo.adminLoginBranding || {},
+        };
+        if (io) {
+          io.emit('tenant:updated', serializePublicHotelSummary(updatedTenant));
+          if (updateData.adminLoginBranding) {
+            io.emit('tenant:admin_login_branding_updated', {
+              hotelId: updatedTenant._id.toString(),
+              hotelSlug: updatedTenant.slug,
+              hotelName: updatedTenant.name,
+              ...(updatedTenant as any).adminLoginBranding,
+            });
+          }
+        }
       }
     }
 
@@ -462,201 +548,300 @@ export const updateRestaurantInfo = async (req: Request, res: Response) => {
   }
 };
 
-// 2. Operational Settings (Backed by MongoDB Tenant & TaxRule)
+const operationalSettingsSchema = z.object({
+  cgstPercent: z.number().min(0).max(14).optional(),
+  sgstPercent: z.number().min(0).max(14).optional(),
+  serviceChargePercent: z.number().min(0).max(20).optional(),
+  roomGstUnderThresholdPercent: z.number().min(0).max(28).optional(),
+  roomGstAboveThresholdPercent: z.number().min(0).max(28).optional(),
+  roomGstTariffThreshold: z.number().min(0).optional(),
+  autoPrintKot: z.boolean().optional(),
+  thermalPrinterWidth: z.enum(['58mm', '80mm']).optional(),
+  printHeaderWithLogo: z.boolean().optional(),
+  kotSoundAlert: z.boolean().optional(),
+  roundOffBills: z.boolean().optional(),
+  smsReceipts: z.boolean().optional(),
+  whatsappReceipts: z.boolean().optional(),
+  autoCloseShiftTime: z.string().trim().min(1).max(40).optional(),
+  billFooterNote: z.string().trim().max(500).optional(),
+  currencySymbol: z.string().trim().min(1).max(8).optional(),
+});
+
+const hotelPolicySchema = z.object({
+  checkInTime: z.string().trim().regex(/^\d{2}:\d{2}$/).optional(),
+  checkOutTime: z.string().trim().regex(/^\d{2}:\d{2}$/).optional(),
+  gracePeriodMinutes: z.number().int().min(0).max(1440).optional(),
+  earlyCheckInChargePercent: z.number().min(0).max(100).optional(),
+  lateCheckOutChargePercent: z.number().min(0).max(100).optional(),
+  cancellationFreeHours: z.number().int().min(0).max(8760).optional(),
+  cancellationPenaltyPercent: z.number().min(0).max(100).optional(),
+  cancellationStrictHours: z.number().int().min(0).max(8760).optional(),
+  securityDepositPerNight: z.number().min(0).optional(),
+  maxKeycardsPerRoom: z.number().int().min(1).max(20).optional(),
+  roomGstUnderThresholdPercent: z.number().min(0).max(28).optional(),
+  roomGstAboveThresholdPercent: z.number().min(0).max(28).optional(),
+  roomGstTariffThreshold: z.number().min(0).optional(),
+  restaurantGstPercent: z.number().min(0).max(28).optional(),
+  serviceChargePercent: z.number().min(0).max(20).optional(),
+  minInRoomDiningOrderAmount: z.number().min(0).optional(),
+  inRoomDiningDeliverySlaMinutes: z.number().int().min(1).max(1440).optional(),
+  tableTurnoverLimitMinutes: z.number().int().min(1).max(1440).optional(),
+  kotVoidManagerPinThreshold: z.number().min(0).optional(),
+  waiterMaxDiscountPercent: z.number().min(0).max(100).optional(),
+  managerMaxDiscountPercent: z.number().min(0).max(100).optional(),
+  openingCashFloatAmount: z.number().min(0).optional(),
+  cashierVarianceToleranceAmount: z.number().min(0).optional(),
+  cashierVarianceAlertThreshold: z.number().min(0).optional(),
+  nightAuditExecutionWindow: z.string().trim().min(1).max(80).optional(),
+  housekeepingTurnaroundSlaMinutes: z.number().int().min(1).max(1440).optional(),
+  lostAndFoundStandardRetentionDays: z.number().int().min(1).max(36500).optional(),
+  lostAndFoundValuableRetentionDays: z.number().int().min(1).max(36500).optional(),
+  nonSmokingFineAmount: z.number().min(0).optional(),
+  petSanitationFeePerNight: z.number().min(0).optional(),
+  maxTablesPerWaiter: z.number().int().min(1).max(100).optional(),
+});
+
+async function getSettingsTenant(req: TenantRequest, res: Response): Promise<ITenant | null> {
+  if (!req.hotelId) {
+    res.status(401).json({
+      success: false,
+      errorCode: 'TENANT_REQUIRED',
+      message: 'Hotel context is required to access operational settings.',
+    });
+    return null;
+  }
+  const tenant = await Tenant.findById(req.hotelId);
+  if (!tenant) {
+    res.status(404).json({
+      success: false,
+      errorCode: 'TENANT_NOT_FOUND',
+      message: 'Hotel settings were not found.',
+    });
+    return null;
+  }
+  return tenant;
+}
+
+function getOperationalSettingsData(tenant: ITenant | null) {
+  if (!tenant) return null;
+  const tax = tenant.taxConfig || {};
+  return {
+    cgstPercent: tax.cgstPercent ?? 2.5,
+    sgstPercent: tax.sgstPercent ?? 2.5,
+    serviceChargePercent: tax.serviceChargePercent ?? 5,
+    roomGstUnderThresholdPercent: tax.roomGstUnderThresholdPercent ?? 12,
+    roomGstAboveThresholdPercent: tax.roomGstAboveThresholdPercent ?? 18,
+    roomGstTariffThreshold: tax.roomGstTariffThreshold ?? 7500,
+    autoPrintKot: tax.autoPrintKot ?? true,
+    thermalPrinterWidth: tax.thermalPrinterWidth ?? '80mm',
+    printHeaderWithLogo: tax.printHeaderWithLogo ?? true,
+    kotSoundAlert: tax.kotSoundAlert ?? true,
+    roundOffBills: tax.roundOffBills ?? true,
+    smsReceipts: tax.smsReceipts ?? true,
+    whatsappReceipts: tax.whatsappReceipts ?? true,
+    autoCloseShiftTime: tax.autoCloseShiftTime ?? '02:00 AM',
+    billFooterNote: tax.billFooterNote ?? '',
+    currency: tenant.currency,
+    currencySymbol: tenant.currency === 'INR' ? '₹' : tenant.currency,
+  };
+}
+
+function getHotelPolicyData(tenant: ITenant | null) {
+  if (!tenant) return null;
+  const policies = tenant.operationalPolicies || {};
+  const tax = tenant.taxConfig || {};
+  return {
+    ...policies,
+    roomGstUnderThresholdPercent: tax.roomGstUnderThresholdPercent ?? 12,
+    roomGstAboveThresholdPercent: tax.roomGstAboveThresholdPercent ?? 18,
+    roomGstTariffThreshold: tax.roomGstTariffThreshold ?? 7500,
+    restaurantGstPercent: (tax.cgstPercent ?? 2.5) + (tax.sgstPercent ?? 2.5),
+    serviceChargePercent: tax.serviceChargePercent ?? 5,
+    updatedAt: policies.updatedAt?.toISOString() ?? tenant.updatedAt.toISOString(),
+  };
+}
+
+// 2. Operational settings are tenant-owned and persisted; no process-global fallback.
 export const getOperationalSettings = async (req: Request, res: Response) => {
   try {
-    const hotelId = (req as any).hotelId || (req as any).user?.hotelId || req.headers?.['x-hotel-id'];
-    let tenant = null;
-    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
-      tenant = await Tenant.findById(new Types.ObjectId(String(hotelId)));
-    }
-    if (!tenant) {
-      tenant = await Tenant.findOne();
-    }
-
-    if (tenant && tenant.taxConfig) {
-      operationalSettings = {
-        ...operationalSettings,
-        cgstPercent: tenant.taxConfig.cgstPercent ?? operationalSettings.cgstPercent,
-        sgstPercent: tenant.taxConfig.sgstPercent ?? operationalSettings.sgstPercent,
-        serviceChargePercent: tenant.taxConfig.serviceChargePercent ?? operationalSettings.serviceChargePercent,
-        autoPrintKot: tenant.taxConfig.autoPrintKot ?? operationalSettings.autoPrintKot,
-        kotSoundAlert: tenant.taxConfig.kotSoundAlert ?? operationalSettings.kotSoundAlert,
-        roundOffBills: tenant.taxConfig.roundOffBills ?? operationalSettings.roundOffBills,
-        smsReceipts: tenant.taxConfig.smsReceipts ?? operationalSettings.smsReceipts,
-        whatsappReceipts: tenant.taxConfig.whatsappReceipts ?? operationalSettings.whatsappReceipts,
-        autoCloseShiftTime: tenant.taxConfig.autoCloseShiftTime ?? operationalSettings.autoCloseShiftTime,
-        billFooterNote: tenant.taxConfig.billFooterNote ?? operationalSettings.billFooterNote,
-        currency: tenant.currency || 'INR',
-      };
-    }
-
-    res.json({ success: true, data: operationalSettings });
-  } catch (err: any) {
-    res.json({ success: true, data: operationalSettings });
+    const tenant = await getSettingsTenant(req as TenantRequest, res);
+    if (!tenant) return;
+    res.json({ success: true, data: getOperationalSettingsData(tenant) });
+  } catch {
+    res.status(500).json({
+      success: false,
+      errorCode: 'OPERATIONAL_SETTINGS_UNAVAILABLE',
+      message: 'Operational settings could not be loaded. Please retry.',
+    });
   }
 };
 
 export const updateOperationalSettings = async (req: Request, res: Response) => {
+  const parsed = operationalSettingsSchema.safeParse(req.body);
+  if (!parsed.success || Object.keys(parsed.data || {}).length === 0) {
+    res.status(400).json({
+      success: false,
+      errorCode: 'INVALID_OPERATIONAL_SETTINGS',
+      message: 'Provide valid operational settings to update.',
+      details: parsed.success ? undefined : parsed.error.flatten(),
+    });
+    return;
+  }
+
   try {
-    operationalSettings = { ...operationalSettings, ...req.body };
+    const tenant = await getSettingsTenant(req as TenantRequest, res);
+    if (!tenant) return;
+    const { currencySymbol: _currencySymbol, ...updates } = parsed.data;
+    tenant.taxConfig = { ...(tenant.taxConfig || {}), ...updates };
+    await tenant.save();
 
-    const hotelId = (req as any).hotelId || (req as any).user?.hotelId || req.headers?.['x-hotel-id'];
-    let tenant = null;
-    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
-      tenant = await Tenant.findById(new Types.ObjectId(String(hotelId)));
-    }
-    if (!tenant) {
-      tenant = await Tenant.findOne();
-    }
-
-    if (tenant) {
-      tenant.taxConfig = {
-        ...(tenant.taxConfig || {}),
-        cgstPercent: Number(operationalSettings.cgstPercent ?? 2.5),
-        sgstPercent: Number(operationalSettings.sgstPercent ?? 2.5),
-        serviceChargePercent: Number(operationalSettings.serviceChargePercent ?? 5.0),
-        roundOffBills: Boolean(operationalSettings.roundOffBills),
-        autoPrintKot: Boolean(operationalSettings.autoPrintKot),
-        kotSoundAlert: Boolean(operationalSettings.kotSoundAlert),
-        smsReceipts: Boolean(operationalSettings.smsReceipts),
-        whatsappReceipts: Boolean(operationalSettings.whatsappReceipts),
-        autoCloseShiftTime: String(operationalSettings.autoCloseShiftTime || '02:00 AM'),
-        billFooterNote: String(operationalSettings.billFooterNote || ''),
-      };
-      await tenant.save();
-
-      // Synchronize TaxRule documents in MongoDB
-      const cgst = Number(operationalSettings.cgstPercent ?? 2.5);
-      const sgst = Number(operationalSettings.sgstPercent ?? 2.5);
-      const sc = Number(operationalSettings.serviceChargePercent ?? 0);
-      const total = cgst + sgst + sc;
-
-      await TaxRule.findOneAndUpdate(
+    const tax = tenant.taxConfig;
+    const cgst = tax.cgstPercent ?? 2.5;
+    const sgst = tax.sgstPercent ?? 2.5;
+    const serviceCharge = tax.serviceChargePercent ?? 0;
+    const total = cgst + sgst + serviceCharge;
+    await Promise.all([
+      TaxRule.findOneAndUpdate(
         { hotelId: tenant._id, applicableTo: TaxApplicability.RESTAURANT_DINE_IN },
         {
-          hotelId: tenant._id,
-          taxName: 'GST Dine-In',
-          taxType: TaxType.GST,
+          hotelId: tenant._id, taxName: 'GST Dine-In', taxType: TaxType.GST,
           applicableTo: TaxApplicability.RESTAURANT_DINE_IN,
-          cgstRate: cgst,
-          sgstRate: sgst,
-          serviceChargeRate: sc,
-          totalEffectiveRate: total,
-          isDefault: true,
-          isActive: true,
+          cgstRate: cgst, sgstRate: sgst, serviceChargeRate: serviceCharge,
+          totalEffectiveRate: total, isDefault: true, isActive: true,
         },
         { upsert: true, new: true }
-      );
-
-      await TaxRule.findOneAndUpdate(
+      ),
+      TaxRule.findOneAndUpdate(
         { hotelId: tenant._id, applicableTo: TaxApplicability.ROOM_SERVICE },
         {
-          hotelId: tenant._id,
-          taxName: 'GST In-Room Dining',
-          taxType: TaxType.GST,
+          hotelId: tenant._id, taxName: 'GST In-Room Dining', taxType: TaxType.GST,
           applicableTo: TaxApplicability.ROOM_SERVICE,
-          cgstRate: cgst,
-          sgstRate: sgst,
-          serviceChargeRate: sc,
-          totalEffectiveRate: total,
-          isDefault: true,
-          isActive: true,
+          cgstRate: cgst, sgstRate: sgst, serviceChargeRate: serviceCharge,
+          totalEffectiveRate: total, isDefault: true, isActive: true,
         },
         { upsert: true, new: true }
-      );
-    }
+      ),
+    ]);
 
-    io?.emit('settings:updated', operationalSettings);
-    io?.to(`${tenant?._id?.toString()}_global`).emit('tenant:tax_updated', operationalSettings);
-
-    res.json({ success: true, message: 'Settings updated and persisted to database successfully', data: operationalSettings });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    const data = getOperationalSettingsData(tenant);
+    io?.to(`${tenant._id.toString()}_global`).emit('settings:updated', data);
+    io?.to(`${tenant._id.toString()}_global`).emit('tenant:tax_updated', data);
+    res.json({ success: true, message: 'Settings saved to this hotel.', data });
+  } catch {
+    res.status(500).json({
+      success: false,
+      errorCode: 'OPERATIONAL_SETTINGS_SAVE_FAILED',
+      message: 'Operational settings could not be saved. Please retry.',
+    });
   }
 };
 
 // 2b. Authoritative Hotel Operational Policies & Compliance Rules
 export const getHotelPolicies = async (req: Request, res: Response) => {
   try {
-    const hotelId = (req as any).hotelId || (req as any).user?.hotelId || req.headers?.['x-hotel-id'];
-    let tenant = null;
-    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
-      tenant = await Tenant.findById(new Types.ObjectId(String(hotelId)));
-    }
-    if (!tenant) {
-      tenant = await Tenant.findOne();
-    }
-
-    if (tenant && tenant.taxConfig) {
-      hotelPolicies = {
-        ...hotelPolicies,
-        roomGstUnderThresholdPercent: tenant.taxConfig.roomGstUnderThresholdPercent ?? hotelPolicies.roomGstUnderThresholdPercent,
-        roomGstAboveThresholdPercent: tenant.taxConfig.roomGstAboveThresholdPercent ?? hotelPolicies.roomGstAboveThresholdPercent,
-        roomGstTariffThreshold: tenant.taxConfig.roomGstTariffThreshold ?? hotelPolicies.roomGstTariffThreshold,
-        restaurantGstPercent: (tenant.taxConfig.cgstPercent ?? 2.5) + (tenant.taxConfig.sgstPercent ?? 2.5),
-        serviceChargePercent: tenant.taxConfig.serviceChargePercent ?? hotelPolicies.serviceChargePercent,
-      };
-    }
-
-    res.json({ success: true, count: Object.keys(hotelPolicies).length, data: hotelPolicies });
-  } catch (err: any) {
-    res.json({ success: true, count: Object.keys(hotelPolicies).length, data: hotelPolicies });
+    const tenant = await getSettingsTenant(req as TenantRequest, res);
+    if (!tenant) return;
+    const data = getHotelPolicyData(tenant);
+    res.json({ success: true, count: Object.keys(data || {}).length, data });
+  } catch {
+    res.status(500).json({
+      success: false,
+      errorCode: 'HOTEL_POLICIES_UNAVAILABLE',
+      message: 'Hotel policies could not be loaded. Please retry.',
+    });
   }
 };
 
 export const updateHotelPolicies = async (req: Request, res: Response) => {
+  const parsed = hotelPolicySchema.safeParse(req.body);
+  if (!parsed.success || Object.keys(parsed.data || {}).length === 0) {
+    res.status(400).json({
+      success: false,
+      errorCode: 'INVALID_HOTEL_POLICIES',
+      message: 'Provide valid hotel policy values to update.',
+      details: parsed.success ? undefined : parsed.error.flatten(),
+    });
+    return;
+  }
+
   try {
-    hotelPolicies = { ...hotelPolicies, ...req.body, updatedAt: new Date().toISOString() };
+    const tenant = await getSettingsTenant(req as TenantRequest, res);
+    if (!tenant) return;
+    const {
+      roomGstUnderThresholdPercent,
+      roomGstAboveThresholdPercent,
+      roomGstTariffThreshold,
+      restaurantGstPercent,
+      serviceChargePercent,
+      ...operationalPolicyUpdates
+    } = parsed.data;
+    tenant.operationalPolicies = {
+      ...(tenant.operationalPolicies || {}),
+      ...operationalPolicyUpdates,
+      updatedAt: new Date(),
+    };
 
-    const hotelId = (req as any).hotelId || (req as any).user?.hotelId || req.headers?.['x-hotel-id'];
-    let tenant = null;
-    if (hotelId && Types.ObjectId.isValid(String(hotelId))) {
-      tenant = await Tenant.findById(new Types.ObjectId(String(hotelId)));
-    }
-    if (!tenant) {
-      tenant = await Tenant.findOne();
-    }
-
-    if (tenant) {
+    if (
+      roomGstUnderThresholdPercent !== undefined ||
+      roomGstAboveThresholdPercent !== undefined ||
+      roomGstTariffThreshold !== undefined ||
+      restaurantGstPercent !== undefined ||
+      serviceChargePercent !== undefined
+    ) {
+      const currentTax = tenant.taxConfig || {};
+      let cgst = currentTax.cgstPercent ?? 2.5;
+      let sgst = currentTax.sgstPercent ?? 2.5;
+      if (restaurantGstPercent !== undefined) {
+        cgst = restaurantGstPercent / 2;
+        sgst = restaurantGstPercent / 2;
+      }
       tenant.taxConfig = {
-        ...(tenant.taxConfig || {}),
-        roomGstUnderThresholdPercent: Number(hotelPolicies.roomGstUnderThresholdPercent ?? 12),
-        roomGstAboveThresholdPercent: Number(hotelPolicies.roomGstAboveThresholdPercent ?? 18),
-        roomGstTariffThreshold: Number(hotelPolicies.roomGstTariffThreshold ?? 7500),
+        ...currentTax,
+        cgstPercent: cgst,
+        sgstPercent: sgst,
+        serviceChargePercent: serviceChargePercent ?? currentTax.serviceChargePercent ?? 5,
+        roomGstUnderThresholdPercent:
+          roomGstUnderThresholdPercent ?? currentTax.roomGstUnderThresholdPercent ?? 12,
+        roomGstAboveThresholdPercent:
+          roomGstAboveThresholdPercent ?? currentTax.roomGstAboveThresholdPercent ?? 18,
+        roomGstTariffThreshold:
+          roomGstTariffThreshold ?? currentTax.roomGstTariffThreshold ?? 7500,
       };
-      await tenant.save();
-
-      // Sync TaxRule for ROOM_STAY
-      const underRate = Number(hotelPolicies.roomGstUnderThresholdPercent ?? 12);
-      await TaxRule.findOneAndUpdate(
-        { hotelId: tenant._id, applicableTo: TaxApplicability.ROOM_STAY },
-        {
-          hotelId: tenant._id,
-          taxName: 'GST Room Stay Statutory Slab',
-          taxType: TaxType.GST,
-          applicableTo: TaxApplicability.ROOM_STAY,
-          cgstRate: underRate / 2,
-          sgstRate: underRate / 2,
-          serviceChargeRate: 0,
-          totalEffectiveRate: underRate,
-          isDefault: true,
-          isActive: true,
-        },
-        { upsert: true, new: true }
-      );
     }
 
-    io?.emit('policies:updated', hotelPolicies);
-    io?.to(`${tenant?._id?.toString()}_global`).emit('tenant:policies_updated', hotelPolicies);
+    await tenant.save();
+    const underRate = tenant.taxConfig?.roomGstUnderThresholdPercent ?? 12;
+    await TaxRule.findOneAndUpdate(
+      { hotelId: tenant._id, applicableTo: TaxApplicability.ROOM_STAY },
+      {
+        hotelId: tenant._id,
+        taxName: 'GST Room Stay Statutory Slab',
+        taxType: TaxType.GST,
+        applicableTo: TaxApplicability.ROOM_STAY,
+        cgstRate: underRate / 2,
+        sgstRate: underRate / 2,
+        serviceChargeRate: 0,
+        totalEffectiveRate: underRate,
+        isDefault: true,
+        isActive: true,
+      },
+      { upsert: true, new: true }
+    );
 
+    const data = getHotelPolicyData(tenant);
+    io?.to(`${tenant._id.toString()}_global`).emit('policies:updated', data);
+    io?.to(`${tenant._id.toString()}_global`).emit('tenant:policies_updated', data);
     res.json({
       success: true,
-      message: 'Hotel operational policies successfully updated and synchronized across all portals',
-      data: hotelPolicies,
+      message: 'Hotel policies saved to this hotel and synchronized.',
+      data,
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+  } catch {
+    res.status(500).json({
+      success: false,
+      errorCode: 'HOTEL_POLICIES_SAVE_FAILED',
+      message: 'Hotel policies could not be saved. Please retry.',
+    });
   }
 };
 
@@ -720,21 +905,78 @@ export const getVouchers = async (req: Request, res: Response) => {
 
 export const createVoucher = async (req: Request, res: Response) => {
   try {
+    const rawDays = Array.isArray(req.body.scheduledDays) ? req.body.scheduledDays.map(Number) : [0];
+    const DAY_MAP = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const computedDayNames = Array.isArray(req.body.dayNames) && req.body.dayNames.length > 0
+      ? req.body.dayNames
+      : rawDays.map((d: number) => DAY_MAP[d] || 'Sun');
+
     const newVoucher = {
       id: `vc-${Date.now()}`,
       code: req.body.code ? req.body.code.toUpperCase().trim() : `SAVE${Math.floor(Math.random() * 900 + 100)}`,
       description: req.body.description || 'Special Promotion Voucher',
       discountType: req.body.discountType || 'PERCENT',
       discountValue: Number(req.body.discountValue) || 10,
-      minBillAmount: Number(req.body.minBillAmount) || 500,
-      maxDiscountCap: Number(req.body.maxDiscountCap) || 200,
+      minBillAmount: Number(req.body.minBillAmount) || 0,
+      maxDiscountCap: Number(req.body.maxDiscountCap) || 0,
       usageLimit: Number(req.body.usageLimit) || 100,
       timesUsed: 0,
       validUntil: req.body.validUntil || '2026-12-31',
-      isActive: true,
+      isActive: req.body.isActive !== false,
+      scope: req.body.scope === 'SPECIFIC_ITEMS' ? 'SPECIFIC_ITEMS' : 'ALL_ITEMS',
+      applicableItemIds: Array.isArray(req.body.applicableItemIds) ? req.body.applicableItemIds : [],
+      applicableItemNames: Array.isArray(req.body.applicableItemNames) ? req.body.applicableItemNames : [],
+      isScheduled: Boolean(req.body.isScheduled),
+      scheduledDays: rawDays,
+      dayNames: computedDayNames,
+      startTime: req.body.startTime || '08:00',
+      endTime: req.body.endTime || '14:00',
+      isRecurringWeekly: req.body.isRecurringWeekly !== false,
     };
-    vouchers.push(newVoucher);
+    vouchers.unshift(newVoucher);
     res.status(201).json({ success: true, message: 'Voucher created successfully', data: newVoucher });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const updateVoucher = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const index = vouchers.findIndex((v) => v.id === id);
+    if (index === -1) {
+      return res.status(404).json({ success: false, message: 'Voucher not found' });
+    }
+
+    const DAY_MAP = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const updatedDays = req.body.scheduledDays !== undefined
+      ? (Array.isArray(req.body.scheduledDays) ? req.body.scheduledDays.map(Number) : vouchers[index].scheduledDays)
+      : vouchers[index].scheduledDays;
+
+    const computedDayNames = req.body.dayNames !== undefined
+      ? req.body.dayNames
+      : (Array.isArray(updatedDays) ? updatedDays.map((d: number) => DAY_MAP[d] || 'Sun') : vouchers[index].dayNames);
+
+    vouchers[index] = {
+      ...vouchers[index],
+      ...req.body,
+      id: vouchers[index].id,
+      code: req.body.code ? req.body.code.toUpperCase().trim() : vouchers[index].code,
+      discountValue: req.body.discountValue !== undefined ? Number(req.body.discountValue) : vouchers[index].discountValue,
+      minBillAmount: req.body.minBillAmount !== undefined ? Number(req.body.minBillAmount) : vouchers[index].minBillAmount,
+      maxDiscountCap: req.body.maxDiscountCap !== undefined ? Number(req.body.maxDiscountCap) : vouchers[index].maxDiscountCap,
+      usageLimit: req.body.usageLimit !== undefined ? Number(req.body.usageLimit) : vouchers[index].usageLimit,
+      scope: req.body.scope !== undefined ? req.body.scope : vouchers[index].scope,
+      applicableItemIds: req.body.applicableItemIds !== undefined ? req.body.applicableItemIds : vouchers[index].applicableItemIds,
+      applicableItemNames: req.body.applicableItemNames !== undefined ? req.body.applicableItemNames : vouchers[index].applicableItemNames,
+      isScheduled: req.body.isScheduled !== undefined ? Boolean(req.body.isScheduled) : vouchers[index].isScheduled,
+      scheduledDays: updatedDays,
+      dayNames: computedDayNames,
+      startTime: req.body.startTime !== undefined ? req.body.startTime : vouchers[index].startTime,
+      endTime: req.body.endTime !== undefined ? req.body.endTime : vouchers[index].endTime,
+      isRecurringWeekly: req.body.isRecurringWeekly !== undefined ? Boolean(req.body.isRecurringWeekly) : vouchers[index].isRecurringWeekly,
+    };
+    res.json({ success: true, message: 'Voucher updated successfully', data: vouchers[index] });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -749,6 +991,127 @@ export const deleteVoucher = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
+export const validateVoucher = async (req: Request, res: Response) => {
+  try {
+    const { code, items = [], cartTotal = 0, checkTime, checkDay } = req.body;
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Coupon code is required' });
+    }
+    const cleanCode = String(code).toUpperCase().trim();
+    const voucher = vouchers.find((v) => v.code === cleanCode);
+    if (!voucher || voucher.isActive === false) {
+      return res.status(404).json({ success: false, message: `Coupon code "${cleanCode}" is invalid or inactive.` });
+    }
+
+    // 1. Expiry date check
+    if (voucher.validUntil) {
+      const expiryDate = new Date(voucher.validUntil);
+      expiryDate.setHours(23, 59, 59, 999);
+      if (new Date() > expiryDate) {
+        return res.status(400).json({ success: false, message: `Coupon code "${cleanCode}" expired on ${voucher.validUntil}.` });
+      }
+    }
+
+    // 2. Usage limit check
+    if (voucher.usageLimit && voucher.timesUsed >= voucher.usageLimit) {
+      return res.status(400).json({ success: false, message: `Coupon code "${cleanCode}" has reached maximum usage limit.` });
+    }
+
+    // 3. Weekly Day and Time Window Check
+    const now = checkTime ? new Date(checkTime) : new Date();
+    if (voucher.isScheduled) {
+      const currentDay = checkDay !== undefined ? Number(checkDay) : now.getDay(); // 0 = Sunday, 1 = Monday, ...
+      const dayMatches = !voucher.scheduledDays || voucher.scheduledDays.length === 0 || voucher.scheduledDays.includes(currentDay);
+      const DAY_MAP = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      if (!dayMatches) {
+        const allowedDays = voucher.dayNames?.join(', ') || 'selected days';
+        return res.status(400).json({
+          success: false,
+          errorCode: 'SCHEDULE_DAY_MISMATCH',
+          message: `Coupon "${cleanCode}" is only active on ${allowedDays}. Selected day is ${DAY_MAP[currentDay]}.`,
+        });
+      }
+
+      if (voucher.startTime && voucher.endTime) {
+        let currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        if (req.body.simulatedTime) {
+          currentTimeStr = req.body.simulatedTime;
+        }
+        if (currentTimeStr < voucher.startTime || currentTimeStr > voucher.endTime) {
+          return res.status(400).json({
+            success: false,
+            errorCode: 'SCHEDULE_TIME_MISMATCH',
+            message: `Coupon "${cleanCode}" is active only between ${voucher.startTime} and ${voucher.endTime}. Time ${currentTimeStr} is outside active window.`,
+          });
+        }
+      }
+    }
+
+    // 4. Product Scope (All Products vs Specific Products)
+    let eligibleSubtotal = Number(cartTotal) || 0;
+    let qualifyingItems: any[] = [];
+    if (voucher.scope === 'SPECIFIC_ITEMS' && Array.isArray(voucher.applicableItemIds) && voucher.applicableItemIds.length > 0) {
+      if (Array.isArray(items) && items.length > 0) {
+        qualifyingItems = items.filter((it: any) =>
+          voucher.applicableItemIds.includes(String(it.id)) ||
+          voucher.applicableItemIds.includes(String(it.itemId)) ||
+          voucher.applicableItemNames?.some((name: string) => name.toLowerCase() === String(it.name).toLowerCase())
+        );
+        if (qualifyingItems.length === 0) {
+          return res.status(400).json({
+            success: false,
+            errorCode: 'NO_QUALIFYING_ITEMS',
+            message: `Coupon "${cleanCode}" applies only to specific items: ${voucher.applicableItemNames?.join(', ') || 'selected menu items'}. None present in cart.`,
+          });
+        }
+        eligibleSubtotal = qualifyingItems.reduce((sum: number, it: any) => sum + (Number(it.price || it.basePrice || 0) * Number(it.quantity || 1)), 0);
+      }
+    }
+
+    // 5. Minimum Bill Amount
+    if (voucher.minBillAmount && eligibleSubtotal < voucher.minBillAmount) {
+      return res.status(400).json({
+        success: false,
+        errorCode: 'MIN_BILL_NOT_MET',
+        message: `Minimum eligible spend of ₹${voucher.minBillAmount} required for coupon "${cleanCode}". Current eligible amount is ₹${eligibleSubtotal}.`,
+      });
+    }
+
+    // 6. Calculate discount
+    let discountAmount = 0;
+    if (voucher.discountType === 'PERCENT') {
+      discountAmount = Math.round((eligibleSubtotal * voucher.discountValue) / 100);
+      if (voucher.maxDiscountCap && voucher.maxDiscountCap > 0) {
+        discountAmount = Math.min(discountAmount, voucher.maxDiscountCap);
+      }
+    } else {
+      discountAmount = Math.min(eligibleSubtotal, voucher.discountValue);
+    }
+
+    const finalPayable = Math.max(0, (Number(cartTotal) || eligibleSubtotal) - discountAmount);
+
+    res.json({
+      success: true,
+      message: `Coupon "${cleanCode}" applied successfully! You save ₹${discountAmount}.`,
+      data: {
+        code: voucher.code,
+        discountType: voucher.discountType,
+        discountValue: voucher.discountValue,
+        discountAmount,
+        eligibleSubtotal,
+        finalPayable,
+        scope: voucher.scope,
+        applicableItemNames: voucher.applicableItemNames,
+        isScheduled: voucher.isScheduled,
+        scheduleDisplay: voucher.isScheduled ? `${voucher.dayNames?.join(', ')} (${voucher.startTime} - ${voucher.endTime})` : 'All Times',
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 
 // 5. Customer Wallets
 export const getWallets = async (req: Request, res: Response) => {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { formatCurrency } from '../../../../../packages/ui/src/index';
 import { BillingCalculatorHelper } from '../../../../../packages/ui/src/billing/BillingCalculatorHelper';
+import { NumericInput } from '@spicehub/ui';
 
 export interface CashPaymentModalProps {
   billNumber: string;
@@ -46,14 +47,14 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full shadow-sm dark:shadow-none p-6 space-y-5">
+      <div className="bg-white dark:bg-slate-900 rounded-xl max-w-md w-full shadow-sm dark:shadow-none p-6 space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Cash Tender Settle</h2>
             <p className="text-xs text-slate-500">Bill {billNumber}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg text-lg">✕</button>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg text-lg"></button>
         </div>
 
         {/* Due Amount Highlight */}
@@ -67,8 +68,7 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
           <label className="text-xs font-semibold text-slate-500 uppercase">Cash Tendered by Guest:</label>
           <div className="relative mt-1">
             <span className="absolute left-4 top-3 text-lg font-bold text-slate-400">₹</span>
-            <input
-              type="number"
+            <NumericInput
               min={0}
               value={cashTendered}
               onChange={(e) => setCashTendered(Number(e.target.value))}
@@ -107,10 +107,10 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
 
         {/* Change Due Display */}
         <div className={`p-4 rounded-xl border flex items-center justify-between ${
-          calculation.isSufficient
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300'
-            : 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-300'
-        }`}>
+ calculation.isSufficient
+ ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300'
+ : 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-300'
+ }`}>
           <div>
             <div className="text-xs font-bold uppercase">Change Returned to Guest</div>
             {!calculation.isSufficient && (

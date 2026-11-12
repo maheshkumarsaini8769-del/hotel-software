@@ -35,12 +35,12 @@ export const SupervisorInspectionModal: React.FC<SupervisorInspectionModalProps>
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-slate-950 border border-amber-500/30 rounded-2xl w-full max-w-lg shadow-sm dark:shadow-none overflow-hidden flex flex-col">
+      <div className="bg-slate-950 border border-amber-500/30 rounded-xl w-full max-w-lg shadow-sm dark:shadow-none overflow-hidden flex flex-col">
         {/* Header */}
         <div className="p-4 px-6 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-lg text-amber-400">
-              🔍
+              
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -53,7 +53,7 @@ export const SupervisorInspectionModal: React.FC<SupervisorInspectionModalProps>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">
-            ✕
+            
           </button>
         </div>
 
@@ -101,14 +101,14 @@ export const SupervisorInspectionModal: React.FC<SupervisorInspectionModalProps>
             disabled={isLoading}
             className="flex-1 py-2 px-3 rounded-xl border border-red-500/40 text-red-300 hover:bg-red-950/40 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 active:scale-95"
           >
-            ✕ Reject (Rework Needed)
+             Reject (Rework Needed)
           </button>
           <button
             onClick={() => handleAction(true)}
             disabled={isLoading}
-            className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs transition-all shadow-md shadow-emerald-950/40 cursor-pointer disabled:opacity-50 active:scale-95"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 py-2 px-3 rounded-xl font-bold text-xs transition-all shadow-md shadow-emerald-950/40 cursor-pointer disabled:opacity-50 active:scale-95"
           >
-            ✓ Pass & Make Available
+             Pass & Make Available
           </button>
         </div>
       </div>

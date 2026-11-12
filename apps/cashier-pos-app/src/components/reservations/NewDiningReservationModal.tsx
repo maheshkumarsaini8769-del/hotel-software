@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CreateDiningReservationPayload } from '@spicehub/ui';
+import { CreateDiningReservationPayload, NumericInput } from '@spicehub/ui';
 
 interface NewDiningReservationModalProps {
   isOpen: boolean;
@@ -93,8 +93,7 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
                 Party Size *
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="1"
                 max="30"
                 value={formData.partySize}
@@ -138,8 +137,7 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
                 Deposit (Optional)
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="0"
                 step="100"
                 value={formData.depositAmount}
@@ -188,7 +186,7 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-md shadow-amber-950/40 cursor-pointer disabled:opacity-50 active:scale-95"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-md shadow-slate-900/40 cursor-pointer disabled:opacity-50 active:scale-95"
             >
               {isLoading ? 'Reserving...' : 'Confirm Table Reservation'}
             </button>

@@ -66,7 +66,7 @@ export const ManagerPinVoidModal: React.FC<ManagerPinVoidModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-lg bg-slate-900 border border-red-500/40 rounded-2xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
+      <div className="w-full max-w-lg bg-slate-900 border border-red-500/40 rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-rose-950/80 via-slate-900 to-slate-900 border-b border-red-500/30 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3">

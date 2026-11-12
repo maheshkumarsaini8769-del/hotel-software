@@ -684,7 +684,11 @@ export const getInRoomLiveStay = async (req: TenantRequest, res: Response): Prom
       lineItems = await FolioLineItem.find({ hotelId, folioId: masterFolio._id }).sort({ postedAt: -1 });
     }
 
-    const effectiveGuestName = (activeStay as any).guestName || (activeStay.guestId as any)?.name || (activeStay.bookingId as any)?.guestName || 'Rahul Verma';
+    const effectiveGuestName =
+      (activeStay as any).guestName ||
+      (activeStay.guestId as any)?.name ||
+      (activeStay.bookingId as any)?.guestName ||
+      'Guest name not recorded';
 
     res.status(200).json({
       success: true,
@@ -1953,7 +1957,8 @@ export const settleAndCheckOutFrontDesk = async (req: TenantRequest, res: Respon
       });
     }
 
-    // Update Room to DIRTY
+    // Detach the checked-out stay before housekeeping releases the room.
+    room.currentStayId = undefined;
     room.status = RoomStatus.DIRTY;
     await room.save();
 

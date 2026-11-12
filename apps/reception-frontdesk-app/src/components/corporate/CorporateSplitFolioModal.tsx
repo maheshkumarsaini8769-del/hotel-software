@@ -54,7 +54,7 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden text-xs text-zinc-300">
+      <div className="bg-slate-900 border border-amber-500/30 rounded-xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden text-xs text-zinc-300">
         {/* Header */}
         <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-slate-950">
           <div>
@@ -76,13 +76,13 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
               onClick={handlePrint}
               className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium text-xs border border-zinc-700 flex items-center gap-1.5 transition-all"
             >
-              <span>🖨️ Print Invoices</span>
+              <span>️ Print Invoices</span>
             </button>
             <button
               onClick={onClose}
               className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-lg"
             >
-              ✕
+              
             </button>
           </div>
         </div>
@@ -92,32 +92,32 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
           <button
             onClick={() => setActiveTab('SPLIT_VIEW')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
-              activeTab === 'SPLIT_VIEW'
-                ? 'bg-amber-500 text-zinc-950 shadow-md'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
-            }`}
+ activeTab === 'SPLIT_VIEW'
+ ? 'bg-amber-500 text-zinc-950 shadow-md'
+ : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+ }`}
           >
-            ⚡ Split Overview (B2B + Guests)
+             Split Overview (B2B + Guests)
           </button>
           <button
             onClick={() => setActiveTab('CORPORATE_B2B')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
-              activeTab === 'CORPORATE_B2B'
-                ? 'bg-amber-500 text-zinc-950 shadow-md'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
-            }`}
+ activeTab === 'CORPORATE_B2B'
+ ? 'bg-amber-500 text-zinc-950 shadow-md'
+ : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+ }`}
           >
-            🏢 Corporate B2B Invoice
+             Corporate B2B Invoice
           </button>
           <button
             onClick={() => setActiveTab('INDIVIDUAL_FOLIOS')}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
-              activeTab === 'INDIVIDUAL_FOLIOS'
-                ? 'bg-amber-500 text-zinc-950 shadow-md'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
-            }`}
+ activeTab === 'INDIVIDUAL_FOLIOS'
+ ? 'bg-amber-500 text-zinc-950 shadow-md'
+ : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+ }`}
           >
-            👤 Individual Room Folios ({individualInvoices.length})
+             Individual Room Folios ({individualInvoices.length})
           </button>
         </div>
 
@@ -134,7 +134,7 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
               {activeTab === 'SPLIT_VIEW' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Left: Corporate B2B Account */}
-                  <div className="bg-slate-950 p-5 rounded-2xl border border-zinc-800 flex flex-col justify-between">
+                  <div className="bg-slate-950 p-5 rounded-xl border border-zinc-800 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
                         <div className="flex items-center gap-2">
@@ -192,19 +192,19 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
                     {(corporateInvoice?.dueAmount || 0) > 0 ? (
                       <button
                         onClick={() => onSettleCorporate(group, corporateInvoice?.dueAmount || 0)}
-                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs shadow-lg transition-all"
+                        className="bg-emerald-600 hover:bg-emerald-700 w-full py-2.5 rounded-xl text-white font-bold text-xs shadow-lg transition-all"
                       >
-                        💳 Settle Corporate Master Account
+                         Settle Corporate Master Account
                       </button>
                     ) : (
                       <div className="py-2 text-center text-emerald-400 font-bold bg-emerald-950/40 rounded-xl border border-emerald-800/40">
-                        ✓ Corporate Account 100% Settled
+                         Corporate Account 100% Settled
                       </div>
                     )}
                   </div>
 
                   {/* Right: Individual Guest Folios */}
-                  <div className="bg-slate-950 p-5 rounded-2xl border border-zinc-800 flex flex-col justify-between">
+                  <div className="bg-slate-950 p-5 rounded-xl border border-zinc-800 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
                         <div className="flex items-center gap-2">
@@ -283,7 +283,7 @@ export const CorporateSplitFolioModal: React.FC<CorporateSplitFolioModalProps> =
 
               {/* TAB 2: CORPORATE B2B INVOICE VIEW */}
               {activeTab === 'CORPORATE_B2B' && (
-                <div className="bg-slate-950 p-6 rounded-2xl border border-zinc-800 space-y-4 font-sans">
+                <div className="bg-slate-950 p-6 rounded-xl border border-zinc-800 space-y-4 font-sans">
                   <div className="flex justify-between items-start pb-4 border-b border-zinc-800">
                     <div>
                       <h2 className="text-lg font-bold text-white">TAX INVOICE (B2B)</h2>

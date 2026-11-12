@@ -125,8 +125,8 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
             <span className="text-[11px] text-zinc-400 uppercase font-bold block">Net Variance Impact</span>
             <span
               className={`text-lg font-bold ${
-                session.netDiscrepancyValue < 0 ? 'text-red-400' : 'text-emerald-400'
-              }`}
+ session.netDiscrepancyValue < 0 ? 'text-red-400' : 'text-emerald-400'
+ }`}
             >
               {InventoryAuditHelper.formatCurrency(session.netDiscrepancyValue)}
             </span>
@@ -246,7 +246,7 @@ export const ReconciliationModal: React.FC<ReconciliationModalProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-sm"
+              className="bg-emerald-600 hover:bg-emerald-700 px-5 py-2 rounded-xl text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-sm"
             >
               {loading ? 'Reconciling Ledger...' : 'Approve & Reconcile Book Stock'}
             </button>

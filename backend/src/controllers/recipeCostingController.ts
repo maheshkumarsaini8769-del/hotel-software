@@ -15,8 +15,9 @@ export const getRecipes = async (req: TenantRequest, res: Response): Promise<voi
       return;
     }
 
-    const { search, station } = req.query;
-    const filter: any = { hotelId, isActive: true };
+    const { search } = req.query;
+    const metricFilter = { hotelId, isActive: true };
+    const filter: Record<string, unknown> = { ...metricFilter };
 
     if (search && typeof search === 'string') {
       const safeSearch = escapeRegex(search.trim());
@@ -26,20 +27,37 @@ export const getRecipes = async (req: TenantRequest, res: Response): Promise<voi
       ];
     }
 
-    const recipes = await Recipe.find(filter).populate('menuItemId').sort({ foodCostPercentage: -1 });
+    const [recipes, metricRecipes, menuItemCount] = await Promise.all([
+      Recipe.find(filter).populate('menuItemId').sort({ foodCostPercentage: -1 }),
+      Recipe.find(metricFilter).select('menuItemId foodCostPercentage targetCostPercentage'),
+      MenuItem.countDocuments({ hotelId }),
+    ]);
 
-    const totalRecipesCount = recipes.length;
+    const totalRecipesCount = metricRecipes.length;
     let highCostRecipesCount = 0;
     let totalFoodCostPctSum = 0;
+    let targetFoodCostPctSum = 0;
 
-    recipes.forEach((r) => {
+    metricRecipes.forEach((r) => {
       totalFoodCostPctSum += r.foodCostPercentage || 0;
-      if (r.foodCostPercentage > (r.targetCostPercentage || 32)) {
+      const targetCostPercentage = r.targetCostPercentage || 32;
+      targetFoodCostPctSum += targetCostPercentage;
+      if (r.foodCostPercentage > targetCostPercentage) {
         highCostRecipesCount++;
       }
     });
 
     const averageFoodCostPercentage = totalRecipesCount > 0 ? Math.round((totalFoodCostPctSum / totalRecipesCount) * 10) / 10 : 0;
+    const targetFoodCostPercentage = totalRecipesCount > 0
+      ? Math.round((targetFoodCostPctSum / totalRecipesCount) * 10) / 10
+      : 32;
+    const recipeMenuItemIds = [...new Set(metricRecipes.map((recipe) => String(recipe.menuItemId)))];
+    const recipeCoverageCount = recipeMenuItemIds.length > 0
+      ? await MenuItem.countDocuments({ hotelId, _id: { $in: recipeMenuItemIds } })
+      : 0;
+    const recipeCoveragePercentage = menuItemCount > 0
+      ? Math.round((recipeCoverageCount / menuItemCount) * 1000) / 10
+      : 0;
 
     res.status(200).json({
       success: true,
@@ -47,7 +65,10 @@ export const getRecipes = async (req: TenantRequest, res: Response): Promise<voi
         totalRecipesCount,
         highCostRecipesCount,
         averageFoodCostPercentage,
-        targetFoodCostPercentage: 32,
+        targetFoodCostPercentage,
+        menuItemCount,
+        recipeCoverageCount,
+        recipeCoveragePercentage,
       },
       recipes,
     });

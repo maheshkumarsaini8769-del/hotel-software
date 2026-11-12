@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   INewRequisitionPayload,
   RequisitionDepartmentUI,
-  RequisitionUrgencyUI,
+  RequisitionUrgencyUI, NumericInput,
 } from '@spicehub/ui';
 
 interface NewRequisitionModalProps {
@@ -160,8 +160,7 @@ export const NewRequisitionModal: React.FC<NewRequisitionModalProps> = ({
                     />
                   </div>
                   <div className="col-span-3">
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.1"
                       min="0.1"
                       value={it.requestedQuantity}
@@ -226,7 +225,7 @@ export const NewRequisitionModal: React.FC<NewRequisitionModalProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
+              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-amber-400 disabled:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
             >
               {loading ? 'Submitting Indent...' : 'Raise Indent to Store'}
             </button>

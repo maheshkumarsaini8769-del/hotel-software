@@ -3,15 +3,26 @@ import { Types } from 'mongoose';
 import { ServiceRequest, ServiceRequestStatus } from '../models/ServiceRequest';
 import { TableSession } from '../models/TableSession';
 import { DiningTable } from '../models/DiningTable';
+import { Room } from '../models/Room';
 import { Tenant } from '../models/Tenant';
 import { SmartRoutingService } from '../services/SmartRoutingService';
 import { TenantRequest } from '../types';
 import { io } from '../index';
 
-// 1. Customer Triggers Service Request (Water, Call Waiter, Cutlery)
+// 1. Customer Triggers Service Request (Water, Call Waiter, Cutlery, Room Assistance)
 export const createServiceRequest = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { hotelId, tableId, tableSessionId, requestType, priority, notes } = req.body;
+    const {
+      hotelId,
+      tableId,
+      tableSessionId,
+      roomId,
+      roomNumber,
+      sourceType,
+      requestType,
+      priority,
+      notes,
+    } = req.body;
 
     if (!hotelId || !requestType) {
       res.status(400).json({ success: false, errorCode: 'INVALID_REQUEST', message: 'Missing hotelId or requestType' });
@@ -30,6 +41,69 @@ export const createServiceRequest = async (req: Request, res: Response): Promise
       validHotelId = tenant._id as Types.ObjectId;
     }
 
+    // Branch 1: In-Room & Hotel Stay Request (Routed to Reception Front Desk PMS)
+    const isRoomRequest = sourceType === 'HOTEL_STAY' || Boolean(roomNumber) || (Boolean(roomId) && !tableId);
+    if (isRoomRequest) {
+      let roomDoc = null;
+      if (roomId && Types.ObjectId.isValid(roomId)) {
+        roomDoc = await Room.findById(roomId);
+      } else if (roomNumber) {
+        const cleanRoom = String(roomNumber).replace(/[^0-9A-Za-z]/g, '');
+        roomDoc = await Room.findOne({ hotelId: validHotelId, roomNumber: cleanRoom });
+        if (!roomDoc) {
+          roomDoc = await Room.findOne({ hotelId: validHotelId, roomNumber: new RegExp(cleanRoom, 'i') });
+        }
+      }
+
+      const roomNumberDisplay = roomDoc ? roomDoc.roomNumber : String(roomNumber || 'Room');
+
+      const roomRequest = new ServiceRequest({
+        hotelId: validHotelId,
+        sourceType: 'HOTEL_STAY',
+        roomId: roomDoc ? roomDoc._id : undefined,
+        requestType,
+        priority: priority === 'HIGH' || priority === 'URGENT' ? priority : 'NORMAL',
+        notes: notes || `In-Room Guest request: ${requestType}`,
+        status: ServiceRequestStatus.CREATED,
+        slaMinutes: 10,
+      });
+
+      await roomRequest.save();
+
+      const conciergePayload = {
+        requestId: roomRequest._id.toString(),
+        roomNumber: roomNumberDisplay,
+        room: roomNumberDisplay,
+        requestType: roomRequest.requestType,
+        priority: roomRequest.priority,
+        status: roomRequest.status,
+        notes: roomRequest.notes,
+        createdAt: roomRequest.createdAt,
+      };
+
+      // Broadcast to Reception PMS, Front Desk, and Housekeeping
+      io.to(`${validHotelId}_pms`)
+        .to(`${validHotelId}_frontdesk`)
+        .to(`${validHotelId}_admin`)
+        .to(`${validHotelId}_housekeeping`)
+        .to(`${validHotelId}_global`)
+        .emit('pms:concierge_request_created', conciergePayload);
+
+      io.to(`${validHotelId}_frontdesk`).emit('request:new', conciergePayload);
+
+      res.status(201).json({
+        success: true,
+        message: 'In-Room service request created and dispatched to Reception Front Desk',
+        data: {
+          ...roomRequest.toObject(),
+          roomNumber: roomNumberDisplay,
+          room: roomNumberDisplay,
+        },
+      });
+      return;
+    }
+
+    // Branch 2: Dining Table Request (Routed to Floor Waiters)
     let validTableId: Types.ObjectId | undefined = undefined;
     if (tableId && Types.ObjectId.isValid(tableId)) {
       validTableId = new Types.ObjectId(tableId);

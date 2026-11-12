@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TableStatus } from '@spicehub/shared-types';
-import { TableStatusColorMap, formatCurrency, LiveTableCardModel, TableActionPayload } from '@spicehub/ui';
+import { TableStatusColorMap, formatCurrency, LiveTableCardModel, TableActionPayload, NumericInput } from '@spicehub/ui';
 
 export interface TableActionDrawerProps {
   table: LiveTableCardModel | null;
@@ -36,7 +36,7 @@ export const TableActionDrawer: React.FC<TableActionDrawerProps> = ({
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
             >
-              ✕
+              
             </button>
           </div>
 
@@ -70,8 +70,7 @@ export const TableActionDrawer: React.FC<TableActionDrawerProps> = ({
               <div className="space-y-3">
                 <div className="flex items-center space-x-2">
                   <label className="text-xs font-medium text-slate-600 dark:text-slate-300">Guests:</label>
-                  <input
-                    type="number"
+                  <NumericInput
                     min={1}
                     max={table.capacity}
                     value={guestCount}
@@ -83,7 +82,7 @@ export const TableActionDrawer: React.FC<TableActionDrawerProps> = ({
                   onClick={() => onAction({ tableId: table.id, action: 'START_SESSION', guestCount })}
                   className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg shadow-sm transition"
                 >
-                  🚀 Start Dining Session
+                   Start Dining Session
                 </button>
               </div>
             )}
@@ -93,7 +92,7 @@ export const TableActionDrawer: React.FC<TableActionDrawerProps> = ({
                 onClick={() => onAction({ tableId: table.id, action: 'SEAT_RESERVATION' })}
                 className="w-full py-2.5 px-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 text-white font-medium rounded-lg shadow-sm transition"
               >
-                🪑 Seat Reserved Guest
+                 Seat Reserved Guest
               </button>
             )}
 
@@ -102,7 +101,7 @@ export const TableActionDrawer: React.FC<TableActionDrawerProps> = ({
                 onClick={() => onAction({ tableId: table.id, action: 'BILL_REQUEST', newStatus: TableStatus.BILLING })}
                 className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg shadow-sm transition"
               >
-                🧾 Request Bill / Settle
+                 Request Bill / Settle
               </button>
             )}
 
@@ -111,7 +110,7 @@ export const TableActionDrawer: React.FC<TableActionDrawerProps> = ({
                 onClick={() => onAction({ tableId: table.id, action: 'CHANGE_STATUS', newStatus: TableStatus.DIRTY })}
                 className="w-full py-2.5 px-4 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg shadow-sm transition"
               >
-                🧹 Clear Table (Mark Dirty)
+                 Clear Table (Mark Dirty)
               </button>
             )}
 
@@ -120,7 +119,7 @@ export const TableActionDrawer: React.FC<TableActionDrawerProps> = ({
                 onClick={() => onAction({ tableId: table.id, action: 'CHANGE_STATUS', newStatus: TableStatus.AVAILABLE })}
                 className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg shadow-sm transition"
               >
-                ✨ Cleaned & Available
+                 Cleaned & Available
               </button>
             )}
           </div>

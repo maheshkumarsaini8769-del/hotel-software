@@ -6,7 +6,7 @@ import {
   KotVoidHelper,
   formatCurrency,
 } from '@spicehub/ui';
-import { ShieldCheck, Filter, Search, Calendar, UserCheck, AlertOctagon } from 'lucide-react';
+import { ShieldCheck, Search, UserCheck } from 'lucide-react';
 
 export interface VoidAuditLogTableProps {
   logs: KotVoidAuditDTO[];
@@ -38,18 +38,18 @@ export const VoidAuditLogTable: React.FC<VoidAuditLogTableProps> = ({
   });
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex flex-col">
+    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs flex flex-col">
       {/* Table Filter Toolbar */}
-      <div className="p-4 bg-slate-950/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+      <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center space-x-2 flex-1 min-w-[240px]">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder="Search by Item, Order #, Table, or Manager..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
+              className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-colors"
             />
           </div>
         </div>
@@ -59,7 +59,7 @@ export const VoidAuditLogTable: React.FC<VoidAuditLogTableProps> = ({
           <select
             value={selectedReason}
             onChange={(e) => setSelectedReason(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-slate-500"
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-emerald-500"
           >
             <option value="ALL">All Void Reasons</option>
             {Object.values(KotVoidReason).map((r) => (
@@ -73,7 +73,7 @@ export const VoidAuditLogTable: React.FC<VoidAuditLogTableProps> = ({
           <select
             value={selectedDisposition}
             onChange={(e) => setSelectedDisposition(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-slate-500"
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-emerald-500"
           >
             <option value="ALL">All Waste Dispositions</option>
             {Object.values(WasteDisposition).map((d) => (
@@ -87,7 +87,7 @@ export const VoidAuditLogTable: React.FC<VoidAuditLogTableProps> = ({
             <button
               onClick={onRefresh}
               disabled={isLoading}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition"
+              className="btn-glass-green-subtle"
             >
               Refresh
             </button>
@@ -97,27 +97,27 @@ export const VoidAuditLogTable: React.FC<VoidAuditLogTableProps> = ({
 
       {/* Table Content */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs text-slate-300">
-          <thead className="bg-slate-950/90 text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-800">
+        <table className="w-full text-left text-xs text-slate-700">
+          <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider text-[11px] border-b border-slate-200 font-semibold">
             <tr>
-              <th className="px-4 py-3 font-semibold">Timestamp</th>
-              <th className="px-4 py-3 font-semibold">Order / Table</th>
-              <th className="px-4 py-3 font-semibold">Voided Item</th>
-              <th className="px-4 py-3 font-semibold">Void Value</th>
-              <th className="px-4 py-3 font-semibold">Reason</th>
-              <th className="px-4 py-3 font-semibold">Waste Attribution</th>
-              <th className="px-4 py-3 font-semibold">Authorized By</th>
-              <th className="px-4 py-3 font-semibold">Audit Notes</th>
+              <th className="px-4 py-3">Timestamp</th>
+              <th className="px-4 py-3">Order / Table</th>
+              <th className="px-4 py-3">Voided Item</th>
+              <th className="px-4 py-3">Void Value</th>
+              <th className="px-4 py-3">Reason</th>
+              <th className="px-4 py-3">Waste Attribution</th>
+              <th className="px-4 py-3">Authorized By</th>
+              <th className="px-4 py-3">Audit Notes</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60 font-sans">
+          <tbody className="divide-y divide-slate-100 font-sans">
             {filteredLogs.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
                   <div className="flex flex-col items-center justify-center space-y-2">
-                    <ShieldCheck className="w-8 h-8 text-slate-600" />
-                    <p className="text-sm font-medium">No KOT Void Records Found</p>
-                    <p className="text-xs text-slate-600">Zero unauthorized item deletions or waste reported.</p>
+                    <ShieldCheck className="w-8 h-8 text-slate-300" />
+                    <p className="text-sm font-semibold text-slate-700">No KOT Void Records Found</p>
+                    <p className="text-xs text-slate-400">Zero unauthorized item deletions or waste reported.</p>
                   </div>
                 </td>
               </tr>
@@ -125,26 +125,26 @@ export const VoidAuditLogTable: React.FC<VoidAuditLogTableProps> = ({
               filteredLogs.map((log) => {
                 const badge = KotVoidHelper.getWasteDispositionBadge(log.wasteDisposition);
                 return (
-                  <tr key={log.id} className="hover:bg-slate-800/40 transition">
-                    <td className="px-4 py-3 whitespace-nowrap text-slate-400 font-mono text-[11px]">
+                  <tr key={log.id} className="hover:bg-slate-50/80 transition">
+                    <td className="px-4 py-3 whitespace-nowrap text-slate-500 font-mono text-[11px]">
                       {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                      <div className="text-[10px] text-slate-600">{new Date(log.createdAt).toLocaleDateString()}</div>
+                      <div className="text-[10px] text-slate-400">{new Date(log.createdAt).toLocaleDateString()}</div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="font-semibold text-white">{log.orderNumber}</div>
-                      <div className="text-[11px] text-amber-400 font-mono">{log.tableNumber}</div>
+                      <div className="font-semibold text-slate-900">{log.orderNumber}</div>
+                      <div className="text-[11px] text-emerald-700 font-mono font-medium">{log.tableNumber}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-slate-200">{log.itemName}</div>
+                      <div className="font-semibold text-slate-800">{log.itemName}</div>
                       <div className="text-[11px] text-slate-500">Qty: {log.quantity}x @ {formatCurrency(log.unitPrice)}</div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="font-bold text-red-400 font-mono">
+                      <span className="font-bold text-rose-600 font-mono">
                         {formatCurrency(log.totalVoidAmount)}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
                         {KotVoidHelper.formatVoidReasonLabel(log.voidReason)}
                       </span>
                     </td>
@@ -156,12 +156,12 @@ export const VoidAuditLogTable: React.FC<VoidAuditLogTableProps> = ({
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5 text-slate-200 font-medium">
-                        <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <div className="flex items-center gap-1.5 text-slate-800 font-medium">
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
                         <span>{log.managerName}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-400 text-[11px] max-w-[200px] truncate" title={log.notes}>
+                    <td className="px-4 py-3 text-slate-500 text-[11px] max-w-[200px] truncate" title={log.notes}>
                       {log.notes || '—'}
                     </td>
                   </tr>

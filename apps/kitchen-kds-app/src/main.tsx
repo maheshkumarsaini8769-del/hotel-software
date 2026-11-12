@@ -4,16 +4,28 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { KitchenKdsApp, LowStockAlertItem } from './KitchenKdsApp';
 import { Kds86DishItem } from './components/Kds86ManagerDrawer';
-import { ErrorBoundary, KdsStore, KdsOrderCardModel, StaffLoginGate, I18nProvider } from '@spicehub/ui';
-import { SpiceHubSocket } from '@spicehub/api-client';
+import { ErrorBoundary, KdsStore, KdsOrderCardModel, StaffLoginGate, I18nProvider, installGlobalNumericInputGuard } from '@spicehub/ui';
+import { hydrateStaffLaunchContext, SpiceHubSocket } from '@spicehub/api-client';
 import { kdsFetch, getKdsHotelId } from './lib/kdsApi';
+
+installGlobalNumericInputGuard();
+hydrateStaffLaunchContext();
 
 const store = KdsStore.getInstance();
 const socket = SpiceHubSocket.getInstance();
 
+function getKdsSoundScale(): number {
+  const root = document.documentElement;
+  if (root.dataset.soundAlerts === 'false') return 0;
+  const volume = Number.parseFloat(root.style.getPropertyValue('--spicehub-sound-volume'));
+  return Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1;
+}
+
 // Web Audio API chime for kitchen staff
 function playKitchenChime() {
   try {
+    const soundScale = getKdsSoundScale();
+    if (soundScale === 0) return;
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
@@ -24,7 +36,7 @@ function playKitchenChime() {
     osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
     osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15); // E5
 
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.setValueAtTime(0.3 * soundScale, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
 
     osc.connect(gain);
@@ -40,6 +52,8 @@ function playKitchenChime() {
 // Warning chime for low stock ingredients
 function playLowStockChime() {
   try {
+    const soundScale = getKdsSoundScale();
+    if (soundScale === 0) return;
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
@@ -50,7 +64,7 @@ function playLowStockChime() {
     osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
     osc.frequency.setValueAtTime(349.23, ctx.currentTime + 0.15); // F4
 
-    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.setValueAtTime(0.25 * soundScale, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
 
     osc.connect(gain);
@@ -66,6 +80,8 @@ function playLowStockChime() {
 // Urgent warning buzzer sound for floor waiter requests
 function playKitchenBuzzerSound() {
   try {
+    const soundScale = getKdsSoundScale();
+    if (soundScale === 0) return;
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
@@ -77,7 +93,7 @@ function playKitchenBuzzerSound() {
     osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15); // E5
     osc.frequency.setValueAtTime(880, ctx.currentTime + 0.3); // A5
 
-    gain.gain.setValueAtTime(0.35, ctx.currentTime);
+    gain.gain.setValueAtTime(0.35 * soundScale, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
 
     osc.connect(gain);
@@ -90,30 +106,13 @@ function playKitchenBuzzerSound() {
   }
 }
 
-const DEFAULT_KDS_DISHES: Kds86DishItem[] = [
-  { id: 'dish-01', name: 'Paneer Butter Masala', category: 'Main Course', stationName: 'Curry Station', isAvailable: true },
-  { id: 'dish-02', name: 'Butter Chicken Grand Trunk', category: 'Main Course', stationName: 'Curry Station', isAvailable: true },
-  { id: 'dish-03', name: 'Dal Makhani Signature', category: 'Main Course', stationName: 'Curry Station', isAvailable: true },
-  { id: 'dish-04', name: 'Tandoori Murgh (Full)', category: 'Tandoor & Grills', stationName: 'Tandoor Station', isAvailable: true },
-  { id: 'dish-05', name: 'Paneer Tikka Angara', category: 'Tandoor & Grills', stationName: 'Tandoor Station', isAvailable: true },
-  { id: 'dish-06', name: 'Garlic Butter Naan', category: 'Breads', stationName: 'Tandoor Station', isAvailable: true },
-  { id: 'dish-07', name: 'Tandoori Roti Butter', category: 'Breads', stationName: 'Tandoor Station', isAvailable: true },
-  { id: 'dish-08', name: 'Dum Handi Biryani (Hyderabadi)', category: 'Rice & Biryani', stationName: 'Curry Station', isAvailable: true },
-  { id: 'dish-09', name: 'Jeera Basmati Rice', category: 'Rice & Biryani', stationName: 'Curry Station', isAvailable: true },
-  { id: 'dish-10', name: 'Chilli Chicken Dry', category: 'Starters', stationName: 'Chinese & Wok', isAvailable: true },
-  { id: 'dish-11', name: 'Crispy Veg Spring Rolls', category: 'Starters', stationName: 'Chinese & Wok', isAvailable: true },
-  { id: 'dish-12', name: 'Fresh Lime Soda (Sweet & Salt)', category: 'Beverages', stationName: 'Kitchen Pass', isAvailable: true },
-  { id: 'dish-13', name: 'Masala Chaas', category: 'Beverages', stationName: 'Kitchen Pass', isAvailable: true },
-  { id: 'dish-14', name: 'Gulab Jamun with Rabdi', category: 'Desserts', stationName: 'Kitchen Pass', isAvailable: true },
-];
-
 export const KitchenKdsAppRoot: React.FC = () => {
   const [hotelId, setHotelId] = useState<string>(() => getKdsHotelId());
   const [stationName, setStationName] = useState<string>('All Stations');
   const [toast, setToast] = useState<string | null>(null);
   const [lowStockAlerts, setLowStockAlerts] = useState<LowStockAlertItem[]>([]);
   const [kitchenBuzzers, setKitchenBuzzers] = useState<any[]>([]);
-  const [dishes86, setDishes86] = useState<Kds86DishItem[]>(DEFAULT_KDS_DISHES);
+  const [dishes86, setDishes86] = useState<Kds86DishItem[]>([]);
   const [waiterEnabled, setWaiterEnabled] = useState<boolean>(true);
 
   const fetchDishes86 = async () => {
@@ -123,13 +122,13 @@ export const KitchenKdsAppRoot: React.FC = () => {
       const res = await kdsFetch(`${API_BASE_URL}/menu-catalog/items?hotelId=${encodeURIComponent(currentHotelId)}`);
       if (res.ok) {
         const body = await res.json();
-        if (body.success && Array.isArray(body.data) && body.data.length > 0) {
+        if (body.success && Array.isArray(body.data)) {
           setDishes86(
             body.data.map((m: any) => ({
-              id: m.id || m._id,
+              id: String(m.id || m._id),
               name: m.name,
-              category: m.category || 'Main Course',
-              stationName: m.kitchenStationName || 'Kitchen Pass',
+              category: m.category || m.categoryName || 'Uncategorized',
+              stationName: m.kitchenStationName || 'Unassigned station',
               isAvailable: m.isAvailable !== false,
               outOfStockReason: m.outOfStockReason,
             }))
@@ -157,14 +156,18 @@ export const KitchenKdsAppRoot: React.FC = () => {
 
   const handleToggleItem86 = async (itemId: string, isAvailable: boolean, reason?: string) => {
     try {
-      setDishes86((prev) =>
-        prev.map((d) => (d.id === itemId ? { ...d, isAvailable, outOfStockReason: reason } : d))
-      );
-      await kdsFetch(`${API_BASE_URL}/menu-catalog/items/${itemId}/toggle-86`, {
+      const response = await kdsFetch(`${API_BASE_URL}/menu-catalog/items/${itemId}/toggle-86`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isAvailable, reason: reason || 'Kitchen Station Exhausted' }),
       });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.message || 'The hotel server rejected the stock update.');
+      }
+      setDishes86((prev) =>
+        prev.map((d) => (d.id === itemId ? { ...d, isAvailable, outOfStockReason: reason } : d))
+      );
       socket.emit('menu:item_86_toggled', { itemId, isAvailable, reason, hotelId });
       setToast(
         isAvailable
@@ -175,6 +178,8 @@ export const KitchenKdsAppRoot: React.FC = () => {
       fetchDishes86();
     } catch (err) {
       console.error('Failed to toggle 86 item:', err);
+      setToast(err instanceof Error ? err.message : 'Could not update stock. Please retry.');
+      setTimeout(() => setToast(null), 4000);
     }
   };
 
@@ -513,7 +518,7 @@ export const KitchenKdsAppRoot: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between">
+    <div className="min-h-screen bg-[#F6F1E6] text-[#1B2A22] flex flex-col justify-between">
       {toast && (
         <div data-testid="kds-alert-toast" className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-bounce max-w-lg w-11/12">
           <div className="p-3.5 bg-amber-600 rounded-2xl shadow-sm dark:shadow-none border border-amber-400 text-white font-extrabold text-sm flex items-center justify-between">
@@ -659,6 +664,7 @@ if (rootElement) {
             appName="Kitchen KDS Display"
             appSubtitle="Protected kitchen terminal for live order tickets, stations and prep tracking."
             accent="amber"
+            variant="heritage"
             demoEmail="priya@tajgateway.com"
             demoPassword="SpiceHub@123"
           >

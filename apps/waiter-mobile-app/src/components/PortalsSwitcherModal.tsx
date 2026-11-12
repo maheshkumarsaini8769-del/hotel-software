@@ -37,8 +37,8 @@ export const SPICEHUB_PORTALS: PortalItem[] = [
     port: 3005,
     url: getPortalUrl('admin'),
     icon: Building2,
-    color: 'text-amber-400',
-    bgColor: 'bg-amber-500/10 border-amber-500/30',
+    color: 'text-blue-400',
+    bgColor: 'bg-blue-500/10 border-blue-500/30',
     badge: 'Operations & Management',
     description: 'Configure floors, assign waiter table zones, manage inventory BOM, staff rosters, and financial audit.',
   },
@@ -49,8 +49,8 @@ export const SPICEHUB_PORTALS: PortalItem[] = [
     port: 3007,
     url: getPortalUrl('cashier'),
     icon: CreditCard,
-    color: 'text-blue-400',
-    bgColor: 'bg-blue-500/10 border-blue-500/30',
+    color: 'text-[#2E6B4C]',
+    bgColor: 'bg-[#123C2B]/5 border-[#CFE0D2]',
     badge: 'Settlement & Invoicing',
     description: 'Take cash/card payments, settle table bills requested by waiters, generate GST tax invoices, and print receipts.',
   },
@@ -143,21 +143,21 @@ export const PortalsSwitcherModal: React.FC<PortalsSwitcherModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full p-6 sm:p-7 shadow-sm dark:shadow-none flex flex-col max-h-[90vh] overflow-hidden">
+      <div className="bg-[#FFFDF8] border border-[#E7DFCE] rounded-3xl max-w-4xl w-full p-6 sm:p-7 shadow-md flex flex-col max-h-[90vh] overflow-hidden">
         {/* Modal Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div className="flex items-center justify-between pb-4 border-b border-[#E7DFCE]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/30 text-orange-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[#EDF4EC] border border-[#CFE0D2] text-[#123C2B] flex items-center justify-center">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-white flex items-center gap-2">
+              <h2 className="text-lg font-black text-[#123C2B] flex items-center gap-2">
                 <span>SpiceHub Hospitality Suite</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EDF4EC] text-[#123C2B] border border-[#CFE0D2] font-bold">
                   ● 9 Portals Online
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-[#7C7566]">
                 Click any portal to open in a new tab without interrupting your waiter shift session
               </p>
             </div>
@@ -165,7 +165,7 @@ export const PortalsSwitcherModal: React.FC<PortalsSwitcherModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
+            className="p-2 text-[#7C7566] hover:text-[#123C2B] rounded-xl hover:bg-[#F6F1E6] transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -184,10 +184,10 @@ export const PortalsSwitcherModal: React.FC<PortalsSwitcherModalProps> = ({
                 target="_blank"
                 rel="noreferrer"
                 className={`p-4 rounded-2xl border transition-all hover:scale-[1.01] hover:shadow-xl flex flex-col justify-between gap-3 group ${
-                  isCurrent
-                    ? 'bg-slate-900 border-amber-500'
-                    : 'bg-slate-900 border-slate-800/80 hover:border-slate-700'
-                }`}
+ isCurrent
+ ? 'bg-[#F6F1E6] border-[#E9C98A]'
+ : 'bg-white border-[#E7DFCE] hover:border-[#CFE0D2]'
+ }`}
               >
                 <div>
                   <div className="flex items-start justify-between">
@@ -197,18 +197,18 @@ export const PortalsSwitcherModal: React.FC<PortalsSwitcherModalProps> = ({
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-white group-hover:text-orange-400 transition">
+                          <span className="font-bold text-sm text-[#123C2B] group-hover:text-[#8A5A12] transition">
                             {portal.name}
                           </span>
-                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-[#F6F1E6] border border-[#E7DFCE] text-[#7C7566]">
                             :{portal.port}
                           </span>
                         </div>
-                        <div className="text-[11px] text-slate-400">{portal.role}</div>
+                        <div className="text-[11px] text-[#7C7566]">{portal.role}</div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400 group-hover:text-orange-400 transition font-bold">
+                    <div className="flex items-center gap-1.5 text-xs text-[#8A5A12] group-hover:text-[#123C2B] transition font-bold">
                       <span className="hidden sm:inline">Launch</span>
                       <ExternalLink className="w-4 h-4" />
                     </div>
@@ -225,7 +225,7 @@ export const PortalsSwitcherModal: React.FC<PortalsSwitcherModalProps> = ({
                   </span>
                   <span className="text-emerald-400 font-bold flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Running on localhost:{portal.port}
+                    Online
                   </span>
                 </div>
               </a>
@@ -236,11 +236,11 @@ export const PortalsSwitcherModal: React.FC<PortalsSwitcherModalProps> = ({
         {/* Modal Footer */}
         <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
           <div>
-            Current Station: <strong className="text-orange-400">Waiter Terminal (:3002)</strong>
+            Current Station: <strong className="text-orange-400">Waiter Terminal</strong>
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition"
+            className="px-4 py-2 rounded-xl bg-[#F6F1E6] hover:bg-[#EFE8D9] border border-[#E7DFCE] text-[#123C2B] font-bold text-xs transition"
           >
             Close Launcher
           </button>

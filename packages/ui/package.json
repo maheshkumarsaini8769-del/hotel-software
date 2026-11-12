@@ -8,6 +8,7 @@
     "build": "tsc"
   },
   "dependencies": {
+    "@spicehub/api-client": "*",
     "@spicehub/shared-types": "*"
   },
   "peerDependencies": {

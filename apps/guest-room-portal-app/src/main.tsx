@@ -2,14 +2,21 @@ import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { GuestRoomPortalApp } from './GuestRoomPortalApp';
-import { ErrorBoundary, GuestPortalStore, LiveRoomOrder, CustomerLocationSelectorModal, CustomerPortalSwitcherBar, I18nProvider } from '@spicehub/ui';
+import { ErrorBoundary, GuestPortalStore, LiveRoomOrder, CustomerLocationSelectorModal, CustomerPortalSwitcherBar, I18nProvider, CustomerDownloadAppBanner, installGlobalNumericInputGuard } from '@spicehub/ui';
+import { Bell, X } from 'lucide-react';
 import { SpiceHubSocket } from '@spicehub/api-client';
 import { API_ORIGIN, SOCKET_URL } from './config/api';
 import { getPortalUrl } from './config/env';
 
+installGlobalNumericInputGuard();
+
 const store = GuestPortalStore.getInstance();
 const socket = SpiceHubSocket.getInstance();
 const API_BASE = API_ORIGIN;
+const parentOrigin = new URLSearchParams(window.location.search).get('parentOrigin');
+const isCustomerApkEmbed =
+  window.parent !== window && parentOrigin === 'https://localhost';
+const isNativeGuestRuntime = Boolean((window as any)?.Capacitor?.isNativePlatform?.());
 
 // 1. Resolve target room, hotel and QR token from URL parameters
 const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -69,7 +76,7 @@ async function resolveHotelId(): Promise<string> {
   return resolvedHotelId;
 }
 
-async function probeGuestSession(token: string): Promise<boolean> {
+async function probeGuestSession(token: string, expectedRoom = targetRoom): Promise<boolean> {
   try {
     const hotelId = resolvedHotelId || urlParams.get('hotelId') || '';
     const headers: Record<string, string> = { 'x-guest-session-token': token };
@@ -79,6 +86,16 @@ async function probeGuestSession(token: string): Promise<boolean> {
     });
     const json = await res.json().catch(() => null);
     if (res.ok && json?.success && json.data?.hotelId) {
+      const expectedRoomValue = String(expectedRoom || '').trim();
+      const sessionRoomNumber = String(json.data.room?.roomNumber || '').trim();
+      if (
+        expectedRoomValue &&
+        !/^[a-f\d]{24}$/i.test(expectedRoomValue) &&
+        sessionRoomNumber &&
+        expectedRoomValue !== sessionRoomNumber
+      ) {
+        return false;
+      }
       resolvedHotelId = String(json.data.hotelId);
       return true;
     }
@@ -94,7 +111,7 @@ async function resolveGuestSession(roomToUse?: string): Promise<void> {
       ? localStorage.getItem('spicehub_guest_session') || ''
       : '');
 
-  if (candidateToken && (await probeGuestSession(candidateToken))) {
+  if (candidateToken && (await probeGuestSession(candidateToken, roomToUse || targetRoom))) {
     guestSessionToken = candidateToken;
     if (typeof window !== 'undefined') {
       localStorage.setItem('spicehub_guest_session', candidateToken);
@@ -138,7 +155,8 @@ async function resolveGuestSession(roomToUse?: string): Promise<void> {
   }
 }
 
-const guestSessionReady = resolveGuestSession();
+const guestSessionReady =
+  isCustomerApkEmbed || isNativeGuestRuntime ? resolveGuestSession() : Promise.resolve();
 
 async function guestHeaders(includeJson = true): Promise<Record<string, string>> {
   await guestSessionReady;
@@ -149,6 +167,30 @@ async function guestHeaders(includeJson = true): Promise<Record<string, string>>
   if (guestSessionToken) headers['x-guest-session-token'] = guestSessionToken;
   return headers;
 }
+
+const guestSettingsApi = {
+  async get() {
+    const response = await fetch(`${API_BASE}/api/v1/guest-portal/preferences`, {
+      headers: await guestHeaders(false),
+    });
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.success) {
+      throw new Error(json?.message || 'Guest settings could not be loaded.');
+    }
+    return json.data;
+  },
+  async save(settings: { language: 'en' | 'hi'; theme: 'light' | 'dark'; fontSize: 'small' | 'medium' | 'large' }) {
+    const response = await fetch(`${API_BASE}/api/v1/guest-portal/preferences`, {
+      method: 'PUT',
+      headers: await guestHeaders(),
+      body: JSON.stringify(settings),
+    });
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.success) {
+      throw new Error(json?.message || 'Guest settings could not be saved.');
+    }
+  },
+};
 
 // 3. Connect to the guest-safe API to hydrate real-time stay & folio
 async function hydrateLiveRoomStay() {
@@ -351,7 +393,7 @@ const GuestRoomPortalRoot: React.FC = () => {
     if (typeof window === 'undefined') return null;
     const sp = new URLSearchParams(window.location.search);
     if (sp.get('redirectToast') || sp.get('redirectReason')) {
-      return '🛎️ Redirected to your In-Room Guest Portal';
+      return 'Redirected to your In-Room Guest Portal';
     }
     return null;
   });
@@ -455,16 +497,22 @@ const GuestRoomPortalRoot: React.FC = () => {
 
   return (
     <>
+      <CustomerDownloadAppBanner portal="room" />
       <CustomerPortalSwitcherBar
         currentApp="guest"
-        currentLocationName={currentRoomNumber ? `Room ${currentRoomNumber}${roomParamFormat ? ` (${roomParamFormat})` : ''}` : undefined}
+        currentLocationName={currentRoomNumber ? `Room ${currentRoomNumber}` : undefined}
         destinationUrl={getPortalUrl('customer')}
       />
       {crossPortalToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-bounce">
-          <div className="px-4 py-3 rounded-2xl shadow-sm dark:shadow-none border text-sm font-bold flex items-center justify-between gap-2 bg-blue-950 text-blue-200 border-blue-600">
-            <span>{crossPortalToast}</span>
-            <button onClick={() => setCrossPortalToast(null)} className="text-white/60 hover:text-white">✕</button>
+          <div className="px-4 py-3 rounded-2xl shadow-sm border text-sm font-bold flex items-center justify-between gap-2 bg-slate-900 text-slate-100 border-slate-700">
+            <div className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span>{crossPortalToast}</span>
+            </div>
+            <button onClick={() => setCrossPortalToast(null)} className="text-slate-400 hover:text-white" aria-label="Close notification">
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
       )}
@@ -496,11 +544,13 @@ const GuestRoomPortalRoot: React.FC = () => {
       />
       <GuestRoomPortalApp
         store={store}
+        settingsApi={guestSettingsApi}
         hotelId={hotelId}
         waiterEnabled={waiterEnabled}
         isCheckoutRequested={isCheckoutRequested}
         isStayCheckedOut={isStayCheckedOut}
         checkoutInvoice={checkoutInvoice}
+        currentRoomNumber={currentRoomNumber}
         onRoomBooked={(newRoom, sessionToken) => {
           targetRoom = newRoom;
           setCurrentRoomNumber(newRoom);

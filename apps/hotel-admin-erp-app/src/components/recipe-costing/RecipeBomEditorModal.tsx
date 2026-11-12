@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IRecipeUI, INewRecipePayload, RecipeCostingHelper } from '@spicehub/ui';
+import { IRecipeUI, INewRecipePayload, RecipeCostingHelper, NumericInput } from '@spicehub/ui';
 
 interface RecipeBomEditorModalProps {
   isOpen: boolean;
@@ -132,17 +132,17 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border-2 border-amber-500/40 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="bg-white border-2 border-amber-200 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm animate-in fade-in zoom-in-95">
         {/* Modal Header */}
-        <div className="bg-slate-900 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <div className="bg-white px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-xl">🍲</span>
             <div>
-              <h2 className="text-lg font-bold text-white">
+              <h2 className="text-lg font-bold text-slate-900">
                 {recipe ? `Edit Recipe: ${recipe.title}` : 'Create Standard Recipe BOM'}
               </h2>
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-slate-600">
                 Itemized ingredient portion costing, target food cost % and cooking SOP
               </p>
             </div>
@@ -150,7 +150,7 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white"
+            className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900"
           >
             ✕
           </button>
@@ -161,14 +161,14 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
           {/* Section 1: Item & Portion Info */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Menu Item
               </label>
               <select
                 value={selectedMenuItemId}
                 onChange={(e) => handleMenuItemChange(e.target.value)}
                 disabled={Boolean(recipe)}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white outline-none focus:border-amber-400 disabled:opacity-60"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 outline-none focus:border-amber-400 disabled:opacity-60"
               >
                 {menuItems.map((m) => (
                   <option key={m._id} value={m._id}>
@@ -179,7 +179,7 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Recipe Title
               </label>
               <input
@@ -187,27 +187,26 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Traditional Dum Biryani"
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white outline-none focus:border-amber-400"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 outline-none focus:border-amber-400"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Yield Portions (Per Batch)
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="1"
                 value={yieldPortions}
                 onChange={(e) => setYieldPortions(Math.max(1, Number(e.target.value)))}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white outline-none focus:border-amber-400 font-mono"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 outline-none focus:border-amber-400 font-mono"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Portion Size / Weight Description
               </label>
               <input
@@ -215,35 +214,33 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
                 value={portionSizeDescription}
                 onChange={(e) => setPortionSizeDescription(e.target.value)}
                 placeholder="e.g. 350g biryani + 1 boiled egg"
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white outline-none focus:border-amber-400"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 outline-none focus:border-amber-400"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Selling Price (₹)
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="0"
                 value={sellingPrice}
                 onChange={(e) => setSellingPrice(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-amber-400 font-mono font-bold outline-none focus:border-amber-400"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-amber-700 font-mono font-bold outline-none focus:border-amber-400"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Target Food Cost % Limit
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="1"
                 max="100"
                 value={targetCostPercentage}
                 onChange={(e) => setTargetCostPercentage(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white font-mono outline-none focus:border-amber-400"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono outline-none focus:border-amber-400"
               />
             </div>
           </div>
@@ -251,21 +248,21 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
           {/* Section 2: Bill of Materials (BOM) Ingredient Grid */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+              <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">
                 Ingredient Bill of Materials (BOM)
               </span>
               <button
                 type="button"
                 onClick={handleAddIngredientRow}
-                className="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-300 text-xs font-bold border border-amber-500/30 transition-all flex items-center gap-1"
+                className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-amber-700 text-xs font-bold border border-amber-200 transition-all flex items-center gap-1"
               >
                 <span>+</span>
                 <span>Add Ingredient</span>
               </button>
             </div>
 
-            <div className="bg-zinc-950/70 border border-zinc-800 rounded-2xl overflow-hidden p-3 space-y-2">
-              <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-zinc-400 uppercase pb-1 border-b border-zinc-800 px-2">
+            <div className="bg-slate-100 border border-slate-200 rounded-2xl overflow-hidden p-3 space-y-2">
+              <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-slate-600 uppercase pb-1 border-b border-slate-200 px-2">
                 <span className="col-span-5">Ingredient Name</span>
                 <span className="col-span-2 text-right">Quantity</span>
                 <span className="col-span-2">Unit</span>
@@ -274,31 +271,30 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
               </div>
 
               {ingredients.map((ing, idx) => (
-                <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-zinc-900/60 p-2 rounded-xl border border-zinc-800/80">
+                <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-200">
                   <div className="col-span-5">
                     <input
                       type="text"
                       value={ing.ingredientName}
                       onChange={(e) => handleIngredientChange(idx, 'ingredientName', e.target.value)}
                       placeholder="e.g. Basmati Rice, Boneless Chicken..."
-                      className="w-full px-2.5 py-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-xs text-white outline-none focus:border-amber-400"
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 outline-none focus:border-amber-400"
                     />
                   </div>
                   <div className="col-span-2">
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.001"
                       min="0"
                       value={ing.quantity}
                       onChange={(e) => handleIngredientChange(idx, 'quantity', Number(e.target.value))}
-                      className="w-full px-2 py-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-xs text-white font-mono text-right outline-none focus:border-amber-400"
+                      className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 font-mono text-right outline-none focus:border-amber-400"
                     />
                   </div>
                   <div className="col-span-2">
                     <select
                       value={ing.unit}
                       onChange={(e) => handleIngredientChange(idx, 'unit', e.target.value)}
-                      className="w-full px-2 py-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-xs text-white outline-none focus:border-amber-400"
+                      className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 outline-none focus:border-amber-400"
                     >
                       <option value="kg">kg</option>
                       <option value="g">g</option>
@@ -308,13 +304,12 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.01"
                       min="0"
                       value={ing.unitCost}
                       onChange={(e) => handleIngredientChange(idx, 'unitCost', Number(e.target.value))}
-                      className="w-full px-2 py-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-xs text-amber-400 font-mono text-right outline-none focus:border-amber-400"
+                      className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-amber-700 font-mono text-right outline-none focus:border-amber-400"
                     />
                   </div>
                   <div className="col-span-1 text-center">
@@ -322,7 +317,7 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
                       type="button"
                       onClick={() => handleRemoveIngredientRow(idx)}
                       disabled={ingredients.length <= 1}
-                      className="text-zinc-500 hover:text-red-400 disabled:opacity-30 p-1 text-xs"
+                      className="text-slate-500 hover:text-red-400 disabled:opacity-30 p-1 text-xs"
                     >
                       ✕
                     </button>
@@ -333,31 +328,31 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
           </div>
 
           {/* Section 3: Live Financial Gauge Display */}
-          <div className="bg-zinc-950 border border-amber-500/30 p-4 rounded-2xl grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-slate-50 border border-amber-200 p-4 rounded-2xl grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
-              <span className="text-[10px] text-zinc-500 uppercase font-semibold block">Total Batch Cost</span>
-              <span className="text-base font-black font-mono text-white">
+              <span className="text-[10px] text-slate-500 uppercase font-semibold block">Total Batch Cost</span>
+              <span className="text-base font-black font-mono text-slate-900">
                 {RecipeCostingHelper.formatCurrency(totalBatchCost)}
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-zinc-500 uppercase font-semibold block">Cost / Portion</span>
-              <span className="text-base font-black font-mono text-amber-400">
+              <span className="text-[10px] text-slate-500 uppercase font-semibold block">Cost / Portion</span>
+              <span className="text-base font-black font-mono text-amber-700">
                 {RecipeCostingHelper.formatCurrency(costPerPortion)}
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-zinc-500 uppercase font-semibold block">Food Cost %</span>
+              <span className="text-[10px] text-slate-500 uppercase font-semibold block">Food Cost %</span>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-lg font-black font-mono text-white">{foodCostPct}%</span>
+                <span className="text-lg font-black font-mono text-slate-900">{foodCostPct}%</span>
                 <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold border ${health.badgeBg} ${health.badgeBorder} ${health.badgeText}`}>
                   {health.status}
                 </span>
               </div>
             </div>
             <div>
-              <span className="text-[10px] text-zinc-500 uppercase font-semibold block">Gross Margin %</span>
-              <span className="text-lg font-black font-mono text-emerald-400">
+              <span className="text-[10px] text-slate-500 uppercase font-semibold block">Gross Margin %</span>
+              <span className="text-lg font-black font-mono text-emerald-700">
                 {grossMarginPct}%
               </span>
             </div>
@@ -365,7 +360,7 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
 
           {/* Section 4: Cooking Steps / SOP */}
           <div>
-            <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
               Standard Preparation Steps (SOP)
             </label>
             <textarea
@@ -373,23 +368,23 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
               value={prepStepsText}
               onChange={(e) => setPrepStepsText(e.target.value)}
               placeholder="Enter one step per line (e.g. 1. Marinate chicken with ginger-garlic paste for 45 mins...)"
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white placeholder:text-zinc-600 outline-none focus:border-amber-400"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-amber-400"
             />
           </div>
 
           {/* Modal Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs transition-colors"
+              className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !selectedMenuItemId}
-              className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
+              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-amber-400 disabled:bg-slate-300 disabled:text-slate-500 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm"
             >
               {loading ? 'Saving Recipe...' : 'Save Recipe Specification'}
             </button>

@@ -18,10 +18,10 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
 }) => {
   if (sessions.length === 0) {
     return (
-      <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-12 text-center">
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-12 text-center">
         <span className="text-4xl">📋</span>
-        <h3 className="text-base font-bold text-white mt-3">No Audit Sessions Found</h3>
-        <p className="text-xs text-zinc-400 mt-1 max-w-sm mx-auto">
+        <h3 className="text-base font-bold text-slate-900 mt-3">No Audit Sessions Found</h3>
+        <p className="text-xs text-slate-600 mt-1 max-w-sm mx-auto">
           No stocktake audit records match current filter criteria. Click "Start New Audit Session" above to launch a physical audit.
         </p>
       </div>
@@ -40,17 +40,17 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
             key={session._id}
             onClick={() => onSelectSession(session)}
             className={`cursor-pointer rounded-2xl p-5 border transition-all flex flex-col justify-between ${
-              isSelected
-                ? 'bg-zinc-900/95 border-emerald-500 shadow-xl shadow-emerald-950/30 ring-1 ring-emerald-500'
-                : 'bg-zinc-900/70 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'
-            }`}
+ isSelected
+ ? 'bg-white border-emerald-500 shadow-xl shadow-xs ring-1 ring-emerald-500'
+ : 'bg-slate-50 border-slate-200 hover:border-slate-300 hover:bg-slate-200'
+ }`}
           >
             <div>
               {/* Header */}
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div>
-                  <span className="text-sm font-black text-white font-mono">{session.auditNumber}</span>
-                  <div className="text-[11px] text-zinc-400 mt-0.5">
+                  <span className="text-sm font-black text-slate-900 font-mono">{session.auditNumber}</span>
+                  <div className="text-[11px] text-slate-600 mt-0.5">
                     {InventoryAuditHelper.getAuditTypeLabel(session.auditType)}
                   </div>
                 </div>
@@ -69,52 +69,52 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
 
               {/* Badges / Store Details */}
               <div className="flex flex-wrap items-center gap-1.5 mb-4 text-[11px]">
-                <span className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 font-medium">
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
                   📍 {session.storeLocation}
                 </span>
                 {session.isBlindStocktake ? (
-                  <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/30 font-medium">
+                  <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 font-medium">
                     🛡️ Blind Count
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-400">
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
                     Standard Count
                   </span>
                 )}
-                <span className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-400">
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
                   {session.items?.length || 0} items
                 </span>
               </div>
 
               {/* Financial Metrics Box */}
-              <div className="bg-slate-950 border border-zinc-800/80 rounded-xl p-3 mb-4 space-y-1.5 text-xs">
-                <div className="flex justify-between text-zinc-400">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 space-y-1.5 text-xs">
+                <div className="flex justify-between text-slate-600">
                   <span>Discrepant Lines:</span>
-                  <span className={discrepantCount > 0 ? 'text-amber-400 font-bold' : 'text-zinc-300'}>
+                  <span className={discrepantCount > 0 ? 'text-amber-700 font-bold' : 'text-slate-700'}>
                     {discrepantCount} / {session.items?.length || 0}
                   </span>
                 </div>
-                <div className="flex justify-between text-zinc-400">
+                <div className="flex justify-between text-slate-600">
                   <span>Shortage Loss:</span>
-                  <span className="text-red-400 font-bold">
+                  <span className="text-red-700 font-bold">
                     {InventoryAuditHelper.formatCurrency(session.totalShortageValue)}
                   </span>
                 </div>
-                <div className="flex justify-between text-zinc-400">
+                <div className="flex justify-between text-slate-600">
                   <span>Surplus Gain:</span>
-                  <span className="text-blue-400 font-bold">
+                  <span className="text-blue-700 font-bold">
                     {InventoryAuditHelper.formatCurrency(session.totalSurplusValue)}
                   </span>
                 </div>
-                <div className="flex justify-between pt-1 border-t border-zinc-800 text-zinc-200 font-bold">
+                <div className="flex justify-between pt-1 border-t border-slate-200 text-slate-900 font-bold">
                   <span>Net Impact:</span>
                   <span
                     className={
                       session.netDiscrepancyValue < 0
-                        ? 'text-red-400'
+                        ? 'text-red-700'
                         : session.netDiscrepancyValue > 0
-                        ? 'text-emerald-400'
-                        : 'text-zinc-300'
+                        ? 'text-emerald-700'
+                        : 'text-slate-700'
                     }
                   >
                     {InventoryAuditHelper.formatCurrency(session.netDiscrepancyValue)}
@@ -124,7 +124,7 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
             </div>
 
             {/* Actions */}
-            <div className="pt-3 border-t border-zinc-800/80 flex items-center gap-2">
+            <div className="pt-3 border-t border-slate-200 flex items-center gap-2">
               {session.status !== 'RECONCILED' && (
                 <button
                   type="button"
@@ -132,7 +132,7 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
                     e.stopPropagation();
                     onOpenCountModal(session);
                   }}
-                  className="flex-1 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all text-center"
+                  className="flex-1 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold transition-all text-center"
                 >
                   📝 Count Stock
                 </button>
@@ -145,14 +145,14 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
                     e.stopPropagation();
                     onOpenReconcileModal(session);
                   }}
-                  className="flex-1 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 text-xs font-bold transition-all text-center"
+                  className="flex-1 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition-all text-center"
                 >
                   ⚖️ Reconcile
                 </button>
               )}
 
               {session.status === 'RECONCILED' && (
-                <span className="w-full text-center text-xs text-emerald-400 font-semibold py-1 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                <span className="w-full text-center text-xs text-emerald-700 font-semibold py-1 bg-emerald-50 rounded-lg border border-emerald-200">
                   ✓ Ledger Balanced
                 </span>
               )}

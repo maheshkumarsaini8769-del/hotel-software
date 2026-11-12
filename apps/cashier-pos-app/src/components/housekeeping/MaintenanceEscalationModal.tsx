@@ -82,10 +82,10 @@ export const MaintenanceEscalationModal: React.FC<MaintenanceEscalationModalProp
                   key={cat}
                   onClick={() => onUpdateDraft({ category: cat })}
                   className={`py-1.5 px-2 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
-                    draft.category === cat
-                      ? 'bg-red-500/20 border-red-500 text-red-200 font-bold'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                  }`}
+ draft.category === cat
+ ? 'bg-red-500/20 border-red-500 text-red-200 font-bold'
+ : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+ }`}
                 >
                   {cat}
                 </button>
@@ -105,12 +105,12 @@ export const MaintenanceEscalationModal: React.FC<MaintenanceEscalationModalProp
                   key={pri}
                   onClick={() => onUpdateDraft({ priority: pri })}
                   className={`py-1 px-2 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
-                    draft.priority === pri
-                      ? pri === 'EMERGENCY'
-                        ? 'bg-red-600 text-white font-bold border-red-500 animate-pulse'
-                        : 'bg-amber-500/20 border-amber-500 text-amber-200 font-bold'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                  }`}
+ draft.priority === pri
+ ? pri === 'EMERGENCY'
+ ? 'bg-red-600 text-white font-bold border-red-500 animate-pulse'
+ : 'bg-emerald-600/20 border-emerald-600 text-amber-200 font-bold'
+ : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+ }`}
                 >
                   {pri}
                 </button>
@@ -160,7 +160,7 @@ export const MaintenanceEscalationModal: React.FC<MaintenanceEscalationModalProp
             <button
               type="submit"
               disabled={isLoading}
-              className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 shadow-md shadow-sm cursor-pointer disabled:opacity-50 active:scale-95 transition-all"
+              className="bg-emerald-600 hover:bg-emerald-700 px-5 py-2 rounded-xl text-xs font-bold text-white shadow-md shadow-sm cursor-pointer disabled:opacity-50 active:scale-95 transition-all"
             >
               {isLoading ? 'Dispatching...' : 'Dispatch Maintenance Work Order'}
             </button>

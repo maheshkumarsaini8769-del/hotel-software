@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ArrowRight, X, AlertTriangle } from 'lucide-react';
 import { CartItem, CartPricingSummary, formatCurrency } from '@spicehub/ui';
 
 export interface CartDrawerProps {
@@ -63,7 +64,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </div>
             <div className="font-bold text-xs uppercase tracking-wider bg-slate-950 text-white hover:text-white px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-sm transition">
               <span>View Order</span>
-              <span>➔</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </div>
           </div>
         </div>
@@ -81,16 +82,18 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </div>
               <button
                 onClick={onClose}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg text-lg"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+                aria-label="Close"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Out of Stock Alert Banner */}
             {hasOutOfStockWarnings && (
-              <div className="bg-red-500 text-white text-xs p-3 font-semibold flex items-center justify-between">
-                <span>⚠️ Some items in your cart became unavailable (Item 86). Please remove them before ordering.</span>
+              <div className="bg-red-500 text-white text-xs p-3 font-semibold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>Some items in your cart became unavailable (Item 86). Please remove them before ordering.</span>
               </div>
             )}
 
@@ -102,10 +105,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <div
                     key={item.menuItemId}
                     className={`flex items-center justify-between p-3 rounded-xl border ${
-                      isItemWarned
-                        ? 'border-red-400 bg-red-50/50 dark:bg-red-950/20'
-                        : 'border-slate-200 dark:border-slate-800'
-                    }`}
+ isItemWarned
+ ? 'border-red-400 bg-red-50/50 dark:bg-red-950/20'
+ : 'border-slate-200 dark:border-slate-800'
+ }`}
                   >
                     <div className="flex-1 pr-3">
                       <div className="flex items-center space-x-1.5">
@@ -204,7 +207,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <span>Remove Unavailable Dishes</span>
                 ) : (
                   <>
-                    <span>👑 Confirm Order & Send to Kitchen</span>
+                    <span>Confirm Order & Send to Kitchen</span>
                     <span>•</span>
                     <span>{formatCurrency(pricing.totalAmount)}</span>
                   </>

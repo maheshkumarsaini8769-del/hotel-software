@@ -67,22 +67,22 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-3xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white border border-slate-200 w-full max-w-3xl rounded-2xl p-6 shadow-xl text-slate-900 max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-200">
           <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <span className="text-slate-700 dark:text-slate-300">🔮</span> What-If Price Elasticity & Margin Simulator
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <span className="text-blue-600">📊</span> What-If Price Elasticity & Margin Simulator
             </h2>
-            <p className="text-xs text-zinc-400 mt-0.5">
+            <p className="text-xs text-slate-600 mt-0.5">
               Simulate menu price hikes, portion cost trims & customer demand elasticity before publishing menu changes.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-sm"
+            className="text-slate-500 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-100 text-sm"
           >
             ✕
           </button>
@@ -92,7 +92,7 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
         <div className="flex-1 overflow-y-auto py-4 space-y-6 pr-1">
           {/* Item Selector */}
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
               Select Menu Item to Test
             </label>
             <select
@@ -101,7 +101,7 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
                 const found = allItems.find((i) => i.itemName === e.target.value);
                 if (found) setSelectedItem(found);
               }}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-slate-200 dark:border-slate-800"
+              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500"
             >
               {allItems.map((it, idx) => (
                 <option key={idx} value={it.itemName}>
@@ -112,12 +112,12 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
           </div>
 
           {/* Controls Sliders */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-900/80 border border-zinc-800 p-4 rounded-2xl">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 border border-slate-200 p-4 rounded-2xl">
             {/* Slider 1: Price Delta */}
             <div>
               <div className="flex justify-between text-xs mb-1">
-                <span className="font-semibold text-zinc-300">Price Adjustment</span>
-                <span className={`font-mono font-bold ${priceDeltaPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                <span className="font-semibold text-slate-800">Price Adjustment</span>
+                <span className={`font-mono font-bold ${priceDeltaPercent >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                   {priceDeltaPercent > 0 ? `+${priceDeltaPercent}%` : `${priceDeltaPercent}%`}
                 </span>
               </div>
@@ -128,16 +128,16 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
                 step="5"
                 value={priceDeltaPercent}
                 onChange={(e) => setPriceDeltaPercent(Number(e.target.value))}
-                className="w-full accent-purple-500"
+                className="w-full accent-blue-600"
               />
-              <span className="text-[10px] text-zinc-500">Retail price delta</span>
+              <span className="text-[10px] text-slate-500">Retail price delta</span>
             </div>
 
             {/* Slider 2: Ingredient Cost Delta */}
             <div>
               <div className="flex justify-between text-xs mb-1">
-                <span className="font-semibold text-zinc-300">Food Cost Trim</span>
-                <span className={`font-mono font-bold ${costDeltaPercent <= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                <span className="font-semibold text-slate-800">Food Cost Trim</span>
+                <span className={`font-mono font-bold ${costDeltaPercent <= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                   {costDeltaPercent > 0 ? `+${costDeltaPercent}%` : `${costDeltaPercent}%`}
                 </span>
               </div>
@@ -148,16 +148,16 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
                 step="5"
                 value={costDeltaPercent}
                 onChange={(e) => setCostDeltaPercent(Number(e.target.value))}
-                className="w-full accent-emerald-500"
+                className="w-full accent-emerald-600"
               />
-              <span className="text-[10px] text-zinc-500">Recipe portion trim</span>
+              <span className="text-[10px] text-slate-500">Recipe portion trim</span>
             </div>
 
             {/* Slider 3: Price Elasticity Factor */}
             <div>
               <div className="flex justify-between text-xs mb-1">
-                <span className="font-semibold text-zinc-300">Price Elasticity (PeD)</span>
-                <span className="font-mono font-bold text-amber-400">{elasticityFactor}</span>
+                <span className="font-semibold text-slate-800">Price Elasticity (PeD)</span>
+                <span className="font-mono font-bold text-amber-700">{elasticityFactor}</span>
               </div>
               <input
                 type="range"
@@ -166,9 +166,9 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
                 step="0.1"
                 value={elasticityFactor}
                 onChange={(e) => setElasticityFactor(Number(e.target.value))}
-                className="w-full accent-amber-500"
+                className="w-full accent-amber-600"
               />
-              <span className="text-[10px] text-zinc-500">Demand response factor</span>
+              <span className="text-[10px] text-slate-500">Demand response factor</span>
             </div>
           </div>
 
@@ -177,88 +177,88 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Current State */}
-                <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl space-y-2 text-xs">
-                  <span className="text-[11px] font-bold uppercase text-zinc-400 block border-b border-zinc-800 pb-1">
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-2 text-xs">
+                  <span className="text-[11px] font-bold uppercase text-slate-600 block border-b border-slate-200 pb-1">
                     Current Menu Reality
                   </span>
-                  <div className="flex justify-between text-zinc-300">
+                  <div className="flex justify-between text-slate-700">
                     <span>Selling Price:</span>
-                    <strong className="font-mono">{MenuEngineeringHelper.formatCurrency(simulation.currentState.price)}</strong>
+                    <strong className="font-mono text-slate-900">{MenuEngineeringHelper.formatCurrency(simulation.currentState.price)}</strong>
                   </div>
-                  <div className="flex justify-between text-zinc-300">
+                  <div className="flex justify-between text-slate-700">
                     <span>Unit Food Cost:</span>
-                    <strong className="font-mono text-zinc-400">{MenuEngineeringHelper.formatCurrency(simulation.currentState.cost)}</strong>
+                    <strong className="font-mono text-slate-700">{MenuEngineeringHelper.formatCurrency(simulation.currentState.cost)}</strong>
                   </div>
-                  <div className="flex justify-between text-zinc-300">
+                  <div className="flex justify-between text-slate-700">
                     <span>Contribution Margin:</span>
-                    <strong className="font-mono text-emerald-400">{MenuEngineeringHelper.formatCurrency(simulation.currentState.margin)}</strong>
+                    <strong className="font-mono text-emerald-700">{MenuEngineeringHelper.formatCurrency(simulation.currentState.margin)}</strong>
                   </div>
-                  <div className="flex justify-between text-zinc-300">
+                  <div className="flex justify-between text-slate-700">
                     <span>Sales Volume:</span>
-                    <strong className="font-mono text-amber-300">{simulation.currentState.volume} units</strong>
+                    <strong className="font-mono text-amber-700">{simulation.currentState.volume} units</strong>
                   </div>
-                  <div className="flex justify-between text-zinc-300 border-t border-zinc-800 pt-1.5 font-bold">
+                  <div className="flex justify-between text-slate-900 border-t border-slate-200 pt-1.5 font-bold">
                     <span>Total Period Profit:</span>
-                    <strong className="font-mono text-white">{MenuEngineeringHelper.formatCurrency(simulation.currentState.totalProfit)}</strong>
+                    <strong className="font-mono text-slate-900">{MenuEngineeringHelper.formatCurrency(simulation.currentState.totalProfit)}</strong>
                   </div>
                   <div className="flex justify-between items-center pt-1 text-[11px]">
-                    <span className="text-zinc-500">Quadrant:</span>
-                    <span className="font-bold text-amber-400">{simulation.currentState.quadrant}</span>
+                    <span className="text-slate-500">Quadrant:</span>
+                    <span className="font-bold text-amber-700">{simulation.currentState.quadrant}</span>
                   </div>
                 </div>
 
                 {/* Projected State */}
-                <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl space-y-2 text-xs">
-                  <span className="text-[11px] font-bold uppercase text-slate-700 dark:text-slate-300 block border-b border-slate-200 dark:border-slate-800 pb-1">
+                <div className="bg-blue-50/60 border border-blue-200 p-4 rounded-2xl space-y-2 text-xs">
+                  <span className="text-[11px] font-bold uppercase text-blue-800 block border-b border-blue-200 pb-1">
                     Projected Outcome Simulation
                   </span>
-                  <div className="flex justify-between text-zinc-300">
+                  <div className="flex justify-between text-slate-700">
                     <span>Projected Price:</span>
-                    <strong className="font-mono text-white">{MenuEngineeringHelper.formatCurrency(simulation.projectedState.price)}</strong>
+                    <strong className="font-mono text-slate-900">{MenuEngineeringHelper.formatCurrency(simulation.projectedState.price)}</strong>
                   </div>
-                  <div className="flex justify-between text-zinc-300">
+                  <div className="flex justify-between text-slate-700">
                     <span>Projected Food Cost:</span>
-                    <strong className="font-mono text-zinc-400">{MenuEngineeringHelper.formatCurrency(simulation.projectedState.cost)}</strong>
+                    <strong className="font-mono text-slate-700">{MenuEngineeringHelper.formatCurrency(simulation.projectedState.cost)}</strong>
                   </div>
-                  <div className="flex justify-between text-zinc-300">
+                  <div className="flex justify-between text-slate-700">
                     <span>Projected Margin:</span>
-                    <strong className="font-mono text-emerald-400">{MenuEngineeringHelper.formatCurrency(simulation.projectedState.margin)}</strong>
+                    <strong className="font-mono text-emerald-700">{MenuEngineeringHelper.formatCurrency(simulation.projectedState.margin)}</strong>
                   </div>
-                  <div className="flex justify-between text-zinc-300">
+                  <div className="flex justify-between text-slate-700">
                     <span>Projected Volume:</span>
-                    <strong className="font-mono text-amber-300">{simulation.projectedState.volume} units</strong>
+                    <strong className="font-mono text-amber-700">{simulation.projectedState.volume} units</strong>
                   </div>
-                  <div className="flex justify-between text-zinc-300 border-t border-slate-200 dark:border-slate-800 pt-1.5 font-bold">
+                  <div className="flex justify-between text-slate-900 border-t border-blue-200 pt-1.5 font-bold">
                     <span>Projected Period Profit:</span>
-                    <strong className="font-mono text-emerald-300">{MenuEngineeringHelper.formatCurrency(simulation.projectedState.totalProfit)}</strong>
+                    <strong className="font-mono text-blue-700">{MenuEngineeringHelper.formatCurrency(simulation.projectedState.totalProfit)}</strong>
                   </div>
                   <div className="flex justify-between items-center pt-1 text-[11px]">
-                    <span className="text-zinc-400">Projected Quadrant:</span>
-                    <span className="font-bold text-slate-700 dark:text-slate-300">{simulation.projectedState.quadrant}</span>
+                    <span className="text-slate-600">Projected Quadrant:</span>
+                    <span className="font-bold text-blue-700">{simulation.projectedState.quadrant}</span>
                   </div>
                 </div>
               </div>
 
               {/* Profit Impact Highlight Banner */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/40 to-purple-950/40 border border-emerald-500/30 flex items-center justify-between">
+              <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider block">
+                  <span className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
                     Simulated Bottom-Line Net Gain:
                   </span>
-                  <p className="text-xs text-zinc-400 mt-0.5">
+                  <p className="text-xs text-slate-600 mt-0.5">
                     {simulation.projectedState.actionStrategy}
                   </p>
                 </div>
                 <div className="text-right">
                   <span
                     className={`text-2xl font-black font-mono ${
-                      simulation.impact.profitDifference >= 0 ? 'text-emerald-400' : 'text-red-400'
-                    }`}
+ simulation.impact.profitDifference >= 0 ? 'text-emerald-700' : 'text-rose-600'
+ }`}
                   >
                     {simulation.impact.profitDifference >= 0 ? '+' : ''}
                     {MenuEngineeringHelper.formatCurrency(simulation.impact.profitDifference)}
                   </span>
-                  <span className="block text-[11px] text-zinc-400">
+                  <span className="block text-[11px] text-slate-600">
                     ({simulation.impact.profitGrowthPercentage >= 0 ? '+' : ''}
                     {simulation.impact.profitGrowthPercentage}%)
                   </span>
@@ -269,11 +269,11 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
         </div>
 
         {/* Footer */}
-        <div className="pt-3 border-t border-zinc-800 flex items-center justify-end">
+        <div className="pt-3 border-t border-slate-200 flex items-center justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold uppercase tracking-wider transition-all"
+            className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-bold uppercase tracking-wider transition-all"
           >
             Close Simulator
           </button>

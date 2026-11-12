@@ -4,6 +4,7 @@ import {
   TenderMethod,
   MultiTenderHelper,
 } from '../../../../../packages/ui/src/multi-tender';
+import { NumericInput } from '@spicehub/ui';
 
 export interface MultiTenderModalProps {
   billNumber: string;
@@ -505,8 +506,7 @@ export const MultiTenderModal: React.FC<MultiTenderModalProps> = ({
                     <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>
                       Settled Amount (₹):
                     </label>
-                    <input
-                      type="number"
+                    <NumericInput
                       min={0}
                       value={line.amount || ''}
                       onChange={(e) => updateAmount(idx, Number(e.target.value))}
@@ -529,8 +529,7 @@ export const MultiTenderModal: React.FC<MultiTenderModalProps> = ({
                       <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>
                         Cash Received in Hand (₹):
                       </label>
-                      <input
-                        type="number"
+                      <NumericInput
                         min={0}
                         value={line.cashReceived || ''}
                         onChange={(e) => updateCashReceived(idx, Number(e.target.value))}

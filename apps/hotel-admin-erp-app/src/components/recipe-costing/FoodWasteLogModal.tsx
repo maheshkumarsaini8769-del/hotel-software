@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ILogWastePayload, WasteTypeUI, KitchenShiftUI, RecipeCostingHelper } from '@spicehub/ui';
+import { ILogWastePayload, WasteTypeUI, KitchenShiftUI, RecipeCostingHelper, NumericInput } from '@spicehub/ui';
 
 interface FoodWasteLogModalProps {
   isOpen: boolean;
@@ -46,15 +46,15 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border-2 border-red-500/40 rounded-3xl w-full max-w-2xl flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="bg-white border-2 border-red-200 rounded-3xl w-full max-w-2xl flex flex-col overflow-hidden shadow-sm animate-in fade-in zoom-in-95">
         {/* Header */}
-        <div className="bg-slate-950 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-xl">🗑️</span>
             <div>
-              <h2 className="text-lg font-bold text-white">Log Kitchen Spoilage / Food Waste</h2>
-              <p className="text-xs text-zinc-400">
+              <h2 className="text-lg font-bold text-slate-900">Log Kitchen Spoilage / Food Waste</h2>
+              <p className="text-xs text-slate-600">
                 Audit spoiled ingredients, overcooked prep, or guest returns
               </p>
             </div>
@@ -62,7 +62,7 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white"
+            className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900"
           >
             ✕
           </button>
@@ -72,13 +72,13 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Waste Category
               </label>
               <select
                 value={wasteType}
                 onChange={(e) => setWasteType(e.target.value as WasteTypeUI)}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white outline-none focus:border-red-400"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 outline-none focus:border-red-400"
               >
                 <option value="SPOILED">Spoiled / Rotten Prep</option>
                 <option value="BURNT_OVERCOOKED">Burnt / Overcooked in Pan</option>
@@ -90,13 +90,13 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Kitchen Shift
               </label>
               <select
                 value={shift}
                 onChange={(e) => setShift(e.target.value as KitchenShiftUI)}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white outline-none focus:border-red-400"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 outline-none focus:border-red-400"
               >
                 <option value="BREAKFAST">Breakfast Shift</option>
                 <option value="LUNCH">Lunch Shift</option>
@@ -107,7 +107,7 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
               Item / Preparation Description
             </label>
             <input
@@ -115,35 +115,34 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}
               placeholder="e.g. Cooked Butter Chicken Gravy, Paneer Tikka Skewers..."
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white outline-none focus:border-red-400"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 outline-none focus:border-red-400"
               required
             />
           </div>
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Wasted Quantity
               </label>
-              <input
-                type="number"
+              <NumericInput
                 step="0.1"
                 min="0.1"
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white font-mono outline-none focus:border-red-400"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono outline-none focus:border-red-400"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Unit
               </label>
               <select
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white outline-none focus:border-red-400"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 outline-none focus:border-red-400"
               >
                 <option value="kg">kg</option>
                 <option value="g">g</option>
@@ -154,32 +153,31 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Cost Per Unit (₹)
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="0"
                 value={unitCost}
                 onChange={(e) => setUnitCost(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-amber-400 font-mono font-bold outline-none focus:border-red-400"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-amber-700 font-mono font-bold outline-none focus:border-red-400"
                 required
               />
             </div>
           </div>
 
           {/* Direct Loss Calculation Display */}
-          <div className="p-3 bg-red-950/40 border border-red-500/50 rounded-xl flex items-center justify-between font-mono">
-            <span className="text-xs uppercase font-bold text-red-300 font-sans">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between font-mono">
+            <span className="text-xs uppercase font-bold text-red-700 font-sans">
               Monetary Loss to Kitchen:
             </span>
-            <span className="text-xl font-black text-red-400">
+            <span className="text-xl font-black text-red-700">
               {RecipeCostingHelper.formatCurrency(totalLoss)}
             </span>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
               Root Cause / Spoilage Reason
             </label>
             <textarea
@@ -187,14 +185,14 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g. Refrigerator temperature tripped overnight, or burnt due to high flame"
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white placeholder:text-zinc-600 outline-none focus:border-red-400"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-red-400"
               required
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Preventive Action
               </label>
               <input
@@ -202,18 +200,18 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
                 value={preventiveAction}
                 onChange={(e) => setPreventiveAction(e.target.value)}
                 placeholder="e.g. Calibrate chillers daily"
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white outline-none focus:border-red-400"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 outline-none focus:border-red-400"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                 Disposal Method
               </label>
               <select
                 value={disposalMethod}
                 onChange={(e) => setDisposalMethod(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white outline-none focus:border-red-400"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 outline-none focus:border-red-400"
               >
                 <option value="TRASH">Trash / Garbage</option>
                 <option value="COMPOST">Organic Compost</option>
@@ -224,18 +222,18 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs"
+              className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !itemName || !reason}
-              className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
+              className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-slate-300 disabled:text-slate-500 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm"
             >
               {loading ? 'Logging Entry...' : 'Audit Spoilage Entry'}
             </button>

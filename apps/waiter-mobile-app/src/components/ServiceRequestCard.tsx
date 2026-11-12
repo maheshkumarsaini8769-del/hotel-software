@@ -10,7 +10,7 @@ export interface ServiceRequestCardProps {
 }
 
 const RequestTypeIconMap: Record<string, { icon: React.ComponentType<{ className?: string }>; label: string; bg: string; color: string }> = {
-  [RequestType.WATER]: { icon: Droplets, label: 'Water Request', bg: 'bg-blue-500/10 border-blue-500/30', color: 'text-blue-400' },
+  [RequestType.WATER]: { icon: Droplets, label: 'Water Request', bg: 'bg-[#123C2B]/5 border-[#CFE0D2]', color: 'text-[#2E6B4C]' },
   [RequestType.CUTLERY]: { icon: Utensils, label: 'Cutlery Needed', bg: 'bg-emerald-500/10 border-emerald-500/30', color: 'text-emerald-400' },
   [RequestType.BILL]: { icon: Receipt, label: 'Bill / Settle', bg: 'bg-amber-500/10 border-amber-500/30', color: 'text-amber-400' },
   [RequestType.CALL_WAITER]: { icon: Bell, label: 'Call Waiter', bg: 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800', color: 'text-slate-700 dark:text-slate-300' },
@@ -43,10 +43,10 @@ export const ServiceRequestCard: React.FC<ServiceRequestCardProps> = ({
   return (
     <div
       className={`p-4 rounded-2xl border transition-all duration-200 shadow-md ${
-        isPending
-          ? 'border-amber-500 bg-slate-900 shadow-xs'
-          : 'border-slate-800 bg-slate-900 shadow-xs'
-      }`}
+ isPending
+ ? 'border-[#E9C98A] bg-[#FFFDF8] shadow-xs'
+ : 'border-[#E7DFCE] bg-[#FFFDF8] shadow-xs'
+ }`}
       data-testid={`request-card-${request.id}`}
     >
       <div className="flex items-center justify-between mb-2">

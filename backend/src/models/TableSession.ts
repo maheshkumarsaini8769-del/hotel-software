@@ -16,6 +16,11 @@ export interface ITableSession extends Document {
   guestCount: number;
   customerName?: string;
   customerPhone?: string;
+  preferences: {
+    language: 'en' | 'hi';
+    theme: 'light' | 'dark';
+    fontSize: 'small' | 'medium' | 'large';
+  };
   status: SessionStatus;
   seatNumbers?: number[];
   isCoDining?: boolean;
@@ -43,6 +48,11 @@ const TableSessionSchema = new Schema<ITableSession>(
     guestCount: { type: Number, default: 2, min: 1 },
     customerName: { type: String, trim: true },
     customerPhone: { type: String, trim: true },
+    preferences: {
+      language: { type: String, enum: ['en', 'hi'], default: 'en' },
+      theme: { type: String, enum: ['light', 'dark'], default: 'light' },
+      fontSize: { type: String, enum: ['small', 'medium', 'large'], default: 'medium' },
+    },
     status: {
       type: String,
       enum: Object.values(SessionStatus),

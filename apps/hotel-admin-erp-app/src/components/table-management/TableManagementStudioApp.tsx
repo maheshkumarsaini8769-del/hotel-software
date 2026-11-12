@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { apiFetch, getStoredHotelId } from '../../config/api';
-import { getPortalUrl } from '../../config/portalUrls';
+import { getApkDownloadUrl, getPortalUrl, isLiveQrHost, LIVE_QR_HOST } from '../../config/portalUrls';
 import {
   Layers,
   Building,
@@ -21,8 +22,15 @@ import {
   Printer,
   Copy,
   DoorOpen,
-  Armchair
+  Armchair,
+  Globe,
+  Smartphone,
+  Wifi,
+  Laptop,
+  FileText,
+  Download
 } from 'lucide-react';
+import { NumericInput } from '@spicehub/ui';
 
 export interface HallDTO {
   id: string;
@@ -67,6 +75,17 @@ export interface TableDTO {
   createdAt: string;
 }
 
+export const resolveTableFloorNumber = (t: { floorNumber?: number; floorLevel?: string }): number => {
+  if (typeof t.floorNumber === 'number' && t.floorNumber > 0) return t.floorNumber;
+  const lvl = (t.floorLevel || '').toLowerCase().trim();
+  if (lvl.includes('ground') || lvl.includes('g') || lvl.includes('1st') || lvl.includes('first') || lvl.includes('1')) return 1;
+  if (lvl.includes('2nd') || lvl.includes('second') || lvl.includes('2')) return 2;
+  if (lvl.includes('3rd') || lvl.includes('third') || lvl.includes('rooftop') || lvl.includes('3')) return 3;
+  if (lvl.includes('4th') || lvl.includes('fourth') || lvl.includes('4')) return 4;
+  const m = lvl.match(/(\d+)/);
+  return m ? Number(m[1]) : 1;
+};
+
 export interface TableManagementStudioAppProps {
   isDark?: boolean;
   hotelId?: string;
@@ -100,7 +119,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
   const [qrFilterType, setQrFilterType] = useState<'tables' | 'rooms' | 'reception' | 'app'>('tables');
   const [detectedLanIp, setDetectedLanIp] = useState<string>('10.65.226.216');
   const [qrNetworkHost, setQrNetworkHost] = useState<string>(
-    typeof window !== 'undefined' ? (localStorage.getItem('spicehub_qr_host') || '10.65.226.216') : '10.65.226.216'
+    typeof window !== 'undefined' ? (localStorage.getItem('spicehub_qr_host_v2') || LIVE_QR_HOST) : LIVE_QR_HOST
   );
   const [serverApkInfo, setServerApkInfo] = useState<any>(null);
 
@@ -171,9 +190,14 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
       if (tablesResult.status === 'fulfilled' && tablesResult.value.ok) {
         const tData = await tablesResult.value.json().catch(() => null);
         if (tData?.success && Array.isArray(tData.data)) {
-          setTables(tData.data);
+          const normalized = tData.data.map((t: any) => ({
+            ...t,
+            floorNumber: resolveTableFloorNumber(t),
+            floorLevel: t.floorLevel || `Floor ${resolveTableFloorNumber(t)}`,
+          }));
+          setTables(normalized);
           try {
-            localStorage.setItem('spicehub_tables_cache', JSON.stringify(tData.data));
+            localStorage.setItem('spicehub_tables_cache', JSON.stringify(normalized));
           } catch {}
         }
       }
@@ -192,9 +216,6 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
         if (data?.lanIp) {
           setDetectedLanIp(data.lanIp);
           localStorage.setItem('spicehub_lan_ip', data.lanIp);
-          if (!localStorage.getItem('spicehub_qr_host')) {
-            setQrNetworkHost(data.lanIp);
-          }
         }
         if (data?.apks) {
           setServerApkInfo(data.apks);
@@ -207,6 +228,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
 
   const handleSetQrHost = (host: string) => {
     setQrNetworkHost(host);
+    localStorage.setItem('spicehub_qr_host_v2', host);
     localStorage.setItem('spicehub_qr_host', host);
     showToast(`✓ QR Target Host updated to: ${host}`);
   };
@@ -221,9 +243,9 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
   const occupancyRate = totalTables > 0 ? Math.round((occupiedCount / totalTables) * 100) : 0;
 
   // Floor-specific counts
-  const floor1Tables = tables.filter((t) => t.floorNumber === 1 || t.floorLevel.includes('1st'));
-  const floor2Tables = tables.filter((t) => t.floorNumber === 2 || t.floorLevel.includes('2nd'));
-  const floor3Tables = tables.filter((t) => t.floorNumber === 3 || t.floorLevel.includes('3rd') || t.floorLevel.includes('Rooftop'));
+  const floor1Tables = tables.filter((t) => resolveTableFloorNumber(t) === 1);
+  const floor2Tables = tables.filter((t) => resolveTableFloorNumber(t) === 2);
+  const floor3Tables = tables.filter((t) => resolveTableFloorNumber(t) === 3);
 
   const floor1HallsCount = floors.find((f) => f.floorNumber === 1)?.halls?.length || 2;
   const floor2HallsCount = floors.find((f) => f.floorNumber === 2)?.halls?.length || 3;
@@ -243,7 +265,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
     return tables.filter((t) => {
       // Floor filter
       if (selectedFloor !== 'ALL') {
-        if (String(t.floorNumber) !== selectedFloor && !t.floorLevel.includes(`${selectedFloor}`)) {
+        if (String(resolveTableFloorNumber(t)) !== String(selectedFloor)) {
           return false;
         }
       }
@@ -474,7 +496,8 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
             <div>
               <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 <span>{mode === 'OUTLETS' ? 'Restaurant Outlets & Floor Layout' : 'Table & Multi-Floor Management Studio'}</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap inline-flex items-center gap-1.5 shrink-0 self-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   LIVE SYNC
                 </span>
               </h1>
@@ -534,10 +557,10 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
             }}
             disabled={totalTables >= maxTables}
             className={`px-4 py-2 rounded-xl font-bold text-xs transition flex items-center gap-1.5 shadow-xs ${
-              totalTables >= maxTables
-                ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
+ totalTables >= maxTables
+ ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+ : 'bg-blue-600 hover:bg-blue-700 text-white'
+ }`}
             title={totalTables >= maxTables ? `SuperAdmin limit reached (${totalTables}/${maxTables})` : '+ Add New Table'}
           >
             <Plus className={`w-4 h-4 ${totalTables >= maxTables ? 'text-slate-400' : 'text-white'}`} />
@@ -588,17 +611,20 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
             setSelectedHall('ALL');
           }}
           className={`p-4 rounded-xl border transition-all cursor-pointer ${
-            selectedFloor === 'ALL'
-              ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/40'
+            selectedFloor !== 'ALL'
+              ? 'border-blue-400 bg-blue-50/40 shadow-xs'
               : 'border-slate-200 bg-white shadow-xs hover:border-slate-300'
           }`}
+          title="Click to reset floor filter to All Floors"
         >
           <div className="flex items-center justify-between text-slate-500 text-xs mb-1 font-semibold">
             <span>Active Floors</span>
             <Building className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="text-2xl font-bold text-slate-900">{floors.length} Levels</div>
-          <div className="text-[11px] text-slate-500 mt-1">Click to view all</div>
+          <div className="text-2xl font-bold text-slate-900">{floors.length} Floors</div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            {selectedFloor === 'ALL' ? 'Showing all floors' : `Floor ${selectedFloor} filtered (click to reset)`}
+          </div>
         </div>
 
         {/* Total Halls */}
@@ -629,10 +655,10 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
         <div
           onClick={() => setSelectedStatus('AVAILABLE')}
           className={`p-4 rounded-xl border transition-all cursor-pointer ${
-            selectedStatus === 'AVAILABLE'
-              ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/40'
-              : 'border-slate-200 bg-white shadow-xs hover:border-slate-300'
-          }`}
+ selectedStatus === 'AVAILABLE'
+ ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/40'
+ : 'border-slate-200 bg-white shadow-xs hover:border-slate-300'
+ }`}
         >
           <div className="flex items-center justify-between text-emerald-700 text-xs mb-1 font-semibold">
             <span>Available</span>
@@ -646,10 +672,10 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
         <div
           onClick={() => setSelectedStatus('OCCUPIED')}
           className={`p-4 rounded-xl border transition-all cursor-pointer ${
-            selectedStatus === 'OCCUPIED'
-              ? 'border-red-500 ring-2 ring-red-500/20 bg-red-50/40'
-              : 'border-slate-200 bg-white shadow-xs hover:border-slate-300'
-          }`}
+ selectedStatus === 'OCCUPIED'
+ ? 'border-red-500 ring-2 ring-red-500/20 bg-red-50/40'
+ : 'border-slate-200 bg-white shadow-xs hover:border-slate-300'
+ }`}
         >
           <div className="flex items-center justify-between text-red-700 text-xs mb-1 font-semibold">
             <span>Occupied</span>
@@ -665,7 +691,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {floors.map((fl) => {
-          const flTables = tables.filter((t) => t.floorNumber === fl.floorNumber || t.floorLevel.includes(`${fl.floorNumber}`));
+          const flTables = tables.filter((t) => resolveTableFloorNumber(t) === fl.floorNumber);
           const flCapacity = flTables.reduce((sum, t) => sum + (t.capacity || 4), 0);
           const isSelected = selectedFloor === String(fl.floorNumber);
 
@@ -677,16 +703,23 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                 setSelectedHall('ALL');
               }}
               className={`p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
-                isSelected
-                  ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/40 shadow-xs'
-                  : 'bg-white border-slate-200 shadow-xs hover:border-blue-300'
-              }`}
+ isSelected
+ ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/40 shadow-xs'
+ : 'bg-white border-slate-200 shadow-xs hover:border-blue-300'
+ }`}
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
-                    {fl.shortName || `Floor ${fl.floorNumber}`}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                      {fl.shortName || `Floor ${fl.floorNumber}`}
+                    </span>
+                    {isSelected && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-600 text-white shadow-xs">
+                        ✓ Filter Active
+                      </span>
+                    )}
+                  </div>
                   <h3 className="text-base font-bold mt-1 text-slate-900">{fl.name}</h3>
                 </div>
                 <div className="text-right">
@@ -710,7 +743,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                         key={h.id}
                         className="px-2 py-1 rounded-lg bg-slate-50 text-[11px] font-medium text-slate-700 border border-slate-200"
                       >
-                        🏛️ {h.name} ({hTablesCount})
+                        {h.name} ({hTablesCount})
                       </span>
                     );
                   })}
@@ -746,29 +779,29 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                 setSelectedHall('ALL');
               }}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                selectedFloor === 'ALL'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
+ selectedFloor === 'ALL'
+ ? 'bg-blue-600 text-white shadow-xs'
+ : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+ }`}
             >
               All Floors ({totalTables})
             </button>
 
             {floors.map((fl) => {
-              const flCount = tables.filter((t) => t.floorNumber === fl.floorNumber || t.floorLevel.includes(`${fl.floorNumber}`)).length;
+              const flCount = tables.filter((t) => resolveTableFloorNumber(t) === fl.floorNumber).length;
               const isSelected = selectedFloor === String(fl.floorNumber);
               return (
                 <button
                   key={fl.id || fl.floorNumber}
                   onClick={() => {
-                    setSelectedFloor(String(fl.floorNumber));
+                    setSelectedFloor(isSelected ? 'ALL' : String(fl.floorNumber));
                     setSelectedHall('ALL');
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    isSelected
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
+ isSelected
+ ? 'bg-blue-600 text-white shadow-xs'
+ : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+ }`}
                 >
                   {fl.shortName || `Floor ${fl.floorNumber}`} ({flCount})
                 </button>
@@ -799,10 +832,10 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
           <button
             onClick={() => setSelectedHall('ALL')}
             className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
-              selectedHall === 'ALL'
-                ? 'bg-blue-600 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
+ selectedHall === 'ALL'
+ ? 'bg-blue-600 text-white'
+ : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+ }`}
           >
             All Halls
           </button>
@@ -817,10 +850,10 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                 key={hall.id}
                 onClick={() => setSelectedHall(hall.id)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${
-                  isSel
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
+ isSel
+ ? 'bg-blue-600 text-white'
+ : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+ }`}
               >
                 <span>{hall.name}</span>
                 <span className="text-[10px] opacity-75">({hCount})</span>
@@ -835,16 +868,16 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                 key={st}
                 onClick={() => setSelectedStatus(st)}
                 className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
-                  selectedStatus === st
-                    ? st === 'AVAILABLE'
-                      ? 'bg-emerald-600 text-white'
-                      : st === 'OCCUPIED'
-                      ? 'bg-red-600 text-white'
-                      : st === 'RESERVED'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-amber-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+ selectedStatus === st
+ ? st === 'AVAILABLE'
+ ? 'bg-emerald-600 text-white'
+ : st === 'OCCUPIED'
+ ? 'bg-red-600 text-white'
+ : st === 'RESERVED'
+ ? 'bg-blue-600 text-white'
+ : 'bg-amber-600 text-white'
+ : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+ }`}
               >
                 {st}
               </button>
@@ -899,35 +932,37 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                 <div
                   key={table.id ? `${table.id}-${idx}` : `table-${idx}`}
                   className={`p-4 rounded-xl border transition-all hover:shadow-md relative flex flex-col justify-between group bg-white ${
-                    isOccupied
-                      ? 'border-l-4 border-l-red-500 border-slate-200 shadow-xs'
-                      : isAvailable
-                      ? 'border-l-4 border-l-emerald-500 border-slate-200 shadow-xs'
-                      : isReserved
-                      ? 'border-l-4 border-l-blue-500 border-slate-200 shadow-xs'
-                      : 'border-l-4 border-l-amber-500 border-slate-200 shadow-xs'
-                  }`}
+ isOccupied
+ ? 'border-l-4 border-l-red-500 border-slate-200 shadow-xs'
+ : isAvailable
+ ? 'border-l-4 border-l-emerald-500 border-slate-200 shadow-xs'
+ : isReserved
+ ? 'border-l-4 border-l-blue-500 border-slate-200 shadow-xs'
+ : 'border-l-4 border-l-amber-500 border-slate-200 shadow-xs'
+ }`}
                 >
                   <div>
                     {/* Top Table Header */}
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2">
                         <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm border ${
-                            isOccupied
-                              ? 'bg-red-50 text-red-700 border-red-200'
-                              : isAvailable
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : isReserved
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
-                          }`}
+                          className={`w-11 h-11 shrink-0 rounded-xl flex items-center justify-center font-bold text-xs tracking-tight border ${
+ isOccupied
+ ? 'bg-red-50 text-red-700 border-red-200'
+ : isAvailable
+ ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+ : isReserved
+ ? 'bg-blue-50 text-blue-700 border-blue-200'
+ : 'bg-amber-50 text-amber-700 border-amber-200'
+ }`}
                         >
                           {table.tableNumber}
                         </div>
                         <div>
                           <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-sm text-slate-900">Table {table.tableNumber}</span>
+                            <span className="font-bold text-sm text-slate-900">
+                              {table.tableNumber.startsWith('T-') ? `Table ${table.tableNumber.substring(2)}` : table.tableNumber.toLowerCase().startsWith('table') ? table.tableNumber : `Table ${table.tableNumber}`}
+                            </span>
                           </div>
                           <span className="text-[11px] text-slate-500 font-medium line-clamp-1">
                             {table.floorLevel} • {table.section}
@@ -938,25 +973,25 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                       {/* Status Badge */}
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide border flex items-center gap-1 shrink-0 ${
-                          isOccupied
-                            ? 'bg-red-50 border-red-200 text-red-700'
-                            : isAvailable
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                            : isReserved
-                            ? 'bg-blue-50 border-blue-200 text-blue-700'
-                            : 'bg-amber-50 border-amber-200 text-amber-700'
-                        }`}
+ isOccupied
+ ? 'bg-red-50 border-red-200 text-red-700'
+ : isAvailable
+ ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+ : isReserved
+ ? 'bg-blue-50 border-blue-200 text-blue-700'
+ : 'bg-amber-50 border-amber-200 text-amber-700'
+ }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            isOccupied
-                              ? 'bg-red-500'
-                              : isAvailable
-                              ? 'bg-emerald-500'
-                              : isReserved
-                              ? 'bg-blue-500'
-                              : 'bg-amber-500'
-                          }`}
+ isOccupied
+ ? 'bg-red-500'
+ : isAvailable
+ ? 'bg-emerald-500'
+ : isReserved
+ ? 'bg-blue-500'
+ : 'bg-emerald-600'
+ }`}
                         />
                         <span>{table.currentStatus}</span>
                       </span>
@@ -981,7 +1016,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                       </div>
                       {table.notes && (
                         <p className="text-[10px] text-slate-600 italic line-clamp-1 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">
-                          📌 {table.notes}
+                          {table.notes}
                         </p>
                       )}
                     </div>
@@ -1223,10 +1258,10 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                   type="submit"
                   disabled={!editingTable && totalTables >= maxTables}
                   className={`px-5 py-2 rounded-xl font-bold text-xs shadow-xs transition ${
-                    !editingTable && totalTables >= maxTables
-                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
+ !editingTable && totalTables >= maxTables
+ ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+ : 'bg-blue-600 hover:bg-blue-700 text-white'
+ }`}
                 >
                   {editingTable ? 'Update Table' : totalTables >= maxTables ? 'Limit Reached' : 'Save & Publish Table'}
                 </button>
@@ -1260,8 +1295,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
             <form onSubmit={handleCreateFloor} className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1">Floor Number</label>
-                <input
-                  type="number"
+                <NumericInput
                   min="1"
                   max="10"
                   required
@@ -1377,8 +1411,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
 
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1">Max Event Capacity</label>
-                <input
-                  type="number"
+                <NumericInput
                   min="10"
                   max="500"
                   value={newHallMaxCapacity}
@@ -1437,52 +1470,68 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-left space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                  <span>🌐</span>
+                  <Globe className="w-3.5 h-3.5 text-blue-600 inline mr-1" />
                   <span>QR Target Network:</span>
                 </span>
                 <span className="text-[9px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-semibold">
-                  {qrNetworkHost !== 'localhost' ? '✓ WiFi Scannable' : '⚠️ Localhost Only'}
+                  {isLiveQrHost(qrNetworkHost)
+                    ? '✓ Opens In App'
+                    : qrNetworkHost !== 'localhost'
+                      ? '✓ WiFi Scannable'
+                      : '⚠️ Localhost Only'}
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
+                  onClick={() => handleSetQrHost(LIVE_QR_HOST)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
+ isLiveQrHost(qrNetworkHost)
+ ? 'bg-blue-600 text-white shadow-xs'
+ : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+ }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5 inline mr-1" /> Live App URL
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleSetQrHost(detectedLanIp)}
                   className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
-                    qrNetworkHost === detectedLanIp
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}
+ qrNetworkHost === detectedLanIp
+ ? 'bg-blue-600 text-white shadow-xs'
+ : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+ }`}
                 >
-                  <span>📶 Hotel Wi-Fi IP ({detectedLanIp})</span>
+                  <Wifi className="w-3.5 h-3.5 inline mr-1" /> Hotel Wi-Fi IP ({detectedLanIp})
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetQrHost('localhost')}
                   className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
-                    qrNetworkHost === 'localhost'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}
+ qrNetworkHost === 'localhost'
+ ? 'bg-blue-600 text-white shadow-xs'
+ : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+ }`}
                 >
-                  <span>💻 Localhost</span>
+                  <Laptop className="w-3.5 h-3.5 inline mr-1" /> Localhost
                 </button>
               </div>
               <p className="text-[10px] text-slate-500">
-                {qrNetworkHost !== 'localhost'
-                  ? `✓ Mobile phones on Wi-Fi will open http://${qrNetworkHost}:3001/?table=${selectedQrTable.tableNumber}`
-                  : '⚠️ Localhost works only in PC browser. Switch to Hotel Wi-Fi IP for real phone cameras.'}
+                {isLiveQrHost(qrNetworkHost)
+                  ? `✓ Phones with the SpiceHub app will open table ${selectedQrTable.tableNumber} directly inside the app`
+                  : qrNetworkHost !== 'localhost'
+                    ? `✓ Mobile phones on Wi-Fi will open http://${qrNetworkHost}:3001/?table=${selectedQrTable.tableNumber}`
+                    : '⚠️ Localhost works only in PC browser. Switch to Hotel Wi-Fi IP for real phone cameras.'}
               </p>
             </div>
 
             {/* Scannable Dynamic QR Box */}
             <div className="p-4 bg-white rounded-xl shadow-xs inline-block my-1 border border-slate-200">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
-                  getPortalUrl('customer', `/?hotelId=${hotelId}&table=${selectedQrTable.tableNumber}`, qrNetworkHost)
-                )}`}
-                alt={`QR for Table ${selectedQrTable.tableNumber}`}
-                className="w-44 h-44 object-contain mx-auto"
+              <QRCodeSVG
+                value={getPortalUrl('customer', `/?hotelId=${hotelId}&table=${selectedQrTable.tableNumber}`, qrNetworkHost)}
+                size={176}
+                aria-label={`QR for Table ${selectedQrTable.tableNumber}`}
+                className="mx-auto"
               />
               <div className="mt-2 text-center">
                 <span className="font-bold text-xs tracking-wider text-slate-900 block">
@@ -1515,7 +1564,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                 onClick={() => {
                   if (typeof window !== 'undefined') window.print();
                 }}
-                className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1 shadow-xs"
+                className="btn-glass-green px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1 shadow-xs cursor-pointer"
                 title="Print Standee"
               >
                 <Printer className="w-3.5 h-3.5" />
@@ -1582,61 +1631,75 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-left space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                  <span>🌐</span>
+                  <Globe className="w-3.5 h-3.5 text-blue-600 inline mr-1" />
                   <span>QR Target Host & Wi-Fi IP (Mobile Device Scan Network):</span>
                 </span>
                 <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-semibold">
-                  Target: http://{qrNetworkHost}:3001
+                  Target: {isLiveQrHost(qrNetworkHost) ? 'https://spicehub-customer-table.vercel.app' : `http://${qrNetworkHost}:3001`}
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => handleSetQrHost(LIVE_QR_HOST)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+ isLiveQrHost(qrNetworkHost)
+ ? 'bg-blue-600 text-white shadow-xs'
+ : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+ }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5 inline mr-1" /> Live App URL
+                  <span className="text-[10px] opacity-80 font-normal">Opens Inside App</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleSetQrHost(detectedLanIp)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
-                    qrNetworkHost === detectedLanIp
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}
+ qrNetworkHost === detectedLanIp
+ ? 'bg-blue-600 text-white shadow-xs'
+ : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+ }`}
                 >
-                  <span>📶 Hotel Wi-Fi IP ({detectedLanIp})</span>
-                  <span className="text-[10px] opacity-80 font-normal">Recommended for Phone Cameras</span>
+                  <Wifi className="w-3.5 h-3.5 inline mr-1" /> Hotel Wi-Fi IP ({detectedLanIp})
+                  <span className="text-[10px] opacity-80 font-normal">Browser Only</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetQrHost('localhost')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
-                    qrNetworkHost === 'localhost'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}
+ qrNetworkHost === 'localhost'
+ ? 'bg-blue-600 text-white shadow-xs'
+ : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+ }`}
                 >
-                  <span>💻 Localhost (This PC Only)</span>
+                  <Laptop className="w-3.5 h-3.5 inline mr-1" /> Localhost (This PC Only)
                 </button>
               </div>
               <p className="text-[11px] text-slate-500">
-                {qrNetworkHost !== 'localhost'
-                  ? `💡 QR codes encode http://${qrNetworkHost}:3001. Any guest smartphone connected to hotel Wi-Fi can scan and open the menu immediately without localhost errors!`
-                  : '⚠️ Localhost is selected. Smartphones cannot connect to localhost. Switch to Hotel Wi-Fi IP before printing.'}
+                {isLiveQrHost(qrNetworkHost)
+                  ? '💡 QR codes encode the live https portal. Guests who have the SpiceHub app installed go straight into their table screen inside the app; guests without it see the install page.'
+                  : qrNetworkHost !== 'localhost'
+                    ? `💡 QR codes encode http://${qrNetworkHost}:3001. Any guest smartphone connected to hotel Wi-Fi can scan and open the menu immediately without localhost errors!`
+                    : '⚠️ Localhost is selected. Smartphones cannot connect to localhost. Switch to Hotel Wi-Fi IP before printing.'}
               </p>
             </div>
 
             {/* Filter Tabs */}
             <div className="flex flex-wrap gap-2">
               {[
-                { id: 'tables', label: '🍽️ Dining Tables (T-01 - T-24)' },
-                { id: 'rooms', label: '🏨 Guest Rooms (101 - 310)' },
-                { id: 'reception', label: '🛎️ Reception & Lobby Desk' },
-                { id: 'app', label: '📱 Customer Android App (.apk) Standee' },
+                { id: 'tables', label: 'Dining Tables (T-01 - T-24)' },
+                { id: 'rooms', label: 'Guest Rooms (101 - 310)' },
+                { id: 'reception', label: 'Reception & Lobby Desk' },
+                { id: 'app', label: 'Customer Android App (.apk) Standee' },
               ].map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setQrFilterType(tab.id as any)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    qrFilterType === tab.id
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
+ qrFilterType === tab.id
+ ? 'bg-blue-600 text-white shadow-xs'
+ : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+ }`}
                 >
                   {tab.label}
                 </button>
@@ -1667,18 +1730,16 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                         </p>
 
                         <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 shadow-inner my-1">
-                          <img
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                              targetUrl
-                            )}`}
-                            alt={`Table ${tableNum} QR`}
-                            className="w-36 h-36 object-contain"
+                          <QRCodeSVG
+                            value={targetUrl}
+                            size={144}
+                            aria-label={`Table ${tableNum} QR`}
                           />
                         </div>
 
                         <div className="mt-2 text-center">
                           <span className="text-[11px] font-bold text-slate-900 block">
-                            📲 SCAN WITH PHONE CAMERA
+                            SCAN WITH PHONE CAMERA
                           </span>
                           <span className="text-[9px] text-slate-500">
                             View Menu • Custom Cooking • Instant KOT
@@ -1700,7 +1761,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                             onClick={() => {
                               if (typeof window !== 'undefined') window.print();
                             }}
-                            className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-semibold"
+                            className="btn-glass-green px-2 py-1 rounded-lg text-[10px] font-semibold cursor-pointer"
                           >
                             Print
                           </button>
@@ -1730,18 +1791,16 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                       </p>
 
                       <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 shadow-inner my-1">
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                            targetUrl
-                          )}`}
-                          alt={`Room ${roomNum} QR`}
-                          className="w-36 h-36 object-contain"
+                        <QRCodeSVG
+                          value={targetUrl}
+                          size={144}
+                          aria-label={`Room ${roomNum} QR`}
                         />
                       </div>
 
                       <div className="mt-2 text-center">
                         <span className="text-[11px] font-bold text-slate-800 block">
-                          🛎️ SCAN FOR ROOM SERVICE
+                          SCAN FOR ROOM SERVICE
                         </span>
                         <span className="text-[9px] text-slate-500">
                           Food Delivery • Towels • Water • Housekeeping
@@ -1763,7 +1822,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                           onClick={() => {
                             if (typeof window !== 'undefined') window.print();
                           }}
-                          className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-semibold"
+                          className="btn-glass-green px-2 py-1 rounded-lg text-[10px] font-semibold cursor-pointer"
                         >
                           Print
                         </button>
@@ -1775,12 +1834,10 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
               {qrFilterType === 'reception' && (
                 <div className="sm:col-span-2 md:col-span-3 bg-white text-slate-900 rounded-2xl p-6 border-2 border-blue-500 shadow-sm flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 shadow-inner">
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
-                        getPortalUrl('customer', `/?hotelId=${hotelId}`, qrNetworkHost)
-                      )}`}
-                      alt="Reception Standee QR"
-                      className="w-52 h-52 object-contain"
+                    <QRCodeSVG
+                      value={getPortalUrl('customer', `/?hotelId=${hotelId}`, qrNetworkHost)}
+                      size={208}
+                      aria-label="Reception Standee QR"
                     />
                   </div>
                   <div className="flex-1 space-y-2">
@@ -1809,7 +1866,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                         onClick={() => {
                           if (typeof window !== 'undefined') window.print();
                         }}
-                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-xl shadow-xs"
+                        className="btn-glass-green px-4 py-2 font-semibold text-xs rounded-xl shadow-xs cursor-pointer"
                       >
                         Print Reception Standee (A4)
                       </button>
@@ -1821,12 +1878,10 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
               {qrFilterType === 'app' && (
                 <div className="sm:col-span-2 md:col-span-3 bg-white text-slate-900 rounded-2xl p-6 border-2 border-emerald-500 shadow-sm flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 shadow-inner">
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
-                        `http://${qrNetworkHost}:5000/download/customer-apk`
-                      )}`}
-                      alt="Customer App APK Download QR"
-                      className="w-52 h-52 object-contain"
+                    <QRCodeSVG
+                      value={getApkDownloadUrl(qrNetworkHost)}
+                      size={208}
+                      aria-label="Customer App APK Download QR"
                     />
                     <div className="mt-2 text-center">
                       <span className="font-bold text-xs tracking-wider text-emerald-800 block">
@@ -1854,25 +1909,25 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-xs text-slate-700 font-medium">
                       <div className="flex items-center gap-1.5 text-emerald-800 font-semibold">
                         <span>✓</span>
-                        <span>Instant Direct Download: http://{qrNetworkHost}:5000/download/customer-apk</span>
+                        <span>Instant Direct Download: {getApkDownloadUrl(qrNetworkHost)}</span>
                       </div>
-                      <div className="text-slate-500">⚡ 3x Faster offline ordering, live push notifications & digital keycard</div>
+                      <div className="text-slate-500">3x Faster offline ordering, live push notifications & digital keycard</div>
                     </div>
                     <div className="pt-2 flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => {
-                          window.open(`http://${qrNetworkHost}:5000/download/customer-apk`, '_blank');
+                          window.open(getApkDownloadUrl(qrNetworkHost), '_blank');
                         }}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5"
+                        className="btn-glass-green px-4 py-2 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
                       >
-                        <span>⬇️</span>
+                        <Download className="w-3.5 h-3.5" />
                         <span>Download APK Directly</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          navigator.clipboard?.writeText(`http://${qrNetworkHost}:5000/download/customer-apk`);
+                          navigator.clipboard?.writeText(getApkDownloadUrl(qrNetworkHost));
                           showToast('✓ Direct APK download URL copied!');
                         }}
                         className="px-3.5 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl shadow-xs"
@@ -1884,7 +1939,7 @@ export const TableManagementStudioApp: React.FC<TableManagementStudioAppProps> =
                         onClick={() => {
                           if (typeof window !== 'undefined') window.print();
                         }}
-                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-xl shadow-xs"
+                        className="btn-glass-green px-4 py-2 font-semibold text-xs rounded-xl shadow-xs cursor-pointer"
                       >
                         Print App Standee (A4)
                       </button>

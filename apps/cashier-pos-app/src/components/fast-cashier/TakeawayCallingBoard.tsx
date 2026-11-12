@@ -55,7 +55,7 @@ export const TakeawayCallingBoard: React.FC<TakeawayCallingBoardProps> = ({
         {/* Two Columns: Left = Preparing (Amber), Right = Ready (Emerald) */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-zinc-800 overflow-y-auto">
           {/* NOW PREPARING */}
-          <div className="p-6 flex flex-col gap-4 bg-amber-950/10">
+          <div className="p-6 flex flex-col gap-4 bg-slate-900/10">
             <div className="flex items-center justify-between pb-3 border-b border-amber-500/20">
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-amber-400 animate-pulse" />

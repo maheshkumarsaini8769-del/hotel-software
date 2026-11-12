@@ -21,6 +21,7 @@
     "dev:admin": "npm run dev --workspace=@spicehub/hotel-admin-erp-app",
     "dev:cashier": "npm run dev --workspace=@spicehub/cashier-pos-app",
     "dev:reception": "npm run dev --workspace=@spicehub/reception-frontdesk-app",
+    "dev:staff-pwa": "npm run dev --workspace=@spicehub/staff-pwa",
     "dev:superadmin": "npm run dev --workspace=@spicehub/superadmin-saas-app",
     "build:backend": "npm run build:shared-types && npm run build --workspace=backend",
     "build:all": "npm run build:shared-types && npm run build --workspaces --if-present",

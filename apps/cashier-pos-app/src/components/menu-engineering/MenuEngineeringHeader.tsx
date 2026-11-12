@@ -56,7 +56,7 @@ export const MenuEngineeringHeader: React.FC<MenuEngineeringHeaderProps> = ({
             type="button"
             onClick={onGenerateReport}
             disabled={loading}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-900/30 transition-all flex items-center gap-2 disabled:opacity-50"
+            className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 rounded-xl text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-900/30 transition-all flex items-center gap-2 disabled:opacity-50"
           >
             <span>⚡</span> {loading ? 'Computing...' : 'Recalculate Live Matrix'}
           </button>
@@ -145,10 +145,10 @@ export const MenuEngineeringHeader: React.FC<MenuEngineeringHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('MATRIX')}
           className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
-            activeTab === 'MATRIX'
-              ? 'border-amber-400 text-amber-400 bg-amber-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
+ activeTab === 'MATRIX'
+ ? 'border-amber-400 text-amber-400 bg-emerald-600/10'
+ : 'border-transparent text-zinc-400 hover:text-zinc-200'
+ }`}
         >
           📊 2x2 Quadrant Visual Grid
         </button>
@@ -156,10 +156,10 @@ export const MenuEngineeringHeader: React.FC<MenuEngineeringHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('TABLE')}
           className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
-            activeTab === 'TABLE'
-              ? 'border-blue-400 text-blue-400 bg-blue-500/10'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
+ activeTab === 'TABLE'
+ ? 'border-blue-400 text-blue-400 bg-blue-500/10'
+ : 'border-transparent text-zinc-400 hover:text-zinc-200'
+ }`}
         >
           📋 Item Breakdown & Strategy Table ({report?.items?.length || 0})
         </button>
@@ -167,10 +167,10 @@ export const MenuEngineeringHeader: React.FC<MenuEngineeringHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('SIMULATOR')}
           className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
-            activeTab === 'SIMULATOR'
-              ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
-              : 'border-transparent text-zinc-400 hover:text-zinc-200'
-          }`}
+ activeTab === 'SIMULATOR'
+ ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
+ : 'border-transparent text-zinc-400 hover:text-zinc-200'
+ }`}
         >
           🔮 What-If Elasticity Simulator
         </button>

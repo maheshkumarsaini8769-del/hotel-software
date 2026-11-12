@@ -28,6 +28,7 @@ import {
 } from '../controllers/posController';
 import { authenticateJWT, requireTenant } from '../middlewares/auth';
 import { requirePortal, requireAnyPortal } from '../middlewares/portalGate';
+import { requireTenantCapability } from '../middlewares/requireTenantCapability';
 import { TenantRequest } from '../types';
 import { isDevAuthBypassEnabled } from '../config/security';
 
@@ -82,21 +83,25 @@ export const authenticatePosTerminal = async (
 
 // Public Table Customer Routes (Zero-barrier)
 router.get('/demo-context', getDemoContext);
-router.get('/table/qr-entry', accessTableByQR);
-router.post('/orders/place', placeRestaurantOrder);
-router.patch('/table-session/pax', updateTableSessionPax);
-router.get('/table-session/:tableSessionId/orders', getTableSessionOrders);
-router.get('/table-session/orders', getTableSessionOrders);
-router.get('/table/orders', getTableSessionOrders);
-router.get('/menu', getDiningMenu);
+router.get('/table/qr-entry', requireTenantCapability('tableOrdering'), accessTableByQR);
+router.post('/orders/place', requireTenantCapability('tableOrdering'), placeRestaurantOrder);
+router.patch('/table-session/pax', requireTenantCapability('tableOrdering'), updateTableSessionPax);
+router.get('/table-session/:tableSessionId/orders', requireTenantCapability('tableOrdering'), getTableSessionOrders);
+router.get('/table-session/orders', requireTenantCapability('tableOrdering'), getTableSessionOrders);
+router.get('/table/orders', requireTenantCapability('tableOrdering'), getTableSessionOrders);
+router.get('/menu', requireTenantCapability('tableOrdering'), getDiningMenu);
 
 // Protected Staff, POS & KDS Routes
+// Waiter terminals only read the kitchen queue and intercom (never mutate it),
+// so those two GETs are registered before the blanket KDS portal gate.
+router.get('/kds/orders', requireAnyPortal(['kds', 'waiter']), authenticatePosTerminal, getKdsOrders);
+router.get('/kds/buzzers', requireAnyPortal(['kds', 'waiter']), getKitchenBuzzers);
+
 router.use('/kds', requirePortal('kds'));
 router.use('/kitchen', requirePortal('kds'));
 router.get('/kds/stations', authenticatePosTerminal, getKitchenStations);
-router.get('/kds/orders', authenticatePosTerminal, getKdsOrders);
 router.get('/kds-orders', requirePortal('kds'), authenticatePosTerminal, getKdsOrders);
-router.get('/orders/recent', requirePortal('kds'), authenticatePosTerminal, getRecentOrders);
+router.get('/orders/recent', requireAnyPortal(['kds', 'waiter']), authenticatePosTerminal, getRecentOrders);
 router.patch('/kds/order/:orderId/status', requirePortal('kds'), authenticatePosTerminal, updateKDSOrderStatus);
 router.patch('/orders/:orderId/status', requirePortal('kds'), authenticatePosTerminal, updateKDSOrderStatus);
 router.patch('/orders/:orderId/serve', requireAnyPortal(['kds', 'waiter']), authenticatePosTerminal, (req, res) => {
@@ -125,5 +130,4 @@ router.patch('/kds/buzzer/:id/acknowledge', requirePortal('kds'), acknowledgeKit
 router.patch('/kitchen/buzzer/:id/acknowledge', requirePortal('kds'), acknowledgeKitchenBuzzer);
 
 export default router;
-
 

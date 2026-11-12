@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CreateDiningReservationPayload } from '@spicehub/ui';
+import { CreateDiningReservationPayload, NumericInput } from '@spicehub/ui';
 
 interface NewDiningReservationModalProps {
   isOpen: boolean;
@@ -40,12 +40,12 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-slate-950 border border-amber-500/30 rounded-2xl w-full max-w-lg shadow-sm dark:shadow-none overflow-hidden flex flex-col">
+      <div className="bg-slate-950 border border-amber-500/30 rounded-xl w-full max-w-lg shadow-sm dark:shadow-none overflow-hidden flex flex-col">
         {/* Header */}
         <div className="p-4 px-6 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-lg text-amber-400">
-              🍽️
+              ️
             </div>
             <div>
               <h3 className="text-base font-bold text-white">New Dining Table Booking</h3>
@@ -53,7 +53,7 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">
-            ✕
+            
           </button>
         </div>
 
@@ -93,8 +93,7 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
                 Party Size *
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="1"
                 max="30"
                 value={formData.partySize}
@@ -138,8 +137,7 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
                 Deposit (Optional)
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="0"
                 step="100"
                 value={formData.depositAmount}
@@ -188,7 +186,7 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-md shadow-amber-950/40 cursor-pointer disabled:opacity-50 active:scale-95"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-md shadow-amber-950/40 cursor-pointer disabled:opacity-50 active:scale-95"
             >
               {isLoading ? 'Reserving...' : 'Confirm Table Reservation'}
             </button>

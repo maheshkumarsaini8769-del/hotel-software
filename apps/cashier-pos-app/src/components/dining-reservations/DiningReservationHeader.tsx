@@ -50,7 +50,7 @@ export const DiningReservationHeader: React.FC<DiningReservationHeaderProps> = (
           <button
             type="button"
             onClick={onNewReservationClick}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-sm transition-all flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 rounded-xl text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-sm transition-all flex items-center gap-2"
           >
             <span>+</span> New VIP Dining Booking
           </button>
@@ -114,10 +114,10 @@ export const DiningReservationHeader: React.FC<DiningReservationHeaderProps> = (
             type="button"
             onClick={() => onMealPeriodChange(tab.id as any)}
             className={`px-3.5 py-2 font-bold uppercase tracking-wider border-b-2 transition-all ${
-              selectedMealPeriod === tab.id
-                ? 'border-red-400 text-red-400 bg-red-500/10'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
+ selectedMealPeriod === tab.id
+ ? 'border-red-400 text-red-400 bg-red-500/10'
+ : 'border-transparent text-zinc-400 hover:text-zinc-200'
+ }`}
           >
             {tab.label}
           </button>

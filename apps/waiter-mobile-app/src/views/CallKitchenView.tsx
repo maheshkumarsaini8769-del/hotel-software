@@ -26,7 +26,7 @@ export interface KitchenBuzzItem {
 }
 
 interface CallKitchenViewProps {
-  isDark: boolean;
+  isDark?: boolean;
   triggerToast: (msg: string) => void;
   onSendKitchenBuzzer?: (buzzData: {
     station: string;
@@ -39,7 +39,6 @@ interface CallKitchenViewProps {
 }
 
 export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
-  isDark,
   triggerToast,
   onSendKitchenBuzzer,
   kitchenBuzzers = [],
@@ -47,15 +46,12 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
 }) => {
   const [station, setStation] = useState('Executive Chef Pass');
   const [table, setTable] = useState(() =>
-    assignedTables.length > 0 ? `Table ${assignedTables[0].name}` : 'Table 4'
+    assignedTables.length > 0 ? `Table ${assignedTables[0].name}` : 'Table T-01'
   );
   const [customMsg, setCustomMsg] = useState('');
   const [isSending, setIsSending] = useState(false);
 
-  const [localBuzzLogs, setLocalBuzzLogs] = useState<KitchenBuzzItem[]>([
-    { station: 'Executive Chef Pass', target: 'Table 8', msg: 'Rush order alert! Guest has early flight', time: '01:52 PM', status: 'ACKNOWLEDGED', acknowledgedBy: 'Executive Chef' },
-    { station: 'Tandoor Station', target: 'Table 5', msg: 'Make Naan extra crisp & well done', time: '01:30 PM', status: 'PENDING' },
-  ]);
+  const [localBuzzLogs, setLocalBuzzLogs] = useState<KitchenBuzzItem[]>([]);
 
   // Combine props kitchenBuzzers with localBuzzLogs
   const allBuzzLogs: KitchenBuzzItem[] = [
@@ -77,8 +73,8 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
     { title: 'Rush Order!', desc: 'Guest in hurry / has appointment', color: 'bg-red-600', icon: Flame, priority: 'URGENT' },
     { title: 'Hold Starters', desc: 'Hold until guest signals ready', color: 'bg-amber-600', icon: Pause, priority: 'HIGH' },
     { title: 'Allergen Alert', desc: 'Strict NO PEANUT / DAIRY in dish', color: 'bg-rose-700', icon: AlertTriangle, priority: 'URGENT' },
-    { title: 'Overdue Alert', desc: 'Food prep time exceeded 20 mins', color: 'bg-blue-600', icon: Clock, priority: 'HIGH' },
-    { title: 'Extra Gravy / Dips', desc: 'Bring hot mint chutney to pass', color: 'bg-emerald-600', icon: UtensilsCrossed, priority: 'NORMAL' },
+    { title: 'Overdue Alert', desc: 'Food prep time exceeded 20 mins', color: 'bg-[#123C2B]', icon: Clock, priority: 'HIGH' },
+    { title: 'Extra Gravy / Dips', desc: 'Bring hot mint chutney to pass', color: 'bg-blue-600', icon: UtensilsCrossed, priority: 'NORMAL' },
   ];
 
   const handleSendBuzzer = async (msgText: string, prio: string = 'HIGH') => {
@@ -121,7 +117,7 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
         ...prev,
       ]);
 
-      triggerToast(`🚨 Buzzer sent directly to Kitchen KDS (${station} for ${table})!`);
+      triggerToast(`Buzzer sent directly to Kitchen KDS (${station} for ${table})!`);
       setCustomMsg('');
     } catch (err: any) {
       triggerToast(`Error sending buzzer: ${err.message}`);
@@ -134,14 +130,14 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-3 sm:p-5 gap-3 sm:gap-4">
       {/* Header */}
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
+ 'bg-white border-slate-200'
+ }`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-500 flex items-center justify-center font-bold">
             <Radio className="w-5 h-5 animate-pulse" />
           </div>
           <div>
-            <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            <h2 className={`font-black text-base ${'text-slate-900'}`}>
               Kitchen Intercom & Pass Dispatcher
             </h2>
             <p className="text-xs text-slate-400">
@@ -152,8 +148,8 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
 
         <div className="flex items-center gap-2">
           <span className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border ${
-            isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-          }`}>
+ 'bg-emerald-100 text-emerald-800 border-emerald-300'
+ }`}>
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
             Kitchen KDS Intercom Online
           </span>
@@ -166,9 +162,9 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
         <div className="lg:col-span-7 space-y-4">
           {/* Quick Presets */}
           <div className={`p-5 rounded-2xl border space-y-3 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-          }`}>
-            <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}>
+            <h3 className={`font-black text-sm flex items-center gap-2 ${'text-slate-900'}`}>
               <Flame className="w-4 h-4 text-orange-500" />
               <span>One-Click Priority Presets</span>
             </h3>
@@ -196,23 +192,23 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
 
           {/* Custom Composer */}
           <div className={`p-5 rounded-2xl border space-y-4 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-          }`}>
-            <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}>
+            <h3 className={`font-black text-sm flex items-center gap-2 ${'text-slate-900'}`}>
               <ChefHat className="w-4 h-4 text-orange-500" />
               <span>Compose Custom Station Buzzer</span>
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Target Kitchen Station</label>
+                <label className={`text-xs font-bold ${'text-slate-700'}`}>Target Kitchen Station</label>
                 <select
                   data-testid="select-kitchen-station"
                   value={station}
                   onChange={(e) => setStation(e.target.value)}
                   className={`w-full p-2.5 rounded-xl border text-xs font-bold focus:outline-none ${
-                    isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-900'
-                  }`}
+ 'bg-slate-50 border-slate-300 text-slate-900'
+ }`}
                 >
                   <option value="Main Kitchen">Main Kitchen</option>
                   <option value="Tandoor Station">Tandoor Station</option>
@@ -225,14 +221,14 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
               </div>
 
               <div className="space-y-1">
-                <label className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>My Assigned Table</label>
+                <label className={`text-xs font-bold ${'text-slate-700'}`}>My Assigned Table</label>
                 <select
                   data-testid="select-kitchen-table"
                   value={table}
                   onChange={(e) => setTable(e.target.value)}
                   className={`w-full p-2.5 rounded-xl border text-xs font-bold focus:outline-none ${
-                    isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-900'
-                  }`}
+ 'bg-slate-50 border-slate-300 text-slate-900'
+ }`}
                 >
                   {(assignedTables.length > 0 ? assignedTables.map(t => t.id) : [1, 2, 3, 4, 5, 6]).map((n) => (
                     <option key={n} value={`Table ${n}`}>Table {n} (My Assigned Table)</option>
@@ -242,7 +238,7 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Message to Chef</label>
+              <label className={`text-xs font-bold ${'text-slate-700'}`}>Message to Chef</label>
               <textarea
                 data-testid="input-kitchen-message"
                 rows={3}
@@ -250,8 +246,8 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
                 value={customMsg}
                 onChange={(e) => setCustomMsg(e.target.value)}
                 className={`w-full p-3 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-                  isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-900'
-                }`}
+ 'bg-slate-50 border-slate-300 text-slate-900'
+ }`}
               />
             </div>
 
@@ -270,49 +266,57 @@ export const CallKitchenView: React.FC<CallKitchenViewProps> = ({
         {/* Right Column: Dispatch Logs (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
           <div className={`p-5 rounded-2xl border space-y-3 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-          }`}>
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}>
             <div className="flex items-center justify-between">
-              <h3 className={`font-black text-sm flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <h3 className={`font-black text-sm flex items-center gap-2 ${'text-slate-900'}`}>
                 <Clock className="w-4 h-4 text-orange-500" />
                 <span>Live Kitchen Intercom Buzzes</span>
               </h3>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              }`}>
+ 'bg-emerald-50 text-emerald-700 border-emerald-200'
+ }`}>
                 {allBuzzLogs.length} Logged
               </span>
             </div>
 
             <div className="space-y-2">
-              {allBuzzLogs.map((log, i) => (
-                <div
-                  key={log.id || i}
-                  className={`p-3 rounded-xl border text-xs space-y-1.5 transition-colors ${
-                    log.status === 'ACKNOWLEDGED'
-                      ? isDark ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'
-                      : isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-orange-600">{log.station}</span>
-                    <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{log.time}</span>
-                  </div>
-                  <div className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{log.msg}</div>
-                  <div className="flex items-center justify-between pt-1">
-                    <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Target: <strong>{log.target}</strong></span>
-                    {log.status === 'ACKNOWLEDGED' ? (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                        ✓ Chef Acknowledged
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1 animate-pulse">
-                        <Radio className="w-2.5 h-2.5" /> Delivered to KDS Pass
-                      </span>
-                    )}
-                  </div>
+              {allBuzzLogs.length === 0 ? (
+                <div className="p-8 text-center text-slate-400">
+                  <Clock className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
+                  <p className="text-xs font-semibold text-slate-600">No buzzer dispatches yet</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Kitchen audio buzzes and rush alerts sent will appear here</p>
                 </div>
-              ))}
+              ) : (
+                allBuzzLogs.map((log, i) => (
+                  <div
+                    key={log.id || i}
+                    className={`p-3 rounded-xl border text-xs space-y-1.5 transition-colors ${
+                      log.status === 'ACKNOWLEDGED'
+                        ? 'bg-emerald-50/70 border-emerald-200'
+                        : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-orange-600">{log.station}</span>
+                      <span className="text-[10px] text-slate-500">{log.time}</span>
+                    </div>
+                    <div className="font-semibold text-slate-900">{log.msg}</div>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[10px] text-slate-600">Target: <strong>{log.target}</strong></span>
+                      {log.status === 'ACKNOWLEDGED' ? (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                          ✓ Chef Acknowledged
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1 animate-pulse">
+                          <Radio className="w-2.5 h-2.5" /> Delivered to KDS Pass
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

@@ -94,11 +94,11 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-sm dark:shadow-none flex flex-col text-white overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-xl shadow-sm dark:shadow-none flex flex-col text-white overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Modal Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
           <div className="flex items-center space-x-3">
-            <span className="text-2xl">📋</span>
+            <span className="text-2xl"></span>
             <div>
               <div className="flex items-center space-x-2">
                 <span className="font-mono font-extrabold text-base text-amber-400">
@@ -115,7 +115,7 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -123,7 +123,7 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
         <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
           {errorMessage && (
             <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-semibold">
-              ⚠️ {errorMessage}
+              ️ {errorMessage}
             </div>
           )}
 
@@ -132,7 +132,7 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Stay Duration</span>
               <div className="text-xs font-semibold text-slate-200">
-                {MatrixHelper.formatDateShort(booking.checkInDate)} ➔ {MatrixHelper.formatDateShort(booking.checkOutDate)}
+                {MatrixHelper.formatDateShort(booking.checkInDate)}  {MatrixHelper.formatDateShort(booking.checkOutDate)}
               </div>
               <span className="text-[11px] text-amber-400 font-bold">({nights} Nights)</span>
             </div>
@@ -140,7 +140,7 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Allocated Room</span>
               <div className="text-xs font-bold text-white flex items-center space-x-1.5">
-                <span>🚪</span>
+                <span></span>
                 <span>{assignedRoomName}</span>
               </div>
             </div>
@@ -238,9 +238,9 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
               <button
                 onClick={handleCheckIn}
                 disabled={isProcessing || !booking.allocatedRoomId}
-                className="py-2.5 px-5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-950/40 transition active:scale-95 disabled:opacity-50 flex items-center space-x-1.5"
+                className="bg-emerald-600 hover:bg-emerald-700 py-2.5 px-5 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-950/40 transition active:scale-95 disabled:opacity-50 flex items-center space-x-1.5"
               >
-                <span>🔑</span>
+                <span></span>
                 <span>{isProcessing ? 'Checking In...' : 'Check-In Guest'}</span>
               </button>
             )}

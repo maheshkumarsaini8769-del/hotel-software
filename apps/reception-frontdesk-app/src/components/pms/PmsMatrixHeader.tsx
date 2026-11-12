@@ -1,4 +1,5 @@
 import React from 'react';
+import { Calendar } from 'lucide-react';
 import { MatrixKpis } from '../../../../../packages/ui/src/pms/types';
 
 export interface PmsMatrixHeaderProps {
@@ -33,7 +34,9 @@ export const PmsMatrixHeader: React.FC<PmsMatrixHeaderProps> = ({
       {/* Brand & Date Navigation Controls */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center space-x-2 mr-2">
-          <span className="text-2xl">🏨</span>
+          <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+            <Calendar className="w-4 h-4" />
+          </div>
           <div>
             <h1 className="text-base font-extrabold text-white tracking-wide uppercase">Room Matrix</h1>
             <p className="text-[10px] text-amber-400 font-semibold tracking-wider uppercase">Live PMS Calendar Grid</p>
@@ -91,10 +94,10 @@ export const PmsMatrixHeader: React.FC<PmsMatrixHeaderProps> = ({
               key={d}
               onClick={() => onDaysChange(d)}
               className={`px-3 py-1 rounded-lg transition ${
-                days === d
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+ days === d
+ ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+ : 'text-slate-400 hover:text-white'
+ }`}
             >
               {d}D
             </button>
@@ -129,16 +132,16 @@ export const PmsMatrixHeader: React.FC<PmsMatrixHeaderProps> = ({
             title="Refresh Grid"
             className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl border border-slate-800 transition active:scale-95"
           >
-            🔄
+            
           </button>
         )}
 
         {/* Luxury Gold Call-to-Action */}
         <button
           onClick={onNewReservation}
-          className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-amber-950/40 transition active:scale-95 flex items-center space-x-1.5"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 font-extrabold text-xs rounded-xl shadow-lg shadow-amber-950/40 transition active:scale-95 flex items-center space-x-1.5"
         >
-          <span>✨</span>
+          <span></span>
           <span>New Reservation</span>
         </button>
       </div>

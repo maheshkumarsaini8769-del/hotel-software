@@ -59,7 +59,7 @@ function downloadCsv(rows: ReportsPayment[]): void {
 }
 
 export const CashierReportsView: React.FC<CashierReportsViewProps> = ({
-  isDark = true,
+
   onToast,
   drawerBalance,
   openBills,
@@ -83,10 +83,10 @@ export const CashierReportsView: React.FC<CashierReportsViewProps> = ({
   return (
     <div className="space-y-4 max-w-6xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
+ 'bg-white border-slate-200 shadow-sm'
+ }`}>
         <div>
-          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${'text-slate-900'}`}>
             <TrendingUp className="w-5 h-5 text-emerald-500" />
             <span>Cashier Sales Analytics & Live Settlement Reports</span>
           </h2>
@@ -144,8 +144,8 @@ export const CashierReportsView: React.FC<CashierReportsViewProps> = ({
       </div>
 
       <div className={`p-4 rounded-2xl border space-y-3 ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
+ 'bg-white border-slate-200'
+ }`}>
         <h3 className="font-black text-xs text-white flex items-center gap-2">
           <Receipt className="w-4 h-4 text-emerald-500" />
           <span>Recent Settlements ({recentPayments.length})</span>
@@ -186,8 +186,8 @@ export const CashierReportsView: React.FC<CashierReportsViewProps> = ({
       </div>
 
       <div className={`p-4 rounded-2xl border flex items-start gap-3 ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
+ 'bg-white border-slate-200'
+ }`}>
         <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
         <div className="text-xs text-slate-400">
           <p className="font-bold text-white">Item-level dish velocity report is not connected yet.</p>

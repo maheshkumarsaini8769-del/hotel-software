@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ILogWastePayload, WasteTypeUI, KitchenShiftUI, RecipeCostingHelper } from '@spicehub/ui';
+import { ILogWastePayload, WasteTypeUI, KitchenShiftUI, RecipeCostingHelper, NumericInput } from '@spicehub/ui';
 
 interface FoodWasteLogModalProps {
   isOpen: boolean;
@@ -125,8 +125,7 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
               <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
                 Wasted Quantity
               </label>
-              <input
-                type="number"
+              <NumericInput
                 step="0.1"
                 min="0.1"
                 value={quantity}
@@ -157,8 +156,7 @@ export const FoodWasteLogModal: React.FC<FoodWasteLogModalProps> = ({
               <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
                 Cost Per Unit (₹)
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="0"
                 value={unitCost}
                 onChange={(e) => setUnitCost(Number(e.target.value))}

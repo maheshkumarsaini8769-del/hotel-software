@@ -90,7 +90,7 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
             type="button"
             onClick={handleEnter}
             disabled={!codeBuffer.trim() || loading}
-            className="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 text-black disabled:text-zinc-600 font-bold text-sm tracking-wide transition-all shadow-sm dark:shadow-none disabled:shadow-none flex items-center gap-1.5"
+            className="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-amber-400 disabled:bg-zinc-800 text-white disabled:text-zinc-600 font-bold text-sm tracking-wide transition-all shadow-sm dark:shadow-none disabled:shadow-none flex items-center gap-1.5"
           >
             <span>ENTER</span>
             <span>↵</span>
@@ -101,10 +101,10 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
         {statusMessage && (
           <div
             className={`text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-2 ${
-              statusMessage.isError
-                ? 'bg-red-950/60 text-red-300 border border-red-500/40'
-                : 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40'
-            }`}
+ statusMessage.isError
+ ? 'bg-red-950/60 text-red-300 border border-red-500/40'
+ : 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40'
+ }`}
           >
             <span>{statusMessage.isError ? '⚠️' : '✓'}</span>
             <span>{statusMessage.text}</span>
@@ -125,10 +125,10 @@ export const QuickNumpadTerminal: React.FC<QuickNumpadTerminalProps> = ({
                 type="button"
                 onClick={() => setActiveQty(qty)}
                 className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                  activeQty === qty
-                    ? 'bg-amber-500 text-black border-amber-400 shadow-sm dark:shadow-none'
-                    : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-700'
-                }`}
+ activeQty === qty
+ ? 'bg-emerald-600 text-white border-amber-400 shadow-sm dark:shadow-none'
+ : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+ }`}
               >
                 x{qty}
               </button>

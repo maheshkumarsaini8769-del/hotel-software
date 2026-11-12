@@ -20,7 +20,7 @@ export const RoomArrivalCard: React.FC<RoomArrivalCardProps> = ({
   const balanceDue = Math.max(0, booking.grandTotal - booking.advancePaymentAmount);
 
   return (
-    <div className="bg-slate-900/80 border border-slate-800/90 hover:border-amber-500/40 rounded-2xl p-4 flex flex-col justify-between transition-all duration-200 hover:shadow-xl hover:shadow-black/50 group backdrop-blur-sm">
+    <div className="bg-slate-900/80 border border-slate-800/90 hover:border-amber-500/40 rounded-xl p-4 flex flex-col justify-between transition-all duration-200 hover:shadow-xl hover:shadow-black/50 group backdrop-blur-sm">
       <div>
         {/* Header: Guest Name & Booking # */}
         <div className="flex items-start justify-between">
@@ -35,7 +35,7 @@ export const RoomArrivalCard: React.FC<RoomArrivalCardProps> = ({
               {booking.roomTypeId?.name || 'Luxury Category'}
             </div>
             <div className="text-xs text-slate-400 mt-0.5">
-              📞 {booking.guestPhone}
+               {booking.guestPhone}
             </div>
           </div>
 
@@ -52,7 +52,7 @@ export const RoomArrivalCard: React.FC<RoomArrivalCardProps> = ({
           <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800">
             <div className="text-[10px] text-slate-400 font-medium">Arrival & Departure</div>
             <div className="font-semibold text-slate-200 mt-0.5 text-[11px]">
-              {new Date(booking.checkInDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} ➔{' '}
+              {new Date(booking.checkInDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} {' '}
               {new Date(booking.checkOutDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
             </div>
           </div>
@@ -73,7 +73,7 @@ export const RoomArrivalCard: React.FC<RoomArrivalCardProps> = ({
         {/* Room Assignment Banner */}
         <div className="mt-2.5 flex items-center justify-between p-2 rounded-xl bg-slate-950/40 border border-slate-800 text-xs">
           <div className="flex items-center gap-1.5">
-            <span className="text-slate-400">🚪 Room:</span>
+            <span className="text-slate-400"> Room:</span>
             {isAssigned ? (
               <span className="font-bold text-amber-300">
                 Room {booking.allocatedRoomId?.roomNumber} (Floor {booking.allocatedRoomId?.floorNumber})
@@ -102,12 +102,12 @@ export const RoomArrivalCard: React.FC<RoomArrivalCardProps> = ({
             onClick={() => onCheckIn(booking)}
             disabled={isLoading || !isAssigned}
             className={`w-full py-2 px-3 rounded-xl font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer text-center ${
-              isAssigned
-                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 hover:brightness-110 shadow-amber-950/40'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
-            }`}
+ isAssigned
+ ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-amber-950/40'
+ : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+ }`}
           >
-            {isAssigned ? '✓ Express Check-In & Issue Keycard' : 'Assign Room First'}
+            {isAssigned ? ' Express Check-In & Issue Keycard' : 'Assign Room First'}
           </button>
         )}
 

@@ -252,8 +252,8 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
                 <div className="text-right">
                   <span
                     className={`text-2xl font-black font-mono ${
-                      simulation.impact.profitDifference >= 0 ? 'text-emerald-400' : 'text-red-400'
-                    }`}
+ simulation.impact.profitDifference >= 0 ? 'text-emerald-400' : 'text-red-400'
+ }`}
                   >
                     {simulation.impact.profitDifference >= 0 ? '+' : ''}
                     {MenuEngineeringHelper.formatCurrency(simulation.impact.profitDifference)}

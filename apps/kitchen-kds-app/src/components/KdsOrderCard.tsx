@@ -110,7 +110,7 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
 
       {/* Cooking Instructions Banner (if any) */}
       {order.cookingInstructions && (
-        <div className="bg-amber-950/40 border-b border-amber-800/40 px-3 py-1.5 text-xs text-amber-300 flex items-center space-x-1.5">
+        <div className="bg-slate-900/40 border-b border-amber-800/40 px-3 py-1.5 text-xs text-amber-300 flex items-center space-x-1.5">
           <span>⚠️</span>
           <span className="font-medium italic">"{order.cookingInstructions}"</span>
         </div>
@@ -127,10 +127,10 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
               key={`${itemId}-${idx}`}
               onClick={() => onToggleItemStatus && onToggleItemStatus(order.id, itemId)}
               className={`p-2 rounded-lg border transition cursor-pointer select-none flex items-start justify-between ${
-                isItemReady
-                  ? 'bg-slate-800/40 border-slate-800 opacity-60 line-through'
-                  : 'bg-slate-850 border-slate-750 hover:border-slate-600'
-              }`}
+ isItemReady
+ ? 'bg-slate-800/40 border-slate-800 opacity-60 line-through'
+ : 'bg-slate-850 border-slate-750 hover:border-slate-600'
+ }`}
             >
               <div className="flex items-start space-x-2.5">
                 <span className="bg-primary-600/30 text-primary-300 border border-primary-500/40 text-xs font-black px-1.5 py-0.5 rounded min-w-[24px] text-center">
@@ -160,7 +160,7 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
                           🌿 Jain / No Onion-Garlic
                         </span>
                       )}
-                      <span className="inline-block text-[11px] font-medium text-amber-200 bg-amber-950/60 border border-amber-700/50 px-2 py-0.5 rounded">
+                      <span className="inline-block text-[11px] font-medium text-amber-200 bg-slate-900/60 border border-amber-700/50 px-2 py-0.5 rounded">
                         Note: {item.specialInstructions}
                       </span>
                     </div>
@@ -177,10 +177,10 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
               <div className="ml-2">
                 <span
                   className={`text-xs px-2 py-0.5 rounded font-semibold ${
-                    isItemReady
-                      ? 'bg-emerald-500/20 text-emerald-400'
-                      : 'bg-slate-800 text-slate-400 border border-slate-700'
-                  }`}
+ isItemReady
+ ? 'bg-emerald-500/20 text-emerald-400'
+ : 'bg-slate-800 text-slate-400 border border-slate-700'
+ }`}
                 >
                   {item.itemStatus}
                 </span>

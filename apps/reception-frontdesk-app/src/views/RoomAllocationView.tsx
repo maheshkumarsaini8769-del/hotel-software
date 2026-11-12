@@ -211,15 +211,15 @@ export const RoomAllocationView: React.FC<RoomAllocationViewProps> = ({ isDark =
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div
-        className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-        }`}
+        className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+ }`}
       >
         <div>
           <h2
             className={`text-lg font-black tracking-tight flex items-center gap-2 ${
-              isDark ? 'text-white' : 'text-slate-800'
-            }`}
+ isDark ? 'text-white' : 'text-slate-800'
+ }`}
           >
             <Layers className="w-5 h-5 text-blue-500" />
             <span>Room Allocation & Assignment Studio</span>
@@ -231,19 +231,19 @@ export const RoomAllocationView: React.FC<RoomAllocationViewProps> = ({ isDark =
 
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <div className={`flex p-0.5 rounded-xl border text-xs font-bold overflow-x-auto ${
-            isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-slate-100'
-          }`}>
+ isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-slate-100'
+ }`}>
             {floors.map((floor) => (
               <button
                 key={floor}
                 onClick={() => setSelectedFloor(floor)}
                 className={`px-2.5 py-1 rounded-lg transition whitespace-nowrap ${
-                  selectedFloor === floor
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : isDark
-                      ? 'text-slate-400 hover:text-white'
-                      : 'text-slate-600 hover:text-slate-900'
-                }`}
+ selectedFloor === floor
+ ? 'bg-slate-900 text-white shadow-xs'
+ : isDark
+ ? 'text-slate-400 hover:text-white'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
               >
                 {floor}
               </button>
@@ -257,20 +257,20 @@ export const RoomAllocationView: React.FC<RoomAllocationViewProps> = ({ isDark =
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={`pl-8 pr-3 py-1.5 rounded-xl border text-xs focus:outline-none transition ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500'
-                  : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
-              }`}
+ isDark
+ ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500'
+ : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
+ }`}
             />
           </div>
           <button
             onClick={() => void loadAllocation()}
             disabled={loading}
             className={`p-2 rounded-xl border transition disabled:opacity-50 ${
-              isDark
-                ? 'border-slate-700 bg-slate-900 text-slate-300 hover:text-white'
-                : 'border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900'
-            }`}
+ isDark
+ ? 'border-slate-700 bg-slate-900 text-slate-300 hover:text-white'
+ : 'border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900'
+ }`}
             title="Refresh allocation data"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -292,24 +292,24 @@ export const RoomAllocationView: React.FC<RoomAllocationViewProps> = ({ isDark =
 
       <div className="grid grid-cols-12 gap-4">
         <div
-          className={`col-span-12 lg:col-span-5 p-4 rounded-2xl border space-y-3 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-          }`}
+          className={`col-span-12 lg:col-span-5 p-4 rounded-xl border space-y-3 ${
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+ }`}
         >
           <div className="flex items-center justify-between">
             <h3
               className={`font-black text-xs flex items-center gap-2 ${
-                isDark ? 'text-white' : 'text-slate-800'
-              }`}
+ isDark ? 'text-white' : 'text-slate-800'
+ }`}
             >
               <Clock className="w-4 h-4 text-amber-500" />
               <span>Pending Room Allocations ({unassignedBookings.length})</span>
             </h3>
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-              isDark
-                ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
-                : 'text-amber-800 bg-amber-50 border-amber-200/80'
-            }`}>
+ isDark
+ ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+ : 'text-amber-800 bg-amber-50 border-amber-200/80'
+ }`}>
               Needs Room
             </span>
           </div>
@@ -333,14 +333,14 @@ export const RoomAllocationView: React.FC<RoomAllocationViewProps> = ({ isDark =
                     key={b.id}
                     onClick={() => setSelectedBooking(b.id)}
                     className={`p-3 rounded-xl border cursor-pointer transition ${
-                      isSelected
-                        ? isDark
-                          ? 'border-blue-500 bg-blue-950/40 ring-1 ring-blue-500'
-                          : 'border-blue-500 bg-blue-50/80 ring-1 ring-blue-500'
-                        : isDark
-                          ? 'border-slate-800 bg-slate-900 hover:border-slate-700'
-                          : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
-                    }`}
+ isSelected
+ ? isDark
+ ? 'border-blue-500 bg-blue-950/40 ring-1 ring-blue-500'
+ : 'border-blue-500 bg-blue-50/80 ring-1 ring-blue-500'
+ : isDark
+ ? 'border-slate-800 bg-slate-900 hover:border-slate-700'
+ : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+ }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className={`font-bold text-xs ${isDark ? 'text-white' : 'text-slate-800'}`}>{b.guestName}</span>
@@ -359,9 +359,9 @@ export const RoomAllocationView: React.FC<RoomAllocationViewProps> = ({ isDark =
                     </div>
                     {isSelected && (
                       <div className={`mt-2 text-[10px] px-2 py-1 rounded flex items-center gap-1 font-semibold ${
-                        isDark ? 'text-blue-300 bg-blue-900/30' : 'text-blue-800 bg-blue-100/70'
-                      }`}>
-                        <span>👉 Click an available room on the right to assign</span>
+ isDark ? 'text-blue-300 bg-blue-900/30' : 'text-blue-800 bg-blue-100/70'
+ }`}>
+                        <span> Click an available room on the right to assign</span>
                       </div>
                     )}
                   </div>
@@ -372,15 +372,15 @@ export const RoomAllocationView: React.FC<RoomAllocationViewProps> = ({ isDark =
         </div>
 
         <div
-          className={`col-span-12 lg:col-span-7 p-4 rounded-2xl border space-y-3 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-          }`}
+          className={`col-span-12 lg:col-span-7 p-4 rounded-xl border space-y-3 ${
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+ }`}
         >
           <div className="flex items-center justify-between">
             <h3
               className={`font-black text-xs flex items-center gap-2 ${
-                isDark ? 'text-white' : 'text-slate-800'
-              }`}
+ isDark ? 'text-white' : 'text-slate-800'
+ }`}
             >
               <Bed className="w-4 h-4 text-emerald-500" />
               <span>Available & In-Use Rooms</span>
@@ -406,27 +406,27 @@ export const RoomAllocationView: React.FC<RoomAllocationViewProps> = ({ isDark =
                   <div
                     key={room.roomId}
                     className={`p-3 rounded-xl border flex flex-col justify-between transition ${
-                      isAvailable
-                        ? isDark
-                          ? 'bg-slate-900 border-emerald-900/40 hover:border-emerald-500/60'
-                          : 'bg-emerald-50/60 border-emerald-200 hover:border-emerald-300'
-                        : isDark
-                          ? 'bg-slate-950 border-slate-800 opacity-70'
-                          : 'bg-slate-100/80 border-slate-200 opacity-70'
-                    }`}
+ isAvailable
+ ? isDark
+ ? 'bg-slate-900 border-emerald-900/40 hover:border-emerald-500/60'
+ : 'bg-emerald-50/60 border-emerald-200 hover:border-emerald-300'
+ : isDark
+ ? 'bg-slate-950 border-slate-800 opacity-70'
+ : 'bg-slate-100/80 border-slate-200 opacity-70'
+ }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className={`font-black text-sm ${isDark ? 'text-white' : 'text-slate-800'}`}>Room {room.number}</span>
                       <span
                         className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                          isAvailable
-                            ? isDark
-                              ? 'bg-emerald-500/20 text-emerald-300'
-                              : 'bg-emerald-100 text-emerald-800'
-                            : isDark
-                              ? 'bg-red-500/20 text-red-300'
-                              : 'bg-red-100 text-red-800'
-                        }`}
+ isAvailable
+ ? isDark
+ ? 'bg-emerald-500/20 text-emerald-300'
+ : 'bg-emerald-100 text-emerald-800'
+ : isDark
+ ? 'bg-red-500/20 text-red-300'
+ : 'bg-red-100 text-red-800'
+ }`}
                       >
                         {room.status}
                       </span>
@@ -436,16 +436,16 @@ export const RoomAllocationView: React.FC<RoomAllocationViewProps> = ({ isDark =
                     </div>
                     {room.allocatedTo ? (
                       <div className={`text-[10px] font-semibold mt-1 truncate ${
-                        isDark ? 'text-red-300' : 'text-red-700'
-                      }`}>
-                        👤 {room.allocatedTo}
+ isDark ? 'text-red-300' : 'text-red-700'
+ }`}>
+                         {room.allocatedTo}
                       </div>
                     ) : (
                       <button
                         onClick={() => void handleAllocate(room)}
                         disabled={!selectedBooking || !isAvailable || typeMismatch || assigningRoom === room.number}
                         title={typeMismatch ? 'Room category does not match the booking' : 'Assign selected reservation'}
-                        className="mt-2 w-full py-1 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-bold text-[10px] transition flex items-center justify-center gap-1 shadow-xs"
+                        className="mt-2 w-full py-1 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-bold text-[10px] transition flex items-center justify-center gap-1 shadow-xs"
                       >
                         {assigningRoom === room.number ? (
                           <RefreshCw className="w-3 h-3 animate-spin" />

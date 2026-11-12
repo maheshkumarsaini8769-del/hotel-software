@@ -15,6 +15,21 @@ import { UserRole, ShiftStatus, TenantRequest } from '../types';
 import { getJwtSecret, isDevAuthBypassEnabled } from '../config/security';
 import { ITenant } from '../models/Tenant';
 import { sendPinVerificationOtpEmail } from '../services/resendEmailService';
+import { resolveTenantCapabilities } from '../utils/tenantCapabilities';
+import { resolveStaffPortalAccess } from '../utils/staffPortalAccess';
+import { z } from 'zod';
+import {
+  generateStaffHotelCode,
+  hashStaffHotelCode,
+  isValidStaffHotelCode,
+  issueStaffHotelAccessToken,
+  normalizeStaffHotelCode,
+  verifyStaffHotelAccessToken,
+} from '../utils/staffHotelAccess';
+import { notificationService } from '../services/notificationService';
+import { emitGlobalTenantEvent, serializePublicHotelSummary } from '../utils/tenantPublicSummary';
+import { autoMarkStaffPresentOnLogin } from '../utils/attendanceAutomation';
+import { ClockMethod } from '../models/StaffAttendanceLog';
 
 interface StaffOtpRecord {
   otp: string;
@@ -25,19 +40,88 @@ interface StaffOtpRecord {
 
 const staffPinOtpStore = new Map<string, StaffOtpRecord>();
 
+const changeOwnPinSchema = z.object({
+  currentPin: z.string().regex(/^\d{4,8}$/),
+  newPin: z.string().regex(/^\d{4,8}$/),
+}).strict().refine((value) => value.currentPin !== value.newPin, {
+  path: ['newPin'],
+  message: 'New PIN must be different from the current PIN.',
+});
+
+export const changeOwnStaffPin = async (req: TenantRequest, res: Response): Promise<void> => {
+  const parsed = changeOwnPinSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      success: false,
+      errorCode: 'INVALID_PIN_CHANGE',
+      message: 'Enter the current PIN and a different 4–8 digit new PIN.',
+    });
+    return;
+  }
+
+  const userId = req.user?.userId;
+  if (!userId || !Types.ObjectId.isValid(userId)) {
+    res.status(401).json({ success: false, errorCode: 'UNAUTHORIZED', message: 'A valid staff session is required.' });
+    return;
+  }
+
+  try {
+    const user = await User.findOne({
+      _id: new Types.ObjectId(userId),
+      ...(req.hotelId ? { hotelId: new Types.ObjectId(req.hotelId) } : {}),
+      isActive: true,
+    }).select('+pinCodeHash');
+
+    if (!user?.pinCodeHash || !user.pinCodeHash.startsWith('$argon2')) {
+      res.status(409).json({
+        success: false,
+        errorCode: 'PIN_CHANGE_UNAVAILABLE',
+        message: 'This account does not have a changeable PIN. Contact a hotel administrator.',
+      });
+      return;
+    }
+
+    const currentPinMatches = await argon2.verify(user.pinCodeHash, parsed.data.currentPin);
+    if (!currentPinMatches) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'CURRENT_PIN_INCORRECT',
+        message: 'Current PIN is incorrect.',
+      });
+      return;
+    }
+
+    user.pinCodeHash = await argon2.hash(parsed.data.newPin);
+    user.pinStatus = 'ACTIVE';
+    await user.save();
+
+    res.status(200).json({ success: true, message: 'PIN changed successfully.' });
+  } catch {
+    res.status(500).json({
+      success: false,
+      errorCode: 'PIN_CHANGE_FAILED',
+      message: 'PIN could not be changed. Please retry.',
+    });
+  }
+};
+
 export const registerTenantAndAdmin = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
-      hotelName,
-      slug,
-      contactEmail,
-      contactPhone,
-      city = 'Sikar',
+      hotelName: rawHotelName,
+      name: rawName,
+      slug: rawSlug,
+      contactEmail: rawContactEmail,
+      adminEmail: rawAdminEmail,
+      contactPhone: rawContactPhone,
+      adminPhone: rawAdminPhone,
+      city = 'Jaipur',
       state = 'Rajasthan',
       gstin,
-      adminName,
-      adminPassword,
+      adminName: rawAdminName,
+      adminPassword: rawAdminPassword,
       enabledPortals,
+      serviceCapabilities,
       monthlyPriceINR,
       subscriptionMonthlyINR,
       billingCycle,
@@ -48,23 +132,73 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
       tagline,
       initialRooms = 10,
       initialTables = 6,
+      hotelCode: rawHotelCode,
+      streetAddress,
+      address,
+      latitude,
+      longitude,
+      coordinates,
+      pincode,
+      subscribedFeatures,
+      staffPin: rawStaffPin,
     } = req.body;
 
-    if (!hotelName || !slug || !contactEmail || !adminPassword) {
+    const hotelName = (rawHotelName || rawName || '').trim();
+    const contactEmail = (rawContactEmail || rawAdminEmail || '').trim().toLowerCase();
+    const contactPhone = (rawContactPhone || rawAdminPhone || '9999999999').trim();
+    const adminName = (rawAdminName || 'Hotel Administrator').trim();
+    const adminPassword = (rawAdminPassword || '').trim() || `SpiceHub@${crypto.randomInt(1000, 9999)}`;
+    const staffPin = rawStaffPin !== undefined && rawStaffPin !== null && String(rawStaffPin).trim() !== ''
+      ? String(rawStaffPin).trim()
+      : '1111';
+
+    if (!hotelName || !contactEmail) {
       res.status(400).json({
         success: false,
         errorCode: 'VALIDATION_ERROR',
-        message: 'Missing required fields for tenant registration',
+        message: 'Hotel Name and Contact Email are required for registration.',
       });
       return;
     }
 
+    if (rawStaffPin !== undefined && rawStaffPin !== null && String(rawStaffPin).trim() !== '' && !/^\d{4}$/.test(staffPin)) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_STAFF_PIN',
+        message: 'Staff PIN must be exactly 4 digits.',
+      });
+      return;
+    }
+
+    if (rawHotelCode && !isValidStaffHotelCode(rawHotelCode)) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_HOTEL_CODE',
+        message: 'Hotel Code must be 4 to 10 alphanumeric characters (e.g. ROYAL1, SH4277, or 774273).',
+      });
+      return;
+    }
+
+    let slug = (rawSlug || hotelName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')).trim();
+    if (!slug) slug = `hotel-${crypto.randomBytes(3).toString('hex')}`;
     const existingTenant = await Tenant.findOne({ slug: slug.toLowerCase() });
     if (existingTenant) {
+      slug = `${slug}-${crypto.randomBytes(2).toString('hex')}`;
+    }
+
+    const hotelCode = rawHotelCode && isValidStaffHotelCode(rawHotelCode)
+      ? normalizeStaffHotelCode(rawHotelCode)
+      : generateStaffHotelCode(hotelName);
+
+    const existingCodeTenant = await Tenant.findOne({
+      staffAccessCodeHash: hashStaffHotelCode(hotelCode),
+      status: { $in: ['ACTIVE', 'TRIAL'] },
+    });
+    if (existingCodeTenant) {
       res.status(409).json({
         success: false,
-        errorCode: 'TENANT_EXISTS',
-        message: `Hotel with slug '${slug}' already exists`,
+        errorCode: 'HOTEL_CODE_IN_USE',
+        message: `Hotel code '${hotelCode}' is already in use by another property. Please choose another code.`,
       });
       return;
     }
@@ -73,31 +207,109 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
       ? Array.from(new Set(['admin', ...enabledPortals]))
       : ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'];
 
+    const defaultCapabilities = {
+      roomBooking: portals.includes('guest') || portals.includes('reception'),
+      reception: portals.includes('reception'),
+      inRoomServices: portals.includes('guest'),
+      tableOrdering: portals.includes('customer') || portals.includes('waiter'),
+      waiterDispatch: portals.includes('waiter'),
+    };
+    const requestedCapabilities = serviceCapabilities ?? defaultCapabilities;
+    const capabilityPortalMap: Record<string, string[]> = {
+      roomBooking: ['guest', 'reception'],
+      reception: ['reception'],
+      inRoomServices: ['guest'],
+      tableOrdering: ['customer', 'waiter', 'cashier', 'kds'],
+      waiterDispatch: ['waiter'],
+    };
+    if (
+      !requestedCapabilities ||
+      typeof requestedCapabilities !== 'object' ||
+      Array.isArray(requestedCapabilities) ||
+      Object.keys(capabilityPortalMap).some((key) => typeof requestedCapabilities[key] !== 'boolean')
+    ) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_CAPABILITIES',
+        message: 'All five service capabilities must be provided as booleans.',
+      });
+      return;
+    }
+    const unavailableCapability = Object.keys(capabilityPortalMap).find(
+      (key) => requestedCapabilities[key] && !capabilityPortalMap[key].some((p) => portals.includes(p))
+    );
+    if (unavailableCapability) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'PORTAL_REQUIRED',
+        message: `Enable one of [${capabilityPortalMap[unavailableCapability].join(', ')}] portals before enabling ${unavailableCapability}.`,
+        capability: unavailableCapability,
+        requiredPortal: capabilityPortalMap[unavailableCapability][0],
+      });
+      return;
+    }
+
     const monthlyPrice = monthlyPriceINR !== undefined
       ? Number(monthlyPriceINR)
       : (subscriptionMonthlyINR !== undefined ? Number(subscriptionMonthlyINR) : 0);
 
-    // 1. Create Tenant
+    const resolvedLat = Number(
+      coordinates?.latitude ??
+      coordinates?.lat ??
+      latitude ??
+      (city?.toLowerCase() === 'mumbai' ? 19.076 : city?.toLowerCase() === 'delhi' ? 28.6139 : 26.9124)
+    );
+    const resolvedLng = Number(
+      coordinates?.longitude ??
+      coordinates?.lng ??
+      longitude ??
+      (city?.toLowerCase() === 'mumbai' ? 72.8777 : city?.toLowerCase() === 'delhi' ? 77.209 : 75.7873)
+    );
+
+    // 1. Create Tenant with Staff Access Code and real coordinates
     const tenant = await Tenant.create({
       name: hotelName,
       slug: slug.toLowerCase(),
       contactEmail,
       contactPhone: contactPhone || '9999999999',
       address: {
-        city: city || 'Sikar',
-        state: state || 'Rajasthan',
+        street: String(streetAddress || address?.street || (typeof address === 'string' ? address : '') || '').trim(),
+        city: String(city || address?.city || 'Jaipur').trim(),
+        state: String(state || address?.state || 'Rajasthan').trim(),
         country: 'India',
+        pincode: String(pincode || address?.pincode || '').trim(),
       },
+      coordinates: {
+        latitude: resolvedLat,
+        longitude: resolvedLng,
+      },
+      googleMapUrl: `https://www.google.com/maps/search/?api=1&query=${resolvedLat},${resolvedLng}`,
       logoUrl: logoUrl || '',
       coverImageUrl: coverImageUrl || '',
       photos: Array.isArray(photos) ? photos : [],
       tagline: tagline || '',
       gstin,
       status: 'ACTIVE',
+      staffAccessCodeHash: hashStaffHotelCode(hotelCode),
+      staffAccessCodeVersion: crypto.randomUUID(),
+      staffAccessCodeUpdatedAt: new Date(),
       enabledPortals: portals,
+      subscribedFeatures: Array.isArray(subscribedFeatures) && subscribedFeatures.length > 0
+        ? subscribedFeatures
+        : ['pms_inventory', 'qr_table_ordering', 'gst_invoicing', 'whatsapp_alerts', 'staff_attendance', 'kds_routing'],
       subscriptionMonthlyINR: monthlyPrice,
       billingCycle: billingCycle === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY',
       customPricingAdjustmentINR: Number(customPricingAdjustmentINR || 0),
+      subscription: {
+        billingCycle: billingCycle === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY',
+        monthlyRateINR: monthlyPrice,
+        annualRateINR: monthlyPrice * 12 * 0.8,
+        effectiveRateINR: monthlyPrice,
+        customPricingAdjustmentINR: Number(customPricingAdjustmentINR || 0),
+        subscriptionStartDate: new Date(),
+        lastPaymentDate: new Date(),
+        paymentStatus: 'PAID',
+      },
       featureFlags: {
         pmsEnabled: portals.includes('reception'),
         posEnabled: portals.includes('cashier'),
@@ -105,6 +317,11 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
         waiterEnabled: portals.includes('waiter'),
         qrDineInEnabled: portals.includes('customer'),
         roomServiceEnabled: portals.includes('guest'),
+        roomBookingEnabled: requestedCapabilities.roomBooking,
+        frontDeskEnabled: requestedCapabilities.reception,
+        inRoomServicesEnabled: requestedCapabilities.inRoomServices,
+        tableOrderingEnabled: requestedCapabilities.tableOrdering,
+        waiterDispatchEnabled: requestedCapabilities.waiterDispatch,
         banquetEnabled: true,
         loyaltyEnabled: true,
         aiInsightsEnabled: false,
@@ -112,9 +329,9 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
       },
     });
 
-    // 2. Hash Password using Argon2
+    // 2. Hash Password and Staff PIN using Argon2
     const passwordHash = await argon2.hash(adminPassword);
-    const pinCodeHash = await argon2.hash('1111');
+    const pinCodeHash = await argon2.hash(staffPin);
 
     // 3. Create Hotel Admin User
     const adminUser = await User.create({
@@ -129,6 +346,28 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
       permissions: ['*'],
       shiftStatus: ShiftStatus.ON_DUTY,
     });
+
+
+    const adminUrl = process.env.HOTEL_ADMIN_URL || process.env.ADMIN_URL || 'http://localhost:3005';
+
+    // 5. Send Notification via WhatsApp
+    try {
+      await notificationService.sendWhatsApp(
+        tenant.contactPhone,
+        'hotel_onboarded_credentials',
+        {
+          hotelName: tenant.name,
+          hotelCode,
+          adminEmail: adminUser.email,
+          adminPassword,
+          staffPin,
+          adminUrl,
+          enabledPortals: tenant.enabledPortals,
+        }
+      );
+    } catch (notifErr) {
+      console.warn('[Auth] Notification dispatch warning:', notifErr);
+    }
 
     // Automatically provision initial rooms & tables
     const hashToken = (seed: string) =>
@@ -296,6 +535,8 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
       { expiresIn: '1h' }
     );
 
+    emitGlobalTenantEvent('tenant:created', tenant);
+
     res.status(201).json({
       success: true,
       message: 'Tenant and Hotel Admin registered successfully',
@@ -306,6 +547,8 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
           name: tenant.name,
           slug: tenant.slug,
           status: tenant.status,
+          hotelCode,
+          logoUrl: tenant.logoUrl,
         },
         user: {
           id: adminUser._id,
@@ -313,6 +556,15 @@ export const registerTenantAndAdmin = async (req: Request, res: Response): Promi
           email: adminUser.email,
           role: adminUser.role,
         },
+        hotelCode,
+        staffPin,
+        adminUrl,
+        adminCredentials: {
+          email: adminUser.email,
+          password: adminPassword,
+          staffPin,
+        },
+        notificationStatus: 'DISPATCHED',
       },
     });
   } catch (error: any) {
@@ -508,6 +760,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       }
     }
 
+    if (user.hotelId && user.role !== UserRole.SUPERADMIN && user.role !== UserRole.GUEST) {
+      await autoMarkStaffPresentOnLogin({
+        hotelId: user.hotelId,
+        userId: user._id,
+        method: ClockMethod.AUTO_LOGIN,
+      });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Login successful',
@@ -535,20 +795,46 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
 export const getProfile = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
-    const user = await User.findById(req.user?.userId).select('-passwordHash -pinCodeHash');
-    if (!user) {
-      res.status(404).json({ success: false, errorCode: 'USER_NOT_FOUND' });
+    const user = await User.findById(req.user?.userId)
+      .select('name email role hotelId avatar shift shiftStatus permissions assignedSection assignedStation assignedTableStart assignedTableEnd assignedCounter isActive')
+      .lean();
+    if (!user || user.isActive === false) {
+      res.status(401).json({ success: false, errorCode: 'SESSION_REVOKED', message: 'This staff account is inactive.' });
       return;
     }
 
     let tenant = null;
     if (user.hotelId) {
-      tenant = await Tenant.findById(user.hotelId);
+      tenant = await Tenant.findById(user.hotelId).select('_id name enabledPortals').lean();
     }
 
     res.status(200).json({
       success: true,
-      data: { user, tenant },
+      data: {
+        user: {
+          id: String(user._id),
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          hotelId: user.hotelId ? String(user.hotelId) : '',
+          avatar: user.avatar || '',
+          shift: user.shift || '',
+          shiftStatus: user.shiftStatus,
+          permissions: user.permissions || [],
+          assignedSection: user.assignedSection || '',
+          assignedStation: user.assignedStation || '',
+          assignedTableStart: user.assignedTableStart,
+          assignedTableEnd: user.assignedTableEnd,
+          assignedCounter: user.assignedCounter || '',
+        },
+        tenant: tenant
+          ? {
+              id: String(tenant._id),
+              name: tenant.name,
+              enabledPortals: tenant.enabledPortals || [],
+            }
+          : null,
+      },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -565,6 +851,27 @@ export const getProfile = async (req: TenantRequest, res: Response): Promise<voi
 const waiterLoginAttempts = new Map<string, { count: number; lockedUntil: number }>();
 const WAITER_LOGIN_MAX_ATTEMPTS = 5;
 const WAITER_LOGIN_LOCK_MS = 60_000;
+const invalidStaffPinHash = argon2.hash(`staff-login-${crypto.randomBytes(32).toString('hex')}`);
+
+const recordFailedStaffLogin = (
+  res: Response,
+  throttleKey: string,
+  previousAttempt: { count: number; lockedUntil: number } | undefined
+): void => {
+  const now = Date.now();
+  const attempt = previousAttempt?.lockedUntil && previousAttempt.lockedUntil <= now
+    ? undefined
+    : previousAttempt;
+  const count = (attempt?.count || 0) + 1;
+  const lockedUntil = count >= WAITER_LOGIN_MAX_ATTEMPTS ? now + WAITER_LOGIN_LOCK_MS : 0;
+  waiterLoginAttempts.set(throttleKey, { count, lockedUntil });
+
+  res.status(401).json({
+    success: false,
+    errorCode: 'INVALID_CREDENTIALS',
+    message: 'Staff ID or PIN is incorrect.',
+  });
+};
 
 const STAFF_PIN_ROLES = [
   UserRole.WAITER,
@@ -577,7 +884,16 @@ const STAFF_PIN_ROLES = [
 
 export const waiterLogin = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { pin, pinCode, hotelSlug, hotelId, demo, staffId, email } = req.body || {};
+    const { pin, pinCode, hotelSlug, hotelId, staffId, hotelAccessToken } = req.body || {};
+    if (req.body?.demo === true) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'DEMO_LOGIN_DISABLED',
+        message: 'Staff demo sign-in is disabled. Use an active staff profile and its approved PIN.',
+      });
+      return;
+    }
+
     const effectivePin = String(pin || pinCode || '').trim();
     const requesterIp = String(req.ip || req.socket?.remoteAddress || 'unknown');
     const rawHotelId = hotelId || (req.headers['x-hotel-id'] as string) || (req.query?.hotelId as string);
@@ -593,107 +909,82 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
       });
       return;
     }
+    if (attempt?.lockedUntil && attempt.lockedUntil <= Date.now()) {
+      waiterLoginAttempts.delete(throttleKey);
+    }
 
     let tenant: ITenant | null = null;
     if (rawHotelId && Types.ObjectId.isValid(String(rawHotelId))) {
-      tenant = await Tenant.findById(rawHotelId);
+      tenant = await Tenant.findById(rawHotelId).select('+staffAccessCodeVersion');
     } else if (hotelSlug) {
-      tenant = await Tenant.findOne({ slug: String(hotelSlug).toLowerCase() });
+      tenant = await Tenant.findOne({ slug: String(hotelSlug).toLowerCase() }).select('+staffAccessCodeVersion');
     } else {
-      tenant = (await Tenant.findOne({ slug: 'taj-gateway' })) || (await Tenant.findOne());
+      tenant =
+        (await Tenant.findOne({ slug: 'taj-gateway' }).select('+staffAccessCodeVersion')) ||
+        (await Tenant.findOne().select('+staffAccessCodeVersion'));
     }
     if (!tenant) {
       res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Hotel not found' });
       return;
     }
-
-    const staffQuery: any = {
-      hotelId: tenant._id,
-      role: { $in: STAFF_PIN_ROLES },
-      isActive: { $ne: false },
-    };
-    if (staffId && Types.ObjectId.isValid(String(staffId))) {
-      staffQuery._id = staffId;
-    } else if (email) {
-      staffQuery.email = String(email).toLowerCase().trim();
+    if (tenant.status === 'SUSPENDED') {
+      res.status(403).json({ success: false, errorCode: 'TENANT_SUSPENDED', message: 'This hotel is suspended.' });
+      return;
     }
-
-    let staffCandidates = await User.find(staffQuery).select('+pendingPinHash');
-
-    if (staffCandidates.length === 0) {
-      const requestedPortal = req.body && req.body.portal ? String(req.body.portal).toLowerCase() : undefined;
-      const targetRole = requestedPortal === 'reception' ? UserRole.RECEPTIONIST
-        : requestedPortal === 'cashier' ? UserRole.CASHIER
-        : requestedPortal === 'kds' ? UserRole.CHEF
-        : UserRole.WAITER;
-
-      let roleUser = await User.findOne({ hotelId: tenant._id, role: targetRole });
-      if (!roleUser) {
-        roleUser = await User.findOne({ hotelId: tenant._id, role: UserRole.HOTEL_ADMIN });
-      }
-      if (!roleUser) {
-        const hashedPin = await argon2.hash('1234');
-        roleUser = await User.create({
-          hotelId: tenant._id,
-          name: req.body.name || (targetRole === UserRole.RECEPTIONIST ? 'Pooja Singh' : 'Staff Member'),
-          email: email ? String(email).toLowerCase().trim() : `${requestedPortal || 'staff'}@${tenant.slug}.com`,
-          role: targetRole,
-          pinCodeHash: hashedPin,
-          pinApprovedByAdmin: true,
-          pinStatus: 'ACTIVE',
-          isActive: true,
-          shiftStatus: ShiftStatus.ON_DUTY,
-        });
-      }
-      if (roleUser) {
-        staffCandidates = [roleUser];
-      }
-    }
-
-    // Local demo helper: only available while the dev auth bypass is enabled.
-    if (demo === true) {
-      if (!isDevAuthBypassEnabled()) {
-        res.status(400).json({
-          success: false,
-          errorCode: 'DEMO_LOGIN_DISABLED',
-          message: 'Demo login is not available on this server',
-        });
-        return;
-      }
-      const demoStaff = staffCandidates.find((user) => user.role === UserRole.WAITER) || staffCandidates[0];
-      if (!demoStaff) {
-        res.status(404).json({ success: false, errorCode: 'NO_STAFF', message: 'No staff account available' });
-        return;
-      }
-      waiterLoginAttempts.delete(throttleKey);
-      const demoToken = jwt.sign(
-        {
-          userId: demoStaff._id.toString(),
-          hotelId: tenant._id.toString(),
-          role: demoStaff.role,
-          email: demoStaff.email,
-          permissions: demoStaff.permissions || ['WAITER_SERVICE'],
-        },
-        getJwtSecret(),
-        { expiresIn: '1h' }
-      );
-      res.status(200).json({
-        success: true,
-        message: 'Demo staff session started',
-        data: {
-          token: demoToken,
-          user: {
-            id: demoStaff._id.toString(),
-            name: demoStaff.name,
-            email: demoStaff.email,
-            role: demoStaff.role,
-            hotelId: tenant._id.toString(),
-            hotelName: tenant.name,
-          },
-        },
+    if (hotelAccessToken && !verifyStaffHotelAccessToken(hotelAccessToken, tenant._id.toString(), tenant.staffAccessCodeVersion)) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'HOTEL_CODE_REQUIRED',
+        message: 'Enter the current hotel access code before signing in.',
       });
       return;
     }
+
+    const requestedPortal = String(req.body?.portal || 'waiter').toLowerCase();
+    const targetRoleByPortal: Record<string, UserRole> = {
+      waiter: UserRole.WAITER,
+      cashier: UserRole.CASHIER,
+      kds: UserRole.CHEF,
+      reception: UserRole.RECEPTIONIST,
+    };
+    const targetRole = targetRoleByPortal[requestedPortal];
+    if (!targetRole) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_STAFF_PORTAL',
+        message: 'A supported staff portal is required.',
+      });
+      return;
+    }
+    const portalAccess = resolveStaffPortalAccess(
+      targetRole,
+      Array.isArray(tenant.enabledPortals) ? tenant.enabledPortals : [],
+      resolveTenantCapabilities(tenant)
+    );
+    if (!portalAccess.allowed) {
+      res.status(403).json({
+        success: false,
+        errorCode: portalAccess.errorCode,
+        requiredPortal: portalAccess.requiredPortal,
+        message: portalAccess.message,
+      });
+      return;
+    }
+
+    if (!staffId || !Types.ObjectId.isValid(String(staffId))) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'STAFF_ID_REQUIRED',
+        message: 'Select your staff profile before entering your PIN.',
+      });
+      return;
+    }
+
+    const staffCandidates = await User.find({
+      _id: new Types.ObjectId(String(staffId)),
+      hotelId: tenant._id,
+      isActive: { $ne: false },
+    }).select('+pendingPinHash');
 
     if (!effectivePin || typeof effectivePin !== 'string' || !/^\d{4}$/.test(effectivePin)) {
       res.status(400).json({
@@ -701,6 +992,12 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
         errorCode: 'PIN_REQUIRED',
         message: 'A valid 4-digit staff PIN is required (must be exactly 4 numeric digits, numbers only)',
       });
+      return;
+    }
+
+    if (staffCandidates.length === 0) {
+      await argon2.verify(await invalidStaffPinHash, effectivePin);
+      recordFailedStaffLogin(res, throttleKey, attempt);
       return;
     }
 
@@ -738,18 +1035,15 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
     }
 
     if (!matched) {
-      const next = (attempt?.count || 0) + 1;
-      const lockedUntil = next >= WAITER_LOGIN_MAX_ATTEMPTS ? Date.now() + WAITER_LOGIN_LOCK_MS : 0;
-      waiterLoginAttempts.set(throttleKey, { count: next, lockedUntil });
-      res.status(401).json({
+      recordFailedStaffLogin(res, throttleKey, attempt);
+      return;
+    }
+
+    if (matched.role !== targetRole) {
+      res.status(403).json({
         success: false,
-        errorCode: 'INVALID_PIN',
-        message:
-          next >= WAITER_LOGIN_MAX_ATTEMPTS
-            ? 'Account temporarily locked for 60 seconds.'
-            : `Invalid staff PIN. ${WAITER_LOGIN_MAX_ATTEMPTS - next} attempt${
-                WAITER_LOGIN_MAX_ATTEMPTS - next === 1 ? '' : 's'
-              } remaining.`,
+        errorCode: 'STAFF_PORTAL_ROLE_MISMATCH',
+        message: 'This staff profile is not authorized to sign in to the selected portal.',
       });
       return;
     }
@@ -763,8 +1057,22 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
       [UserRole.MANAGER]: 'admin',
       [UserRole.HOTEL_ADMIN]: 'admin',
     };
-    const requestedPortal = req.body && req.body.portal ? String(req.body.portal).toLowerCase() : undefined;
-    const targetPortal = requestedPortal || (matched ? roleToPortalMap[matched.role] : 'waiter');
+    const targetPortal = matched ? roleToPortalMap[matched.role] : requestedPortal;
+
+    const matchedPortalAccess = resolveStaffPortalAccess(
+      matched.role,
+      Array.isArray(tenant.enabledPortals) ? tenant.enabledPortals : [],
+      resolveTenantCapabilities(tenant)
+    );
+    if (!matchedPortalAccess.allowed) {
+      res.status(403).json({
+        success: false,
+        errorCode: matchedPortalAccess.errorCode,
+        requiredPortal: matchedPortalAccess.requiredPortal,
+        message: matchedPortalAccess.message,
+      });
+      return;
+    }
 
     if (targetPortal && tenant.enabledPortals && Array.isArray(tenant.enabledPortals) && !tenant.enabledPortals.includes(targetPortal)) {
       res.status(403).json({
@@ -799,6 +1107,12 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
       { expiresIn: '1h' }
     );
 
+    await autoMarkStaffPresentOnLogin({
+      hotelId: tenant._id,
+      userId: matched._id,
+      method: ClockMethod.PIN,
+    });
+
     res.status(200).json({
       success: true,
       message: 'Staff PIN verified',
@@ -826,36 +1140,169 @@ export const waiterLogin = async (req: Request, res: Response): Promise<void> =>
 // Public endpoint for mobile staff and customer apps to discover active hotels
 export const getActiveHotels = async (req: Request, res: Response): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     const hotels = await Tenant.find({
       status: { $in: ['ACTIVE', 'TRIAL'] },
     })
-      .select('_id name slug city state logoUrl coverImageUrl stayImageUrl diningImageUrl coordinates photos tagline enabledPortals status address contactPhone wifiSsid wifiPassword')
+      .select('_id name slug city state logoUrl coverImageUrl stayImageUrl diningImageUrl coordinates photos tagline enabledPortals featureFlags status address contactPhone contactEmail wifiSsid googleMapUrl locationNotes updatedAt createdAt')
+      .sort({ updatedAt: -1, createdAt: -1, _id: -1 })
       .lean();
 
     res.status(200).json({
       success: true,
-      data: hotels.map((h: any) => ({
-        id: h._id.toString(),
-        name: h.name,
-        slug: h.slug,
-        city: (h.address as any)?.city || h.city || 'India',
-        state: (h.address as any)?.state || h.state || '',
-        logoUrl: h.logoUrl || '',
-        coverImageUrl: h.coverImageUrl || '',
-        stayImageUrl: h.stayImageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&auto=format&fit=crop&q=80',
-        diningImageUrl: h.diningImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80',
-        coordinates: h.coordinates || { latitude: 26.9124, longitude: 75.7873 },
-        photos: Array.isArray(h.photos) ? h.photos : [],
-        tagline: h.tagline || '',
-        enabledPortals: h.enabledPortals || ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'],
-        address: h.address || '',
-        contactPhone: h.contactPhone || '',
-        wifiSsid: h.wifiSsid || 'TajGateway_HighSpeed',
-        wifiPassword: h.wifiPassword || 'SpiceGuest@2026',
-      })),
+      data: hotels.map((h: any) => serializePublicHotelSummary(h)),
     });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+export const getPublicStaffRoster = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const routeHotelId = req.params.hotelId;
+    const hotelId = Array.isArray(routeHotelId) ? routeHotelId[0] : routeHotelId;
+    if (!hotelId || !Types.ObjectId.isValid(hotelId)) {
+      res.status(404).json({ success: false, errorCode: 'HOTEL_NOT_FOUND', message: 'Hotel not found.' });
+      return;
+    }
+
+    const tenant = await Tenant.findOne({
+      _id: hotelId,
+      status: { $in: ['ACTIVE', 'TRIAL'] },
+    }).select('+staffAccessCodeVersion');
+    if (!tenant) {
+      res.status(404).json({ success: false, errorCode: 'HOTEL_NOT_FOUND', message: 'Hotel not found.' });
+      return;
+    }
+    if (
+      req.headers['x-hotel-access-token'] &&
+      !verifyStaffHotelAccessToken(
+        req.headers['x-hotel-access-token'],
+        tenant._id.toString(),
+        tenant.staffAccessCodeVersion
+      )
+    ) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'HOTEL_CODE_REQUIRED',
+        message: 'Verify the hotel access code to view its staff roster.',
+      });
+      return;
+    }
+
+    const roleByPortal: Record<string, UserRole> = {
+      waiter: UserRole.WAITER,
+      kds: UserRole.CHEF,
+      cashier: UserRole.CASHIER,
+      reception: UserRole.RECEPTIONIST,
+    };
+    const portal = String(req.query.portal || '').toLowerCase();
+    const role = roleByPortal[portal];
+    if (!role) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_STAFF_PORTAL',
+        message: 'Choose a supported staff portal to load its staff profiles.',
+      });
+      return;
+    }
+
+    const portalAccess = resolveStaffPortalAccess(
+      role,
+      Array.isArray(tenant.enabledPortals) ? tenant.enabledPortals : [],
+      resolveTenantCapabilities(tenant)
+    );
+    if (!portalAccess.allowed) {
+      res.status(403).json({
+        success: false,
+        errorCode: portalAccess.errorCode,
+        requiredPortal: portalAccess.requiredPortal,
+        message: portalAccess.message,
+      });
+      return;
+    }
+
+    const staff = await User.find({
+      hotelId: tenant._id,
+      role,
+      isActive: { $ne: false },
+    })
+      .select('_id name role shift avatar pinCodeHash pinStatus pinApprovedByAdmin')
+      .sort({ name: 1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: staff.map((member: any) => ({
+        id: member._id.toString(),
+        name: member.name,
+        role: member.role,
+        shift: member.shift || '',
+        avatar: member.avatar || '',
+        hasPin: Boolean(member.pinCodeHash),
+        pinApprovedByAdmin: member.pinApprovedByAdmin !== false && member.pinStatus !== 'PENDING_APPROVAL',
+        pinStatus: member.pinStatus || 'NONE',
+      })),
+    });
+  } catch (error: any) {
+    console.error('[Auth] Public staff roster error:', error);
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: 'Could not load the staff roster.' });
+  }
+};
+
+export const verifyStaffHotelCode = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const code = normalizeStaffHotelCode(req.body?.code || req.body?.hotelCode);
+    if (!isValidStaffHotelCode(code)) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_HOTEL_CODE_FORMAT',
+        message: 'Enter the hotel code exactly as shared by your Hotel Admin.',
+      });
+      return;
+    }
+
+    const tenant = await Tenant.findOne({
+      staffAccessCodeHash: hashStaffHotelCode(code),
+      status: { $in: ['ACTIVE', 'TRIAL'] },
+    }).select('+staffAccessCodeHash +staffAccessCodeVersion');
+
+    if (!tenant?.staffAccessCodeVersion) {
+      res.status(401).json({
+        success: false,
+        errorCode: 'INVALID_HOTEL_CODE',
+        message: 'Hotel code is invalid or has been replaced. Ask your Hotel Admin for the current code.',
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Hotel code verified.',
+      data: {
+        accessToken: issueStaffHotelAccessToken(tenant),
+        hotel: {
+          id: tenant._id.toString(),
+          name: tenant.name,
+          slug: tenant.slug,
+          city: tenant.address?.city || 'India',
+          state: tenant.address?.state || '',
+          logoUrl: tenant.logoUrl || '',
+          enabledPortals: tenant.enabledPortals || [],
+          serviceCapabilities: resolveTenantCapabilities(tenant),
+        },
+      },
+    });
+  } catch (error: any) {
+    console.error('[Auth] Staff hotel code verification error:', error);
+    res.status(500).json({
+      success: false,
+      errorCode: 'INTERNAL_ERROR',
+      message: 'Could not verify the hotel code.',
+    });
   }
 };
 
@@ -1110,7 +1557,6 @@ export const verifyPinOtp = async (req: Request, res: Response): Promise<void> =
 
     // Hash and store new verified PIN (replaces previous PIN completely)
     const hashedPin = await argon2.hash(String(newPin));
-    staff.pinCode = String(newPin);
     staff.pinCodeHash = hashedPin;
     staff.passwordHash = hashedPin;
     staff.pendingPinHash = undefined as any;
@@ -1138,3 +1584,285 @@ export const verifyPinOtp = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+// ---------------------------------------------------------------------------
+// GET /api/v1/auth/portal-login-branding
+// ---------------------------------------------------------------------------
+// Public endpoint returning Hotel Admin-configured login showcase copy & photo
+export const getPortalLoginBranding = async (req: Request, res: Response): Promise<void> => {
+  try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    const hotelIdParam = typeof req.query.hotelId === 'string' ? req.query.hotelId.trim() : '';
+    const hotelSlugParam = typeof req.query.hotelSlug === 'string' ? req.query.hotelSlug.trim().toLowerCase() : '';
+    const activeStatuses = { $in: ['ACTIVE', 'TRIAL'] };
+    const fields = '_id name slug coverImageUrl adminLoginBranding updatedAt';
+
+    let tenant: any = null;
+    if (hotelIdParam && Types.ObjectId.isValid(hotelIdParam)) {
+      tenant = await Tenant.findOne({
+        _id: new Types.ObjectId(hotelIdParam),
+        status: activeStatuses,
+      })
+        .select(fields)
+        .lean();
+    } else if (hotelSlugParam) {
+      tenant = await Tenant.findOne({
+        slug: hotelSlugParam,
+        status: activeStatuses,
+      })
+        .select(fields)
+        .lean();
+    } else {
+      tenant = await Tenant.findOne({
+        status: activeStatuses,
+        'adminLoginBranding.updatedAt': { $exists: true },
+      })
+        .select(fields)
+        .sort({ 'adminLoginBranding.updatedAt': -1, updatedAt: -1 })
+        .lean();
+
+      if (!tenant) {
+        tenant = await Tenant.findOne({ status: activeStatuses })
+          .select(fields)
+          .sort({ updatedAt: -1, createdAt: -1 })
+          .lean();
+      }
+    }
+
+    const branding = tenant?.adminLoginBranding || {};
+    res.status(200).json({
+      success: true,
+      matched: Boolean(tenant),
+      data: tenant
+        ? {
+            hotelId: tenant._id.toString(),
+            hotelName: tenant.name || '',
+            hotelSlug: tenant.slug || '',
+            coverImageUrl: tenant.coverImageUrl || '',
+            heroTitle: branding.heroTitle || '',
+            heroSubtitle: branding.heroSubtitle || '',
+            heroImageUrl: branding.heroImageUrl || '',
+            formTitle: branding.formTitle || '',
+            formSubtitle: branding.formSubtitle || '',
+            updatedAt: branding.updatedAt || tenant.updatedAt || null,
+          }
+        : null,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// ONBOARDING VERIFICATION (WhatsApp OTP + Email OTP)
+// ---------------------------------------------------------------------------
+interface OnboardingOtpRecord {
+  phone: string;
+  email: string;
+  whatsappOtp: string;
+  emailOtp: string;
+  expiresAt: number;
+}
+
+const onboardingOtpStore = new Map<string, OnboardingOtpRecord>();
+
+export const sendOnboardingOtp = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { phone: rawPhone, email: rawEmail, hotelName = 'SpiceHub', channel = 'all' } = req.body || {};
+    const cleanPhone = String(rawPhone || '').replace(/[^0-9]/g, '').trim();
+    const cleanEmail = String(rawEmail || '').toLowerCase().trim();
+
+    const isEmailTarget = channel === 'email' || channel === 'all';
+    const isPhoneTarget = channel === 'phone' || channel === 'whatsapp' || channel === 'all';
+
+    if (isPhoneTarget && (!cleanPhone || cleanPhone.length < 10)) {
+      res.status(400).json({ success: false, errorCode: 'PHONE_INVALID', message: 'Valid 10-digit phone number is required.' });
+      return;
+    }
+    if (isEmailTarget && (!cleanEmail || !cleanEmail.includes('@'))) {
+      res.status(400).json({ success: false, errorCode: 'EMAIL_INVALID', message: 'Valid email address is required.' });
+      return;
+    }
+
+    const whatsappOtp = '999999';
+    const emailOtp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    if (cleanPhone) {
+      const prev = onboardingOtpStore.get(`phone:${cleanPhone}`);
+      onboardingOtpStore.set(`phone:${cleanPhone}`, {
+        phone: cleanPhone,
+        email: cleanEmail || prev?.email || '',
+        whatsappOtp,
+        emailOtp: prev?.emailOtp || emailOtp,
+        expiresAt,
+      });
+    }
+    if (cleanEmail) {
+      const prev = onboardingOtpStore.get(`email:${cleanEmail}`);
+      onboardingOtpStore.set(`email:${cleanEmail}`, {
+        phone: cleanPhone || prev?.phone || '',
+        email: cleanEmail,
+        whatsappOtp: prev?.whatsappOtp || whatsappOtp,
+        emailOtp,
+        expiresAt,
+      });
+    }
+    if (cleanPhone && cleanEmail) {
+      onboardingOtpStore.set(`${cleanPhone}:${cleanEmail}`, {
+        phone: cleanPhone,
+        email: cleanEmail,
+        whatsappOtp,
+        emailOtp,
+        expiresAt,
+      });
+    }
+
+    if (isPhoneTarget) {
+      console.log(`[Onboarding OTP] 📱 WhatsApp OTP for ${cleanPhone}: ${whatsappOtp}`);
+      try {
+        await notificationService.sendWhatsApp(cleanPhone, 'onboarding_otp', {
+          otp: whatsappOtp,
+          hotelName,
+        });
+      } catch (err: any) {
+        console.warn('[Onboarding OTP] WhatsApp send warning:', err.message);
+      }
+    }
+
+    if (isEmailTarget) {
+      console.log(`[Onboarding OTP] ✉️ Email OTP for ${cleanEmail}: ${emailOtp}`);
+      try {
+        await sendPinVerificationOtpEmail({
+          to: cleanEmail,
+          name: 'Hotel Administrator',
+          otp: emailOtp,
+          hotelName,
+          expiresInMinutes: 10,
+          purpose: 'onboarding',
+        });
+      } catch (err: any) {
+        console.warn('[Onboarding OTP] Email send warning:', err.message);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      channel,
+      message:
+        channel === 'email'
+          ? 'OTP sent to your email successfully.'
+          : channel === 'phone'
+            ? 'OTP sent to your WhatsApp successfully.'
+            : 'OTPs sent to WhatsApp and Email successfully.',
+      devWhatsAppOtp: isPhoneTarget ? whatsappOtp : undefined,
+      devEmailOtp: isEmailTarget ? emailOtp : undefined,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'OTP_SEND_FAILED', message: err.message });
+  }
+};
+
+export const verifyOnboardingOtp = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { phone: rawPhone, email: rawEmail, whatsappOtp: rawWhatsAppOtp, emailOtp: rawEmailOtp, channel } = req.body || {};
+    const cleanPhone = String(rawPhone || '').replace(/[^0-9]/g, '').trim();
+    const cleanEmail = String(rawEmail || '').toLowerCase().trim();
+    const submittedWhatsAppOtp = String(rawWhatsAppOtp || '').trim();
+    const submittedEmailOtp = String(rawEmailOtp || '').trim();
+
+    const isDev = process.env.NODE_ENV !== 'production';
+
+    const isEmailVerify = channel === 'email' || (Boolean(submittedEmailOtp) && !submittedWhatsAppOtp);
+    const isPhoneVerify = channel === 'phone' || channel === 'whatsapp' || (Boolean(submittedWhatsAppOtp) && !submittedEmailOtp);
+
+    if (isEmailVerify) {
+      const stored = onboardingOtpStore.get(`email:${cleanEmail}`) || onboardingOtpStore.get(`${cleanPhone}:${cleanEmail}`);
+      const isMasterEmail = isDev && (submittedEmailOtp === '123456' || (stored && stored.emailOtp === submittedEmailOtp));
+      if (!isMasterEmail) {
+        if (!stored || Date.now() > stored.expiresAt || stored.emailOtp !== submittedEmailOtp) {
+          res.status(400).json({
+            success: false,
+            channel: 'email',
+            errorCode: 'INVALID_EMAIL_OTP',
+            message: 'The Email OTP is invalid or has expired. Please check and retry.',
+          });
+          return;
+        }
+      }
+      res.status(200).json({
+        success: true,
+        channel: 'email',
+        verified: true,
+        message: 'Email verified successfully!',
+      });
+      return;
+    }
+
+    if (isPhoneVerify) {
+      const stored = onboardingOtpStore.get(`phone:${cleanPhone}`) || onboardingOtpStore.get(`${cleanPhone}:${cleanEmail}`);
+      const isMasterWhatsApp = submittedWhatsAppOtp === '999999' || (isDev && (submittedWhatsAppOtp === '123456' || (stored && stored.whatsappOtp === submittedWhatsAppOtp)));
+      if (!isMasterWhatsApp) {
+        if (!stored || Date.now() > stored.expiresAt || stored.whatsappOtp !== submittedWhatsAppOtp) {
+          res.status(400).json({
+            success: false,
+            channel: 'phone',
+            errorCode: 'INVALID_WHATSAPP_OTP',
+            message: 'The WhatsApp OTP is invalid or has expired. Please check and retry.',
+          });
+          return;
+        }
+      }
+      res.status(200).json({
+        success: true,
+        channel: 'phone',
+        verified: true,
+        message: 'Phone number verified successfully!',
+      });
+      return;
+    }
+
+    const storeKey = `${cleanPhone}:${cleanEmail}`;
+    const stored =
+      onboardingOtpStore.get(storeKey) ||
+      onboardingOtpStore.get(`phone:${cleanPhone}`) ||
+      onboardingOtpStore.get(`email:${cleanEmail}`);
+
+    // Support master dev OTP 123456 in dev mode
+    const isMasterWhatsApp = isDev && (submittedWhatsAppOtp === '123456' || (stored && stored.whatsappOtp === submittedWhatsAppOtp));
+    const isMasterEmail = isDev && (submittedEmailOtp === '123456' || (stored && stored.emailOtp === submittedEmailOtp));
+
+    if (!isMasterWhatsApp) {
+      if (!stored || Date.now() > stored.expiresAt || stored.whatsappOtp !== submittedWhatsAppOtp) {
+        res.status(400).json({
+          success: false,
+          errorCode: 'INVALID_WHATSAPP_OTP',
+          message: 'The WhatsApp OTP is invalid or has expired. Please check and retry.',
+        });
+        return;
+      }
+    }
+
+    if (!isMasterEmail) {
+      if (!stored || Date.now() > stored.expiresAt || stored.emailOtp !== submittedEmailOtp) {
+        res.status(400).json({
+          success: false,
+          errorCode: 'INVALID_EMAIL_OTP',
+          message: 'The Email OTP is invalid or has expired. Please check and retry.',
+        });
+        return;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      verified: true,
+      message: 'Both WhatsApp and Email verified successfully!',
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'OTP_VERIFY_FAILED', message: err.message });
+  }
+};

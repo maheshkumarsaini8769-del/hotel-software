@@ -130,7 +130,7 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
           stars,
           {
             border: 'border-amber-500/30',
-            bg: 'bg-amber-950/10',
+            bg: 'bg-slate-900/10',
             headerBg: 'bg-amber-900/20',
             titleColor: 'text-amber-400',
             icon: '⭐',

@@ -19,7 +19,7 @@ export const DiningReservationCard: React.FC<DiningReservationCardProps> = ({
   const isUpcoming = ReservationHelper.isSlotUpcoming(reservation.timeSlot, reservation.reservationDate);
 
   return (
-    <div className="bg-slate-900/80 border border-slate-800/90 hover:border-amber-500/40 rounded-2xl p-4 flex flex-col justify-between transition-all duration-200 hover:shadow-xl hover:shadow-black/50 group backdrop-blur-sm">
+    <div className="bg-slate-900/80 border border-slate-800/90 hover:border-amber-500/40 rounded-xl p-4 flex flex-col justify-between transition-all duration-200 hover:shadow-xl hover:shadow-black/50 group backdrop-blur-sm">
       {/* Top Header */}
       <div>
         <div className="flex items-start justify-between">
@@ -29,11 +29,11 @@ export const DiningReservationCard: React.FC<DiningReservationCardProps> = ({
                 {reservation.customerName}
               </span>
               <span className="text-xs px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-semibold border border-slate-700">
-                👥 {reservation.partySize} Covers
+                 {reservation.partySize} Covers
               </span>
             </div>
             <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
-              <span>📞 {reservation.customerPhone}</span>
+              <span> {reservation.customerPhone}</span>
               <span className="text-slate-600">•</span>
               <span className="text-slate-500 font-mono text-[11px]">{reservation.reservationNumber}</span>
             </div>
@@ -54,7 +54,7 @@ export const DiningReservationCard: React.FC<DiningReservationCardProps> = ({
           <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800">
             <div className="text-[10px] text-slate-400 font-medium">Reserved Time</div>
             <div className="font-bold text-amber-300 mt-0.5 flex items-center gap-1.5">
-              <span>🕒 {ReservationHelper.formatTimeSlot(reservation.timeSlot)}</span>
+              <span> {ReservationHelper.formatTimeSlot(reservation.timeSlot)}</span>
               {isUpcoming && reservation.status === 'CONFIRMED' && (
                 <span className="w-2 h-2 rounded-full bg-slate-800 animate-ping" title="Arrival window active"></span>
               )}
@@ -76,11 +76,11 @@ export const DiningReservationCard: React.FC<DiningReservationCardProps> = ({
         {/* Deposit Guarantee & Special Requests */}
         <div className="mt-2.5 flex items-center justify-between gap-2">
           <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold border ${depositBadge.bg} ${depositBadge.text} ${depositBadge.border}`}>
-            💳 {depositBadge.label}
+             {depositBadge.label}
           </span>
           {reservation.specialRequests && (
             <span className="text-[11px] text-amber-300/90 truncate flex items-center gap-1 max-w-[200px]" title={reservation.specialRequests}>
-              <span>✨</span>
+              <span></span>
               <span className="truncate">{reservation.specialRequests}</span>
             </span>
           )}
@@ -108,9 +108,9 @@ export const DiningReservationCard: React.FC<DiningReservationCardProps> = ({
             <button
               onClick={() => onSeat(reservation._id)}
               disabled={isLoading}
-              className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-950/40 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 py-1.5 px-3 rounded-xl font-bold text-xs shadow-md shadow-emerald-950/40 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
-              ✓ Seat Guests
+               Seat Guests
             </button>
           </>
         )}

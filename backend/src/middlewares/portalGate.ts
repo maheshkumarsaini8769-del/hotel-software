@@ -2,12 +2,147 @@ import { Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { TenantRequest, UserRole } from '../types';
+import { AuthenticatedUserPayload, TenantRequest, UserRole } from '../types';
 import { Tenant } from '../models/Tenant';
+import { User } from '../models/User';
+import { resolveTenantCapabilities } from '../utils/tenantCapabilities';
 import { GuestSession } from '../models/GuestSession';
 import { Booking } from '../models/Booking';
 import { getJwtSecret } from '../config/security';
 import { PortalKey } from '../types/sharedTypes';
+
+const STAFF_ROLES_BY_PORTAL: Record<PortalKey, UserRole[]> = {
+  admin: [UserRole.GROUP_ADMIN, UserRole.HOTEL_ADMIN, UserRole.MANAGER],
+  cashier: [UserRole.CASHIER],
+  reception: [UserRole.RECEPTIONIST, UserRole.HOUSEKEEPING, UserRole.MAINTENANCE],
+  kds: [UserRole.CHEF],
+  waiter: [UserRole.WAITER],
+  customer: [UserRole.GUEST],
+  guest: [UserRole.GUEST, UserRole.RECEPTIONIST, UserRole.HOTEL_ADMIN, UserRole.GROUP_ADMIN, UserRole.MANAGER],
+};
+
+async function enforceBearerPortalRole(
+  req: TenantRequest,
+  res: Response,
+  portalKeys: PortalKey[]
+): Promise<boolean> {
+  const authorization = req.headers.authorization;
+  const roleFromRequest = req.user?.role;
+  if (!authorization && !roleFromRequest) return true;
+
+  let role = roleFromRequest;
+  if (authorization) {
+    if (!authorization.startsWith('Bearer ')) {
+      res.status(401).json({
+        success: false,
+        errorCode: 'UNAUTHORIZED',
+        message: 'A valid staff session is required.',
+      });
+      return false;
+    }
+
+    let decoded: AuthenticatedUserPayload;
+    try {
+      decoded = jwt.verify(
+        authorization.slice('Bearer '.length),
+        getJwtSecret()
+      ) as AuthenticatedUserPayload;
+    } catch {
+      res.status(401).json({
+        success: false,
+        errorCode: 'INVALID_TOKEN',
+        message: 'Token expired or signature invalid.',
+      });
+      return false;
+    }
+
+    role = decoded.role;
+    if (role !== UserRole.GUEST && role !== UserRole.SUPERADMIN) {
+      if (!decoded.userId || !Types.ObjectId.isValid(decoded.userId)) {
+        res.status(401).json({
+          success: false,
+          errorCode: 'INVALID_TOKEN',
+          message: 'The staff session is invalid. Please sign in again.',
+        });
+        return false;
+      }
+
+      let account: {
+        hotelId?: Types.ObjectId | string;
+        role?: UserRole;
+        isActive?: boolean;
+        name?: string;
+        email?: string;
+        permissions?: string[];
+      } | null;
+      try {
+        account = await User.findById(decoded.userId)
+          .select('hotelId role name email permissions isActive')
+          .lean();
+      } catch {
+        res.status(503).json({
+          success: false,
+          errorCode: 'AUTH_UNAVAILABLE',
+          message: 'Staff access could not be verified. Please retry.',
+        });
+        return false;
+      }
+
+      if (
+        !account ||
+        account.isActive === false ||
+        account.role !== role ||
+        String(account.hotelId || '') !== String(decoded.hotelId || '')
+      ) {
+        res.status(401).json({
+          success: false,
+          errorCode: 'SESSION_REVOKED',
+          message: 'This staff account is inactive or its access has changed. Please sign in again.',
+        });
+        return false;
+      }
+
+      decoded.name = account.name;
+      decoded.email = account.email || '';
+      decoded.permissions = account.permissions || [];
+    }
+
+    req.user = decoded;
+  }
+
+  if (role === UserRole.SUPERADMIN) return true;
+
+  if (role !== UserRole.GUEST && req.user?.hotelId) {
+    const requestHotelIds = [
+      req.headers['x-hotel-id'],
+      req.query?.hotelId,
+      req.body?.hotelId,
+    ]
+      .flat()
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .map((value) => value.trim());
+    if (requestHotelIds.some((hotelId) => hotelId !== String(req.user?.hotelId))) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'TENANT_MISMATCH',
+        message: 'Your staff session cannot access another hotel.',
+      });
+      return false;
+    }
+  }
+
+  const allowedRoles = portalKeys.flatMap((portal) => STAFF_ROLES_BY_PORTAL[portal]);
+  if (!role || !allowedRoles.includes(role)) {
+    res.status(403).json({
+      success: false,
+      errorCode: 'STAFF_ROLE_FORBIDDEN',
+      message: `Your staff role cannot access the ${portalKeys.join(' or ')} portal.`,
+    });
+    return false;
+  }
+
+  return true;
+}
 
 /**
  * Extracts hotelId / tenant identity from any supported request context:
@@ -80,6 +215,8 @@ export const requirePortal = (portalKey: PortalKey) => {
     if (req.method === 'OPTIONS') {
       return next();
     }
+
+    if (!(await enforceBearerPortalRole(req, res, [portalKey]))) return;
 
     // 2. Platform-wide SuperAdmin bypass for cross-tenant operations
     if (req.user?.role === UserRole.SUPERADMIN) {
@@ -212,6 +349,30 @@ export const requirePortal = (portalKey: PortalKey) => {
         return;
       }
 
+      const capabilities = resolveTenantCapabilities(tenant);
+      const serviceEnabled =
+        portalKey === 'reception'
+          ? capabilities.reception
+          : portalKey === 'guest'
+            ? capabilities.roomBooking || capabilities.inRoomServices
+            : portalKey === 'customer'
+              ? capabilities.tableOrdering
+              : portalKey === 'waiter'
+                ? capabilities.waiterDispatch
+                  : portalKey === 'kds'
+                    ? capabilities.tableOrdering || capabilities.inRoomServices
+                  : true;
+
+      if (!serviceEnabled) {
+        res.status(403).json({
+          success: false,
+          errorCode: 'HOTEL_SERVICE_DISABLED',
+          portal: portalKey,
+          message: `This hotel has disabled the service provided by the '${portalKey}' portal.`,
+        });
+        return;
+      }
+
       next();
     } catch (error: any) {
       res.status(500).json({
@@ -228,9 +389,12 @@ export const requirePortal = (portalKey: PortalKey) => {
  */
 export const requireAnyPortal = (portalKeys: PortalKey[]) => {
   return async (req: TenantRequest, res: Response, next: NextFunction): Promise<void> => {
-    if (req.method === 'OPTIONS' || req.user?.role === UserRole.SUPERADMIN) {
+    if (req.method === 'OPTIONS') {
       return next();
     }
+
+    if (!(await enforceBearerPortalRole(req, res, portalKeys))) return;
+    if (req.user?.role === UserRole.SUPERADMIN) return next();
 
     try {
       let tenant = (req as any).tenant;

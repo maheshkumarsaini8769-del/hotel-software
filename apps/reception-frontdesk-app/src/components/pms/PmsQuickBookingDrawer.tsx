@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { QuickReserveTarget, MatrixRoomCategory } from '../../../../../packages/ui/src/pms/types';
 import { MatrixHelper } from '../../../../../packages/ui/src/pms/MatrixHelper';
 import { formatCurrency } from '../../../../../packages/ui/src/index';
+import { NumericInput } from '@spicehub/ui';
 
 export interface PmsQuickBookingDrawerProps {
   target: QuickReserveTarget | null;
@@ -113,7 +114,7 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
         {/* Drawer Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
           <div className="flex items-center space-x-2">
-            <span className="text-xl">🛎️</span>
+            <span className="text-xl">️</span>
             <div>
               <h2 className="text-base font-extrabold text-white">Quick Reservation</h2>
               <p className="text-xs text-amber-400 font-medium">Front-Desk Instant Room Allocation</p>
@@ -123,7 +124,7 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -131,7 +132,7 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
           {validationError && (
             <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-semibold flex items-center space-x-2">
-              <span>⚠️</span>
+              <span>️</span>
               <span>{validationError}</span>
             </div>
           )}
@@ -226,8 +227,7 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Adults</label>
-                <input
-                  type="number"
+                <NumericInput
                   min="1"
                   max="6"
                   value={adults}
@@ -253,8 +253,7 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Advance Deposit (₹)</label>
-              <input
-                type="number"
+              <NumericInput
                 min="0"
                 value={advanceAmount}
                 onChange={(e) => setAdvanceAmount(Number(e.target.value))}
@@ -310,9 +309,9 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-amber-950/40 transition active:scale-98 disabled:opacity-50"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 py-3 font-extrabold text-xs rounded-xl shadow-lg shadow-amber-950/40 transition active:scale-98 disabled:opacity-50"
             >
-              {isSubmitting ? 'Confirming...' : '✨ Confirm & Block Room'}
+              {isSubmitting ? 'Confirming...' : ' Confirm & Block Room'}
             </button>
           </div>
         </form>

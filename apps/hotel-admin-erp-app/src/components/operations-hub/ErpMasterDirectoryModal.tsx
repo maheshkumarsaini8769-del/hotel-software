@@ -60,14 +60,12 @@ export const ERP_19_SYSTEMS: ErpMasterSystemItem[] = [
   },
   {
     id: 'sys-kitchen-sec',
-    name: '3. Kitchen Section',
+    name: '3. Live Orders & KDS Console',
     category: 'F&B & Dine-In',
     icon: Utensils,
     status: 'LIVE',
-    summary: 'KDS preparation stations (Tandoor, Chinese, Curry, Bakery, Bar, Pantry).',
-    targetModule: 'SETTINGS_CONFIGURATION',
-    targetTab: 'KITCHEN_SECTIONS',
-    port: 3003,
+    summary: 'Active kitchen order tickets (KOT), prep queue timers, dish status & cancellation audit.',
+    targetModule: 'ORDERS_KITCHEN',
   },
   {
     id: 'sys-category',
@@ -87,7 +85,6 @@ export const ERP_19_SYSTEMS: ErpMasterSystemItem[] = [
     status: 'LIVE',
     summary: 'Floor 1, Floor 2 Banquets & Floor 3 Rooftop table studio with instant QR codes.',
     targetModule: 'TABLE_MANAGEMENT',
-    port: 3001,
   },
   {
     id: 'sys-menu-item',
@@ -117,7 +114,6 @@ export const ERP_19_SYSTEMS: ErpMasterSystemItem[] = [
     status: 'LIVE',
     summary: 'Cash, UPI QR, EDC Cards, Room Charge Folio settlements and multi-tender splits.',
     targetModule: 'POS_CASHIER',
-    port: 3007,
   },
   {
     id: 'sys-voucher',
@@ -126,8 +122,7 @@ export const ERP_19_SYSTEMS: ErpMasterSystemItem[] = [
     icon: Ticket,
     status: 'ACTIVE',
     summary: 'Discount coupon codes (WELCOME10, FLAT100, FESTIVE20), min spend & redemptions.',
-    targetModule: 'SETTINGS_CONFIGURATION',
-    targetTab: 'VOUCHERS',
+    targetModule: 'COUPONS_VOUCHERS',
   },
   {
     id: 'sys-recipe',
@@ -181,13 +176,12 @@ export const ERP_19_SYSTEMS: ErpMasterSystemItem[] = [
   },
   {
     id: 'sys-wallet',
-    name: '15. Customer Wallet',
+    name: '15. Customer Ledger & Accounts',
     category: 'Billing & Finance',
     icon: Wallet,
     status: 'LIVE',
-    summary: 'Guest prepaid dining balances, top-up funds, loyalty points & VIP tier perks.',
-    targetModule: 'SETTINGS_CONFIGURATION',
-    targetTab: 'WALLETS',
+    summary: 'Guest corporate accounts, prepaid dining balances, and ledger settlements.',
+    targetModule: 'CORPORATE',
   },
   {
     id: 'sys-warehouse',
@@ -196,18 +190,16 @@ export const ERP_19_SYSTEMS: ErpMasterSystemItem[] = [
     icon: WarehouseIcon,
     status: 'ACTIVE',
     summary: 'Central Godown, Kitchen Dry Pantry, Cold Storage freezer & Bar Cellar locations.',
-    targetModule: 'SETTINGS_CONFIGURATION',
-    targetTab: 'WAREHOUSES',
+    targetModule: 'INVENTORY_STOCK',
   },
   {
     id: 'sys-work-period',
-    name: '17. Work Period Report',
+    name: '17. Work Period & Z-Report',
     category: 'Billing & Finance',
     icon: Clock,
     status: 'LIVE',
-    summary: 'Shift register & Z-Report, cash drawer float, expected vs counted cash reconciliation.',
-    targetModule: 'SETTINGS_CONFIGURATION',
-    targetTab: 'WORK_PERIOD',
+    summary: 'Shift register & Z-Report, cash drawer float, and revenue reconciliation.',
+    targetModule: 'REPORTS_ANALYTICS',
   },
   {
     id: 'sys-registration',
@@ -220,13 +212,12 @@ export const ERP_19_SYSTEMS: ErpMasterSystemItem[] = [
   },
   {
     id: 'sys-logs',
-    name: '19. Logs & Audit Trail',
+    name: '19. Night Audit & Close',
     category: 'Administration & Audits',
     icon: ShieldAlert,
     status: 'ACTIVE',
-    summary: 'System activity logs, KOT void authorizations, price changes and audit trails.',
-    targetModule: 'SETTINGS_CONFIGURATION',
-    targetTab: 'LOGS',
+    summary: 'System activity logs, night audit close, price changes and audit trails.',
+    targetModule: 'EXPENSES_ACCOUNTING',
   },
   {
     id: 'sys-policies',
@@ -271,13 +262,13 @@ export const ErpMasterDirectoryModal: React.FC<ErpMasterDirectoryModalProps> = (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
       <div
         className={`w-full max-w-5xl max-h-[90vh] rounded-3xl border shadow-sm dark:shadow-none flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
-          isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
-        }`}
+ isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
+ }`}
       >
         {/* Modal Header */}
         <div className={`p-6 border-b flex items-center justify-between ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-lg text-xl">
+            <div className="bg-emerald-600 hover:bg-emerald-700 w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg text-xl">
               ⚡
             </div>
             <div>
@@ -287,14 +278,14 @@ export const ErpMasterDirectoryModal: React.FC<ErpMasterDirectoryModalProps> = (
                   19 Core Modules Active
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 Complete all-in-one operations suite for Hotel & Restaurant Management
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition"
+            className={`p-2 rounded-xl transition ${isDark ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
           >
             <X className="w-5 h-5" />
           </button>
@@ -309,7 +300,7 @@ export const ErpMasterDirectoryModal: React.FC<ErpMasterDirectoryModalProps> = (
                 onClick={() => setSelectedCategory(cat)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                   selectedCategory === cat
-                    ? 'bg-amber-500 text-slate-950 font-black'
+                    ? 'bg-blue-600 text-white font-black shadow-xs'
                     : isDark
                     ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
@@ -345,7 +336,7 @@ export const ErpMasterDirectoryModal: React.FC<ErpMasterDirectoryModalProps> = (
                   onSelectSystem(sys);
                   onClose();
                 }}
-                className={`group p-4 rounded-2xl border transition-all duration-150 cursor-pointer hover:border-amber-500/60 hover:shadow-lg relative flex flex-col justify-between ${
+                className={`group p-4 rounded-2xl border transition-all duration-150 cursor-pointer hover:border-blue-500/60 hover:shadow-md relative flex flex-col justify-between ${
                   isDark
                     ? 'bg-slate-900 border-slate-800 hover:bg-slate-800/50'
                     : 'bg-slate-50 border-slate-200 hover:bg-white'
@@ -353,28 +344,28 @@ export const ErpMasterDirectoryModal: React.FC<ErpMasterDirectoryModalProps> = (
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold group-hover:scale-110 transition">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold group-hover:scale-110 transition ${isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600 border border-blue-200'}`}>
                       <Icon className="w-4 h-4" />
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-black tracking-wider uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black tracking-wider uppercase border ${isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
                         {sys.status}
                       </span>
                       {sys.port && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-slate-400">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'}`}>
                           :{sys.port}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <h3 className="text-sm font-black mt-3 group-hover:text-amber-400 transition flex items-center gap-1.5">
+                  <h3 className={`text-sm font-black mt-3 transition flex items-center gap-1.5 ${isDark ? 'group-hover:text-blue-400' : 'text-slate-900 group-hover:text-blue-600'}`}>
                     <span>{sys.name}</span>
                   </h3>
-                  <p className="text-xs text-slate-400 mt-1 leading-relaxed line-clamp-2">{sys.summary}</p>
+                  <p className={`text-xs mt-1 leading-relaxed line-clamp-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{sys.summary}</p>
                 </div>
 
-                <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-bold text-amber-500">
+                <div className={`mt-3 pt-2.5 border-t flex items-center justify-between text-[11px] font-bold ${isDark ? 'border-slate-800/80 text-blue-400' : 'border-slate-200 text-blue-600'}`}>
                   <span>Open System</span>
                   <span className="group-hover:translate-x-1 transition">→</span>
                 </div>

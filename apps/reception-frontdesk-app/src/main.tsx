@@ -1,9 +1,13 @@
 import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { ErrorBoundary, StaffLoginGate, I18nProvider } from '@spicehub/ui';
+import { hydrateStaffLaunchContext } from '@spicehub/api-client';
+import { ErrorBoundary, StaffLoginGate, I18nProvider, installGlobalNumericInputGuard } from '@spicehub/ui';
 import { ReceptionStandaloneApp } from './ReceptionFrontDeskApp';
 import { API_BASE_URL } from './config/api';
+
+installGlobalNumericInputGuard();
+hydrateStaffLaunchContext();
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
@@ -17,6 +21,7 @@ if (rootElement) {
             appName="Front Desk & Reception PMS"
             appSubtitle="Room inventory, check-in/out, folio charges and guest services."
             accent="blue"
+            variant="heritage"
             demoEmail="reception.neha@test.com"
             demoPassword="Reception@123"
           >

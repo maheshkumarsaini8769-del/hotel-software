@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IVendorUI, INewPoPayload, InventoryPoHelper } from '@spicehub/ui';
+import { IVendorUI, INewPoPayload, InventoryPoHelper, NumericInput } from '@spicehub/ui';
 
 interface NewPurchaseOrderModalProps {
   isOpen: boolean;
@@ -188,8 +188,7 @@ export const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                     />
                   </div>
                   <div className="col-span-2">
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.1"
                       min="0.1"
                       value={it.orderQuantity}
@@ -214,8 +213,7 @@ export const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.01"
                       min="0"
                       value={it.unitPrice}
@@ -279,7 +277,7 @@ export const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
             <button
               type="submit"
               disabled={loading || !selectedVendorId}
-              className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
+              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-amber-400 disabled:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
             >
               {loading ? 'Submitting PO...' : 'Raise Purchase Order'}
             </button>

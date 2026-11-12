@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '../../config/api';
 import React, { useEffect, useState, useMemo } from 'react';
+import { Building2 } from 'lucide-react';
 import {
   IGroupBookingUI,
   IGroupSummaryUI,
@@ -260,7 +261,7 @@ export const CorporateMasterFolioApp: React.FC<CorporateMasterFolioAppProps> = (
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans">
+    <div className="heritage-light min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans">
       {/* Top Header & KPI Bar */}
       <CorporateHeader
         summary={summary}
@@ -284,8 +285,8 @@ export const CorporateMasterFolioApp: React.FC<CorporateMasterFolioAppProps> = (
             <div className="text-zinc-500 text-xs mt-3">Loading corporate bookings...</div>
           </div>
         ) : groupBookings.length === 0 ? (
-          <div className="py-20 text-center bg-slate-950 rounded-2xl border border-zinc-800 p-8 max-w-xl mx-auto">
-            <span className="text-4xl">🏢</span>
+          <div className="py-20 text-center bg-slate-950 rounded-xl border border-zinc-800 p-8 max-w-xl mx-auto">
+            <Building2 className="w-10 h-10 text-slate-500 opacity-40 mx-auto mb-2" />
             <h3 className="text-lg font-bold text-white mt-3">No Group Bookings Found</h3>
             <p className="text-zinc-400 text-xs mt-1 mb-5">
               Create your first corporate room block with automated GST invoicing and split policies.

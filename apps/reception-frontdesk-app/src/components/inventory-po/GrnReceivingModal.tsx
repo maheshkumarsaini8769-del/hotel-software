@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IPurchaseOrderUI, INewGrnPayload, InventoryPoHelper } from '@spicehub/ui';
+import { IPurchaseOrderUI, INewGrnPayload, InventoryPoHelper, NumericInput } from '@spicehub/ui';
 
 interface GrnReceivingModalProps {
   isOpen: boolean;
@@ -104,11 +104,11 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border-2 border-emerald-500/40 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
+      <div className="bg-slate-900 border-2 border-emerald-500/40 rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="bg-slate-900 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl">🚚</span>
+            <span className="text-xl"></span>
             <div>
               <h2 className="text-lg font-bold text-white">
                 Goods Received Note (GRN) • Dock Receiving
@@ -123,14 +123,14 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
             onClick={onClose}
             className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white"
           >
-            ✕
+            
           </button>
         </div>
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Vendor Invoice Inputs */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-950/60 p-4 rounded-2xl border border-zinc-800">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-950/60 p-4 rounded-xl border border-zinc-800">
             <div>
               <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
                 Vendor / Supplier
@@ -175,12 +175,12 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
               </span>
               {hasRejections && (
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-950/70 text-red-300 border border-red-500/40 animate-pulse">
-                  ⚠️ Discrepancy / Rejections Flagged
+                  ️ Discrepancy / Rejections Flagged
                 </span>
               )}
             </div>
 
-            <div className="bg-zinc-950/70 border border-zinc-800 rounded-2xl overflow-hidden p-3 space-y-2">
+            <div className="bg-zinc-950/70 border border-zinc-800 rounded-xl overflow-hidden p-3 space-y-2">
               <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-zinc-400 uppercase pb-1 border-b border-zinc-800 px-2">
                 <span className="col-span-4">Item</span>
                 <span className="col-span-2 text-right">Ordered</span>
@@ -200,8 +200,7 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
                       {it.orderedQty} {it.unit}
                     </div>
                     <div className="col-span-2">
-                      <input
-                        type="number"
+                      <NumericInput
                         step="0.1"
                         min="0"
                         value={it.receivedQty}
@@ -211,8 +210,7 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
                       />
                     </div>
                     <div className="col-span-2">
-                      <input
-                        type="number"
+                      <NumericInput
                         step="0.1"
                         min="0"
                         value={it.acceptedQty}
@@ -246,7 +244,7 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
           </div>
 
           {/* Totals Summary */}
-          <div className="bg-zinc-950 border border-emerald-500/30 p-4 rounded-2xl flex items-center justify-between">
+          <div className="bg-zinc-950 border border-emerald-500/30 p-4 rounded-xl flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-xs text-zinc-400 block">Accepted Subtotal: {InventoryPoHelper.formatCurrency(totalAccepted)}</span>
               <span className="text-xs text-zinc-400 block">Accepted Tax: {InventoryPoHelper.formatCurrency(totalTax)}</span>

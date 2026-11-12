@@ -60,7 +60,7 @@ export const InventoryPoHeader: React.FC<InventoryPoHeaderProps> = ({
           <button
             type="button"
             onClick={onNewPoClick}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-2"
           >
             <span>+</span>
             <span>Raise Purchase Order</span>
@@ -111,10 +111,10 @@ export const InventoryPoHeader: React.FC<InventoryPoHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('PURCHASE_ORDERS')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'PURCHASE_ORDERS'
-              ? 'text-amber-400 border-amber-400 bg-amber-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'PURCHASE_ORDERS'
+ ? 'text-amber-400 border-amber-400 bg-emerald-600/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
           📦 Purchase Orders (PO)
         </button>
@@ -122,10 +122,10 @@ export const InventoryPoHeader: React.FC<InventoryPoHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('GRN_HISTORY')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'GRN_HISTORY'
-              ? 'text-emerald-400 border-emerald-400 bg-emerald-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'GRN_HISTORY'
+ ? 'text-emerald-400 border-emerald-400 bg-emerald-500/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
           🚚 Dock Receiving Register (GRN)
         </button>
@@ -133,10 +133,10 @@ export const InventoryPoHeader: React.FC<InventoryPoHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('VENDORS')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'VENDORS'
-              ? 'text-blue-400 border-blue-400 bg-blue-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'VENDORS'
+ ? 'text-blue-400 border-blue-400 bg-blue-500/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
           🏢 Supplier Directory
         </button>

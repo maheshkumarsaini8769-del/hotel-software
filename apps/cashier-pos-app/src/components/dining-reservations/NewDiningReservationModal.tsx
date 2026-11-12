@@ -3,7 +3,7 @@ import {
   MealPeriodUI,
   TableTypePreferenceUI,
   VIPTierUI,
-  INewDiningReservationPayload,
+  INewDiningReservationPayload, NumericInput,
 } from '@spicehub/ui';
 
 interface NewDiningReservationModalProps {
@@ -133,8 +133,7 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
               <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
                 Party Size
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="1"
                 max="30"
                 required
@@ -245,10 +244,10 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
                     type="button"
                     onClick={() => handleAllergenToggle(item.id)}
                     className={`p-2 rounded-xl text-xs font-semibold border text-left transition-all ${
-                      isSelected
-                        ? 'bg-red-500/30 border-red-500 text-red-200 shadow-md'
-                        : 'bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:border-zinc-700'
-                    }`}
+ isSelected
+ ? 'bg-red-500/30 border-red-500 text-red-200 shadow-md'
+ : 'bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+ }`}
                   >
                     {item.label}
                   </button>
@@ -282,7 +281,7 @@ export const NewDiningReservationModal: React.FC<NewDiningReservationModalProps>
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-sm"
+              className="bg-emerald-600 hover:bg-emerald-700 px-5 py-2 rounded-xl text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-sm"
             >
               {loading ? 'Confirming...' : 'Confirm Reservation'}
             </button>

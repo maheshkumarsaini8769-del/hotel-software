@@ -383,7 +383,20 @@ export const inspectTask = async (req: TenantRequest, res: Response): Promise<vo
 
     if (isApproved) {
       task.status = HousekeepingTaskStatus.INSPECTED_PASSED;
-      room.status = room.currentStayId ? RoomStatus.OCCUPIED : RoomStatus.AVAILABLE;
+      const activeStay = room.currentStayId
+        ? await Stay.findOne({
+            _id: room.currentStayId,
+            hotelId,
+            roomId: room._id,
+            stayStatus: StayStatus.ACTIVE,
+          })
+        : null;
+      if (activeStay) {
+        room.status = RoomStatus.OCCUPIED;
+      } else {
+        room.currentStayId = undefined;
+        room.status = RoomStatus.AVAILABLE;
+      }
     } else {
       task.status = HousekeepingTaskStatus.INSPECTED_FAILED;
       room.status = RoomStatus.DIRTY; // Revert to dirty for rework
@@ -477,7 +490,7 @@ export const getHousekeepingBoard = async (req: TenantRequest, res: Response): P
         guestInfo: stay
           ? {
               stayId: stay._id,
-              guestName: (stay as any).guestName || (stay.bookingId as any)?.guestName || (stay.guestId as any)?.name || 'Rahul Verma',
+              guestName: (stay as any).guestName || (stay.bookingId as any)?.guestName || (stay.guestId as any)?.name || '',
               expectedCheckOut: stay.expectedCheckOutTimestamp,
             }
           : null,
@@ -1141,4 +1154,3 @@ export const getLostAndFoundAuditLog = async (req: TenantRequest, res: Response)
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: error.message });
   }
 };
-

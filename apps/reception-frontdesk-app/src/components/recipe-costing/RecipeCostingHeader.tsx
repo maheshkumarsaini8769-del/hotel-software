@@ -38,7 +38,7 @@ export const RecipeCostingHeader: React.FC<RecipeCostingHeaderProps> = ({
               Kitchen Recipe Costing & Food Waste Auditor
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-              Shift 24 • F&B Margin Guard
+              F&B Margin Guard
             </span>
           </div>
           <p className="text-xs text-zinc-400 mt-1">
@@ -55,20 +55,20 @@ export const RecipeCostingHeader: React.FC<RecipeCostingHeaderProps> = ({
             className="p-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-xs border border-zinc-700 transition-all disabled:opacity-50"
             title="Refresh Data"
           >
-            🔄
+            
           </button>
           <button
             type="button"
             onClick={onLogWasteClick}
             className="px-4 py-2.5 rounded-xl bg-red-950/60 hover:bg-red-900/80 border border-red-500/40 text-red-300 font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm"
           >
-            <span>🗑️</span>
+            <span>️</span>
             <span>Log Food Waste</span>
           </button>
           <button
             type="button"
             onClick={onNewRecipeClick}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-2"
           >
             <span>+</span>
             <span>New Recipe BOM</span>
@@ -79,7 +79,7 @@ export const RecipeCostingHeader: React.FC<RecipeCostingHeaderProps> = ({
       {/* KPI Metric Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {/* Card 1: Average Food Cost % */}
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between">
+        <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
           <span className="text-xs text-zinc-400 uppercase font-semibold">Average Food Cost %</span>
           <div className="flex items-baseline gap-2 mt-2">
             <span className="text-2xl font-black text-white font-mono">
@@ -95,7 +95,7 @@ export const RecipeCostingHeader: React.FC<RecipeCostingHeaderProps> = ({
         </div>
 
         {/* Card 2: High Cost Alerts */}
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between">
+        <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
           <span className="text-xs text-zinc-400 uppercase font-semibold">High Cost Recipes</span>
           <div className="flex items-baseline gap-2 mt-2">
             <span className={`text-2xl font-black font-mono ${metrics.highCostRecipesCount > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
@@ -104,12 +104,12 @@ export const RecipeCostingHeader: React.FC<RecipeCostingHeaderProps> = ({
             <span className="text-xs text-zinc-500">of {metrics.totalRecipesCount} catalog items</span>
           </div>
           <div className="text-[11px] text-zinc-400 mt-2">
-            {metrics.highCostRecipesCount > 0 ? '⚠️ Review ingredient proportions' : '✓ All within margin bounds'}
+            {metrics.highCostRecipesCount > 0 ? '️ Review ingredient proportions' : ' All within margin bounds'}
           </div>
         </div>
 
         {/* Card 3: Total Food Waste Loss */}
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between">
+        <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
           <span className="text-xs text-zinc-400 uppercase font-semibold">Food Waste Loss ({wasteSummary.daysAudited}d)</span>
           <div className="mt-2 text-2xl font-black text-red-400 font-mono">
             {RecipeCostingHelper.formatCurrency(wasteSummary.totalLossAmount)}
@@ -120,16 +120,16 @@ export const RecipeCostingHeader: React.FC<RecipeCostingHeaderProps> = ({
         </div>
 
         {/* Card 4: Standard Recipe Coverage */}
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between">
+        <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
           <span className="text-xs text-zinc-400 uppercase font-semibold">Recipe Coverage</span>
           <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-black text-amber-400 font-mono">
-              {metrics.totalRecipesCount}
+            <span className="text-2xl font-black text-emerald-400 font-mono">
+              {metrics.recipeCoveragePercentage}%
             </span>
-            <span className="text-xs text-zinc-500">Standard SOPs</span>
+            <span className="text-xs text-zinc-500">of menu items</span>
           </div>
-          <span className="text-[11px] text-emerald-400 font-medium mt-2">
-            100% Chef Audited
+          <span className="text-[11px] text-zinc-400 font-medium mt-2">
+            {metrics.recipeCoverageCount} of {metrics.menuItemCount} menu items have a recipe
           </span>
         </div>
       </div>
@@ -140,23 +140,23 @@ export const RecipeCostingHeader: React.FC<RecipeCostingHeaderProps> = ({
           type="button"
           onClick={() => onTabChange('RECIPES')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'RECIPES'
-              ? 'text-amber-400 border-amber-400 bg-amber-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'RECIPES'
+ ? 'text-amber-400 border-amber-400 bg-amber-500/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
-          📋 Standard Recipes & BOM ({metrics.totalRecipesCount})
+           Standard Recipes & BOM ({metrics.totalRecipesCount})
         </button>
         <button
           type="button"
           onClick={() => onTabChange('WASTE_AUDIT')}
           className={`px-4 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
-            activeTab === 'WASTE_AUDIT'
-              ? 'text-red-400 border-red-400 bg-red-500/10'
-              : 'text-zinc-400 border-transparent hover:text-zinc-200'
-          }`}
+ activeTab === 'WASTE_AUDIT'
+ ? 'text-red-400 border-red-400 bg-red-500/10'
+ : 'text-zinc-400 border-transparent hover:text-zinc-200'
+ }`}
         >
-          🗑️ Kitchen Spoilage & Waste Audit ({wasteSummary.totalEntriesCount})
+          ️ Kitchen Spoilage & Waste Audit ({wasteSummary.totalEntriesCount})
         </button>
       </div>
     </div>

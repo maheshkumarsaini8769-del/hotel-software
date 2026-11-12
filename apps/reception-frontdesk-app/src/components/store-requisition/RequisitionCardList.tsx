@@ -61,10 +61,10 @@ export const RequisitionCardList: React.FC<RequisitionCardListProps> = ({
               type="button"
               onClick={() => onStatusChange(tab.key)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                selectedStatus === tab.key
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-              }`}
+ selectedStatus === tab.key
+ ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+ : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+ }`}
             >
               {tab.label}
             </button>
@@ -73,7 +73,7 @@ export const RequisitionCardList: React.FC<RequisitionCardListProps> = ({
 
         <div className="relative w-full md:w-72">
           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">
-            🔍
+            
           </span>
           <input
             type="text"
@@ -89,7 +89,7 @@ export const RequisitionCardList: React.FC<RequisitionCardListProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filtered.length === 0 ? (
           <div className="col-span-full py-16 text-center text-zinc-500 text-sm flex flex-col items-center gap-2">
-            <span className="text-3xl">📋</span>
+            <span className="text-3xl"></span>
             <span>No kitchen requisitions found for this filter</span>
           </div>
         ) : (
@@ -100,7 +100,7 @@ export const RequisitionCardList: React.FC<RequisitionCardListProps> = ({
             return (
               <div
                 key={req._id}
-                className="bg-slate-900 rounded-2xl border border-zinc-800 hover:border-zinc-700 p-5 flex flex-col justify-between shadow-lg transition-all group"
+                className="bg-slate-900 rounded-xl border border-zinc-800 hover:border-zinc-700 p-5 flex flex-col justify-between shadow-lg transition-all group"
               >
                 <div>
                   {/* Top Bar: Requisition # & Urgency */}
@@ -164,12 +164,12 @@ export const RequisitionCardList: React.FC<RequisitionCardListProps> = ({
                       disabled={loading}
                       className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center justify-center gap-1.5"
                     >
-                      <span>📦</span>
+                      <span></span>
                       <span>Issue Stock (Storekeeper)</span>
                     </button>
                   ) : (
                     <div className="text-center py-1 text-xs text-zinc-400 font-mono">
-                      ✓ Fulfilled {req.issuedAt ? new Date(req.issuedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                       Fulfilled {req.issuedAt ? new Date(req.issuedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
                     </div>
                   )}
                 </div>

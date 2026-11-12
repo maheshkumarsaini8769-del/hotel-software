@@ -39,13 +39,13 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
               <h3 className={`text-sm font-black uppercase tracking-wider ${theme.titleColor}`}>
                 {title}
               </h3>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-900/80 text-zinc-300 font-mono font-bold">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-white text-slate-700 font-mono font-bold">
                 {quadrantItems.length}
               </span>
             </div>
-            <p className="text-[11px] text-zinc-400 mt-0.5">{subtitle}</p>
+            <p className="text-[11px] text-slate-600 mt-0.5">{subtitle}</p>
           </div>
-          <span className="text-[10px] uppercase font-semibold text-zinc-400 max-w-[150px] text-right">
+          <span className="text-[10px] uppercase font-semibold text-slate-600 max-w-[150px] text-right">
             {theme.advice}
           </span>
         </div>
@@ -53,7 +53,7 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
         {/* Item Chips / List */}
         <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[320px]">
           {quadrantItems.length === 0 ? (
-            <div className="text-center py-10 text-zinc-500 text-xs">
+            <div className="text-center py-10 text-slate-500 text-xs">
               No dishes currently classified in this quadrant
             </div>
           ) : (
@@ -61,19 +61,19 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
               <div
                 key={idx}
                 onClick={() => onSelectItem(item)}
-                className="bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 p-3 rounded-xl transition-all flex items-center justify-between gap-3 cursor-pointer group"
+                className="bg-white border border-slate-200 hover:border-slate-300 p-3 rounded-xl transition-all flex items-center justify-between gap-3 cursor-pointer group"
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-white group-hover:text-amber-400 transition-colors">
+                    <span className="text-xs font-bold text-slate-900 group-hover:text-amber-400 transition-colors">
                       {item.itemName}
                     </span>
-                    <span className="text-[10px] text-zinc-500 font-medium">({item.category})</span>
+                    <span className="text-[10px] text-slate-500 font-medium">({item.category})</span>
                   </div>
-                  <div className="text-[11px] text-zinc-400 mt-1 flex items-center gap-3 font-mono">
-                    <span>Sold: <strong className="text-zinc-200">{item.quantitySold}</strong></span>
-                    <span>Margin: <strong className="text-emerald-400">{MenuEngineeringHelper.formatCurrency(item.contributionMargin)}</strong></span>
-                    <span>Price: <strong className="text-zinc-300">{MenuEngineeringHelper.formatCurrency(item.sellingPrice)}</strong></span>
+                  <div className="text-[11px] text-slate-600 mt-1 flex items-center gap-3 font-mono">
+                    <span>Sold: <strong className="text-slate-900">{item.quantitySold}</strong></span>
+                    <span>Margin: <strong className="text-emerald-700">{MenuEngineeringHelper.formatCurrency(item.contributionMargin)}</strong></span>
+                    <span>Price: <strong className="text-slate-700">{MenuEngineeringHelper.formatCurrency(item.sellingPrice)}</strong></span>
                   </div>
                 </div>
 
@@ -83,7 +83,7 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
                     e.stopPropagation();
                     onSimulateItem(item);
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-700 dark:text-slate-300 text-[11px] font-semibold border border-zinc-700 hover:border-slate-200 dark:border-slate-800 transition-all"
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-700 text-[11px] font-semibold border border-slate-300 hover:border-slate-300 transition-all"
                   title="Simulate Price Elasticity"
                 >
                   🔮 Test Price
@@ -98,13 +98,13 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between text-xs text-zinc-400 px-1">
+      <div className="flex items-center justify-between text-xs text-slate-600 px-1">
         <div className="flex items-center gap-2">
-          <span>Y-Axis: <strong className="text-emerald-400">Contribution Margin (Profit)</strong></span>
+          <span>Y-Axis: <strong className="text-emerald-700">Contribution Margin (Profit)</strong></span>
           <span>•</span>
-          <span>X-Axis: <strong className="text-amber-400">Sales Volume (Popularity)</strong></span>
+          <span>X-Axis: <strong className="text-amber-700">Sales Volume (Popularity)</strong></span>
         </div>
-        <span className="text-zinc-500 italic">Kasavana & Smith 2x2 Hospitality Matrix</span>
+        <span className="text-slate-500 italic">Kasavana & Smith 2x2 Hospitality Matrix</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -130,7 +130,7 @@ export const QuadrantScatterPlotCard: React.FC<QuadrantScatterPlotCardProps> = (
           stars,
           {
             border: 'border-amber-500/30',
-            bg: 'bg-amber-950/10',
+            bg: 'bg-slate-900/10',
             headerBg: 'bg-amber-900/20',
             titleColor: 'text-amber-400',
             icon: '⭐',

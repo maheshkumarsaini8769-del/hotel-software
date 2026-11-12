@@ -30,8 +30,6 @@ import {
   VolumeX,
   Menu,
   FileText,
-  Sun,
-  Moon,
   Radio,
   User,
   Camera,
@@ -48,8 +46,11 @@ function readStaffIdentity(): { name: string; role: string; initials: string } {
   }
   try {
     const parsed = JSON.parse(window.localStorage.getItem('spicehub_auth_user') || 'null');
-    const name = String(parsed?.name || 'Kitchen Staff');
-    const role = String(parsed?.role || 'KDS Terminal').replace(/_/g, ' ');
+    const urlName = new URLSearchParams(window.location.search).get('staffName') || '';
+    const urlRole = new URLSearchParams(window.location.search).get('staffRole') || '';
+    // The launcher passes the real roster name; JWT sessions only carry a generic label.
+    const name = String(urlName || parsed?.name || 'Kitchen Staff');
+    const role = String(urlRole || parsed?.role || 'KDS Terminal').replace(/_/g, ' ');
     const initials = name
       .split(/\s+/)
       .filter(Boolean)
@@ -162,6 +163,11 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
 
   const playDingChime = () => {
     try {
+      const configuredVolume = Number.parseFloat(document.documentElement.style.getPropertyValue('--spicehub-sound-volume'));
+      const soundScale = document.documentElement.dataset.soundAlerts === 'false'
+        ? 0
+        : Number.isFinite(configuredVolume) ? Math.min(1, Math.max(0, configuredVolume)) : 1;
+      if (soundScale === 0) return;
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
@@ -170,7 +176,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
       osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.setValueAtTime(0.3 * soundScale, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -190,14 +196,17 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
   const chefUser = (() => {
     if (typeof window === 'undefined') return { name: 'Head Chef', email: '', role: 'Kitchen Chef', avatar: '' };
     try {
+      const urlStaff = new URLSearchParams(window.location.search);
+      const launcherName = urlStaff.get('staffName') || '';
+      const launcherRole = urlStaff.get('staffRole') || '';
       const raw = localStorage.getItem('spicehub_auth_user');
-      if (!raw) return { name: 'Head Chef', email: '', role: 'Kitchen Chef', avatar: '' };
+      if (!raw) return { name: launcherName || 'Head Chef', email: '', role: launcherRole || 'Kitchen Chef', avatar: '' };
       const parsed = JSON.parse(raw);
       return {
         id: parsed?.id || parsed?._id || '',
-        name: parsed?.name || parsed?.email || 'Head Chef',
+        name: launcherName || parsed?.name || parsed?.email || 'Head Chef',
         email: parsed?.email || '',
-        role: parsed?.role || 'Kitchen Chef',
+        role: launcherRole || parsed?.role || 'Kitchen Chef',
         avatar: parsed?.avatar || parsed?.photo || '',
       };
     } catch {
@@ -255,24 +264,13 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
   };
   const unackBuzzers = kitchenBuzzers.filter((b: any) => b.status !== 'ACKNOWLEDGED');
 
-  // Theme State (Dark / Bright Light Mode)
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('spicehub_kds_theme');
-      if (saved === 'light' || saved === 'dark') return saved;
+  // Bright heritage theme only — dark mode retired, stale saved preference cleared.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.localStorage.getItem('spicehub_kds_theme') !== 'light') {
+      window.localStorage.setItem('spicehub_kds_theme', 'light');
     }
-    return 'dark';
-  });
-
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('spicehub_kds_theme', next);
-    }
-  };
-
-  const isDark = theme === 'dark';
+  }, []);
 
   const getKdsCompletedOrdersStorage = (): KdsItemDisplay[] => {
     if (typeof window === 'undefined') return [];
@@ -622,9 +620,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
   }, []);
 
   return (
-    <div className={`flex h-screen w-full max-w-full overflow-x-hidden font-sans antialiased touch-pan-y transition-colors duration-200 ${
-      isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'
-    }`}>
+    <div className="kds-app kds-heritage-light flex min-h-[100dvh] h-auto md:h-screen w-full max-w-full overflow-x-hidden overflow-y-auto md:overflow-y-hidden font-sans antialiased touch-pan-y">
       {/* Toast Notification */}
       {kdsToast && (
         <div className="fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl bg-red-600 text-white font-bold text-xs shadow-xl flex items-center gap-2 animate-bounce">
@@ -642,25 +638,25 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
       )}
 
       {/* ======================================================== */}
-      {/* LEFT SIDEBAR: DARK KITCHEN KDS SHELL                     */}
+      {/* LEFT SIDEBAR: LUXURY BRANDED SHELL                        */}
       {/* ======================================================== */}
       <aside className={`${
-        isMobileMenuOpen ? 'flex fixed inset-y-0 left-0 z-50 w-64 shadow-sm dark:shadow-none' : 'hidden md:flex'
-      } ${
-        isSidebarCollapsed ? 'md:w-16' : 'md:w-60'
-      } bg-slate-900 text-slate-300 flex-col justify-between shrink-0 border-r border-slate-800/80 shadow-sm dark:shadow-none z-20 transition-all duration-200`}>
+ isMobileMenuOpen ? 'flex fixed inset-y-0 left-0 z-50 w-64 shadow-sm dark:shadow-none' : 'hidden md:flex'
+ } ${
+ isSidebarCollapsed ? 'md:w-16' : 'md:w-60'
+ } bg-white text-slate-700 flex-col justify-between shrink-0 border-r border-[#E2E8F0] shadow-md z-20 transition-all duration-200`}>
         <div className="flex flex-col h-full overflow-hidden">
           {/* Logo & Header */}
-          <div className="p-4 flex items-center gap-3 border-b border-slate-800/80">
-            <div className="w-10 h-10 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 flex items-center justify-center shadow-xs shrink-0 border border-slate-700">
+          <div className="p-4 flex items-center gap-3 border-b border-slate-100">
+            <div className="w-10 h-10 rounded-xl bg-[#0F172A] text-[#BFDBFE] flex items-center justify-center shadow-xs shrink-0 ring-1 ring-[#93C5FD]/40">
               <ChefHat className="w-5 h-5" />
             </div>
             {(!isSidebarCollapsed || isMobileMenuOpen) && (
               <div className="truncate">
-                <div className="font-black text-lg text-white tracking-tight flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 text-lg font-semibold tracking-tight text-slate-900">
                   SpiceHub
                 </div>
-                <p className="text-[11px] text-red-500 font-bold uppercase tracking-wider">Kitchen KDS</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Kitchen KDS</p>
               </div>
             )}
           </div>
@@ -692,16 +688,16 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                   title={item.label}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${
                     isActive
-                      ? 'bg-red-600 text-white font-black shadow-lg shadow-sm'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      ? 'bg-[#0F172A] text-white font-black shadow-xs'
+                      : 'text-slate-600 hover:text-[#0F172A] hover:bg-slate-100'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#BFDBFE]' : 'text-slate-500'}`} />
                   {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
                   {!isSidebarCollapsed && item.badge && (
                     <span
                       className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-black ${
-                        isActive ? 'bg-white text-red-600' : item.badgeColor || 'bg-red-500/20 text-red-400 border border-red-500/30'
+                        isActive ? 'bg-[#BFDBFE] text-[#0F172A]' : item.badgeColor || 'bg-slate-100 text-slate-700 border border-slate-200'
                       }`}
                     >
                       {item.badge}
@@ -713,25 +709,25 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
           </nav>
 
           {/* Kitchen Chef User Profile Box with Log Out */}
-          <div className="p-3 border-t border-slate-800/80 bg-slate-950">
+          <div className="p-3 border-t border-slate-100 bg-[#FFFFFF] shrink-0">
             {!isSidebarCollapsed ? (
               <div className="flex items-center gap-3 mb-2.5">
                 <div className="relative">
-                  <div className="w-9 h-9 rounded-full bg-red-500/20 text-red-300 border border-red-500/40 flex items-center justify-center text-xs font-black">
+                  <div className="w-9 h-9 rounded-full bg-[#EFF6FF] text-[#0F172A] border border-[#BFDBFE] flex items-center justify-center text-xs font-black">
                     {readStaffIdentity().initials}
                   </div>
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-[#0a0c12]" />
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-white truncate">{readStaffIdentity().name}</div>
-                  <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                    {readStaffIdentity().role} <span className="text-emerald-400 font-bold">● Online</span>
+                  <div className="text-xs font-bold text-[#0F172A] truncate">{readStaffIdentity().name}</div>
+                  <div className="text-[10px] text-[#64748B] flex items-center gap-1">
+                    {readStaffIdentity().role} <span className="text-[#0F172A] font-bold">● Online</span>
                   </div>
                 </div>
               </div>
             ) : (
               <div className="flex justify-center mb-2">
-                <div className="w-8 h-8 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center font-black text-xs">
+                <div className="w-8 h-8 rounded-lg bg-[#EFF6FF] text-[#0F172A] flex items-center justify-center font-black text-xs">
                   K1
                 </div>
               </div>
@@ -741,7 +737,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
               onClick={() => {
                 window.dispatchEvent(new Event('spicehub:logout'));
               }}
-              className="w-full py-1.5 rounded-lg text-xs font-bold bg-red-700 hover:bg-red-700 text-white transition-all shadow-sm flex items-center justify-center gap-1.5"
+              className="w-full py-1.5 rounded-lg text-xs font-bold bg-[#0F172A] hover:bg-[#1E293B] text-white transition-all shadow-xs flex items-center justify-center gap-1.5"
             >
               <LogOut className="w-3.5 h-3.5" />
               {!isSidebarCollapsed && <span>Log Out</span>}
@@ -753,12 +749,10 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
       {/* ======================================================== */}
       {/* MAIN VIEWPORT: KITCHEN DISPLAY SCREEN (KDS)              */}
       {/* ======================================================== */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 min-h-[100dvh] h-auto md:h-full md:min-h-0 overflow-x-hidden md:overflow-hidden">
         {/* Top Header Bar */}
-        <header className={`h-14 px-3 sm:px-5 border-b flex items-center justify-between shrink-0 shadow-xs z-10 transition-colors ${
-          isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-800'
-        }`}>
-          <div className="flex items-center gap-2 sm:gap-4">
+        <header className="min-h-14 h-auto px-3 py-2 sm:px-5 sm:py-1.5 border-b flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-2 gap-x-3 shrink-0 shadow-xs z-10 bg-white border-slate-200 text-slate-800">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:gap-3 lg:w-auto lg:flex-1 lg:flex-nowrap">
             <button
               onClick={() => {
                 if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -767,9 +761,9 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                   setIsSidebarCollapsed((prev) => !prev);
                 }
               }}
-              className={`p-1.5 rounded-lg transition ${
-                isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
-              }`}
+              className={`min-h-11 min-w-11 inline-flex items-center justify-center p-1.5 rounded-lg transition ${
+ 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+ }`}
               title="Toggle Sidebar Collapse"
             >
               <Menu className="w-5 h-5" />
@@ -778,19 +772,15 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
             {/* Chef Profile Badge in Header */}
             <div
               data-testid="kds-header-chef"
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs font-bold shadow-xs shrink-0 ${
-                isDark
-                  ? 'bg-red-500/15 border-red-500/30 text-red-300'
-                  : 'bg-red-50 border-red-200 text-red-800'
-              }`}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-800 shadow-xs shrink-0"
             >
-              <ChefHat className={`w-4 h-4 ${isDark ? 'text-red-400' : 'text-red-700'}`} />
-              <span>{readStaffIdentity().name} (Head Chef)</span>
+              <ChefHat className="w-4 h-4 text-slate-600" />
+              <span className="max-w-[9.5rem] xl:max-w-[13rem] truncate">Kitchen Station KDS</span>
             </div>
 
             {/* KDS Station Selector in Header */}
-            <div data-testid="kds-station-selector-wrapper" className="flex items-center gap-1.5 shrink-0">
-              <span className={`text-[10px] font-bold uppercase tracking-wider hidden md:inline ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Station:</span>
+            <div data-testid="kds-station-selector-wrapper" className="flex min-w-0 items-center gap-1.5">
+              <span className={`text-[10px] font-bold uppercase tracking-wider hidden md:inline ${'text-slate-600'}`}>Station:</span>
               <select
                 data-testid="select-kds-station"
                 value={selectedStation}
@@ -798,9 +788,9 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                   setSelectedStation(e.target.value);
                   triggerKdsToast(`Switched KDS Station to: ${e.target.value}`);
                 }}
-                className={`px-2.5 py-1 rounded-lg border text-xs font-bold focus:outline-none transition ${
-                  isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-300 text-slate-800'
-                }`}
+                className={`max-w-36 px-2.5 py-1 rounded-lg border text-xs font-bold focus:outline-none transition sm:max-w-none ${
+ 'bg-slate-100 border-slate-300 text-slate-800'
+ }`}
               >
                 <option value="Main Kitchen">Main Kitchen</option>
                 <option value="Tandoor Station">Tandoor Station</option>
@@ -811,12 +801,12 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
               </select>
             </div>
 
-            <span className={`text-[11px] font-black px-2 py-0.5 rounded-md border hidden sm:inline ${
-              isDark ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-red-50 text-red-700 border-red-200'
-            }`}>
+            <span className={`text-[11px] font-black px-2 py-0.5 rounded-md border hidden 2xl:inline ${
+ 'bg-red-50 text-red-700 border-red-200'
+ }`}>
               {activeSidebarItem}
             </span>
-            <div data-testid="kds-header-time" className={`hidden sm:flex text-xs font-bold items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+            <div data-testid="kds-header-time" className={`hidden 2xl:flex text-xs font-bold items-center gap-1.5 ${'text-slate-600'}`}>
               <Clock className="w-3.5 h-3.5 text-slate-400" />
               <span>
                 {clock.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -824,30 +814,16 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2 lg:w-auto lg:flex-none lg:flex-nowrap">
             {/* Bilingual English / Hindi Language Toggle */}
-            <LanguageToggle isDark={isDark} />
-
-            {/* Theme Toggle Button */}
-            <button
-              data-testid="theme-toggle-btn"
-              onClick={toggleTheme}
-              className={`p-2 rounded-lg border text-xs flex items-center justify-center transition ${
-                isDark
-                  ? 'bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700'
-                  : 'bg-slate-100 border-slate-200 text-amber-600 hover:bg-slate-200'
-              }`}
-              title={isDark ? 'Switch to Bright Light Mode' : 'Switch to Dark Mode'}
-            >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
+            <LanguageToggle />
 
             {/* Bell with Badge 5 */}
             <button
               onClick={() => setIsIntercomModalOpen(true)}
-              className={`relative p-2 rounded-lg transition ${
-                isDark ? 'bg-slate-800/60 hover:bg-slate-800 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-              }`}
+              className={`relative min-h-11 min-w-11 p-2 rounded-lg transition ${
+ 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+ }`}
               title={`${unackBuzzers.length} unacknowledged waiter calls`}
             >
               <Bell className="w-4 h-4" />
@@ -863,17 +839,15 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
               <button
                 data-testid="btn-waiter-calls-header"
                 onClick={() => setIsIntercomModalOpen(true)}
-                className={`relative px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-black flex items-center gap-1.5 transition ${
-                  unackBuzzers.length > 0
-                    ? 'bg-red-600 border-red-500 text-white shadow-md shadow-sm animate-pulse'
-                    : isDark
-                    ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
-                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                }`}
+                className={`relative min-h-11 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-black flex items-center gap-1.5 transition ${
+ unackBuzzers.length > 0
+ ? 'bg-red-600 border-red-500 text-white shadow-md shadow-sm animate-pulse'
+ : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+ }`}
                 title="Waiter Intercom & Urgent Call Buzzers"
               >
                 <Radio className={`w-4 h-4 ${unackBuzzers.length > 0 ? 'text-amber-300 animate-spin' : 'text-amber-500'}`} />
-                <span className="hidden lg:inline">Waiter Calls</span>
+                <span className="hidden xl:inline">Waiter Calls</span>
                 {unackBuzzers.length > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full bg-white text-red-600 text-[10px] font-black">
                     {unackBuzzers.length}
@@ -886,17 +860,15 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
             <button
               data-testid="btn-86-manager"
               onClick={() => setIs86DrawerOpen(true)}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-black flex items-center gap-1.5 transition ${
-                dishes86.filter((d) => !d.isAvailable).length > 0
-                  ? 'bg-red-950/80 border-red-600/70 text-red-300 hover:bg-red-900/60'
-                  : isDark
-                  ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
-                  : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-              }`}
+              className={`min-h-11 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-black flex items-center gap-1.5 transition ${
+ dishes86.filter((d) => !d.isAvailable).length > 0
+ ? 'bg-[#FEF2F2] border-[#FECACA] text-[#B91C1C] hover:bg-[#FEE2E2]'
+ : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+ }`}
               title="86 Kitchen Stock Manager"
             >
               <span>🚫</span>
-              <span className="hidden lg:inline">86 Stock</span>
+              <span className="hidden xl:inline">86 Stock</span>
               {dishes86.filter((d) => !d.isAvailable).length > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[10px] font-black">
                   {dishes86.filter((d) => !d.isAvailable).length}
@@ -905,12 +877,12 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
             </button>
 
             {/* View Dropdown */}
-            <div className="relative hidden xl:block">
+            <div className="relative hidden 2xl:block">
               <button
                 onClick={() => setIsViewDropdownOpen((prev) => !prev)}
                 className={`px-3 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition ${
-                  isDark ? 'bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-800' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                }`}
+ 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+ }`}
               >
                 <UtensilsCrossed className="w-3.5 h-3.5 text-slate-400" />
                 <span>{selectedViewMode}</span>
@@ -918,8 +890,8 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
               </button>
               {isViewDropdownOpen && (
                 <div className={`absolute top-full left-0 mt-1 w-40 rounded-xl border shadow-xl z-50 p-1 space-y-0.5 ${
-                  isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'
-                }`}>
+ 'bg-white border-slate-200 text-slate-800'
+ }`}>
                   {(['Kitchen View', 'Expediter View', 'Pass View'] as const).map((mode) => (
                     <button
                       key={mode}
@@ -929,8 +901,8 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                         triggerKdsToast(`Switched view to ${mode}`);
                       }}
                       className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-500/20 hover:text-red-400 transition ${
-                        selectedViewMode === mode ? 'text-red-400 font-black' : ''
-                      }`}
+ selectedViewMode === mode ? 'text-red-400 font-black' : ''
+ }`}
                     >
                       {mode}
                     </button>
@@ -940,20 +912,20 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
             </div>
 
             {/* Outlets Dropdown */}
-            <div className="relative hidden lg:block">
+            <div className="relative hidden xl:block">
               <button
                 onClick={() => setIsOutletDropdownOpen((prev) => !prev)}
                 className={`px-3 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition ${
-                  isDark ? 'bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-800' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                }`}
+ 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+ }`}
               >
                 <span>{selectedOutlet}</span>
                 <ChevronDown className="w-3 h-3 text-slate-400" />
               </button>
               {isOutletDropdownOpen && (
                 <div className={`absolute top-full left-0 mt-1 w-48 rounded-xl border shadow-xl z-50 p-1 space-y-0.5 ${
-                  isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'
-                }`}>
+ 'bg-white border-slate-200 text-slate-800'
+ }`}>
                   {['All Outlets', 'Main Restaurant', 'Rooftop Lounge', 'Room Service Express'].map((outlet) => (
                     <button
                       key={outlet}
@@ -963,8 +935,8 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                         triggerKdsToast(`Filtered by ${outlet}`);
                       }}
                       className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-500/20 hover:text-red-400 transition ${
-                        selectedOutlet === outlet ? 'text-red-400 font-black' : ''
-                      }`}
+ selectedOutlet === outlet ? 'text-red-400 font-black' : ''
+ }`}
                     >
                       {outlet}
                     </button>
@@ -975,8 +947,8 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
 
             {/* Online Status Pill */}
             <div className={`hidden md:flex px-3 py-1 rounded-lg border font-bold text-xs items-center gap-1.5 ${
-              isDark ? 'bg-emerald-950/60 border-emerald-600/40 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-600'
-            }`}>
+ 'bg-emerald-50 border-emerald-200 text-emerald-600'
+ }`}>
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>Online</span>
             </div>
@@ -984,11 +956,9 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
             {/* Chef Profile Trigger */}
             <button
               onClick={() => setProfileOpen(true)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition shadow-sm ${
-                isDark
-                  ? 'bg-slate-800/90 border-slate-700 text-slate-200 hover:bg-slate-700'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
+              className={`min-h-11 flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition shadow-sm ${
+ 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+ }`}
               title="Chef Profile & Kitchen Station Controls"
             >
               <div className="w-6 h-6 rounded-full overflow-hidden bg-slate-200 border border-slate-300 dark:border-slate-600 flex items-center justify-center shrink-0">
@@ -1043,113 +1013,103 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
         {/* Top 7 Metric Cards Row & Filter Toolbar (Only shown on Live Orders so other views have full viewport) */}
         {activeSidebarItem === 'Live Orders' && (
           <>
-            <div className={`flex overflow-x-auto sm:grid sm:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3 px-3 sm:px-5 py-2.5 border-b shrink-0 transition-colors custom-scrollbar ${
-              isDark ? 'border-slate-800/80 bg-slate-950' : 'border-slate-200 bg-white'
+            <div className={`grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3 px-3 sm:px-5 py-2.5 border-b shrink-0 transition-colors ${
+              'border-slate-200 bg-white'
             }`}>
               {/* Card 1: Total Orders */}
-              <div className={`min-w-[130px] sm:min-w-0 shrink-0 p-3 rounded-xl border flex items-center gap-3 transition-colors ${
-                isDark ? 'bg-slate-900 border-slate-800/80' : 'bg-blue-50/50 border-blue-200'
-              }`}>
-                <div className="w-9 h-9 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center font-black">
+              <div className="min-w-0 p-3 rounded-xl border border-slate-200 bg-white flex items-center gap-3 shadow-2xs">
+                <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
                   <UtensilsCrossed className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className={`text-[10px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Total Orders</div>
-                  <div className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Orders</div>
+                  <div className="text-xl font-black text-slate-900">
                     {liveOrderCount + completedOrders.length}
                   </div>
-                  <div className="text-[9px] text-emerald-500 font-semibold">this session</div>
+                  <div className="text-[9px] text-slate-400 font-medium">this session</div>
                 </div>
               </div>
 
               {/* Card 2: New Orders */}
-              <div className={`min-w-[130px] sm:min-w-0 shrink-0 p-3 rounded-xl border flex items-center gap-3 transition-colors ${
-                isDark ? 'bg-slate-900 border-red-900/60' : 'bg-red-50 border-red-200'
-              }`}>
-                <div className="w-9 h-9 rounded-lg bg-red-600 text-white flex items-center justify-center font-black shadow-md shadow-sm">
+              <div className="min-w-0 p-3 rounded-xl border border-slate-200 bg-white flex items-center gap-3 shadow-2xs">
+                <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
                   <Flame className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className={`text-[10px] font-bold ${isDark ? 'text-red-300' : 'text-red-800'}`}>New Orders</div>
-                  <div className={`text-xl font-black ${isDark ? 'text-red-100' : 'text-red-950'}`}>{newOrders.length}</div>
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">New Orders</div>
+                  <div className="text-xl font-black text-blue-600">{newOrders.length}</div>
+                  <div className="text-[9px] text-blue-600 font-medium">Awaiting prep</div>
                 </div>
               </div>
 
               {/* Card 3: Preparing */}
-              <div className={`min-w-[130px] sm:min-w-0 shrink-0 p-3 rounded-xl border flex items-center gap-3 transition-colors ${
-                isDark ? 'bg-slate-900 border-amber-900/60' : 'bg-amber-50 border-amber-200'
-              }`}>
-                <div className="w-9 h-9 rounded-lg bg-amber-600 text-white flex items-center justify-center font-black shadow-md shadow-amber-950/60">
+              <div className="min-w-0 p-3 rounded-xl border border-slate-200 bg-white flex items-center gap-3 shadow-2xs">
+                <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
                   <ChefHat className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className={`text-[10px] font-bold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>Preparing</div>
-                  <div className={`text-xl font-black ${isDark ? 'text-amber-100' : 'text-amber-950'}`}>{preparingOrders.length}</div>
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Preparing</div>
+                  <div className="text-xl font-black text-amber-600">{preparingOrders.length}</div>
+                  <div className="text-[9px] text-amber-600 font-medium">On line</div>
                 </div>
               </div>
 
               {/* Card 4: Ready */}
-              <div className={`min-w-[130px] sm:min-w-0 shrink-0 p-3 rounded-xl border flex items-center gap-3 transition-colors ${
-                isDark ? 'bg-slate-900 border-emerald-900/60' : 'bg-emerald-50 border-emerald-200'
-              }`}>
-                <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black shadow-md shadow-emerald-950/60">
+              <div className="min-w-0 p-3 rounded-xl border border-slate-200 bg-white flex items-center gap-3 shadow-2xs">
+                <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
                   <Bell className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className={`text-[10px] font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>Ready</div>
-                  <div className={`text-xl font-black ${isDark ? 'text-emerald-100' : 'text-emerald-950'}`}>{readyOrders.length}</div>
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Ready</div>
+                  <div className="text-xl font-black text-emerald-600">{readyOrders.length}</div>
+                  <div className="text-[9px] text-emerald-600 font-medium">Hot pass</div>
                 </div>
               </div>
 
               {/* Card 5: Delayed */}
-              <div className={`min-w-[130px] sm:min-w-0 shrink-0 p-3 rounded-xl border flex items-center gap-3 transition-colors ${
-                isDark ? 'bg-slate-900 border-red-900/60' : 'bg-red-50 border-red-200'
-              }`}>
-                <div className="w-9 h-9 rounded-lg bg-red-600 text-white flex items-center justify-center font-black shadow-md shadow-red-950/60">
+              <div className="min-w-0 p-3 rounded-xl border border-slate-200 bg-white flex items-center gap-3 shadow-2xs">
+                <div className="w-9 h-9 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
                   <Clock className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className={`text-[10px] font-bold ${isDark ? 'text-red-300' : 'text-red-800'}`}>Delayed</div>
-                  <div className={`text-xl font-black ${isDark ? 'text-red-100' : 'text-red-950'}`}>{delayedOrderCount}</div>
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Delayed</div>
+                  <div className={`text-xl font-black ${delayedOrderCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>{delayedOrderCount}</div>
+                  <div className="text-[9px] text-slate-400 font-medium">&gt; 15m wait</div>
                 </div>
               </div>
 
               {/* Card 6: Avg Prep Time */}
-              <div className={`min-w-[130px] sm:min-w-0 shrink-0 p-3 rounded-xl border flex items-center gap-3 transition-colors ${
-                isDark ? 'bg-slate-900 border-slate-800/80' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800'
-              }`}>
-                <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-black">
+              <div className="min-w-0 p-3 rounded-xl border border-slate-200 bg-white flex items-center gap-3 shadow-2xs">
+                <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
                   <Clock className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className={`text-[10px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Avg Prep Time</div>
-                  <div className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Avg Prep Time</div>
+                  <div className="text-xl font-black text-slate-900">
                     {completedOrders.length > 0 ? `${averagePrepMinutes} min` : '—'}
                   </div>
-                  <div className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Target: 15 min</div>
+                  <div className="text-[9px] text-slate-400 font-medium">Target: 15 min</div>
                 </div>
               </div>
 
               {/* Card 7: Kitchen Load */}
-              <div className={`min-w-[130px] sm:min-w-0 shrink-0 p-3 rounded-xl border flex flex-col justify-between transition-colors ${
-                isDark ? 'bg-slate-900 border-slate-800/80' : 'bg-amber-50/50 border-amber-200'
-              }`}>
+              <div className="min-w-0 p-3 rounded-xl border border-slate-200 bg-white flex flex-col justify-between shadow-2xs">
                 <div className="flex items-center justify-between">
-                  <span className={`text-[10px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Kitchen Load</span>
-                  <span className={`text-base font-black ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>{kitchenLoadPct}%</span>
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Kitchen Load</span>
+                  <span className="text-base font-bold text-slate-900">{kitchenLoadPct}%</span>
                 </div>
-                <div className={`w-full h-1.5 rounded-full overflow-hidden mt-2 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                  <div className="bg-amber-400 h-full rounded-full" style={{ width: `${kitchenLoadPct}%` }} />
+                <div className="w-full h-1.5 rounded-full overflow-hidden mt-2 bg-slate-100">
+                  <div className="bg-[#0F172A] h-full rounded-full transition-all" style={{ width: `${kitchenLoadPct}%` }} />
                 </div>
               </div>
             </div>
 
             {/* Filter Tabs & Action Toolbar */}
-            <div className={`px-3 sm:px-5 py-2.5 border-b flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0 transition-colors ${
-              isDark ? 'bg-slate-900 border-slate-800/80' : 'bg-slate-100 border-slate-200'
+            <div className={`px-3 sm:px-5 py-2.5 border-b flex flex-col xl:flex-row xl:items-center justify-between gap-3 shrink-0 transition-colors ${
+              'bg-slate-100 border-slate-200'
             }`}>
               {/* Order Type Tabs */}
-              <div className="flex items-center gap-1.5 overflow-x-auto max-w-full custom-scrollbar pb-1">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 pb-0.5">
                 {[
                   { label: 'All', count: activeTypeCount('All') },
                   { label: 'Dine-in', count: activeTypeCount('Dine-in') },
@@ -1160,12 +1120,10 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                   <button
                     key={t.label}
                     onClick={() => setActiveTypeFilter(t.label as any)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap shrink-0 ${
                       activeTypeFilter === t.label
-                        ? 'bg-red-600 text-white shadow-md shadow-sm'
-                        : isDark
-                          ? 'bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white'
-                          : 'bg-white text-slate-700 hover:bg-slate-200 hover:text-slate-900 shadow-xs border border-slate-200'
+                        ? 'kds-primary-action bg-[#0F172A] text-white shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-200 hover:text-slate-900 shadow-xs border border-slate-200'
                     }`}
                   >
                     {t.label} ({t.count})
@@ -1174,27 +1132,27 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
               </div>
 
               {/* Search, Manual Order & View Dropdowns */}
-              <div className="flex items-center gap-2 overflow-x-auto max-w-full custom-scrollbar pb-1 shrink-0">
-                <div className="relative w-44 sm:w-56 shrink-0">
-                  <Search className={`w-3.5 h-3.5 absolute left-3 top-2.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+              <div className="flex items-center gap-2 max-w-full overflow-x-auto no-scrollbar pb-0.5">
+                <div className="relative w-full min-w-0 sm:w-44">
+                  <Search className={`w-3.5 h-3.5 absolute left-3 top-2.5 ${'text-slate-500'}`} />
                   <input
                     type="text"
                     placeholder="Search order..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className={`w-full pl-8 pr-3 py-1.5 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-red-500 ${
-                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    className={`w-full pl-8 pr-3 py-1.5 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-slate-900 ${
+                      'bg-white border-slate-300 text-slate-900'
                     }`}
                   />
                 </div>
 
                 <button
                   onClick={() => setIsManualOrderModalOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs shadow-md shadow-sm flex items-center gap-1.5 transition shrink-0"
+                  className="kds-primary-action px-3 py-1.5 rounded-xl bg-[#0F172A] hover:bg-[#1E293B] text-white font-bold text-xs shadow-xs flex items-center gap-1.5 transition shrink-0"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">+ Manual Order</span>
-                  <span className="sm:hidden">+ Order</span>
+                  <span className="hidden sm:inline">Manual Order</span>
+                  <span className="sm:hidden">Order</span>
                 </button>
 
                 <button
@@ -1205,12 +1163,12 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                   }}
                   className={`hidden sm:flex px-3 py-1.5 rounded-xl border text-xs font-semibold items-center gap-1 transition shrink-0 ${
                     sortByTime === 'NEWEST_FIRST'
-                      ? 'bg-red-500/20 text-red-300 border-red-500/50'
-                      : isDark ? 'bg-slate-800/80 border-slate-700 text-slate-300' : 'bg-white border-slate-300 text-slate-700 shadow-xs'
+                      ? 'bg-[#0F172A] text-white border-[#0F172A]'
+                      : 'bg-white border-slate-300 text-slate-700 shadow-xs'
                   }`}
                 >
                   <span>{sortByTime === 'OLDEST_FIRST' ? 'Sort: Oldest First' : 'Sort: Newest First'}</span>
-                  <ChevronDown className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                  <ChevronDown className={`w-3 h-3 ${sortByTime === 'NEWEST_FIRST' ? 'text-white' : 'text-slate-500'}`} />
                 </button>
 
                 <button
@@ -1220,24 +1178,26 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                   }}
                   className={`hidden md:flex px-3 py-1.5 rounded-xl border text-xs font-semibold items-center gap-1 transition shrink-0 ${
                     groupByTable
-                      ? 'bg-red-500/20 text-red-300 border-red-500/50'
-                      : isDark ? 'bg-slate-800/80 border-slate-700 text-slate-300' : 'bg-white border-slate-300 text-slate-700 shadow-xs'
+                      ? 'bg-[#0F172A] text-white border-[#0F172A]'
+                      : 'bg-white border-slate-300 text-slate-700 shadow-xs'
                   }`}
                 >
                   <span>{groupByTable ? 'Group: By Table (Active)' : 'Group: By Time'}</span>
-                  <ChevronDown className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                  <ChevronDown className={`w-3 h-3 ${groupByTable ? 'text-white' : 'text-slate-500'}`} />
                 </button>
 
-                <div className={`hidden lg:flex items-center p-0.5 rounded-xl border shrink-0 ${
-                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-200 border-slate-300'
-                }`}>
-                  <button
-                    onClick={() => triggerKdsToast('Display density toggled')}
-                    className={`p-1 rounded-lg ${isDark ? 'bg-slate-800 text-white' : 'bg-white text-slate-800 shadow-xs'}`}
-                  >
-                    <UtensilsCrossed className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                <button
+                  aria-label="Open KDS settings"
+                  title="KDS Settings"
+                  onClick={() => setActiveSidebarItem('Settings')}
+                  className={`hidden lg:flex px-2.5 py-1.5 rounded-xl border text-xs font-semibold items-center justify-center transition shrink-0 ${
+                    activeSidebarItem === 'Settings'
+                      ? 'bg-[#0F172A] text-white border-[#0F172A]'
+                      : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 shadow-xs'
+                  }`}
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
           </>
@@ -1247,7 +1207,6 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
         {activeSidebarItem !== 'Live Orders' ? (
           <KitchenViewsHub
             activeView={activeSidebarItem}
-            isDark={isDark}
             liveOrders={allActiveOrders}
             completedOrders={completedOrders}
             stations={store.getStations()}
@@ -1261,28 +1220,28 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
         ) : (
           <>
             {/* Main Area: Mobile 1 column vertical scroll, Tablet/Laptop 3 Kanban columns expand side-by-side */}
-            <div className="flex-1 flex flex-col md:h-screen md:overflow-hidden p-3 sm:p-4 gap-4 min-h-0">
+            <div className="flex-none md:flex-1 flex flex-col md:h-screen md:overflow-hidden p-3 sm:p-4 gap-4 md:min-h-0">
               {/* Mobile View Switcher (Tabs: Placed, Preparing, Ready, All) */}
-              <div data-testid="kds-mobile-tabs" className="md:hidden flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 shrink-0 overflow-x-auto border border-slate-200 dark:border-slate-700">
+              <div data-testid="kds-mobile-tabs" className="md:hidden grid grid-cols-2 sm:grid-cols-4 items-center gap-1.5 p-1 rounded-xl bg-[#F1F5F9] shrink-0 border border-[#E2E8F0]">
                 <button
                   data-testid="tab-mobile-all"
                   onClick={() => setMobileKdsTab('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 ${
-                    mobileKdsTab === 'all'
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                      : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  className={`min-h-11 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+ mobileKdsTab === 'all'
+ ? 'kds-primary-action bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
                 >
                   All ({filteredNew.length + filteredPreparing.length + filteredReady.length})
                 </button>
                 <button
                   data-testid="tab-mobile-new"
                   onClick={() => setMobileKdsTab('new')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-                    mobileKdsTab === 'new'
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                      : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  className={`min-h-11 px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+ mobileKdsTab === 'new'
+ ? 'kds-primary-action bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
                 >
                   <span>Placed</span>
                   <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold">{filteredNew.length}</span>
@@ -1290,11 +1249,11 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                 <button
                   data-testid="tab-mobile-preparing"
                   onClick={() => setMobileKdsTab('preparing')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-                    mobileKdsTab === 'preparing'
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                      : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  className={`min-h-11 px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+ mobileKdsTab === 'preparing'
+ ? 'kds-primary-action bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
                 >
                   <span>Preparing</span>
                   <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold">{filteredPreparing.length}</span>
@@ -1302,11 +1261,11 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                 <button
                   data-testid="tab-mobile-ready"
                   onClick={() => setMobileKdsTab('ready')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
-                    mobileKdsTab === 'ready'
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                      : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  className={`min-h-11 px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
+ mobileKdsTab === 'ready'
+ ? 'kds-primary-action bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+ : 'text-slate-600 hover:text-slate-900'
+ }`}
                 >
                   <span>Ready</span>
                   <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold">{filteredReady.length}</span>
@@ -1314,13 +1273,13 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
               </div>
 
               {/* 3 KANBAN COLUMNS (Placed, Preparing, Ready) */}
-              <div data-testid="kds-kanban-grid" className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 md:h-full md:overflow-hidden min-h-0">
+              <div data-testid="kds-kanban-grid" data-mobile-tab={mobileKdsTab} className="flex-1 grid grid-cols-1 md:grid-cols-3 auto-rows-max md:auto-rows-fr gap-4 md:h-full md:overflow-hidden min-h-0">
                 {/* ======================================================== */}
                 {/* COLUMN 1: PLACED / NEW ORDERS                            */}
                 {/* ======================================================== */}
-                <div data-testid="column-new" className={`flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm transition-colors h-full ${
-                  mobileKdsTab !== 'all' && mobileKdsTab !== 'new' ? 'hidden md:flex' : 'flex'
-                }`}>
+                <div data-testid="column-new" className={`flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm transition-colors min-h-40 md:h-full ${
+ mobileKdsTab !== 'all' && mobileKdsTab !== 'new' ? 'hidden md:flex' : 'flex'
+ }`}>
                   {/* Column Header */}
                   <div className="py-3 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
                     <div className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
@@ -1334,7 +1293,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                   </div>
 
                   {/* Cards List */}
-                  <div className="flex-1 p-3 space-y-3 overflow-y-auto custom-scrollbar">
+                  <div className="flex-none md:flex-1 p-3 space-y-3 md:overflow-y-auto custom-scrollbar">
                     {filteredNew.length === 0 && (
                       <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400 rounded-lg border border-dashed border-slate-300 dark:border-slate-700">
                         No new kitchen tickets. Incoming orders appear here in real time.
@@ -1370,10 +1329,10 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                                   type="button"
                                   onClick={() => handleToggleItemDone(ord.id, i)}
                                   className={`w-4 h-4 rounded flex items-center justify-center border text-[9px] font-bold transition shrink-0 ${
-                                    it.isDone
-                                      ? 'bg-emerald-600 border-emerald-500 text-white'
-                                      : 'border-slate-300 dark:border-slate-600 text-transparent hover:border-slate-400'
-                                  }`}
+ it.isDone
+ ? 'bg-emerald-600 border-emerald-500 text-white'
+ : 'border-slate-300 dark:border-slate-600 text-transparent hover:border-slate-400'
+ }`}
                                   title="Strike item"
                                 >
                                   ✓
@@ -1390,7 +1349,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                         </div>
 
                         {ord.note && (
-                          <div className="p-2 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 font-medium">
+                          <div className="p-2 rounded-md bg-amber-50 dark:bg-slate-900/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 font-medium">
                             Note: {ord.note}
                           </div>
                         )}
@@ -1414,9 +1373,9 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                 {/* ======================================================== */}
                 {/* COLUMN 2: PREPARING                                      */}
                 {/* ======================================================== */}
-                <div data-testid="column-preparing" className={`flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm transition-colors h-full ${
-                  mobileKdsTab !== 'all' && mobileKdsTab !== 'preparing' ? 'hidden md:flex' : 'flex'
-                }`}>
+                <div data-testid="column-preparing" className={`flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm transition-colors min-h-40 md:h-full ${
+ mobileKdsTab !== 'all' && mobileKdsTab !== 'preparing' ? 'hidden md:flex' : 'flex'
+ }`}>
                   {/* Column Header */}
                   <div className="py-3 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
                     <div className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
@@ -1430,7 +1389,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                   </div>
 
                   {/* Cards List */}
-                  <div className="flex-1 p-3 space-y-3 overflow-y-auto custom-scrollbar">
+                  <div className="flex-none md:flex-1 p-3 space-y-3 md:overflow-y-auto custom-scrollbar">
                     {filteredPreparing.length === 0 && (
                       <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400 rounded-lg border border-dashed border-slate-300 dark:border-slate-700">
                         No tickets are currently being prepared.
@@ -1466,10 +1425,10 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                                   type="button"
                                   onClick={() => handleToggleItemDone(ord.id, i)}
                                   className={`w-4 h-4 rounded flex items-center justify-center border text-[9px] font-bold transition shrink-0 ${
-                                    it.isDone
-                                      ? 'bg-emerald-600 border-emerald-500 text-white'
-                                      : 'border-slate-300 dark:border-slate-600 text-transparent hover:border-slate-400'
-                                  }`}
+ it.isDone
+ ? 'bg-emerald-600 border-emerald-500 text-white'
+ : 'border-slate-300 dark:border-slate-600 text-transparent hover:border-slate-400'
+ }`}
                                   title="Strike item"
                                 >
                                   ✓
@@ -1523,9 +1482,9 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                 {/* ======================================================== */}
                 {/* COLUMN 3: READY                                          */}
                 {/* ======================================================== */}
-                <div data-testid="column-ready" className={`flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm transition-colors h-full ${
-                  mobileKdsTab !== 'all' && mobileKdsTab !== 'ready' ? 'hidden md:flex' : 'flex'
-                }`}>
+                <div data-testid="column-ready" className={`flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm transition-colors min-h-40 md:h-full ${
+ mobileKdsTab !== 'all' && mobileKdsTab !== 'ready' ? 'hidden md:flex' : 'flex'
+ }`}>
                   {/* Column Header */}
                   <div className="py-3 px-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
                     <div className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
@@ -1539,7 +1498,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                   </div>
 
                   {/* Cards List */}
-                  <div className="flex-1 p-3 space-y-3 overflow-y-auto custom-scrollbar">
+                  <div className="flex-none md:flex-1 p-3 space-y-3 md:overflow-y-auto custom-scrollbar">
                     {filteredReady.length === 0 && (
                       <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400 rounded-lg border border-dashed border-slate-300 dark:border-slate-700">
                         No ready tickets waiting at the pass.
@@ -1574,10 +1533,10 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                                   type="button"
                                   onClick={() => handleToggleItemDone(ord.id, i)}
                                   className={`w-4 h-4 rounded flex items-center justify-center border text-[9px] font-bold transition shrink-0 ${
-                                    it.isDone
-                                      ? 'bg-emerald-600 border-emerald-500 text-white'
-                                      : 'border-slate-300 dark:border-slate-600 text-transparent hover:border-slate-400'
-                                  }`}
+ it.isDone
+ ? 'bg-emerald-600 border-emerald-500 text-white'
+ : 'border-slate-300 dark:border-slate-600 text-transparent hover:border-slate-400'
+ }`}
                                   title="Strike item"
                                 >
                                   ✓
@@ -1624,8 +1583,8 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
               <div className="flex-1 p-2.5 space-y-2.5 overflow-y-auto custom-scrollbar">
                 {filteredCompleted.length === 0 && (
                   <div className={`p-6 text-center text-xs rounded-xl border border-dashed ${
-                    isDark ? 'text-slate-500 border-slate-700' : 'text-slate-500 border-slate-300'
-                  }`}>
+ 'text-slate-500 border-slate-300'
+ }`}>
                     No completed tickets in this session.
                   </div>
                 )}
@@ -1634,22 +1593,20 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                     key={ord.id}
                     data-testid={`ticket-card-${ord.id}`}
                     className={`p-3 rounded-xl border space-y-2 shadow-md opacity-90 transition-colors ${
-                      isDark ? 'bg-slate-800 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-                    }`}
+ 'bg-white border-slate-200 shadow-xs'
+ }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`font-black text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>{ord.orderNumber}</span>
+                        <span className={`font-black text-xs ${'text-slate-900'}`}>{ord.orderNumber}</span>
                         {ord.orderType === 'Room Service' || ord.destination.toLowerCase().includes('room') ? (
                           <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${
-                            isDark
-                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                              : 'bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                          }`}>
+ 'bg-blue-50 text-blue-700 border-blue-200'
+ }`}>
                             [{ord.destination.toUpperCase()} - IN-ROOM DINING]
                           </span>
                         ) : (
-                          <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{ord.destination}</span>
+                          <span className={`text-xs font-bold ${'text-slate-700'}`}>{ord.destination}</span>
                         )}
                       </div>
                       <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
@@ -1657,28 +1614,28 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                       </div>
                     </div>
 
-                    <div className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <div className={`text-[10px] ${'text-slate-500'}`}>
                       <span>{ord.timeAgo}</span>
                     </div>
 
                     {/* Items */}
-                    <div className={`space-y-1.5 pt-1 border-t ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
+                    <div className={`space-y-1.5 pt-1 border-t ${'border-slate-200'}`}>
                       {ord.items.map((it, i) => (
                         <div key={i} className="flex items-center gap-2 text-xs">
                           {it.image && (
                             <img
                               src={it.image}
                               alt={it.name}
-                              className={`w-7 h-7 rounded-md object-cover border ${isDark ? 'border-slate-700' : 'border-slate-200'}`}
+                              className={`w-7 h-7 rounded-md object-cover border ${'border-slate-200'}`}
                             />
                           )}
-                          <span className={`font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{it.qty} x</span>
-                          <span className={`font-semibold truncate ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>{it.name}</span>
+                          <span className={`font-bold ${'text-slate-500'}`}>{it.qty} x</span>
+                          <span className={`font-semibold truncate ${'text-slate-800'}`}>{it.name}</span>
                         </div>
                       ))}
                     </div>
 
-                    <div className={`text-[10px] pt-1 border-t ${isDark ? 'border-slate-800/40 text-slate-500' : 'border-slate-200 text-slate-500'}`}>
+                    <div className={`text-[10px] pt-1 border-t ${'border-slate-200 text-slate-500'}`}>
                       {ord.completedAt}
                     </div>
                   </div>
@@ -1691,10 +1648,10 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
           <div className="hidden">
             {/* Widget 1: Order Timers */}
             <div className={`p-3.5 rounded-2xl border shadow-md space-y-2.5 transition-colors ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-            }`}>
+ 'bg-white border-slate-200 shadow-sm'
+ }`}>
               <div className="flex items-center justify-between">
-                <div className={`flex items-center gap-2 text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                <div className={`flex items-center gap-2 text-xs font-black ${'text-slate-900'}`}>
                   <Clock className="w-4 h-4 text-red-500" />
                   <span>Order Timers</span>
                 </div>
@@ -1721,14 +1678,14 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                         <div
                           key={order.id}
                           className={`p-2 rounded-xl flex items-center justify-between border transition-colors ${
-                            isDark ? 'bg-slate-800 border-slate-800/60' : 'bg-slate-50 border-slate-200'
-                          }`}
+ 'bg-slate-50 border-slate-200'
+ }`}
                         >
                           <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full ${color}`} />
                             <div>
-                              <div className={`font-bold text-[11px] ${isDark ? 'text-white' : 'text-slate-900'}`}>{order.orderNumber}</div>
-                              <div className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{order.destination}</div>
+                              <div className={`font-bold text-[11px] ${'text-slate-900'}`}>{order.orderNumber}</div>
+                              <div className={`text-[10px] ${'text-slate-500'}`}>{order.destination}</div>
                             </div>
                           </div>
                           <div className="text-right">
@@ -1748,10 +1705,10 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
 
             {/* Widget 2: Kitchen Stations */}
             <div className={`p-3.5 rounded-2xl border shadow-md space-y-2.5 transition-colors ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-            }`}>
+ 'bg-white border-slate-200 shadow-sm'
+ }`}>
               <div className="flex items-center justify-between">
-                <div className={`flex items-center gap-2 text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                <div className={`flex items-center gap-2 text-xs font-black ${'text-slate-900'}`}>
                   <UtensilsCrossed className="w-4 h-4 text-amber-500" />
                   <span>Kitchen Stations</span>
                 </div>
@@ -1770,12 +1727,12 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                   stationWidgets.map((station) => (
                     <div key={station.name} className="space-y-1">
                       <div className="flex justify-between text-[11px]">
-                        <span className={`font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{station.name}</span>
-                        <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <span className={`font-semibold ${'text-slate-700'}`}>{station.name}</span>
+                        <span className={`text-[10px] ${'text-slate-500'}`}>
                           {station.count} ticket{station.count === 1 ? '' : 's'}
                         </span>
                       </div>
-                      <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
+                      <div className={`w-full h-1.5 rounded-full overflow-hidden ${'bg-slate-200'}`}>
                         <div
                           className={`${station.pct >= 70 ? 'bg-red-500' : 'bg-slate-800 dark:bg-slate-200'} h-full rounded-full`}
                           style={{ width: `${station.pct}%` }}
@@ -1789,10 +1746,10 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
 
             {/* Widget 3: Alerts & Notifications */}
             <div className={`p-3.5 rounded-2xl border shadow-md space-y-2.5 transition-colors ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-            }`}>
+ 'bg-white border-slate-200 shadow-sm'
+ }`}>
               <div className="flex items-center justify-between">
-                <div className={`flex items-center gap-2 text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                <div className={`flex items-center gap-2 text-xs font-black ${'text-slate-900'}`}>
                   <AlertTriangle className="w-4 h-4 text-red-500" />
                   <span>Alerts & Notifications</span>
                 </div>
@@ -1812,15 +1769,15 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                     const Icon = alert.icon;
                     return (
                       <div key={`${alert.title}-${index}`} className={`p-2 rounded-xl flex items-start gap-2.5 border transition-colors ${
-                        isDark ? 'bg-slate-800 border-slate-800/60' : 'bg-slate-50 border-slate-200'
-                      }`}>
+ 'bg-slate-50 border-slate-200'
+ }`}>
                         <Icon className={`w-4 h-4 ${alert.color} shrink-0 mt-0.5`} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between">
-                            <span className={`font-bold text-[11px] ${isDark ? 'text-white' : 'text-slate-900'}`}>{alert.title}</span>
+                            <span className={`font-bold text-[11px] ${'text-slate-900'}`}>{alert.title}</span>
                             <span className="text-[9px] text-slate-500">{alert.time}</span>
                           </div>
-                          <p className={`text-[10px] truncate ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{alert.desc}</p>
+                          <p className={`text-[10px] truncate ${'text-slate-600'}`}>{alert.desc}</p>
                         </div>
                       </div>
                     );
@@ -1834,15 +1791,15 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
         {/* ======================================================== */}
         {/* BOTTOM SECTION: 3 SUMMARY CARDS                          */}
         {/* ======================================================== */}
-        <div className={`grid grid-cols-3 gap-3 px-5 py-3 border-t shrink-0 transition-colors ${
-          isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-100 border-slate-200'
-        }`}>
+        <div data-testid="kds-summary-panel" className={`grid grid-cols-1 md:grid-cols-3 gap-3 px-3 sm:px-5 py-3 border-t shrink-0 transition-colors ${
+ 'bg-slate-100 border-slate-200'
+ }`}>
           {/* Card 1: Today's Summary */}
           <div className={`p-3 rounded-xl border shadow-sm space-y-2 transition-colors ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-          }`}>
+ 'bg-white border-slate-200'
+ }`}>
             <div className="flex items-center justify-between">
-              <span className={`text-xs font-black flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <span className={`text-xs font-black flex items-center gap-1.5 ${'text-slate-900'}`}>
                 <TrendingUp className="w-3.5 h-3.5 text-blue-500" />
                 Today's Summary
               </span>
@@ -1853,31 +1810,31 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                 View Details
               </button>
             </div>
-            <div className="grid grid-cols-4 gap-2 text-center">
-              <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-50 border border-slate-200'}`}>
-                <div className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Total Orders</div>
-                <div className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{liveOrderCount + completedOrders.length}</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+              <div className={`p-2 rounded-lg ${'bg-slate-50 border border-slate-200'}`}>
+                <div className={`text-[9px] ${'text-slate-500'}`}>Total Orders</div>
+                <div className={`text-sm font-black ${'text-slate-900'}`}>{liveOrderCount + completedOrders.length}</div>
                 <div className="text-[9px] text-emerald-500 font-bold">session</div>
               </div>
-              <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-50 border border-slate-200'}`}>
-                <div className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Completed</div>
-                <div className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{completedOrders.length}</div>
-                <div className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <div className={`p-2 rounded-lg ${'bg-slate-50 border border-slate-200'}`}>
+                <div className={`text-[9px] ${'text-slate-500'}`}>Completed</div>
+                <div className={`text-sm font-black ${'text-slate-900'}`}>{completedOrders.length}</div>
+                <div className={`text-[9px] ${'text-slate-500'}`}>
                   {liveOrderCount + completedOrders.length > 0
                     ? Math.round((completedOrders.length / (liveOrderCount + completedOrders.length)) * 100)
                     : 0}%
                 </div>
               </div>
-              <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-50 border border-slate-200'}`}>
-                <div className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Avg Prep Time</div>
-                <div className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <div className={`p-2 rounded-lg ${'bg-slate-50 border border-slate-200'}`}>
+                <div className={`text-[9px] ${'text-slate-500'}`}>Avg Prep Time</div>
+                <div className={`text-sm font-black ${'text-slate-900'}`}>
                   {completedOrders.length > 0 ? `${averagePrepMinutes} min` : '—'}
                 </div>
                 <div className="text-[9px] text-slate-400 font-bold">session</div>
               </div>
-              <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800' : 'bg-slate-50 border border-slate-200'}`}>
-                <div className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Delayed</div>
-                <div className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{delayedOrderCount}</div>
+              <div className={`p-2 rounded-lg ${'bg-slate-50 border border-slate-200'}`}>
+                <div className={`text-[9px] ${'text-slate-500'}`}>Delayed</div>
+                <div className={`text-sm font-black ${'text-slate-900'}`}>{delayedOrderCount}</div>
                 <div className="text-[9px] text-red-500 font-bold">
                   {liveOrderCount > 0 ? Math.round((delayedOrderCount / liveOrderCount) * 100) : 0}%
                 </div>
@@ -1887,9 +1844,9 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
 
           {/* Card 2: Popular Items Today */}
           <div className={`p-3 rounded-xl border shadow-sm space-y-1.5 transition-colors ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-          }`}>
-            <span className={`text-xs font-black flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+ 'bg-white border-slate-200'
+ }`}>
+            <span className={`text-xs font-black flex items-center gap-1.5 ${'text-slate-900'}`}>
               <UtensilsCrossed className="w-3.5 h-3.5 text-amber-500" />
               Popular Items Today
             </span>
@@ -1899,14 +1856,14 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
               ) : (
                 popularItems.map((item) => (
                   <div key={item.name} className="flex items-center justify-between gap-2">
-                    <span className={`truncate w-36 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{item.name}</span>
-                    <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
+                    <span className={`truncate w-36 ${'text-slate-700'}`}>{item.name}</span>
+                    <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${'bg-slate-200'}`}>
                       <div
                         className="bg-slate-800 dark:bg-slate-200 h-full rounded-full"
                         style={{ width: `${(item.count / Math.max(1, popularItems[0].count)) * 100}%` }}
                       />
                     </div>
-                    <span className={`font-bold text-[10px] w-6 text-right ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.count}</span>
+                    <span className={`font-bold text-[10px] w-6 text-right ${'text-slate-900'}`}>{item.count}</span>
                   </div>
                 ))
               )}
@@ -1915,10 +1872,10 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
 
           {/* Card 3: Recent Completed Orders */}
           <div className={`p-3 rounded-xl border shadow-sm space-y-1.5 transition-colors ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-          }`}>
+ 'bg-white border-slate-200'
+ }`}>
             <div className="flex items-center justify-between">
-              <span className={`text-xs font-black flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <span className={`text-xs font-black flex items-center gap-1.5 ${'text-slate-900'}`}>
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                 Recent Completed Orders
               </span>
@@ -1934,11 +1891,11 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                 <p className="text-slate-500 py-3 text-center">No completed orders in this session.</p>
               ) : (
                 completedOrders.slice(0, 5).map((c) => (
-                <div key={c.id} className={`flex items-center justify-between py-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                <div key={c.id} className={`flex items-center justify-between py-0.5 ${'text-slate-700'}`}>
                   <div className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{c.orderNumber}</span>
-                    <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{c.destination}</span>
+                    <span className={`font-bold ${'text-slate-900'}`}>{c.orderNumber}</span>
+                    <span className={`text-[10px] ${'text-slate-500'}`}>{c.destination}</span>
                   </div>
                   <span className="text-slate-500 text-[10px]">{c.completedAt || c.timeAgo}</span>
                 </div>
@@ -1954,40 +1911,40 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
       {isManualOrderModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
           <div className={`rounded-2xl max-w-sm w-full p-6 shadow-sm dark:shadow-none border space-y-4 ${
-            isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
-          }`}>
-            <div className={`flex items-center justify-between pb-2 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-              <h3 className={`text-base font-black flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+ 'bg-white border-slate-200'
+ }`}>
+            <div className={`flex items-center justify-between pb-2 border-b ${'border-slate-200'}`}>
+              <h3 className={`text-base font-black flex items-center gap-2 ${'text-slate-900'}`}>
                 <Flame className="w-5 h-5 text-red-500" />
                 Manual Kitchen Order
               </h3>
-              <button onClick={() => setIsManualOrderModalOpen(false)} className={`${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'}`}>
+              <button onClick={() => setIsManualOrderModalOpen(false)} className={`${'text-slate-500 hover:text-slate-800'}`}>
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className={`block font-bold mb-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Table or Room</label>
+                <label className={`block font-bold mb-1 ${'text-slate-700'}`}>Table or Room</label>
                 <input
                   type="text"
                   value={manualTable}
                   onChange={(e) => setManualTable(e.target.value)}
                   className={`w-full px-3 py-2 rounded-xl border font-semibold ${
-                    isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                  }`}
+ 'bg-slate-50 border-slate-300 text-slate-900'
+ }`}
                 />
               </div>
 
               <div>
-                <label className={`block font-bold mb-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Dish Name</label>
+                <label className={`block font-bold mb-1 ${'text-slate-700'}`}>Dish Name</label>
                 <input
                   type="text"
                   value={manualDish}
                   onChange={(e) => setManualDish(e.target.value)}
                   className={`w-full px-3 py-2 rounded-xl border font-semibold ${
-                    isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                  }`}
+ 'bg-slate-50 border-slate-300 text-slate-900'
+ }`}
                 />
               </div>
             </div>
@@ -1995,15 +1952,15 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
             <div className="pt-2 flex gap-2">
               <button
                 onClick={handleCreateManualOrder}
-                className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs transition"
+                className="kds-primary-action flex-1 py-2 rounded-xl bg-[#0F172A] hover:bg-[#1E293B] text-white font-bold text-xs transition"
               >
                 Send to Kitchen
               </button>
               <button
                 onClick={() => setIsManualOrderModalOpen(false)}
                 className={`px-4 py-2 rounded-xl font-bold text-xs ${
-                  isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700 border border-slate-300'
-                }`}
+ 'bg-slate-100 text-slate-700 border border-slate-300'
+ }`}
               >
                 Cancel
               </button>
@@ -2033,11 +1990,11 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
       {isIntercomModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className={`w-full max-w-xl rounded-2xl border shadow-sm dark:shadow-none overflow-hidden flex flex-col max-h-[85vh] ${
-            isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
+ 'bg-white border-slate-200 text-slate-900'
+ }`}>
             <div className={`p-4 border-b flex items-center justify-between ${
-              isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-slate-50'
-            }`}>
+ 'border-slate-200 bg-slate-50'
+ }`}>
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-red-500/20 text-red-500 flex items-center justify-center font-bold">
                   <Radio className="w-5 h-5 animate-pulse" />
@@ -2068,10 +2025,10 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                     <div
                       key={buzz.id || idx}
                       className={`p-4 rounded-xl border flex flex-col gap-2 transition-all ${
-                        isAck
-                          ? isDark ? 'bg-slate-900/40 border-slate-800/80 opacity-75' : 'bg-slate-50 border-slate-200 opacity-80'
-                          : isDark ? 'bg-red-950/20 border-red-600/40 shadow-lg' : 'bg-red-50/80 border-red-300 shadow-md'
-                      }`}
+ isAck
+ ? 'bg-slate-50 border-slate-200 opacity-80'
+ : 'bg-red-50/80 border-red-300 shadow-md'
+ }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -2080,8 +2037,8 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                             {buzz.table}
                           </span>
                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
-                            buzz.priority === 'URGENT' ? 'bg-red-600 text-white' : 'bg-amber-600 text-white'
-                          }`}>
+ buzz.priority === 'URGENT' ? 'bg-red-600 text-white' : 'bg-amber-600 text-white'
+ }`}>
                             {buzz.priority || 'HIGH'}
                           </span>
                         </div>
@@ -2122,13 +2079,13 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
             </div>
 
             <div className={`p-3 border-t flex justify-end ${
-              isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-slate-50'
-            }`}>
+ 'border-slate-200 bg-slate-50'
+ }`}>
               <button
                 onClick={() => setIsIntercomModalOpen(false)}
                 className={`px-4 py-2 rounded-xl text-xs font-bold ${
-                  isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
-                }`}
+ 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+ }`}
               >
                 Close
               </button>
@@ -2142,11 +2099,11 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
           <div
             className={`w-full max-w-md rounded-2xl shadow-sm dark:shadow-none border overflow-hidden transition-all ${
-              isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
-            }`}
+ 'bg-white border-slate-200 text-slate-800'
+ }`}
           >
             {/* Header */}
-            <div className={`flex items-center justify-between p-4 border-b ${isDark ? 'border-slate-800 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
+            <div className={`flex items-center justify-between p-4 border-b ${'border-slate-100 bg-slate-50'}`}>
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center font-bold">
                   <ChefHat className="w-4 h-4" />
@@ -2158,7 +2115,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
               </div>
               <button
                 onClick={() => setProfileOpen(false)}
-                className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-200 text-slate-500'}`}
+                className={`p-1.5 rounded-lg transition ${'hover:bg-slate-200 text-slate-500'}`}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2167,7 +2124,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
             {/* Body */}
             <div className="p-5 space-y-5">
               {/* Profile Card & Avatar */}
-              <div className={`p-4 rounded-xl border flex items-center gap-4 ${isDark ? 'bg-slate-800/50 border-slate-700/60' : 'bg-slate-50 border-slate-200'}`}>
+              <div className={`p-4 rounded-xl border flex items-center gap-4 ${'bg-slate-50 border-slate-200'}`}>
                 <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-red-500/40 bg-slate-200 shrink-0 flex items-center justify-center shadow-inner">
                   {chefAvatar ? (
                     <img src={chefAvatar} alt={chefUser.name} className="w-full h-full object-cover" />
@@ -2189,8 +2146,8 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                 </label>
                 <div className="grid grid-cols-2 gap-2.5">
                   <label className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-dashed cursor-pointer transition text-center ${
-                    isDark ? 'border-slate-700 hover:border-red-500 bg-slate-800/40' : 'border-slate-300 hover:border-red-500 bg-slate-50/50'
-                  }`}>
+ 'border-slate-300 hover:border-red-500 bg-slate-50/50'
+ }`}>
                     <Camera className="w-5 h-5 text-red-500" />
                     <span className="text-xs font-semibold">Live Camera</span>
                     <span className="text-[10px] text-slate-400">Capture Photo</span>
@@ -2204,8 +2161,8 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                   </label>
 
                   <label className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-dashed cursor-pointer transition text-center ${
-                    isDark ? 'border-slate-700 hover:border-red-500 bg-slate-800/40' : 'border-slate-300 hover:border-red-500 bg-slate-50/50'
-                  }`}>
+ 'border-slate-300 hover:border-red-500 bg-slate-50/50'
+ }`}>
                     <Upload className="w-5 h-5 text-sky-500" />
                     <span className="text-xs font-semibold">Device Gallery</span>
                     <span className="text-[10px] text-slate-400">Pick from Storage</span>
@@ -2223,7 +2180,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
               </div>
 
               {/* Station Information */}
-              <div className={`p-3.5 rounded-xl border space-y-1.5 text-xs ${isDark ? 'bg-slate-800/30 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+              <div className={`p-3.5 rounded-xl border space-y-1.5 text-xs ${'bg-slate-50 border-slate-200'}`}>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Kitchen Station:</span>
                   <span className="font-semibold text-red-400">{selectedStation}</span>
@@ -2243,7 +2200,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="w-full py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+                  className="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Logout from KDS</span>

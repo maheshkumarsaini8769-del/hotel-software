@@ -166,7 +166,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
 
   return (
     <div className="space-y-4 max-w-6xl mx-auto pb-8">
-      <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${cardClass}`}>
+      <div className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${cardClass}`}>
         <div>
           <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${headingClass}`}>
             <Wrench className="w-5 h-5 text-amber-500" />
@@ -191,10 +191,10 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
             onClick={() => void loadTickets()}
             disabled={loading}
             className={`p-2 rounded-xl border text-xs font-bold transition disabled:opacity-50 ${
-              isDark
-                ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
-                : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-            }`}
+ isDark
+ ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+ : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+ }`}
             title="Refresh maintenance tickets"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -244,7 +244,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreate} className={`p-4 rounded-2xl border space-y-3 ${cardClass}`}>
+        <form onSubmit={handleCreate} className={`p-4 rounded-xl border space-y-3 ${cardClass}`}>
           <h3 className={`font-black text-xs ${headingClass}`}>Raise Maintenance Ticket</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input
@@ -253,20 +253,20 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Issue title, e.g. AC not cooling in Room 305"
               className={`px-3 py-2 rounded-xl border text-xs ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 text-white'
-                  : 'bg-white border-slate-300 text-slate-900'
-              }`}
+ isDark
+ ? 'bg-slate-900 border-slate-800 text-white'
+ : 'bg-white border-slate-300 text-slate-900'
+ }`}
               required
             />
             <select
               value={priority}
               onChange={(event) => setPriority(event.target.value as (typeof PRIORITIES)[number])}
               className={`px-3 py-2 rounded-xl border text-xs ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 text-white'
-                  : 'bg-white border-slate-300 text-slate-900'
-              }`}
+ isDark
+ ? 'bg-slate-900 border-slate-800 text-white'
+ : 'bg-white border-slate-300 text-slate-900'
+ }`}
             >
               {PRIORITIES.map((value) => (
                 <option key={value} value={value}>
@@ -281,10 +281,10 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
             placeholder="Describe the issue"
             rows={3}
             className={`w-full px-3 py-2 rounded-xl border text-xs ${
-              isDark
-                ? 'bg-slate-900 border-slate-800 text-white'
-                : 'bg-white border-slate-300 text-slate-900'
-            }`}
+ isDark
+ ? 'bg-slate-900 border-slate-800 text-white'
+ : 'bg-white border-slate-300 text-slate-900'
+ }`}
             required
           />
           <div className="flex flex-wrap items-center gap-2">
@@ -292,10 +292,10 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
               value={category}
               onChange={(event) => setCategory(event.target.value as (typeof CATEGORIES)[number])}
               className={`px-3 py-2 rounded-xl border text-xs ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 text-white'
-                  : 'bg-white border-slate-300 text-slate-900'
-              }`}
+ isDark
+ ? 'bg-slate-900 border-slate-800 text-white'
+ : 'bg-white border-slate-300 text-slate-900'
+ }`}
             >
               {CATEGORIES.map((value) => (
                 <option key={value} value={value}>
@@ -314,10 +314,10 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
               type="button"
               onClick={() => setShowForm(false)}
               className={`px-3 py-2 rounded-xl text-xs font-bold border ${
-                isDark
-                  ? 'bg-slate-800 border-slate-700 text-slate-200'
-                  : 'bg-slate-100 border-slate-200 text-slate-700'
-              }`}
+ isDark
+ ? 'bg-slate-800 border-slate-700 text-slate-200'
+ : 'bg-slate-100 border-slate-200 text-slate-700'
+ }`}
             >
               Cancel
             </button>
@@ -325,13 +325,13 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
         </form>
       )}
 
-      <div className={`rounded-2xl border overflow-hidden ${cardClass}`}>
+      <div className={`rounded-xl border overflow-hidden ${cardClass}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead
               className={`border-b text-[11px] font-black uppercase tracking-wider ${
-                isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
-              }`}
+ isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
+ }`}
             >
               <tr>
                 <th className="py-3 px-4">Ticket</th>
@@ -372,18 +372,18 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({ isDark = true,
                       <td className="py-3 px-4">
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                            ticket.priority === 'CRITICAL'
-                              ? isDark
-                                ? 'bg-red-500/20 text-red-300 border-red-500/30'
-                                : 'bg-red-50 text-red-800 border-red-200'
-                              : ticket.priority === 'HIGH'
-                                ? isDark
-                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                                  : 'bg-amber-50 text-amber-800 border-amber-200'
-                                : isDark
-                                  ? 'bg-slate-800 text-slate-300 border-slate-700'
-                                  : 'bg-slate-100 text-slate-700 border-slate-200'
-                          }`}
+ ticket.priority === 'CRITICAL'
+ ? isDark
+ ? 'bg-red-500/20 text-red-300 border-red-500/30'
+ : 'bg-red-50 text-red-800 border-red-200'
+ : ticket.priority === 'HIGH'
+ ? isDark
+ ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+ : 'bg-amber-50 text-amber-800 border-amber-200'
+ : isDark
+ ? 'bg-slate-800 text-slate-300 border-slate-700'
+ : 'bg-slate-100 text-slate-700 border-slate-200'
+ }`}
                         >
                           {ticket.priority}
                         </span>

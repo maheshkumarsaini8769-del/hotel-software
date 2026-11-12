@@ -264,7 +264,7 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
               <button
                 type="button"
                 onClick={() => store.setActiveModal('NEW_VENDOR')}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase"
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase"
               >
                 + Add Supplier
               </button>
@@ -279,12 +279,12 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
                 vendors.map((v) => (
                   <div
                     key={v._id}
-                    className="p-5 rounded-2xl bg-slate-900 border border-zinc-800 hover:border-zinc-700 shadow-md flex flex-col justify-between"
+                    className="p-5 rounded-xl bg-slate-900 border border-zinc-800 hover:border-zinc-700 shadow-md flex flex-col justify-between"
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2 pb-2 border-b border-zinc-800/80">
                         <span className="font-mono text-xs font-bold text-blue-400">{v.vendorCode}</span>
-                        <span className="text-xs text-amber-400">{'★'.repeat(v.rating || 5)}</span>
+                        <span className="text-xs text-amber-400">{''.repeat(v.rating || 5)}</span>
                       </div>
                       <h3 className="text-base font-bold text-white mt-2">{v.name}</h3>
                       <p className="text-xs text-zinc-400 mt-0.5">{v.contactPerson} • {v.phone}</p>

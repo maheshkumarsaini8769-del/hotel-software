@@ -4,23 +4,23 @@
   --apple-bg: #FBFBFD;
   --apple-text: #1D1D1F;
   --apple-secondary: #86868B;
-  --apple-accent: #007AFF;
-  --apple-destructive: #FF3B30;
+  --apple-accent: #2563EB;
+  --apple-destructive: #EF4444;
   --apple-border: #D2D2D7;
   --apple-card: #FFFFFF;
 }
 
 html {
   height: 100%;
-  background: #FBFBFD;
+  background: #FFFFFF;
 }
 
 body {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Inter, sans-serif;
   letter-spacing: -0.01em;
-  background: #FBFBFD;
-  color: #1D1D1F;
+  background: #FFFFFF;
+  color: #0F172A;
   overflow: hidden;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -42,6 +42,31 @@ iframe {
   flex: 1;
 }
 
+.staff-app-shell {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.staff-main-content {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 1200px;
+  margin: 0 auto;
+  overflow-x: hidden;
+}
+
+.staff-role-filter:focus-visible,
+.staff-profile-row:focus-visible,
+.staff-hotel-switcher:focus-visible {
+  outline: 3px solid #2563EB;
+  outline-offset: 2px;
+}
+
+.staff-profile-row {
+  -webkit-tap-highlight-color: transparent;
+}
+
 .safe-top {
   padding-top: env(safe-area-inset-top, 0px);
 }
@@ -53,3 +78,301 @@ iframe {
 .type-body { font-size: 17px; line-height: 22px; font-weight: 400; letter-spacing: -0.41px; }
 .type-callout { font-size: 16px; line-height: 21px; font-weight: 400; letter-spacing: -0.32px; }
 .type-caption { font-size: 12px; line-height: 16px; font-weight: 400; letter-spacing: 0px; }
+
+@media (max-width: 640px) {
+  .staff-app-shell {
+    height: 100dvh;
+    min-height: 100dvh !important;
+    overflow: hidden;
+  }
+
+  .staff-app-header {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 8px 16px 10px !important;
+  }
+
+  .staff-brand-group {
+    flex: 1 1 100%;
+  }
+
+  .staff-header-controls {
+    width: 100%;
+    padding-top: 8px;
+    border-top: 1px solid #E2E8F0;
+  }
+
+  .staff-hotel-switcher {
+    width: 100%;
+    max-width: none !important;
+    min-height: 48px;
+    padding: 4px 8px !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 10px;
+    background: #FFFFFF !important;
+  }
+
+  .staff-hotel-switcher > img {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 8px !important;
+  }
+
+  .staff-hotel-name {
+    flex: 1;
+    max-width: none !important;
+    color: #475569 !important;
+    font-size: 11.5px !important;
+    letter-spacing: 0.04em !important;
+    text-align: left;
+  }
+
+  .staff-main-content {
+    padding: 16px 16px max(12px, env(safe-area-inset-bottom, 0px)) !important;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .staff-person-step {
+    min-height: 0;
+  }
+
+  .staff-roster-heading {
+    margin-bottom: 12px !important;
+  }
+
+  .staff-roster-heading h2 {
+    font-size: 22px !important;
+  }
+
+  .staff-role-filters {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px !important;
+    overflow: visible !important;
+    border: 0 !important;
+    margin-bottom: 8px !important;
+  }
+
+  .staff-role-filter {
+    min-width: 0;
+    min-height: 48px;
+    margin: 0 !important;
+    padding: 8px 10px !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 10px;
+    background: #F8FAFC !important;
+    color: #475569 !important;
+    font-size: 10px !important;
+    letter-spacing: 0.06em !important;
+    text-align: center;
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  }
+
+  .staff-role-filter[aria-pressed='true'] {
+    border-color: #0F172A !important;
+    background: #0F172A !important;
+    color: #FFFFFF !important;
+  }
+
+  .staff-role-filter:active,
+  .staff-unlock-action:active {
+    transform: scale(0.98);
+  }
+
+  .staff-roster-list {
+    min-height: 0;
+    gap: 8px !important;
+    padding: 4px 2px max(20px, env(safe-area-inset-bottom, 0px)) !important;
+    overscroll-behavior: contain;
+  }
+
+  .staff-profile-row {
+    min-height: 84px;
+    gap: 8px;
+    padding: 10px !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 12px !important;
+    background: #FFFFFF;
+    transition: background-color 150ms ease, border-color 150ms ease;
+  }
+
+  .staff-profile-row:active {
+    background: #F8FAFC;
+  }
+
+  .staff-profile-identity {
+    gap: 10px !important;
+  }
+
+  .staff-profile-identity > div:first-child {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 10px !important;
+    font-family: inherit !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+  }
+
+  .staff-profile-title {
+    flex-wrap: wrap;
+    gap: 2px 6px !important;
+  }
+
+  .staff-profile-title span:first-child {
+    max-width: 100%;
+    white-space: normal !important;
+    font-size: 14px !important;
+    line-height: 1.25;
+  }
+
+  .staff-profile-title span:last-child {
+    padding-left: 0 !important;
+    font-size: 9px !important;
+  }
+
+  .staff-profile-meta {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal !important;
+    font-size: 10.5px !important;
+    line-height: 1.3;
+  }
+
+  .staff-profile-details > div:last-child {
+    font-size: 9.5px !important;
+    line-height: 1.3;
+  }
+
+  .staff-unlock-action {
+    min-width: 76px;
+    min-height: 48px;
+    justify-content: center;
+    gap: 4px !important;
+    margin-left: 4px !important;
+    padding: 0 8px 0 10px;
+    border: 1px solid #CBD5E1;
+    border-radius: 9px;
+    background: #F8FAFC;
+    font-size: 9px !important;
+    letter-spacing: 0.07em !important;
+  }
+
+  .staff-pin-overlay {
+    align-items: flex-end !important;
+    padding: 12px 12px 0 !important;
+  }
+
+  .staff-pin-sheet {
+    width: 100%;
+    max-width: 480px !important;
+    max-height: min(90dvh, 720px) !important;
+    padding: 18px 20px max(20px, env(safe-area-inset-bottom, 0px)) !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+
+  .staff-pin-sheet [data-testid='close-pin-modal-btn'] {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 8px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .staff-role-filters {
+    gap: 6px !important;
+  }
+
+  .staff-role-filter {
+    padding-right: 6px !important;
+    padding-left: 6px !important;
+    font-size: 9px !important;
+  }
+
+  .staff-profile-row {
+    padding: 8px !important;
+  }
+
+  .staff-unlock-action {
+    min-width: 68px;
+    padding: 0 6px !important;
+  }
+}
+
+@media (max-height: 520px) and (max-width: 640px) {
+  .staff-main-content {
+    padding-top: 10px !important;
+  }
+
+  .staff-roster-heading {
+    margin-bottom: 8px !important;
+  }
+}
+
+@media (max-height: 520px) and (min-width: 641px) {
+  .staff-hotel-switcher {
+    max-width: 46vw !important;
+    min-height: 48px;
+  }
+
+  .staff-hotel-name {
+    max-width: 35vw !important;
+  }
+
+  .staff-role-filters {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px !important;
+    overflow: visible !important;
+    border: 0 !important;
+    margin-bottom: 8px !important;
+  }
+
+  .staff-role-filter {
+    min-width: 0;
+    min-height: 48px;
+    margin: 0 !important;
+    padding: 8px 6px !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 10px;
+    background: #F8FAFC !important;
+    color: #475569 !important;
+    font-size: 9px !important;
+    letter-spacing: 0.04em !important;
+    text-align: center;
+  }
+
+  .staff-role-filter[aria-pressed='true'] {
+    border-color: #0F172A !important;
+    background: #0F172A !important;
+    color: #FFFFFF !important;
+  }
+
+  .staff-pin-overlay {
+    align-items: flex-end !important;
+    padding: 8px 12px 0 !important;
+  }
+
+  .staff-pin-sheet {
+    max-width: 680px !important;
+    max-height: min(94dvh, 520px) !important;
+    padding: 12px 20px max(16px, env(safe-area-inset-bottom, 0px)) !important;
+    border-radius: 18px 18px 0 0 !important;
+  }
+
+  .staff-pin-sheet [data-testid='close-pin-modal-btn'] {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 8px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-role-filter,
+  .staff-profile-row,
+  .staff-unlock-action {
+    transition: none !important;
+  }
+}
+@import '@spicehub/staff-launcher/src/index.css';

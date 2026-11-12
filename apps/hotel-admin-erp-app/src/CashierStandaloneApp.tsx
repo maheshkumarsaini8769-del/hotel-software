@@ -74,7 +74,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({
       )}
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-4 py-2.5">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-slate-950">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white">
             <ReceiptText className="h-4 w-4" />
           </div>
           <div>

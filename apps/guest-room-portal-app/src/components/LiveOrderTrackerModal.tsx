@@ -89,17 +89,17 @@ export const LiveOrderTrackerModal: React.FC<LiveOrderTrackerModalProps> = ({
                 <div key={st.num} data-testid={`stepper-step-${st.num}`} className="relative z-10 flex flex-col items-center">
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition shadow-md ${
-                      isPassed
-                        ? 'bg-amber-500 text-slate-950 ring-4 ring-amber-500/20'
-                        : 'bg-slate-800 text-slate-500 border border-slate-700'
-                    }`}
+ isPassed
+ ? 'bg-emerald-600 text-white ring-4 ring-emerald-600/20'
+ : 'bg-slate-800 text-slate-500 border border-slate-700'
+ }`}
                   >
                     <span>{st.icon}</span>
                   </div>
                   <span
                     className={`text-[10px] font-bold mt-2 text-center max-w-[70px] ${
-                      isCurrent ? 'text-amber-300' : isPassed ? 'text-slate-200' : 'text-slate-500'
-                    }`}
+ isCurrent ? 'text-amber-300' : isPassed ? 'text-slate-200' : 'text-slate-500'
+ }`}
                   >
                     {st.label}
                   </span>

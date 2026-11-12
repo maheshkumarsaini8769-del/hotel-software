@@ -108,7 +108,7 @@ export const DiningReservationCard: React.FC<DiningReservationCardProps> = ({
             <button
               onClick={() => onSeat(reservation._id)}
               disabled={isLoading}
-              className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-950/40 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1 py-1.5 px-3 rounded-xl font-bold text-xs shadow-md shadow-emerald-950/40 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
               ✓ Seat Guests
             </button>

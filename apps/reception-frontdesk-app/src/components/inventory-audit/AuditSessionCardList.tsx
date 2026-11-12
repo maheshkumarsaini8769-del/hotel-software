@@ -18,8 +18,8 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
 }) => {
   if (sessions.length === 0) {
     return (
-      <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-12 text-center">
-        <span className="text-4xl">📋</span>
+      <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-12 text-center">
+        <span className="text-4xl"></span>
         <h3 className="text-base font-bold text-white mt-3">No Audit Sessions Found</h3>
         <p className="text-xs text-zinc-400 mt-1 max-w-sm mx-auto">
           No stocktake audit records match current filter criteria. Click "Start New Audit Session" above to launch a physical audit.
@@ -39,11 +39,11 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
           <div
             key={session._id}
             onClick={() => onSelectSession(session)}
-            className={`cursor-pointer rounded-2xl p-5 border transition-all flex flex-col justify-between ${
-              isSelected
-                ? 'bg-zinc-900/95 border-emerald-500 shadow-xl shadow-emerald-950/30 ring-1 ring-emerald-500'
-                : 'bg-zinc-900/70 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'
-            }`}
+            className={`cursor-pointer rounded-xl p-5 border transition-all flex flex-col justify-between ${
+ isSelected
+ ? 'bg-zinc-900/95 border-emerald-500 shadow-xl shadow-emerald-950/30 ring-1 ring-emerald-500'
+ : 'bg-zinc-900/70 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'
+ }`}
           >
             <div>
               {/* Header */}
@@ -70,11 +70,11 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
               {/* Badges / Store Details */}
               <div className="flex flex-wrap items-center gap-1.5 mb-4 text-[11px]">
                 <span className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-300 font-medium">
-                  📍 {session.storeLocation}
+                   {session.storeLocation}
                 </span>
                 {session.isBlindStocktake ? (
                   <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/30 font-medium">
-                    🛡️ Blind Count
+                    ️ Blind Count
                   </span>
                 ) : (
                   <span className="px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-400">
@@ -134,7 +134,7 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
                   }}
                   className="flex-1 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all text-center"
                 >
-                  📝 Count Stock
+                   Count Stock
                 </button>
               )}
 
@@ -147,13 +147,13 @@ export const AuditSessionCardList: React.FC<AuditSessionCardListProps> = ({
                   }}
                   className="flex-1 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 text-xs font-bold transition-all text-center"
                 >
-                  ⚖️ Reconcile
+                  ️ Reconcile
                 </button>
               )}
 
               {session.status === 'RECONCILED' && (
                 <span className="w-full text-center text-xs text-emerald-400 font-semibold py-1 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                  ✓ Ledger Balanced
+                   Ledger Balanced
                 </span>
               )}
             </div>

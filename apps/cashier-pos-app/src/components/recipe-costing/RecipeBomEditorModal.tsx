@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IRecipeUI, INewRecipePayload, RecipeCostingHelper } from '@spicehub/ui';
+import { IRecipeUI, INewRecipePayload, RecipeCostingHelper, NumericInput } from '@spicehub/ui';
 
 interface RecipeBomEditorModalProps {
   isOpen: boolean;
@@ -196,8 +196,7 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
               <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
                 Yield Portions (Per Batch)
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="1"
                 value={yieldPortions}
                 onChange={(e) => setYieldPortions(Math.max(1, Number(e.target.value)))}
@@ -223,8 +222,7 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
               <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
                 Selling Price (₹)
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="0"
                 value={sellingPrice}
                 onChange={(e) => setSellingPrice(Number(e.target.value))}
@@ -237,8 +235,7 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
               <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
                 Target Food Cost % Limit
               </label>
-              <input
-                type="number"
+              <NumericInput
                 min="1"
                 max="100"
                 value={targetCostPercentage}
@@ -285,8 +282,7 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
                     />
                   </div>
                   <div className="col-span-2">
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.001"
                       min="0"
                       value={ing.quantity}
@@ -308,8 +304,7 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.01"
                       min="0"
                       value={ing.unitCost}
@@ -389,7 +384,7 @@ export const RecipeBomEditorModal: React.FC<RecipeBomEditorModalProps> = ({
             <button
               type="submit"
               disabled={loading || !selectedMenuItemId}
-              className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
+              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-amber-400 disabled:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
             >
               {loading ? 'Saving Recipe...' : 'Save Recipe Specification'}
             </button>

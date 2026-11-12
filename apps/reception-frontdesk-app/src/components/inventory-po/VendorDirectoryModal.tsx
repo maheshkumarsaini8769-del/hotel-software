@@ -43,11 +43,11 @@ export const VendorDirectoryModal: React.FC<VendorDirectoryModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border-2 border-blue-500/40 rounded-3xl w-full max-w-2xl flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
+      <div className="bg-slate-900 border-2 border-blue-500/40 rounded-xl w-full max-w-2xl flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="bg-slate-900 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl">🏢</span>
+            <span className="text-xl"></span>
             <div>
               <h2 className="text-lg font-bold text-white">Register Supplier / Vendor Profile</h2>
               <p className="text-xs text-zinc-400">
@@ -60,7 +60,7 @@ export const VendorDirectoryModal: React.FC<VendorDirectoryModalProps> = ({
             onClick={onClose}
             className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -201,7 +201,7 @@ export const VendorDirectoryModal: React.FC<VendorDirectoryModalProps> = ({
             <button
               type="submit"
               disabled={loading || !name || !contactPerson}
-              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
+              className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
             >
               {loading ? 'Saving Vendor...' : 'Register Vendor Profile'}
             </button>

@@ -6,6 +6,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { getApiClient } from '../lib/apiClient';
+import { NumericInput } from '@spicehub/ui';
 
 interface ExpensesViewProps {
   isDark?: boolean;
@@ -49,7 +50,7 @@ function formatTime(value: string): string {
 }
 
 export const ExpensesView: React.FC<ExpensesViewProps> = ({
-  isDark = true,
+
   onToast,
   onExpenseRecorded,
 }) => {
@@ -133,10 +134,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
+ 'bg-white border-slate-200 shadow-sm'
+ }`}>
         <div>
-          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${'text-slate-900'}`}>
             <Banknote className="w-5 h-5 text-amber-500" />
             <span>Petty Cash Vouchers & Daily Floor Expenses</span>
           </h2>
@@ -175,8 +176,8 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
       <div className="grid grid-cols-12 gap-4">
         <form onSubmit={handleAddExpense} className={`col-span-12 lg:col-span-4 p-4 rounded-2xl border space-y-3 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+ 'bg-white border-slate-200'
+ }`}>
           <h3 className="font-black text-xs text-white">Record Petty Cash Payment</h3>
 
           <div>
@@ -208,8 +209,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
           <div>
             <label className="text-[11px] font-bold text-slate-400 block mb-1">Amount Paid (₹)</label>
-            <input
-              type="number"
+            <NumericInput
               min="1"
               step="0.01"
               placeholder="₹ Amount"
@@ -243,8 +243,8 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         </form>
 
         <div className={`col-span-12 lg:col-span-8 p-4 rounded-2xl border space-y-3 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+ 'bg-white border-slate-200'
+ }`}>
           <h3 className="font-black text-xs text-white">Today's Petty Cash Outflows ({vouchers.length})</h3>
 
           {loading ? (

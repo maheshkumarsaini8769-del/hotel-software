@@ -40,11 +40,18 @@ import {
   Receipt,
   Download,
   ShieldCheck,
-  ChefHat
+  ChefHat,
+  Utensils,
+  MessageSquare,
+  Droplets,
+  Leaf,
+  AlertTriangle,
+  RefreshCw,
+  MapPin,
 } from 'lucide-react';
-import { MenuCartStore, useTranslation } from '@spicehub/ui';
+import { MenuCartStore, useTranslation, IMAGE_PLACEHOLDER, CustomerNeedHelpChatModal, CustomerDownloadAppBanner } from '@spicehub/ui';
 
-export type CustomerRequestType = 'WATER' | 'CALL_WAITER' | 'BILL' | 'CUTLERY' | 'CLEANING' | 'OTHER';
+export type CustomerRequestType = 'WATER' | 'CALL_WAITER' | 'BILL' | 'CUTLERY' | 'CLEANING' | 'ASSISTANCE';
 
 export interface PlacedOrderItem {
   id?: string;
@@ -84,6 +91,16 @@ export interface CustomerMenuAppProps {
   canOrder?: boolean;
   isReadOnly?: boolean;
   occupiedWarning?: string;
+  hotelLocation?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    pincode?: string;
+    latitude?: number;
+    longitude?: number;
+    googleMapUrl?: string;
+  };
 }
 
 interface CartItem {
@@ -129,6 +146,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   canOrder = true,
   isReadOnly = false,
   occupiedWarning,
+  hotelLocation,
 }) => {
   // Navigation State with Session Persistence (Refresh Resilient)
   const [currentTab, setCurrentTabState] = useState<'home' | 'menu' | 'cart' | 'orders' | 'waiter' | 'split' | 'payment'>(() => {
@@ -148,6 +166,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
     }
     return 'home';
   });
+
+  const [isHelpChatOpen, setIsHelpChatOpen] = useState(false);
 
   useEffect(() => {
     const handleSetTab = (e: any) => {
@@ -218,16 +238,6 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
     // Proactive Notification and Geolocation prompts removed to prevent intrusive popups on opening dining
   }, []);
 
-  // Smart App Download Banner & Modal States
-  const [isAppDownloadModalOpen, setIsAppDownloadModalOpen] = useState(false);
-  const [isAppBannerDismissed, setIsAppBannerDismissed] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('spicehub_app_banner_dismissed') === 'true';
-    }
-    return false;
-  });
-  const customerApkUrl = `${API_BASE}/download/customer-apk`;
-
   // Dynamic Categories & Food Items (Admin Managed & KDS Synced)
   const [dynamicCategories, setDynamicCategories] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -270,7 +280,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           isVeg: String(it.foodType || '').toUpperCase() === 'VEG',
           image:
             (Array.isArray(it.images) && it.images[0]) ||
-            'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80',
+            IMAGE_PLACEHOLDER,
           description: it.description || '',
           isAvailable: it.isAvailable !== false,
         }));
@@ -331,9 +341,9 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
         })
       );
       if (payload.isAvailable === false) {
-        showToast(`⚠️ "${payload.name || 'Dish'}" is now 86 (Sold Out in kitchen)!`);
+        showToast(`"${payload.name || 'Dish'}" is now 86 (Sold Out in kitchen)!`);
       } else {
-        showToast(`✅ "${payload.name || 'Dish'}" is back in stock!`);
+        showToast(`"${payload.name || 'Dish'}" is back in stock!`);
       }
     });
 
@@ -503,7 +513,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
   const promoThresholdWarning = useMemo(() => {
     if (appliedPromo && appliedPromo.minOrderAmount && cartSubtotal < appliedPromo.minOrderAmount) {
-      return `⚠️ Min order ₹${appliedPromo.minOrderAmount} required for coupon "${appliedPromo.code}". Add ₹${appliedPromo.minOrderAmount - cartSubtotal} more to activate discount!`;
+      return `Min order ₹${appliedPromo.minOrderAmount} required for coupon "${appliedPromo.code}". Add ₹${appliedPromo.minOrderAmount - cartSubtotal} more to activate discount!`;
     }
     return null;
   }, [appliedPromo, cartSubtotal]);
@@ -543,7 +553,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           maxDiscountAmount: data.maxDiscountAmount ? Number(data.maxDiscountAmount) : undefined,
         });
         setPromoError(null);
-        showToast(`🎉 Coupon "${data.promoCode || promoCodeInput.toUpperCase()}" applied successfully!`);
+        showToast(`Coupon "${data.promoCode || promoCodeInput.toUpperCase()}" applied successfully!`);
       } else {
         setPromoError(data?.message || 'Invalid coupon code or minimum order amount not met');
       }
@@ -682,7 +692,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
   };
 
   const handleSendServiceCall = async (type: CustomerRequestType, label: string) => {
-    showToast(`🛎️ ${label} requested! Waiter notified at service desk.`);
+    showToast(`${label} requested! Waiter notified at service desk.`);
     if (onRequestService) {
       await onRequestService(type);
     }
@@ -774,56 +784,24 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       settledAt: new Date().toLocaleTimeString(),
     });
     setSettlementDone(true);
-    showToast(`✅ Payment Settled! Table flagged for sanitization.`);
+    showToast(`Payment Settled! Table flagged for sanitization.`);
   };
 
   // Dynamic categories list from backend catalog & admin
   const CATEGORIES = dynamicCategories;
 
   return (
-    <div className={`min-h-screen w-full flex justify-center ${isDark ? 'bg-slate-950' : 'bg-slate-200/70'}`}>
-      <div className={`max-w-3xl w-full mx-auto min-h-screen overflow-x-hidden font-sans select-none antialiased flex flex-col transition-colors duration-200 relative shadow-2xl border-x ${
-        isDark ? 'bg-slate-950 text-slate-100 border-slate-800' : 'bg-slate-50 text-slate-900 border-slate-200'
+    <div className={`min-h-screen w-full flex justify-center ${isDark ? 'bg-slate-950' : 'bg-slate-50'}`}>
+      <div className={`mx-auto flex min-h-screen w-full max-w-md flex-col overflow-x-hidden border-x font-sans antialiased shadow-2xl transition-colors duration-200 select-none md:max-w-3xl ${
+        isDark ? 'bg-slate-950 text-slate-100 border-slate-800' : 'bg-white text-slate-900 border-slate-200'
       }`}>
+      {/* Top Navbar Download App Banner */}
+      <CustomerDownloadAppBanner portal="table" />
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-5 py-3 rounded-2xl shadow-sm dark:shadow-none flex items-center gap-3 animate-bounce border border-orange-400/40">
-          <CheckCircle2 className="w-5 h-5 text-amber-200" />
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 border border-slate-800">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
           <span className="font-bold text-xs sm:text-sm">{toastMessage}</span>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 0. SMART APP DOWNLOAD BANNER (Fast APK Access for Android Guests)        */}
-      {/* ========================================================================= */}
-      {!isAppBannerDismissed && (
-        <div className="bg-slate-900 text-white dark:bg-slate-950 border-b border-slate-800 px-3 sm:px-4 py-2 text-xs flex items-center justify-between relative z-50">
-          <div className="flex items-center gap-2 truncate">
-            <span className="text-base">📱</span>
-            <span className="font-semibold truncate">
-              <span className="font-black">SpiceHub Android App:</span> 3x faster ordering & offline digital menu!
-            </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsAppDownloadModalOpen(true)}
-              className="px-2.5 py-1 rounded-lg bg-black/40 hover:bg-black/60 text-white font-bold text-[11px] border border-white/20 transition flex items-center gap-1 shadow-xs"
-            >
-              <span>⬇️ Get App (.apk)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsAppBannerDismissed(true);
-                sessionStorage.setItem('spicehub_app_banner_dismissed', 'true');
-              }}
-              className="text-white/80 hover:text-white p-1 font-bold text-sm"
-              title="Dismiss banner"
-            >
-              ✕
-            </button>
-          </div>
         </div>
       )}
 
@@ -831,78 +809,85 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {/* 1. TOP HEADER (100% Full-Width Responsive Bar)                           */}
       {/* ========================================================================= */}
       <header className={`sticky top-0 z-40 w-full border-b backdrop-blur-md transition-colors ${
-        isDark ? 'bg-slate-950/90 border-slate-800/80 text-white' : 'bg-white/95 border-slate-200 text-slate-900 shadow-xs'
+        isDark ? 'bg-slate-950/95 border-slate-800 text-white' : 'bg-white/95 border-slate-200/90 text-slate-900 shadow-xs'
       }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+        <div className="mx-auto flex h-16 w-full items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
           {/* Left: Brand Logo & Dining Table Session Pill */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <button
               onClick={() => setCurrentTab('home')}
-              className="flex items-center gap-2 group text-left"
+              className="flex min-w-0 shrink items-center gap-2 text-left"
             >
-              <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center shadow-xs transition">
+              <div className="w-10 h-10 rounded-xl bg-emerald-900 border border-emerald-800 text-amber-200 flex items-center justify-center shadow-xs transition hover:opacity-95">
                 <UtensilsCrossed className="w-5 h-5" />
               </div>
-              <div>
-                <div className="font-bold text-base sm:text-lg tracking-tight flex items-center gap-1.5 leading-none text-slate-900 dark:text-white">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 truncate text-base font-black leading-none tracking-tight text-slate-900 sm:text-lg">
                   SpiceHub
-                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                  <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                     Dine-In
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate max-w-[130px] sm:max-w-none">
-                  {hotelName}
-                </p>
+                <div className="flex items-center gap-1 mt-0.5 truncate max-w-[130px] sm:max-w-none text-[11px] text-slate-500 font-medium">
+                  <span className="truncate">{hotelName}</span>
+                  {hotelLocation?.city && (
+                    <span className="hidden lg:inline-flex items-center gap-0.5 text-slate-400 font-normal">
+                      • <MapPin className="w-2.5 h-2.5 text-emerald-600" /> {hotelLocation.city}
+                    </span>
+                  )}
+                </div>
               </div>
             </button>
 
             {/* Table Badge */}
-            <div className={`hidden xs:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border ${
-              isDark ? 'bg-slate-800/80 border-slate-700 text-slate-200' : 'bg-amber-50 border-amber-200 text-amber-900'
+            <div className={`hidden shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1 text-xs font-bold xs:flex ${
+              isDark ? 'border-slate-700 bg-slate-800/80 text-slate-200' : 'border-slate-200 bg-slate-100 text-slate-800'
             }`}>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>{tableNumber}</span>
-              <span className="text-[10px] opacity-70 hidden md:inline">({section})</span>
+              <span className="text-[10px] text-slate-500 hidden md:inline">({section})</span>
             </div>
 
             {/* Seated Pax Badge */}
-            <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border ${
+            <div className={`hidden shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-bold sm:flex ${
               isDark ? 'bg-slate-800/80 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
             }`}>
-              <Users className="w-3.5 h-3.5 text-orange-500" />
-              <span>{customerGuestCount} Guests</span>
+              <Users className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+              <span className="whitespace-nowrap">{customerGuestCount} Guests</span>
             </div>
 
             {/* Geofence Proximity Badge */}
-            <div data-testid="geofence-proximity-badge" className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border ${
-              isDark ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+            <div data-testid="geofence-proximity-badge" className={`hidden shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] font-semibold lg:flex ${
+              isDark ? 'border-emerald-500/40 bg-emerald-950/60 text-emerald-300' : 'border-emerald-200 bg-emerald-50 text-emerald-800'
             }`}>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-              <span>📍 On-Premises Verified (&lt;500m)</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="whitespace-nowrap">On-premises verified</span>
             </div>
           </div>
 
           {/* Center (Desktop): Quick Search & Dietary Toggle */}
           <div className="hidden lg:flex items-center gap-3 flex-1 max-w-md mx-4">
             <div className="relative w-full">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
+                data-testid="table-desktop-search-input"
                 type="text"
-                placeholder="Search dishes, starters, desserts..."
+                placeholder={selectedLanguage === 'HI' ? 'व्यंजन, भोजन, पेय खोजें...' : 'Search dishes, curries, drinks...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full pl-9 pr-3 py-2 rounded-xl text-xs border transition focus:outline-none focus:ring-2 focus:ring-orange-500/50 ${
+                className={`w-full pl-10 pr-8 py-2 rounded-xl text-sm font-medium border transition focus:outline-none focus:ring-2 focus:ring-emerald-600/20 ${
                   isDark
-                    ? 'bg-slate-900/90 border-slate-700 text-slate-100 placeholder:text-slate-500'
-                    : 'bg-slate-100 border-slate-200 text-slate-900 placeholder:text-slate-400'
+                    ? 'bg-slate-900/90 border-slate-700 text-slate-100 placeholder:text-slate-400'
+                    : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-emerald-600 shadow-xs'
                 }`}
               />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-2.5 text-xs text-slate-400 hover:text-slate-200"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-700 p-1"
                 >
-                  ✕
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
@@ -913,66 +898,63 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
             }`}>
               <button
                 onClick={() => setDietaryFilter('ALL')}
-                className={`px-2 py-1 rounded-lg transition ${
+                className={`px-2.5 py-1 rounded-lg transition ${
                   dietaryFilter === 'ALL'
-                    ? isDark ? 'bg-slate-800 text-white' : 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200/50'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 All
               </button>
               <button
                 onClick={() => setDietaryFilter('VEG')}
-                className={`px-2 py-1 rounded-lg flex items-center gap-1 transition ${
+                className={`px-2.5 py-1 rounded-lg flex items-center gap-1 transition ${
                   dietaryFilter === 'VEG'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-emerald-500 hover:text-emerald-400'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-emerald-700 hover:text-emerald-900'
                 }`}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 <span>Veg</span>
               </button>
               <button
                 onClick={() => setDietaryFilter('NON_VEG')}
-                className={`px-2 py-1 rounded-lg flex items-center gap-1 transition ${
+                className={`px-2.5 py-1 rounded-lg flex items-center gap-1 transition ${
                   dietaryFilter === 'NON_VEG'
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'text-red-500 hover:text-red-400'
+                    ? 'bg-red-700 text-white shadow-xs'
+                    : 'text-red-600 hover:text-red-800'
                 }`}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                 <span>Non-Veg</span>
               </button>
             </div>
           </div>
 
           {/* Right: Quick Service, Theme Switcher, Language & Cart Pill */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            {/* Need Help / Support Chat Button */}
+            <button
+              type="button"
+              data-testid="header-need-help-btn"
+              onClick={() => setIsHelpChatOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold transition shadow-xs"
+              title="Chat with Reception or Waiter"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-slate-600" />
+              <span className="hidden xs:inline">Need Help</span>
+            </button>
+
             {/* Quick Call Waiter Button */}
             {waiterEnabled && (
               <button
                 onClick={() => setCurrentTab('waiter')}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 text-xs font-semibold shadow-xs transition"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs shadow-xs transition"
               >
                 <Bell className="w-3.5 h-3.5" />
                 <span>Call Waiter</span>
               </button>
             )}
-
-            {/* Get App Action Button */}
-            <button
-              type="button"
-              onClick={() => setIsAppDownloadModalOpen(true)}
-              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition ${
-                isDark
-                  ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/40'
-                  : 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100 shadow-2xs'
-              }`}
-              title="Download SpiceHub Android App (.apk)"
-            >
-              <span>📲</span>
-              <span className="hidden sm:inline">Get App</span>
-            </button>
 
             {/* Bilingual English / Hindi Language Pill */}
             <button
@@ -980,28 +962,28 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition ${
                 isDark
                   ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
-                  : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-100 shadow-2xs'
+                  : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 shadow-2xs'
               }`}
               title={selectedLanguage === 'EN' ? 'हिन्दी में बदलें' : 'Switch to English'}
             >
-              <Globe className="w-3.5 h-3.5 text-orange-500" />
-              <span>{selectedLanguage === 'EN' ? 'हिन्दी' : 'English'}</span>
+              <Globe className="h-3.5 w-3.5 shrink-0 text-slate-600" />
+              <span className="hidden sm:inline">{selectedLanguage === 'EN' ? 'हिन्दी' : 'English'}</span>
             </button>
 
             {/* Cart Button */}
             <button
               data-testid="header-btn-cart"
               onClick={() => setCurrentTab('cart')}
-              className={`relative px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition ${
+              className={`relative px-3.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition ${
                 isDark
                   ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
-                  : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50 shadow-2xs'
+                  : 'bg-emerald-800 hover:bg-emerald-900 border-transparent text-white shadow-2xs font-bold'
               }`}
             >
-              <ShoppingCart className="w-4 h-4 text-orange-500" />
-              <span className="hidden sm:inline text-xs font-bold">Cart</span>
+              <ShoppingCart className="h-4 w-4 shrink-0 text-white" />
+              <span className="hidden text-xs font-bold sm:inline">Cart</span>
               {totalCartCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-orange-600 text-white text-[10px] font-black animate-pulse">
+                <span className="px-1.5 py-0.2 rounded-full bg-[#F7E2B4] text-[#123C2B] text-[10px] font-black animate-pulse">
                   {totalCartCount}
                 </span>
               )}
@@ -1010,20 +992,30 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
         </div>
 
         {/* Mobile Search & Diet Bar (< md) */}
-        <div className="md:hidden px-4 pb-2.5 pt-1 flex items-center gap-2">
+        <div className="md:hidden px-4 pb-3 pt-1 flex items-center gap-2 border-t border-slate-100">
           <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
+              data-testid="table-mobile-search-input"
               type="text"
               placeholder={selectedLanguage === 'HI' ? 'व्यंजन, भोजन, पेय खोजें...' : 'Search dishes, curries, drinks...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full pl-8 pr-3 py-1.5 rounded-xl text-xs border focus:outline-none ${
+              className={`w-full pl-9 pr-8 py-2 rounded-xl text-sm font-medium border focus:outline-none focus:ring-2 focus:ring-emerald-600/20 ${
                 isDark
-                  ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder:text-slate-500'
-                  : 'bg-slate-100 border-slate-200 text-slate-900 placeholder:text-slate-400'
+                  ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder:text-slate-400'
+                  : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-emerald-600 shadow-xs'
               }`}
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-700 p-1"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className={`flex p-0.5 rounded-xl border text-[10px] font-bold shrink-0 ${
@@ -1031,19 +1023,19 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           }`}>
             <button
               onClick={() => setDietaryFilter('ALL')}
-              className={`px-2 py-1 rounded-lg ${dietaryFilter === 'ALL' ? (isDark ? 'bg-slate-800 text-white' : 'bg-white text-slate-900') : 'text-slate-400'}`}
+              className={`px-2 py-1 rounded-lg ${dietaryFilter === 'ALL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}`}
             >
               {selectedLanguage === 'HI' ? 'सभी' : 'All'}
             </button>
             <button
               onClick={() => setDietaryFilter('VEG')}
-              className={`px-2 py-1 rounded-lg ${dietaryFilter === 'VEG' ? 'bg-emerald-600 text-white' : 'text-emerald-500'}`}
+              className={`px-2 py-1 rounded-lg ${dietaryFilter === 'VEG' ? 'bg-emerald-700 text-white' : 'text-emerald-700'}`}
             >
               {selectedLanguage === 'HI' ? 'शाकाहारी' : 'Veg'}
             </button>
             <button
               onClick={() => setDietaryFilter('NON_VEG')}
-              className={`px-2 py-1 rounded-lg ${dietaryFilter === 'NON_VEG' ? 'bg-red-600 text-white' : 'text-red-500'}`}
+              className={`px-2 py-1 rounded-lg ${dietaryFilter === 'NON_VEG' ? 'bg-red-700 text-white' : 'text-red-600'}`}
             >
               {selectedLanguage === 'HI' ? 'मांसाहारी' : 'Non-Veg'}
             </button>
@@ -1055,23 +1047,26 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {(canOrder === false || isReadOnly) && (
         <div
           data-testid="occupied-table-warning-banner"
-          className="w-full bg-slate-900 border-b border-slate-800 px-4 py-2.5 text-slate-200 text-xs shadow-xs"
+          className="w-full bg-amber-50 border-b border-amber-200 px-4 py-3 text-amber-950 text-xs shadow-xs"
         >
-          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+          <div className="max-w-3xl mx-auto flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <span className="text-base">🔒</span>
+              <Bell className="w-4 h-4 text-amber-700 shrink-0" />
               <div>
-                <span className="font-bold text-white mr-2">
-                  {selectedLanguage === 'HI' ? 'केवल मेनू देखें • मेज पहले से भरी हुई है' : 'VIEW-ONLY MENU • Table Currently Occupied'}
+                <span className="font-bold text-amber-900 mr-2">
+                  {selectedLanguage === 'HI' ? 'सक्रिय मेज सत्र' : 'Active Dining Session'}
                 </span>
-                <span className="text-[11px] text-slate-400">
-                  {occupiedWarning || `Table ${tableNumber} is currently occupied with seated guests. Food ordering is disabled from this device.`}
+                <span className="text-[11px] text-amber-800">
+                  {occupiedWarning || `Table ${tableNumber} is currently active. For order modifications or bill requests, our service captain is at your service.`}
                 </span>
               </div>
             </div>
-            <span className="shrink-0 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-black uppercase tracking-wider">
-              Ordering Disabled
-            </span>
+            <button
+              onClick={() => setCurrentTab('waiter')}
+              className="shrink-0 px-3 py-1 rounded-full bg-amber-600 text-white font-bold text-[11px] hover:bg-amber-700 transition shadow-xs"
+            >
+              Contact Captain
+            </button>
           </div>
         </div>
       )}
@@ -1079,7 +1074,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {/* ========================================================================= */}
       {/* 2. MAIN BODY: RESPONSIVE MULTI-COLUMN WORKSPACE                          */}
       {/* ========================================================================= */}
-      <div className="flex-1 w-full max-w-4xl mx-auto p-3 sm:p-4 pb-32 flex flex-col gap-4 min-w-0">
+      <div className="flex-1 w-full max-w-4xl mx-auto p-3 sm:p-4 pb-32 sm:pb-44 flex flex-col gap-4 min-w-0">
         
         {/* ======================================================================= */}
         {/* LEFT / CENTER: MENU CATALOG & DISHES BROWSER                           */}
@@ -1090,25 +1085,25 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {activeOrders.length > 0 && (
             <div 
               onClick={() => setCurrentTab('orders')}
-              className="cursor-pointer p-4 rounded-xl bg-slate-900 text-white border border-slate-800 flex items-center justify-between shadow-sm"
+              className="cursor-pointer p-4 rounded-2xl bg-white text-slate-900 border border-slate-200 flex items-center justify-between shadow-xs transition hover:border-slate-300 hover:shadow-sm"
             >
               <div className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center text-lg">
-                  🍳
+                <span className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-center">
+                  <ChefHat className="w-5 h-5" />
                 </span>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider bg-slate-800 px-2 py-0.5 rounded">
+                    <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md">
                       {activeOrders.length} Active {activeOrders.length === 1 ? 'Order' : 'Orders'}
                     </span>
-                    <span className="text-xs text-slate-300 font-medium">Table {tableNumber}</span>
+                    <span className="text-xs text-slate-500 font-medium">Table {tableNumber}</span>
                   </div>
-                  <p className="text-xs sm:text-sm font-semibold mt-0.5">
+                  <p className="text-xs sm:text-sm font-bold mt-0.5 text-slate-900">
                     Latest: #{activeOrders[activeOrders.length - 1].orderNumber} • Status: {activeOrders[activeOrders.length - 1].orderStatus}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 text-xs font-semibold bg-white text-slate-900 px-3 py-1.5 rounded-lg shadow-xs">
+              <div className="flex items-center gap-1.5 text-xs font-bold bg-slate-100 text-slate-900 px-3.5 py-1.5 rounded-xl border border-slate-200">
                 <span>Track Live</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
@@ -1116,26 +1111,43 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           )}
 
           {/* Hero Banner: Dining Atmosphere & Quick Call Waiter Chips */}
-          <div data-testid="welcome-hero-banner" className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-900 min-h-[180px] flex items-end p-5 shadow-sm">
-            <img
-              src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop&q=80"
-              alt="Restaurant Dining"
-              className="absolute inset-0 w-full h-full object-cover opacity-25"
-            />
+          <div data-testid="welcome-hero-banner" className="relative rounded-2xl overflow-hidden border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 min-h-[165px] flex items-end p-5 shadow-sm text-white">
             <div className="relative z-10 w-full flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/10 text-slate-200 text-xs font-medium mb-2">
-                  <span>🍽️ Freshly Prepared Food</span>
-                  <span>•</span>
-                  <span>Instant Table Ordering</span>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/90 border border-slate-700 text-slate-200 text-xs font-semibold shadow-xs">
+                    <Utensils className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Freshly Prepared Food</span>
+                    <span>•</span>
+                    <span>Table Service</span>
+                  </div>
+                  {(hotelLocation?.city || hotelLocation?.street) && (
+                    <div data-testid="verified-table-hotel-location" className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 text-xs font-semibold shadow-xs">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="truncate max-w-[280px]">
+                        {hotelLocation.street ? `${hotelLocation.street}, ` : ''}{hotelLocation.city || 'Jaipur'}, {hotelLocation.state || 'Rajasthan'}{hotelLocation.pincode ? ` - ${hotelLocation.pincode}` : ''}
+                      </span>
+                      {hotelLocation.googleMapUrl && (
+                        <a
+                          href={hotelLocation.googleMapUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-testid="table-directions-link"
+                          className="text-emerald-300 hover:text-emerald-200 underline font-bold ml-0.5"
+                        >
+                          Directions ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                   Welcome to {hotelName}
                 </h1>
-                <p className="text-xs text-slate-300 mt-1 max-w-lg">
-                  Order appetizers, main courses & beverages directly to <strong data-testid="badge-table-number" className="text-white font-semibold px-1.5 py-0.5 rounded bg-white/10">{tableNumber}</strong> without waiting.
+                <p className="text-xs text-slate-300 mt-1 max-w-lg font-medium">
+                  Order appetizers, main courses & beverages directly to <strong data-testid="badge-table-number" className="text-amber-300 font-bold px-1.5 py-0.5 rounded-md bg-slate-800 border border-slate-700">Table {tableNumber}</strong> without waiting.
                 </p>
-                <div className="mt-3 flex items-center gap-2">
+                <div className="mt-3.5 flex items-center gap-2">
                   <button
                     type="button"
                     data-testid="btn-browse-menu"
@@ -1143,7 +1155,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                       setSelectedCategory('All');
                       setCurrentTab('menu');
                     }}
-                    className="px-4 py-2 rounded-lg bg-white text-slate-900 font-semibold text-xs shadow-xs hover:bg-slate-100 transition flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-950 font-black text-xs shadow-sm transition flex items-center gap-1.5 active:scale-95"
                   >
                     <span>Browse Menu</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -1155,29 +1167,29 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => handleSendServiceCall('WATER', 'Extra Water')}
-                  className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border border-white/20 text-xs font-bold flex items-center gap-1.5 transition"
+                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/20 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 shadow-2xs"
                 >
-                  <span>💧</span>
+                  <Droplets className="w-3.5 h-3.5 text-blue-400" />
                   <span>Water</span>
                 </button>
                 <button
                   onClick={() => handleSendServiceCall('BILL', 'Bill Request')}
-                  className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border border-white/20 text-xs font-bold flex items-center gap-1.5 transition"
+                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/20 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 shadow-2xs"
                 >
-                  <span>🧾</span>
+                  <Receipt className="w-3.5 h-3.5 text-slate-300" />
                   <span>Bill</span>
                 </button>
                 <button
                   onClick={() => handleSendServiceCall('CLEANING', 'Clean Table')}
-                  className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border border-white/20 text-xs font-bold flex items-center gap-1.5 transition"
+                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/20 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 shadow-2xs"
                 >
-                  <span>✨</span>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                   <span>Clean</span>
                 </button>
                 {waiterEnabled && (
                   <button
                     onClick={() => setCurrentTab('waiter')}
-                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition"
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95"
                   >
                     <Bell className="w-3.5 h-3.5" />
                     <span>Call Waiter</span>
@@ -1188,8 +1200,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           </div>
 
           {/* Horizontal Category Navigation Bar */}
-          <div className="sticky top-16 z-30 py-2 backdrop-blur-md">
-            <div className="overflow-x-auto flex gap-2 pb-1 custom-scrollbar">
+          <div className="sticky top-16 z-30 py-2 backdrop-blur-md bg-white/95 border-b border-slate-200">
+            <div className="custom-scrollbar flex gap-2 overflow-x-auto scroll-smooth pb-1">
               {CATEGORIES.map((cat) => {
                 const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
                 const dishCount = cat === 'All'
@@ -1203,16 +1215,14 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                       setSelectedCategory(cat);
                       if (currentTab !== 'menu' && currentTab !== 'home') setCurrentTab('menu');
                     }}
-                    className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors flex items-center gap-1.5 border font-medium ${
+                    className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all sm:px-4 sm:py-2 sm:text-sm ${
                       isSelected
-                        ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white shadow-xs'
-                        : isDark
-                        ? 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800 hover:text-white'
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900 shadow-2xs'
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                        : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 shadow-2xs'
                     }`}
                   >
                     <span>{selectedLanguage === 'HI' ? (cat === 'All' ? 'सभी' : cat === 'Starters' ? 'स्टार्टर्स' : cat === 'Main Course' ? 'मेन कोर्स' : cat === 'Breads' ? 'रोटी व नान' : cat === 'Desserts' ? 'मिठाई' : cat === 'Beverages' ? 'पेय' : cat) : cat}</span>
-                    <span className="text-xs opacity-75">({dishCount})</span>
+                    <span className={`text-[11px] ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>({dishCount})</span>
                   </button>
                 );
               })}
@@ -1243,8 +1253,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
             {filteredDishes.length === 0 ? (
               <div className={`p-12 text-center rounded-xl border ${
-                isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'
-              }`}>
+ isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'
+ }`}>
                 <UtensilsCrossed className="w-10 h-10 mx-auto text-slate-400 mb-3 opacity-50" />
                 <h3 className="font-semibold text-sm">No dishes found matching your criteria</h3>
                 <p className="text-xs mt-1">Try resetting the search or selecting another category.</p>
@@ -1270,11 +1280,11 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                       key={dish.id}
                       data-testid={`dish-card-${dish.name.toLowerCase().replace(/\s+/g, '-')}`}
                       onClick={() => openCustomizeModal(dish)}
-                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 h-full flex flex-col justify-between shadow-xs transition-colors hover:border-slate-300 dark:hover:border-slate-700 group cursor-pointer"
+                      className="bg-white border border-slate-200 rounded-2xl p-4 h-full flex flex-col justify-between shadow-xs transition hover:border-slate-300 hover:shadow-md group cursor-pointer"
                     >
                       <div>
                         {/* Food Image with Badges */}
-                        <div className="relative rounded-lg overflow-hidden h-32 bg-slate-100 dark:bg-slate-800 mb-3">
+                        <div className="relative rounded-xl overflow-hidden h-36 bg-slate-100 mb-3">
                           <img
                             src={dish.image}
                             alt={dish.name}
@@ -1285,27 +1295,28 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                           
                           {/* 86 Sold Out Badge or Promotional Badge */}
                           {dish.isAvailable === false ? (
-                            <span className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide bg-red-600 text-white flex items-center gap-1">
+                            <span className="absolute top-2 left-2 z-10 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide bg-red-600 text-white flex items-center gap-1 shadow-xs">
                               <span>Sold Out</span>
                             </span>
                           ) : dish.badge ? (
-                            <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-900/80 text-white backdrop-blur-xs">
+                            <span className="absolute top-2 left-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-900 text-amber-300 border border-slate-700 shadow-xs">
                               {dish.badge}
                             </span>
                           ) : null}
 
                           {/* Veg / Non-Veg Indicator */}
-                          <span className={`absolute top-2 right-2 w-5 h-5 rounded-md backdrop-blur-xs flex items-center justify-center border ${
+                          <span className={`absolute top-2 right-2 w-5 h-5 rounded-md backdrop-blur-xs flex items-center justify-center border shadow-2xs ${
                             dish.isVeg
-                              ? 'bg-emerald-950/80 border-emerald-500 text-emerald-400'
-                              : 'bg-red-950/80 border-red-500 text-red-400'
+                              ? 'bg-white/95 border-emerald-600 text-emerald-600'
+                              : 'bg-white/95 border-red-600 text-red-600'
                           }`}>
-                            <span className={`w-2 h-2 rounded-full ${dish.isVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                            <span className={`w-2 h-2 rounded-full ${dish.isVeg ? 'bg-emerald-600' : 'bg-red-600'}`} />
                           </span>
 
                           {/* Rating Pill */}
-                          <span className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-black/70 backdrop-blur-xs text-amber-300 flex items-center gap-1">
-                            <span>★ {dish.rating}</span>
+                          <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-900/85 backdrop-blur-xs text-white flex items-center gap-1">
+                            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                            <span>{dish.rating}</span>
                           </span>
 
                           {/* Quick Customize Button */}
@@ -1316,9 +1327,9 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                                 e.stopPropagation();
                                 openCustomizeModal(dish);
                               }}
-                              className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/70 hover:bg-black text-white text-[10px] font-medium backdrop-blur-xs flex items-center gap-1 transition"
+                              className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-slate-900/85 hover:bg-slate-900 text-white text-[10px] font-semibold backdrop-blur-xs flex items-center gap-1 transition"
                             >
-                              <SlidersHorizontal className="w-3 h-3 text-slate-200" />
+                              <SlidersHorizontal className="w-3 h-3 text-amber-300" />
                               <span>Customize</span>
                             </button>
                           )}
@@ -1326,41 +1337,41 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
                         {/* Title & Description */}
                         <div>
-                          <h3 className="font-semibold text-base text-slate-900 dark:text-white line-clamp-1">
+                          <h3 className="font-bold text-base text-slate-900 line-clamp-1">
                             {dish.name}
                           </h3>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                          <p className="text-xs text-slate-500 mt-1 line-clamp-2">
                             {dish.description}
                           </p>
                         </div>
                       </div>
 
                       {/* Price & Add to Cart Stepper */}
-                      <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
+                      <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col gap-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-base font-semibold text-slate-900 dark:text-white">
+                          <span className="text-base font-extrabold text-slate-900">
                             ₹{dish.price}
                           </span>
-                          <span className="text-[10px] text-slate-400">Taxes inclusive</span>
+                          <span className="text-[10px] font-medium text-slate-400">Taxes inclusive</span>
                         </div>
 
                         {dish.isAvailable === false ? (
-                          <div className="h-9 w-full rounded-md bg-slate-100 dark:bg-slate-800 text-slate-400 text-xs font-medium flex items-center justify-center">
+                          <div className="h-9 w-full rounded-xl bg-slate-100 text-slate-500 text-xs font-semibold flex items-center justify-center">
                             Sold Out
                           </div>
                         ) : inCartQty > 0 ? (
-                          <div className="h-9 w-full flex items-center justify-between border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold text-sm">
+                          <div className="h-9 w-full flex items-center justify-between border border-emerald-900 rounded-xl overflow-hidden bg-emerald-900 text-white font-bold text-sm shadow-xs">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleUpdateQty(cartItem!.id, -1);
                               }}
-                              className="h-full px-3 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center justify-center"
+                              className="h-full px-3 hover:bg-emerald-800 transition flex items-center justify-center"
                             >
                               <Minus className="w-4 h-4" />
                             </button>
-                            <span>{inCartQty}</span>
+                            <span className="text-white font-black">{inCartQty}</span>
                             <button
                               type="button"
                               data-testid={`btn-plus-${dish.name.toLowerCase().replace(/\s+/g, '-')}`}
@@ -1368,7 +1379,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                                 e.stopPropagation();
                                 handleUpdateQty(cartItem!.id, 1);
                               }}
-                              className="h-full px-3 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center justify-center"
+                              className="h-full px-3 hover:bg-emerald-800 transition flex items-center justify-center"
                             >
                               <Plus className="w-4 h-4" />
                             </button>
@@ -1381,7 +1392,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                               e.stopPropagation();
                               handleAddDish(dish);
                             }}
-                            className="h-9 w-full bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-md text-sm font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition active:scale-[0.98]"
+                            className="h-9 w-full bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition active:scale-[0.98] shadow-xs"
                           >
                             <Plus className="w-4 h-4" />
                             <span>Add</span>
@@ -1407,10 +1418,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
         )}
 
         <div className={`shrink-0 flex flex-col space-y-4 ${
-          currentTab !== 'home' && currentTab !== 'menu'
-            ? 'fixed inset-x-0 bottom-0 max-h-[85vh] bg-white dark:bg-slate-900 rounded-t-2xl border-t border-slate-200 dark:border-slate-800 z-50 p-4 shadow-2xl overflow-y-auto md:max-h-none md:rounded-none md:border-t-0 md:inset-x-auto md:right-0 md:top-0 md:w-96 md:h-full md:border-l md:border-slate-200 md:dark:border-slate-800 md:flex'
-            : 'hidden'
-        }`}>
+ currentTab !== 'home' && currentTab !== 'menu'
+ ? 'fixed inset-x-0 bottom-0 max-h-[85vh] bg-white dark:bg-slate-900 rounded-t-2xl border-t border-slate-200 dark:border-slate-800 z-50 p-4 shadow-2xl overflow-y-auto md:max-h-none md:rounded-none md:border-t-0 md:inset-x-auto md:right-0 md:top-0 md:w-96 md:h-full md:border-l md:border-slate-200 md:dark:border-slate-800 md:flex'
+ : 'hidden'
+ }`}>
           {/* Drawer Header with Close Button */}
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
             <h2 className="font-bold text-slate-900 dark:text-white text-base">
@@ -1421,21 +1432,21 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               aria-label="Close"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
           
           {/* Panel Header Switcher (Cart | Live Order | Split/Pay | Waiter) */}
           <div className={`p-1 rounded-xl border flex items-center gap-1 text-xs font-semibold ${
-            isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'
-          }`}>
+ isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'
+ }`}>
             <button
               onClick={() => setCurrentTab('cart')}
               className={`flex-1 py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 transition ${
-                currentTab === 'cart'
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                  : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-              }`}
+ currentTab === 'cart'
+ ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+ : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+ }`}
             >
               <ShoppingCart className="w-3.5 h-3.5" />
               <span>{selectedLanguage === 'HI' ? 'कार्ट' : 'Cart'} ({totalCartCount})</span>
@@ -1444,10 +1455,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
             <button
               onClick={() => setCurrentTab('orders')}
               className={`flex-1 py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 transition ${
-                currentTab === 'orders'
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                  : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-              }`}
+ currentTab === 'orders'
+ ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+ : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+ }`}
             >
               <Clock className="w-3.5 h-3.5" />
               <span>{selectedLanguage === 'HI' ? 'आर्डर' : 'Orders'} {activeOrders.length > 0 ? `(${activeOrders.length})` : ''}</span>
@@ -1456,10 +1467,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
             <button
               onClick={() => setCurrentTab('payment')}
               className={`flex-1 py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 transition ${
-                currentTab === 'payment' || currentTab === 'split'
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                  : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-              }`}
+ currentTab === 'payment' || currentTab === 'split'
+ ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+ : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+ }`}
             >
               <CreditCard className="w-3.5 h-3.5" />
               <span>{selectedLanguage === 'HI' ? 'भुगतान' : 'Pay'} ₹{currentPayableTotal}</span>
@@ -1473,8 +1484,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
             <div
               data-testid="cart-drawer-container"
               className={`p-4 rounded-2xl border flex flex-col justify-between space-y-4 shadow-sm ${
-                isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-              }`}
+ isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+ }`}
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-700/30">
                 <div className="flex items-center gap-2">
@@ -1511,8 +1522,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                       key={it.id}
                       data-testid={`cart-item-${it.name.toLowerCase().replace(/\s+/g, '-')}`}
                       className={`p-2.5 rounded-xl border flex flex-col gap-2 ${
-                        isDark ? 'bg-slate-800 border-slate-800' : 'bg-slate-50 border-slate-200'
-                      }`}
+ isDark ? 'bg-slate-800 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -1529,13 +1540,13 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
                         {/* Stepper */}
                         <div className={`flex items-center border rounded-lg overflow-hidden text-xs font-black shrink-0 ${
-                          isDark ? 'border-slate-700/50 bg-black/20' : 'border-slate-300 bg-slate-100'
-                        }`}>
+ isDark ? 'border-slate-700/50 bg-black/20' : 'border-slate-300 bg-slate-100'
+ }`}>
                           <button
                             onClick={() => handleUpdateQty(it.id, -1)}
                             className={`px-2 py-1 transition ${
-                              isDark ? 'hover:bg-orange-500/20 text-slate-400 hover:text-white' : 'hover:bg-orange-100 text-slate-600 hover:text-slate-900'
-                            }`}
+ isDark ? 'hover:bg-emerald-600/20 text-slate-400 hover:text-white' : 'hover:bg-orange-100 text-slate-600 hover:text-slate-900'
+ }`}
                           >
                             -
                           </button>
@@ -1543,8 +1554,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                           <button
                             onClick={() => handleUpdateQty(it.id, 1)}
                             className={`px-2 py-1 transition ${
-                              isDark ? 'hover:bg-orange-500/20 text-slate-400 hover:text-white' : 'hover:bg-orange-100 text-slate-600 hover:text-slate-900'
-                            }`}
+ isDark ? 'hover:bg-emerald-600/20 text-slate-400 hover:text-white' : 'hover:bg-orange-100 text-slate-600 hover:text-slate-900'
+ }`}
                           >
                             +
                           </button>
@@ -1555,10 +1566,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                       <div className="pt-1.5 border-t border-slate-700/30 flex flex-col gap-1.5">
                         <div className="flex flex-wrap gap-1">
                           {[
-                            { label: '🧂 Kam Namak', val: 'Kam Namak (Less Salt)' },
-                            { label: '🌶️ Mirchi Kam', val: 'Mirchi Kam (Mild Spicy)' },
-                            { label: '🌿 Jain', val: 'No Onion Garlic (Jain)' },
-                            { label: '✨ Extra Crispy', val: 'Extra Crispy' },
+                            { label: 'Kam Namak', val: 'Kam Namak (Less Salt)' },
+                            { label: 'Mirchi Kam', val: 'Mirchi Kam (Mild Spicy)' },
+                            { label: 'Jain Friendly', val: 'No Onion Garlic (Jain)' },
+                            { label: 'Extra Crispy', val: 'Extra Crispy' },
                           ].map((chip) => {
                             const isSelected = it.specialInstructions?.includes(chip.val);
                             return (
@@ -1578,10 +1589,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                                   );
                                 }}
                                 className={`text-[10px] px-2 py-0.5 rounded-md font-semibold transition ${
-                                  isSelected
-                                    ? 'bg-amber-500 text-slate-950 font-bold'
-                                    : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
-                                }`}
+ isSelected
+ ? 'bg-emerald-600 text-white font-bold'
+ : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
+ }`}
                               >
                                 {chip.label}
                               </button>
@@ -1599,8 +1610,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                             );
                           }}
                           className={`w-full px-2 py-1 rounded-lg text-[11px] border focus:outline-none focus:border-amber-400 ${
-                            isDark ? 'bg-slate-900 border-slate-800 text-slate-200 placeholder-slate-600' : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400'
-                          }`}
+ isDark ? 'bg-slate-900 border-slate-800 text-slate-200 placeholder-slate-600' : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400'
+ }`}
                         />
                       </div>
                     </div>
@@ -1610,8 +1621,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
               {/* Guest Count Selector (Pax / Seated People) */}
               <div className={`p-3 rounded-xl border space-y-2 ${
-                isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-orange-50/50 border-orange-200/60'
-              }`}>
+ isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-orange-50/50 border-orange-200/60'
+ }`}>
                 <div className="flex items-center justify-between">
                   <label className={`text-xs font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                     <Users className="w-3.5 h-3.5 text-orange-500" />
@@ -1631,12 +1642,12 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                       type="button"
                       onClick={() => setCustomerGuestCount(p)}
                       className={`py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                        customerGuestCount === p
-                          ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-500/20 scale-105'
-                          : isDark
-                          ? 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:bg-slate-700'
-                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                      }`}
+ customerGuestCount === p
+ ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20 scale-105'
+ : isDark
+ ? 'bg-slate-800/80 text-slate-300 border-slate-700/80 hover:bg-slate-700'
+ : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+ }`}
                     >
                       {p}{p === 6 ? '+' : ''}
                     </button>
@@ -1655,15 +1666,15 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   value={cartSpecialInstructions}
                   onChange={(e) => setCartSpecialInstructions(e.target.value)}
                   className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-                    isDark ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600' : 'bg-slate-50 border-slate-200 text-slate-900'
-                  }`}
+ isDark ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600' : 'bg-slate-50 border-slate-200 text-slate-900'
+ }`}
                 />
               </div>
 
               {/* Restaurant Offers & Coupon Codes */}
               <div className={`p-3.5 rounded-2xl border space-y-2 text-xs ${
-                isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-amber-50/50 border-amber-200/80'
-              }`}>
+ isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-amber-50/50 border-amber-200/80'
+ }`}>
                 <div className="flex items-center justify-between">
                   <span className="font-bold flex items-center gap-1.5 text-amber-500">
                     <Sparkles className="w-3.5 h-3.5" />
@@ -1708,14 +1719,14 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                           setPromoError(null);
                         }}
                         className={`flex-1 px-3 py-2 rounded-xl text-xs uppercase font-mono tracking-wider border focus:outline-none focus:ring-1 focus:ring-amber-500 ${
-                          isDark ? 'bg-slate-950 border-slate-700 text-white placeholder:text-slate-600' : 'bg-white border-slate-300 text-slate-900'
-                        }`}
+ isDark ? 'bg-slate-950 border-slate-700 text-white placeholder:text-slate-600' : 'bg-white border-slate-300 text-slate-900'
+ }`}
                       />
                       <button
                         type="button"
                         disabled={isApplyingPromo || !promoCodeInput.trim()}
                         onClick={handleApplyPromo}
-                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs transition"
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-amber-400 disabled:opacity-50 text-white font-black text-xs transition"
                       >
                         {isApplyingPromo ? 'Checking...' : 'Apply'}
                       </button>
@@ -1741,17 +1752,17 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               <div
                 data-testid="statutory-gst-calculation-box"
                 className={`p-3.5 rounded-xl border space-y-2 text-xs ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-800 text-slate-300'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 shadow-xs'
-                }`}
+ isDark
+ ? 'bg-slate-900 border-slate-800 text-slate-300'
+ : 'bg-slate-50 border-slate-200 text-slate-700 shadow-xs'
+ }`}
               >
                 <div className={`flex items-center justify-between border-b pb-1.5 ${
-                  isDark ? 'border-slate-800' : 'border-slate-200'
-                }`}>
+ isDark ? 'border-slate-800' : 'border-slate-200'
+ }`}>
                   <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                    isDark ? 'text-slate-400' : 'text-slate-600'
-                  }`}>
+ isDark ? 'text-slate-400' : 'text-slate-600'
+ }`}>
                     Statutory Tax Engine (SAC 9963)
                   </span>
                   <span className={`text-[10px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>5% Food GST Slab</span>
@@ -1779,8 +1790,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   <span className="font-mono">₹{(discountedSubtotal * 0.025).toFixed(2)}</span>
                 </div>
                 <div className={`flex justify-between font-semibold pt-1 border-t ${
-                  isDark ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-700'
-                }`}>
+ isDark ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-700'
+ }`}>
                   <span>Total Statutory GST (5%)</span>
                   <span className="font-mono">₹{gstAmount}</span>
                 </div>
@@ -1790,8 +1801,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                 </div>
                 <div
                   className={`flex justify-between font-bold text-sm pt-2 border-t ${
-                    isDark ? 'border-slate-800 text-white' : 'border-slate-200 text-slate-900'
-                  }`}
+ isDark ? 'border-slate-800 text-white' : 'border-slate-200 text-slate-900'
+ }`}
                 >
                   <span>Grand Total</span>
                   <span className="font-mono text-base font-bold text-slate-900 dark:text-white">₹{grandTotal}</span>
@@ -1804,15 +1815,15 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                 data-testid="btn-place-order"
                 disabled={cartItems.length === 0 || canOrder === false || isReadOnly}
                 onClick={handleCheckout}
-                className={`w-full h-12 rounded-lg font-semibold text-sm shadow-xs flex items-center justify-center gap-2 transition mb-24 ${
+                className={`w-full h-12 rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition mb-24 ${
                   canOrder === false || isReadOnly
-                    ? 'bg-slate-300 text-slate-500 dark:bg-slate-800 dark:text-slate-500 cursor-not-allowed'
-                    : 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 disabled:opacity-50'
+                    ? 'bg-[#EDF5EE] text-[#5E7163] cursor-not-allowed border border-[#D7E5D9]'
+                    : 'bg-[#123C2B] hover:bg-[#1B4B34] text-[#F7E2B4] active:scale-[0.98] disabled:opacity-50'
                 }`}
               >
-                <ChefHat className="w-4 h-4" />
+                <ChefHat className="w-4 h-4 text-[#F7E2B4]" />
                 <span>
-                  {canOrder === false || isReadOnly ? '🔒 Ordering Disabled (Table Occupied)' : `Place Order • ₹${grandTotal}`}
+                  {canOrder === false || isReadOnly ? 'Table In Service • Ask Captain' : `Place Order • ₹${grandTotal}`}
                 </span>
               </button>
             </div>
@@ -1823,8 +1834,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {/* --------------------------------------------------------------------- */}
           {currentTab === 'orders' && (
             <div className={`p-4 rounded-2xl border space-y-4 shadow-sm ${
-              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-            }`}>
+ isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+ }`}>
               {activeOrders.length === 0 ? (
                 <div className="py-12 px-4 text-center space-y-4">
                   <div className="w-16 h-16 rounded-3xl bg-orange-500/10 text-orange-500 flex items-center justify-center mx-auto text-2xl font-bold">
@@ -1856,9 +1867,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                     {onRefreshOrders && (
                       <button
                         onClick={() => onRefreshOrders()}
-                        className="text-[11px] font-bold text-orange-500 hover:underline flex items-center gap-1"
+                        className="text-[11px] font-bold text-emerald-600 hover:underline flex items-center gap-1"
                       >
-                        🔄 Refresh
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Refresh</span>
                       </button>
                     )}
                   </div>
@@ -1870,10 +1882,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                       const isServed = order.orderStatus === 'SERVED';
 
                       const statusBadge = isServed
-                        ? { label: '🍽️ Served', bg: 'bg-blue-500/20 text-blue-400 border-blue-500/30' }
+                        ? { label: 'Served', bg: 'bg-blue-500/20 text-blue-400 border-blue-500/30', icon: Utensils }
                         : isReady
-                        ? { label: '🔔 Ready to Serve', bg: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 animate-pulse' }
-                        : { label: '🍳 Kitchen Cooking', bg: 'bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse' };
+                        ? { label: 'Ready to Serve', bg: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 animate-pulse', icon: Bell }
+                        : { label: 'Kitchen Cooking', bg: 'bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse', icon: ChefHat };
 
                       const orderSubtotal = order.totalAmount || (order.items || []).reduce((acc, it) => acc + (it.subtotal || it.unitPrice * it.quantity), 0);
 
@@ -1881,8 +1893,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                         <div
                           key={order.orderNumber || oIdx}
                           className={`p-3.5 rounded-2xl border space-y-3 transition ${
-                            isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
-                          }`}
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}
                         >
                           {/* Order Header */}
                           <div className="flex items-center justify-between pb-2 border-b border-slate-700/20">
@@ -1894,8 +1906,9 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                                 {order.placedAt ? new Date(order.placedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                               </div>
                             </div>
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${statusBadge.bg}`}>
-                              {statusBadge.label}
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border flex items-center gap-1 ${statusBadge.bg}`}>
+                              <statusBadge.icon className="w-3 h-3" />
+                              <span>{statusBadge.label}</span>
                             </span>
                           </div>
 
@@ -1903,32 +1916,33 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                           <div data-testid="live-order-status-tracker" className="space-y-2.5 relative pl-5 text-xs py-1">
                             <div className="relative">
                               <span className="absolute -left-5 top-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 text-white text-[9px] font-black flex items-center justify-center">
-                                ✓
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
                               </span>
                               <div className="font-bold text-[11px] text-emerald-400">1. Order Received by Kitchen</div>
                             </div>
 
                             <div className="relative">
                               <span className={`absolute -left-5 top-0.5 w-3.5 h-3.5 rounded-full text-white text-[9px] font-black flex items-center justify-center ${
-                                isReady || isServed ? 'bg-emerald-500' : 'bg-orange-500 animate-pulse'
-                              }`}>
-                                {isReady || isServed ? '✓' : '●'}
+ isReady || isServed ? 'bg-emerald-500' : 'bg-emerald-600 animate-pulse'
+ }`}>
+                                {isReady || isServed ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : '●'}
                               </span>
                               <div className="flex items-center justify-between">
                                 <div className={`font-bold text-[11px] ${!isReady && !isServed ? 'text-orange-400' : ''}`}>
                                   2. Preparing Dishes in Kitchen
                                 </div>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold">
-                                  ⏱ Est. ~12-15 mins
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  <span>Est. ~12-15 mins</span>
                                 </span>
                               </div>
                             </div>
 
                             <div className={`relative ${!isReady && !isServed ? 'opacity-40' : ''}`}>
                               <span className={`absolute -left-5 top-0.5 w-3.5 h-3.5 rounded-full text-white text-[9px] font-black flex items-center justify-center ${
-                                isServed ? 'bg-emerald-500' : isReady ? 'bg-emerald-500 animate-pulse' : 'border border-slate-600 bg-slate-900'
-                              }`}>
-                                {isServed ? '✓' : isReady ? '●' : ''}
+ isServed ? 'bg-emerald-500' : isReady ? 'bg-emerald-500 animate-pulse' : 'border border-slate-600 bg-slate-900'
+ }`}>
+                                {isServed ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : isReady ? '●' : ''}
                               </span>
                               <div className={`font-bold text-[11px] ${isReady ? 'text-emerald-400' : ''}`}>
                                 3. Plated & Ready for Waiter
@@ -1937,9 +1951,9 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
                             <div className={`relative ${!isServed ? 'opacity-40' : ''}`}>
                               <span className={`absolute -left-5 top-0.5 w-3.5 h-3.5 rounded-full text-white text-[9px] font-black flex items-center justify-center ${
-                                isServed ? 'bg-emerald-500' : 'border border-slate-600 bg-slate-900'
-                              }`}>
-                                {isServed ? '✓' : ''}
+ isServed ? 'bg-emerald-500' : 'border border-slate-600 bg-slate-900'
+ }`}>
+                                {isServed ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : ''}
                               </span>
                               <div className={`font-bold text-[11px] ${isServed ? 'text-blue-400' : ''}`}>
                                 4. Served at Table
@@ -1949,8 +1963,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
                           {/* Items List */}
                           <div className={`p-2.5 rounded-xl border space-y-1.5 text-xs ${
-                            isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'
-                          }`}>
+ isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'
+ }`}>
                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                               Dishes in Ticket:
                             </div>
@@ -1984,8 +1998,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
                   {/* Summary & Actions */}
                   <div className={`p-3.5 rounded-2xl border space-y-2.5 ${
-                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
-                  }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-400">Total Running Bill:</span>
                       <span className="font-mono font-black text-emerald-500 text-sm">₹{activeOrdersGrandTotal}</span>
@@ -2019,8 +2033,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {/* --------------------------------------------------------------------- */}
           {currentTab === 'split' && (
             <div className={`p-4 rounded-2xl border space-y-4 shadow-sm ${
-              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-            }`}>
+ isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+ }`}>
               <div className="flex items-center justify-between pb-3 border-b border-slate-700/30">
                 <div>
                   <h3 className="font-black text-sm">Split Table Bill</h3>
@@ -2036,21 +2050,21 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
               {/* Equal vs Individual Mode Selector */}
               <div className={`grid grid-cols-2 p-1 rounded-xl border text-xs font-bold ${
-                isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
-              }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+ }`}>
                 <button
                   onClick={() => setSplitMode('equal')}
                   className={`py-1.5 rounded-lg transition ${
-                    splitMode === 'equal' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-400'
-                  }`}
+ splitMode === 'equal' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-400'
+ }`}
                 >
                   Equal Split
                 </button>
                 <button
                   onClick={() => setSplitMode('individual')}
                   className={`py-1.5 rounded-lg transition ${
-                    splitMode === 'individual' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-400'
-                  }`}
+ splitMode === 'individual' ? 'bg-orange-600 text-white shadow-xs' : 'text-slate-400'
+ }`}
                 >
                   Select Items
                 </button>
@@ -2065,10 +2079,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                         key={num}
                         onClick={() => setSplitPersonsCount(num)}
                         className={`flex-1 py-2 rounded-xl font-black text-xs border transition ${
-                          splitPersonsCount === num
-                            ? 'bg-orange-600 border-orange-500 text-white'
-                            : isDark ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-800'
-                        }`}
+ splitPersonsCount === num
+ ? 'bg-orange-600 border-emerald-600 text-white'
+ : isDark ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-800'
+ }`}
                       >
                         {num}
                       </button>
@@ -2081,8 +2095,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                     <label
                       key={it.name}
                       className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer text-xs ${
-                        isDark ? 'bg-slate-800 border-slate-800' : 'bg-slate-50 border-slate-200'
-                      }`}
+ isDark ? 'bg-slate-800 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}
                     >
                       <div className="flex items-center gap-2">
                         <input
@@ -2103,8 +2117,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
               {/* Calculated Split Box */}
               <div className={`p-3 rounded-xl border flex items-center justify-between ${
-                isDark ? 'bg-orange-950/20 border-orange-800/40 text-orange-200' : 'bg-orange-50 border-orange-200 text-orange-900'
-              }`}>
+ isDark ? 'border-blue-800/60 bg-blue-950/30 text-orange-200' : 'border-blue-200 bg-orange-50 text-orange-900'
+ }`}>
                 <span className="text-xs font-bold">
                   {splitMode === 'equal' ? `Share per person (${splitPersonsCount} guests)` : 'Your Itemized Share'}
                 </span>
@@ -2127,8 +2141,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {/* --------------------------------------------------------------------- */}
           {currentTab === 'payment' && (
             <div data-testid="provisional-bill-panel" className={`p-4 rounded-2xl border space-y-4 shadow-sm ${
-              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-            }`}>
+ isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+ }`}>
               <div className="flex items-center justify-between pb-3 border-b border-slate-700/30">
                 <div>
                   <h3 className="font-black text-sm">Provisional Bill & Settlement</h3>
@@ -2143,8 +2157,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
               {settlementDone ? (
                 <div className="p-4 bg-emerald-950/30 border border-emerald-500/40 rounded-2xl text-center space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xl mx-auto font-black shadow-lg shadow-emerald-950/40">
-                    ✓
+                  <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/40">
+                    <Check className="w-6 h-6 stroke-[3]" />
                   </div>
                   <div>
                     <h4 className="font-black text-sm text-emerald-400">Payment Settled Successfully!</h4>
@@ -2152,8 +2166,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   </div>
 
                   <div className={`p-3 rounded-xl border text-left text-xs space-y-1.5 ${
-                    isDark ? 'bg-slate-800 border-slate-800' : 'bg-white border-slate-200'
-                  }`}>
+ isDark ? 'bg-slate-800 border-slate-800' : 'bg-white border-slate-200'
+ }`}>
                     <div className="flex justify-between text-slate-400">
                       <span>Table Number:</span>
                       <strong className="text-white">{tableNumber}</strong>
@@ -2174,7 +2188,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
                   <div className="flex gap-2 pt-2">
                     <button
-                      onClick={() => showToast('📥 Tax Invoice downloaded as PDF!')}
+                      onClick={() => showToast('Tax Invoice downloaded as PDF!')}
                       className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition"
                     >
                       Download Invoice
@@ -2195,8 +2209,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                 <div className="space-y-4">
                   {/* Amount Pill */}
                   <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
-                    isDark ? 'bg-slate-800 border-slate-800' : 'bg-slate-50 border-slate-200'
-                  }`}>
+ isDark ? 'bg-slate-800 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}>
                     <div>
                       <div className="text-[10px] text-slate-400 uppercase font-bold">Provisional Bill Total</div>
                       <div className="text-xl font-black text-orange-500">₹{currentPayableTotal}</div>
@@ -2206,8 +2220,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
                   {/* Provisional Bill Itemized Breakdown with Statutory Taxes */}
                   <div className={`p-3.5 rounded-2xl border space-y-2 text-xs ${
-                    isDark ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
-                  }`}>
+ isDark ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+ }`}>
                     <div className="flex items-center justify-between border-b border-slate-700/40 pb-2">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
                         Statutory Tax Breakdown (SAC 9963)
@@ -2240,8 +2254,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
                   {/* Split Bill Calculator Preview */}
                   <div data-testid="split-bill-calculator-preview" className={`p-3.5 rounded-2xl border space-y-2.5 ${
-                    isDark ? 'bg-orange-950/20 border-orange-500/30 text-white' : 'bg-orange-50 border-orange-200 text-slate-900'
-                  }`}>
+ isDark ? 'border-emerald-700/50 bg-emerald-950/30 text-white' : 'bg-orange-50 border-orange-200 text-slate-900'
+ }`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-orange-400">
                         <Users className="w-3.5 h-3.5" />
@@ -2256,10 +2270,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                         const share = (currentPayableTotal / guests).toFixed(0);
                         return (
                           <div key={guests} className={`p-2 rounded-xl border ${
-                            splitPersonsCount === guests
-                              ? 'bg-orange-600/30 border-orange-500 text-white'
-                              : isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
-                          }`}>
+ splitPersonsCount === guests
+ ? 'bg-orange-600/30 border-emerald-600 text-white'
+ : isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
+ }`}>
                             <div className="text-[10px] font-bold text-slate-400">{guests} Guests</div>
                             <div className="text-xs font-black text-orange-400 font-mono">₹{share}/ea</div>
                           </div>
@@ -2284,18 +2298,18 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                           key={m.id}
                           onClick={() => setSelectedPaymentMethod(m.id as any)}
                           className={`w-full p-2.5 rounded-xl border flex items-center justify-between text-xs transition ${
-                            isSelected
-                              ? 'bg-orange-500/15 border-orange-500 text-orange-400 font-bold'
-                              : isDark ? 'bg-slate-800 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
-                          }`}
+ isSelected
+ ? 'bg-emerald-600/15 border-emerald-600 text-orange-400 font-bold'
+ : isDark ? 'bg-slate-800 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+ }`}
                         >
                           <div className="flex items-center gap-2">
                             <Icon className="w-4 h-4 text-orange-500" />
                             <span>{m.label}</span>
                           </div>
                           <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
-                            isSelected ? 'border-orange-500 bg-orange-500' : 'border-slate-500'
-                          }`}>
+ isSelected ? 'border-emerald-600 bg-emerald-600' : 'border-slate-500'
+ }`}>
                             {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                           </span>
                         </button>
@@ -2306,8 +2320,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   {/* UPI QR Display */}
                   {selectedPaymentMethod === 'upi' && (
                     <div className={`p-4 rounded-xl border flex flex-col items-center text-center space-y-2.5 ${
-                      isDark ? 'bg-slate-800 border-slate-800' : 'bg-slate-50 border-slate-200'
-                    }`}>
+ isDark ? 'bg-slate-800 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}>
                       <div className="font-bold text-xs flex items-center gap-1.5 text-orange-400">
                         <QrCode className="w-4 h-4" />
                         <span>Scan & Pay with Any UPI App</span>
@@ -2343,8 +2357,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
           {/* --------------------------------------------------------------------- */}
           {waiterEnabled && currentTab === 'waiter' && (
             <div className={`p-4 rounded-2xl border space-y-4 shadow-sm ${
-              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-            }`}>
+ isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+ }`}>
               <div className="flex items-center justify-between pb-3 border-b border-slate-700/30">
                 <div>
                   <h3 className="font-black text-sm">Call Waiter & Service Desk</h3>
@@ -2360,13 +2374,15 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
               <div className="grid grid-cols-2 gap-2.5">
                 {[
-                  { type: 'CALL_WAITER', icon: '🔔', label: 'Assistance / Waiter', desc: 'Assistance needed' },
-                  { type: 'WATER', icon: '💧', label: 'Water Bottle', desc: 'Chilled / Normal' },
-                  { type: 'CUTLERY', icon: '🥄', label: 'Extra Cutlery', desc: 'Plates, spoons, bowls' },
-                  { type: 'CLEANING', icon: '✨', label: 'Clean Table', desc: 'Spill clean up' },
-                  { type: 'BILL', icon: '🧾', label: 'Request Bill', desc: 'Printed tax folio' },
-                  { type: 'OTHER', icon: '💬', label: 'Special Request', desc: 'Speak to manager' },
-                ].map((s) => (
+                  { type: 'CALL_WAITER', icon: Bell, label: 'Assistance / Waiter', desc: 'Assistance needed' },
+                  { type: 'WATER', icon: Droplets, label: 'Water Bottle', desc: 'Chilled / Normal' },
+                  { type: 'CUTLERY', icon: Utensils, label: 'Extra Cutlery', desc: 'Plates, spoons, bowls' },
+                  { type: 'CLEANING', icon: Sparkles, label: 'Clean Table', desc: 'Spill clean up' },
+                  { type: 'BILL', icon: Receipt, label: 'Request Bill', desc: 'Printed tax folio' },
+                  { type: 'ASSISTANCE', icon: MessageSquare, label: 'Special Request', desc: 'Speak to manager' },
+                ].map((s) => {
+                  const SvgIcon = s.icon;
+                  return (
                   <button
                     key={s.type}
                     data-testid={
@@ -2380,16 +2396,19 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                     }
                     onClick={() => handleSendServiceCall(s.type as CustomerRequestType, s.label)}
                     className={`p-3 rounded-xl border flex flex-col items-center text-center gap-1.5 transition hover:scale-105 ${
-                      isDark
-                        ? 'bg-slate-800 border-slate-800 hover:border-orange-500/50'
-                        : 'bg-slate-50 border-slate-200 hover:border-orange-300 shadow-2xs'
-                    }`}
+ isDark
+ ? 'bg-slate-800 border-slate-800 hover:border-emerald-600/50'
+ : 'bg-slate-50 border-slate-200 hover:border-orange-300 shadow-2xs'
+ }`}
                   >
-                    <span className="text-2xl">{s.icon}</span>
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-800 flex items-center justify-center">
+                      <SvgIcon className="w-4 h-4" />
+                    </div>
                     <span className={`font-black text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>{s.label}</span>
                     <span className="text-[10px] text-slate-400">{s.desc}</span>
                   </button>
-                ))}
+                );
+              })}
               </div>
             </div>
           )}
@@ -2402,21 +2421,22 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {/* ========================================================================= */}
       
       {/* Mobile Sticky Bottom 'View Cart' Button */}
+      {/* Floating Bottom Cart Pill (When items in cart and tab is not cart) */}
       {totalCartCount > 0 && currentTab !== 'cart' && currentTab !== 'payment' && (
         <div className="fixed bottom-16 inset-x-0 md:hidden z-40">
           <button
             type="button"
             data-testid="btn-floating-view-cart"
             onClick={() => setCurrentTab('cart')}
-            className="h-14 w-full bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-t-xl px-4 flex items-center justify-between font-semibold shadow-lg active:opacity-90 transition"
+            className="h-14 w-full bg-[#123C2B] text-[#F7E2B4] border-t border-[#E9C98A]/40 rounded-t-2xl px-5 flex items-center justify-between font-bold shadow-2xl active:opacity-95 transition"
           >
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 text-xs flex items-center justify-center font-bold">
+              <span className="w-6 h-6 rounded-full bg-[#E9C98A] text-[#123C2B] text-xs flex items-center justify-center font-black">
                 {totalCartCount}
               </span>
               <span>{totalCartCount === 1 ? '1 item' : `${totalCartCount} items`} • ₹{grandTotal}</span>
             </div>
-            <div className="flex items-center gap-1 text-sm font-semibold">
+            <div className="flex items-center gap-1 text-xs font-black uppercase tracking-wider text-[#F7E2B4]">
               <span>View Cart</span>
               <ChevronRight className="w-4 h-4" />
             </div>
@@ -2426,7 +2446,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
 
       {/* Bottom Sticky Tab Navigation */}
       <nav className={`fixed bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:max-w-3xl z-40 border-t py-1.5 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center justify-around backdrop-blur-md transition-colors ${
-        isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
+        isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-[#D7E5D9] shadow-lg'
       }`}>
         {[
           { id: 'home', label: 'Home', icon: UtensilsCrossed },
@@ -2445,14 +2465,17 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               onClick={() => setCurrentTab(tab.id as any)}
               className={`min-h-[48px] min-w-[48px] flex flex-col items-center justify-center gap-0.5 relative py-1 px-2.5 rounded-xl transition ${
                 isActive
-                  ? isDark ? 'text-blue-400 font-semibold' : 'text-blue-600 font-semibold'
-                  : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900'
+                  ? 'text-[#123C2B] font-black'
+                  : 'text-[#5E7163] hover:text-[#123C2B]'
               }`}
             >
-              <Icon className="w-5 h-5" />
-              <span className="text-[11px] font-medium">{t(tab.label)}</span>
+              <Icon className="h-5 w-5 shrink-0" />
+              <span className="max-w-full truncate text-[10px] font-semibold leading-none sm:text-[11px]">{t(tab.label)}</span>
+              {isActive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-[#123C2B] mt-0.5" />
+              )}
               {tab.badge && tab.badge > 0 ? (
-                <span className="absolute 1 right-1.5 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center shadow-xs">
+                <span className="absolute top-1 right-1.5 w-4 h-4 rounded-full bg-[#123C2B] text-[#F7E2B4] text-[9px] font-bold flex items-center justify-center shadow-xs">
                   {tab.badge}
                 </span>
               ) : null}
@@ -2467,8 +2490,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {isCustomizeModalOpen && customizingDish && (
         <div data-testid="item-detail-modal" className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
           <div className={`rounded-3xl max-w-md w-full overflow-hidden shadow-sm dark:shadow-none border transition-colors ${
-            isDark ? 'bg-slate-900 text-slate-100 border-slate-800' : 'bg-white text-slate-900 border-slate-200'
-          }`}>
+ isDark ? 'bg-slate-900 text-slate-100 border-slate-800' : 'bg-white text-slate-900 border-slate-200'
+ }`}>
             <div className="relative h-48 bg-slate-900">
               <img
                 src={customizingDish.image}
@@ -2481,8 +2504,9 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
               >
                 <X className="w-4 h-4" />
               </button>
-              <div className="absolute bottom-2 left-3 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-amber-300 text-xs font-bold">
-                ⭐ {customizingDish.rating} ({customizingDish.ratingCount})
+              <div className="absolute bottom-2 left-3 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-amber-300 text-xs font-bold flex items-center gap-1">
+                <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                <span>{customizingDish.rating} ({customizingDish.ratingCount})</span>
               </div>
             </div>
 
@@ -2494,11 +2518,13 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                 </div>
                 <p className="text-xs text-slate-400 mt-1">{customizingDish.description}</p>
                 <div data-testid="modal-allergens" className="mt-2 flex flex-wrap gap-1.5">
-                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                    ⚠️ Allergen Notice: Contains Dairy (Paneer / Milk)
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-amber-300" />
+                    <span>Allergen Notice: Contains Dairy (Paneer / Milk)</span>
                   </span>
-                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                    ✓ Gluten Free Option
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-300" />
+                    <span>Gluten Free Option</span>
                   </span>
                 </div>
                 <div className="text-lg font-black text-orange-500 mt-1">₹{customizingDish.price}</div>
@@ -2515,10 +2541,10 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                       data-testid={`btn-spice-${lvl.toLowerCase().replace(/\s+/g, '-')}`}
                       onClick={() => setSpiceLevel(lvl)}
                       className={`flex-1 py-1.5 rounded-xl text-xs font-bold border transition ${
-                        spiceLevel === lvl
-                          ? 'bg-orange-600 border-orange-500 text-white shadow-md'
-                          : isDark ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
-                      }`}
+ spiceLevel === lvl
+ ? 'bg-orange-600 border-emerald-600 text-white shadow-md'
+ : isDark ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
+ }`}
                     >
                       {lvl}
                     </button>
@@ -2553,12 +2579,12 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                           }
                         }}
                         className={`px-3 py-1.5 rounded-xl border font-bold text-xs transition flex items-center gap-1.5 ${
-                          isSelected
-                            ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                            : isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
-                        }`}
+ isSelected
+ ? 'bg-emerald-600/20 border-emerald-600 text-amber-300'
+ : isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
+ }`}
                       >
-                        <span>{isSelected ? '✓' : '+'}</span>
+                        {isSelected ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
                         <span>{cust.label}</span>
                       </button>
                     );
@@ -2576,8 +2602,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                     { name: 'Extra Cheese Topping', price: 50 },
                   ].map((ad) => (
                     <label key={ad.name} className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer ${
-                      isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
-                    }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}>
                       <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -2605,8 +2631,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                   value={customInstructions}
                   onChange={(e) => setCustomInstructions(e.target.value)}
                   className={`w-full px-3 py-2 rounded-xl text-xs border focus:outline-none focus:ring-1 focus:ring-orange-500 ${
-                    isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
-                  }`}
+ isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+ }`}
                 />
               </div>
 
@@ -2627,7 +2653,7 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
                     type="button"
                     data-testid="btn-modal-increase-qty"
                     onClick={() => setModalQty(q => q + 1)}
-                    className="w-7 h-7 rounded-lg border border-orange-500/50 flex items-center justify-center font-bold text-orange-400 hover:bg-orange-950/40 transition"
+                    className="w-7 h-7 rounded-lg border border-orange-500/50 flex items-center justify-center font-bold text-orange-400 hover:bg-slate-800 transition"
                   >
                     +
                   </button>
@@ -2658,8 +2684,8 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
       {placedOrderConfirmation && (
         <div data-testid="order-confirmation-modal" className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-emerald-500/40 rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-sm dark:shadow-none">
-            <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto text-2xl font-black">
-              ✓
+            <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-xs">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
             </div>
             <div>
               <h3 className="text-lg font-black text-white">Order sent to kitchen!</h3>
@@ -2685,117 +2711,20 @@ export const CustomerMenuApp: React.FC<CustomerMenuAppProps> = ({
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* NATIVE ANDROID APP (.APK) DOWNLOAD & OPEN MODAL                          */}
-      {/* ========================================================================= */}
-      {isAppDownloadModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className={`w-full max-w-md rounded-3xl p-6 shadow-sm dark:shadow-none border flex flex-col relative animate-in fade-in zoom-in duration-150 ${
-            isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
-            {/* Close Button */}
-            <button
-              type="button"
-              onClick={() => setIsAppDownloadModalOpen(false)}
-              className={`absolute top-4 right-4 p-2 rounded-full border transition ${
-                isDark ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white' : 'bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              <X className="w-4 h-4" />
-            </button>
+      {/* Live 24/7 Concierge & Floor Support Chatbox Modal */}
+      <CustomerNeedHelpChatModal
+        isOpen={isHelpChatOpen}
+        onClose={() => setIsHelpChatOpen(false)}
+        hotelId={hotelId || ''}
+        hotelName={hotelName}
+        currentRoomNumber={''}
+        currentTableNumber={tableNumber}
+        apiBaseUrl={API_BASE}
+        socketUrl={SOCKET_URL}
+        initialCategory="DINING"
+      />
 
-            {/* App Icon & Header */}
-            <div className="flex items-center gap-3.5 mb-4">
-              <div className="w-14 h-14 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 flex items-center justify-center text-2xl font-bold shadow-xs">
-                📱
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-black tracking-tight">SpiceHub App</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
-                    Native Android
-                  </span>
-                </div>
-                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Direct APK Download • v1.0.4 • 5.5 MB</p>
-              </div>
-            </div>
-
-            {/* Feature Perks */}
-            <div className={`p-3.5 rounded-2xl border space-y-2 mb-4 text-xs ${
-              isDark ? 'bg-slate-950/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
-            }`}>
-              <div className="flex items-center gap-2 font-medium">
-                <span className="text-emerald-500 font-black">✓</span>
-                <span><strong>No App Store required:</strong> Direct instant install on any Android phone.</span>
-              </div>
-              <div className="flex items-center gap-2 font-medium">
-                <span className="text-emerald-500 font-black">✓</span>
-                <span><strong>3x Faster Performance:</strong> Instant local caching & offline digital menu.</span>
-              </div>
-              <div className="flex items-center gap-2 font-medium">
-                <span className="text-emerald-500 font-black">✓</span>
-                <span><strong>Real-Time Live Updates:</strong> Sound chime when kitchen accepts your order.</span>
-              </div>
-            </div>
-
-            {/* Scannable QR Code for Desktop/Tablet Guests */}
-            <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 mb-4 text-center">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(customerApkUrl)}`}
-                alt="Scan to Download APK"
-                className="w-32 h-32 object-contain bg-white p-2 rounded-xl border border-slate-200 shadow-xs"
-              />
-              <span className="mt-2 text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                Scan with your phone camera or click below to download
-              </span>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="space-y-2">
-              <a
-                href={customerApkUrl}
-                download="SpiceHub-Customer.apk"
-                className="w-full h-11 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition hover:opacity-90 text-center"
-              >
-                <span>⬇️</span>
-                <span>Download Android APK (5.5 MB)</span>
-              </a>
-
-              <button
-                type="button"
-                onClick={() => {
-                  // Attempt custom URI intent to launch installed app if present
-                  const tableParam = tableNumber ? `&table=${encodeURIComponent(tableNumber)}` : '';
-                  const hotelParam = hotelId ? `&hotelId=${encodeURIComponent(hotelId)}` : '';
-                  window.location.href = `intent://customer-table?${tableParam}${hotelParam}#Intent;scheme=spicehub;package=com.spicehub.customer;end`;
-                  setTimeout(() => {
-                    setIsAppDownloadModalOpen(false);
-                  }, 1200);
-                }}
-                className={`w-full py-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                  isDark
-                    ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
-                    : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
-                }`}
-              >
-                <span>🚀</span>
-                <span>Already Installed? Open App Directly</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsAppDownloadModalOpen(false)}
-                className={`w-full py-2 text-xs font-semibold text-center transition ${
-                  isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                Continue in Browser
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      </div>
+       </div>
     </div>
   );
 };

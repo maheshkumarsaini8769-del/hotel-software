@@ -1,4 +1,5 @@
 import React from 'react';
+import { UtensilsCrossed, BedDouble, RefreshCw } from 'lucide-react';
 import { ReservationTabMode, TableReservationSummary, RoomArrivalsSummary } from '@spicehub/ui';
 
 interface ReservationHeaderProps {
@@ -31,9 +32,9 @@ export const ReservationHeader: React.FC<ReservationHeaderProps> = ({
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         {/* Brand & Dual Tab Selector */}
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 via-amber-400 to-yellow-200 p-[1px] shadow-lg shadow-amber-500/10">
-            <div className="w-full h-full bg-slate-950 rounded-[11px] flex items-center justify-center">
-              <span className="text-xl">{activeTab === 'DINING' ? '🍽️' : '🛎️'}</span>
+          <div className="bg-emerald-600 hover:bg-emerald-700 text-white w-10 h-10 rounded-xl p-[1px] shadow-lg shadow-amber-500/10">
+            <div className="w-full h-full bg-slate-950 rounded-[11px] flex items-center justify-center text-emerald-400">
+              {activeTab === 'DINING' ? <UtensilsCrossed className="w-5 h-5" /> : <BedDouble className="w-5 h-5" />}
             </div>
           </div>
           <div>
@@ -51,24 +52,26 @@ export const ReservationHeader: React.FC<ReservationHeaderProps> = ({
         <div className="flex items-center gap-3">
           <div className="bg-slate-900 p-1 rounded-xl border border-slate-800 flex items-center gap-1 shadow-inner">
             <button
-              onClick={() => onTabChange('DINING')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'DINING'
-                  ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
+              onClick={() => onTabChange('ROOMS')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'ROOMS'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 font-bold shadow-md shadow-amber-500/20 text-white'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              🍽️ Dining Seating
+              <BedDouble className="w-3.5 h-3.5" />
+              <span>Room Arrivals</span>
             </button>
             <button
-              onClick={() => onTabChange('ROOMS')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'ROOMS'
-                  ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
+              onClick={() => onTabChange('DINING')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'DINING'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 font-bold shadow-md shadow-amber-500/20 text-white'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              🛎️ Room Arrivals
+              <UtensilsCrossed className="w-3.5 h-3.5" />
+              <span>Dining Seating</span>
             </button>
           </div>
 
@@ -189,7 +192,7 @@ export const ReservationHeader: React.FC<ReservationHeaderProps> = ({
               onClick={() => onSearchChange('')}
               className="absolute right-2.5 top-2 text-slate-400 hover:text-white text-xs cursor-pointer"
             >
-              ✕
+              
             </button>
           )}
         </div>

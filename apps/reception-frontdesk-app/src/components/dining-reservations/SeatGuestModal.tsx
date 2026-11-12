@@ -28,11 +28,11 @@ export const SeatGuestModal: React.FC<SeatGuestModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="bg-slate-900 border border-emerald-500/30 w-full max-w-md rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 flex flex-col">
+      <div className="bg-slate-900 border border-emerald-500/30 w-full max-w-md rounded-xl p-6 shadow-sm dark:shadow-none text-zinc-100 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
           <div className="flex items-center gap-2">
-            <span className="text-emerald-400 text-lg">🪑</span>
+            <span className="text-emerald-400 text-lg"></span>
             <h3 className="text-base font-bold text-white">Seat Dining Party</h3>
           </div>
           <button
@@ -40,7 +40,7 @@ export const SeatGuestModal: React.FC<SeatGuestModalProps> = ({
             onClick={onClose}
             className="text-zinc-400 hover:text-white p-1 rounded-lg text-sm"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -93,7 +93,7 @@ export const SeatGuestModal: React.FC<SeatGuestModalProps> = ({
               disabled={loading}
               className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50"
             >
-              {loading ? 'Seating...' : 'Confirm Seating ✓'}
+              {loading ? 'Seating...' : 'Confirm Seating '}
             </button>
           </div>
         </form>

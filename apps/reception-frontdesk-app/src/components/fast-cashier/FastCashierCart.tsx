@@ -2,7 +2,7 @@ import React from 'react';
 import {
   IFastCashierCartItem,
   IFastCashierFinancials,
-  FastCashierHelper,
+  FastCashierHelper, NumericInput,
 } from '@spicehub/ui';
 
 interface FastCashierCartProps {
@@ -47,7 +47,7 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
   const isUnderpaid = paymentMethod === 'CASH' && tenderAmount < financials.grandTotal && tenderAmount > 0;
 
   return (
-    <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 flex flex-col justify-between shadow-sm dark:shadow-none h-full">
+    <div className="bg-slate-900 rounded-xl border border-zinc-800 p-5 flex flex-col justify-between shadow-sm dark:shadow-none h-full">
       {/* Header */}
       <div>
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
@@ -64,7 +64,7 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
         <div className="mt-3 space-y-2 max-h-[220px] overflow-y-auto pr-1">
           {cart.length === 0 ? (
             <div className="py-12 text-center text-zinc-500 text-xs flex flex-col items-center gap-2">
-              <span className="text-2xl">🛒</span>
+              <span className="text-2xl"></span>
               <span>Cart is empty. Scan barcode or punch item code.</span>
             </div>
           ) : (
@@ -112,7 +112,7 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
                     className="text-zinc-500 hover:text-red-400 p-1 transition-colors text-xs"
                     title="Remove item"
                   >
-                    ✕
+                    
                   </button>
                 </div>
               </div>
@@ -172,14 +172,14 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
               type="button"
               onClick={() => onSetPaymentMethod(method)}
               className={`py-2 rounded-xl text-xs font-bold transition-all border ${
-                paymentMethod === method
-                  ? 'bg-amber-500 text-black border-amber-400 shadow-sm dark:shadow-none'
-                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
-              }`}
+ paymentMethod === method
+ ? 'bg-amber-500 text-black border-amber-400 shadow-sm dark:shadow-none'
+ : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+ }`}
             >
-              {method === 'CASH' && '💵 Cash'}
-              {method === 'UPI' && '📱 UPI QR'}
-              {method === 'CARD' && '💳 Card'}
+              {method === 'CASH' && ' Cash'}
+              {method === 'UPI' && ' UPI QR'}
+              {method === 'CARD' && ' Card'}
             </button>
           ))}
         </div>
@@ -191,8 +191,7 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
               <span>Tender Cash:</span>
               <div className="flex items-center gap-1 font-mono">
                 <span>₹</span>
-                <input
-                  type="number"
+                <NumericInput
                   value={tenderAmount || ''}
                   onChange={(e) => onSetTenderAmount(Number(e.target.value))}
                   className="w-20 px-2 py-0.5 bg-black border border-zinc-700 rounded text-amber-400 font-bold text-xs text-right outline-none focus:border-amber-400"
@@ -208,10 +207,10 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
                   type="button"
                   onClick={() => onSetTenderAmount(note)}
                   className={`px-2 py-1 rounded text-[11px] font-mono font-bold transition-all border ${
-                    tenderAmount === note
-                      ? 'bg-amber-400 text-black border-amber-300'
-                      : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:border-amber-500/50'
-                  }`}
+ tenderAmount === note
+ ? 'bg-amber-400 text-black border-amber-300'
+ : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:border-amber-500/50'
+ }`}
                 >
                   ₹{note}
                 </button>
@@ -231,10 +230,10 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
         {paymentMethod === 'CASH' && financials.grandTotal > 0 && (
           <div
             className={`p-3 rounded-xl border flex items-center justify-between font-mono ${
-              isUnderpaid
-                ? 'bg-red-950/40 border-red-500/50 text-red-300'
-                : 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 shadow-sm dark:shadow-none'
-            }`}
+ isUnderpaid
+ ? 'bg-red-950/40 border-red-500/50 text-red-300'
+ : 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 shadow-sm dark:shadow-none'
+ }`}
           >
             <span className="text-xs uppercase font-bold tracking-wider font-sans">
               {isUnderpaid ? 'Due Remaining:' : 'Change to Return:'}
@@ -252,13 +251,13 @@ export const FastCashierCart: React.FC<FastCashierCartProps> = ({
           type="button"
           onClick={onSubmitOrder}
           disabled={cart.length === 0 || loading || (paymentMethod === 'CASH' && tenderAmount < financials.grandTotal)}
-          className="w-full py-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 disabled:from-zinc-800 disabled:to-zinc-800 text-black disabled:text-zinc-600 font-black text-base uppercase tracking-wider transition-all shadow-sm dark:shadow-none disabled:shadow-none flex items-center justify-center gap-2 active:scale-[0.98]"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white w-full py-4 rounded-xl disabled:bg-zinc-800 disabled:text-zinc-600 font-black text-base uppercase tracking-wider transition-all shadow-sm dark:shadow-none disabled:shadow-none flex items-center justify-center gap-2 active:scale-[0.98]"
         >
           {loading ? (
             <span>Punching Order...</span>
           ) : (
             <>
-              <span>⚡ PUNCH & PRINT TOKEN</span>
+              <span> PUNCH & PRINT TOKEN</span>
               <span className="font-mono text-sm">(F12 / ENTER)</span>
             </>
           )}

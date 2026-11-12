@@ -130,7 +130,7 @@ export const PmsReservationMatrixApp: React.FC<PmsReservationMatrixAppProps> = (
   const allRoomTypes = calendarData?.roomTypes || [];
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col font-sans select-none overflow-x-hidden text-white">
+    <div className="heritage-light min-h-screen bg-slate-950 flex flex-col font-sans select-none overflow-x-hidden text-white">
       {/* Top Luxury PMS Matrix Header */}
       <PmsMatrixHeader
         startDate={startDate}
@@ -173,7 +173,7 @@ export const PmsReservationMatrixApp: React.FC<PmsReservationMatrixAppProps> = (
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-32">
-            <span className="text-5xl mb-3">🏨</span>
+            <span className="text-5xl mb-3"></span>
             <p className="text-sm font-semibold text-slate-300">No rooms configured or matrix not initialized.</p>
           </div>
         )}

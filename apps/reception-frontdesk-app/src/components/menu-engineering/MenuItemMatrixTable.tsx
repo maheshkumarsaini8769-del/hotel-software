@@ -26,7 +26,7 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
   });
 
   return (
-    <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
+    <div className="bg-zinc-900/90 border border-zinc-800 rounded-xl overflow-hidden shadow-xl">
       {/* Filter & Search Bar */}
       <div className="p-4 border-b border-zinc-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Quadrant Pills */}
@@ -35,10 +35,10 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             type="button"
             onClick={() => setQuadrantFilter('ALL')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'ALL'
-                ? 'bg-zinc-100 text-zinc-900'
-                : 'bg-zinc-800 text-zinc-400 hover:text-white'
-            }`}
+ quadrantFilter === 'ALL'
+ ? 'bg-zinc-100 text-zinc-900'
+ : 'bg-zinc-800 text-zinc-400 hover:text-white'
+ }`}
           >
             All Items ({items.length})
           </button>
@@ -46,45 +46,45 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             type="button"
             onClick={() => setQuadrantFilter('STAR')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'STAR'
-                ? 'bg-amber-500 text-zinc-900'
-                : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
-            }`}
+ quadrantFilter === 'STAR'
+ ? 'bg-amber-500 text-zinc-900'
+ : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+ }`}
           >
-            ⭐ Stars
+             Stars
           </button>
           <button
             type="button"
             onClick={() => setQuadrantFilter('PLOWHORSE')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'PLOWHORSE'
-                ? 'bg-blue-500 text-white'
-                : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
-            }`}
+ quadrantFilter === 'PLOWHORSE'
+ ? 'bg-blue-500 text-white'
+ : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
+ }`}
           >
-            🐎 Plowhorses
+             Plowhorses
           </button>
           <button
             type="button"
             onClick={() => setQuadrantFilter('PUZZLE')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'PUZZLE'
-                ? 'bg-slate-800 dark:bg-slate-200 text-white'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800'
-            }`}
+ quadrantFilter === 'PUZZLE'
+ ? 'bg-slate-800 dark:bg-slate-200 text-white'
+ : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800'
+ }`}
           >
-            🧩 Puzzles
+             Puzzles
           </button>
           <button
             type="button"
             onClick={() => setQuadrantFilter('DOG')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'DOG'
-                ? 'bg-red-500 text-white'
-                : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
-            }`}
+ quadrantFilter === 'DOG'
+ ? 'bg-red-500 text-white'
+ : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+ }`}
           >
-            🐕 Dogs
+             Dogs
           </button>
         </div>
 
@@ -189,7 +189,7 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
                         onClick={() => onSimulateItem(item)}
                         className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold border border-zinc-700 hover:border-slate-200 dark:border-slate-800 transition-all"
                       >
-                        🔮 Test
+                         Test
                       </button>
                     </td>
                   </tr>

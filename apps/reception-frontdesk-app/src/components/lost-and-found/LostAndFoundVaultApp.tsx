@@ -1,5 +1,7 @@
 import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect, useCallback } from 'react';
+import { ShieldCheck, Package, Plus, Search, Sparkles, RefreshCw } from 'lucide-react';
+import { NumericInput } from '@spicehub/ui';
 
 export interface ICustodyTransfer {
   action: string;
@@ -319,17 +321,19 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-100 overflow-y-auto p-6 space-y-6">
+    <div className="heritage-light flex flex-col h-full bg-slate-950 text-slate-100 overflow-y-auto p-6 space-y-6">
       {/* Top Banner / Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
         <div>
           <div className="flex items-center gap-3">
-            <span className="text-3xl">🔐</span>
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
             <div>
               <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-3">
                 Lost & Found Digital Vault
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-widest font-bold">
-                  Shift 66 Verified
+                  Dual-Custody Vault
                 </span>
               </h1>
               <p className="text-sm text-slate-400">
@@ -342,7 +346,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
           <button
             data-testid="btn-log-found-item"
             onClick={() => setLogModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm shadow-lg shadow-amber-900/30 transition-all active:scale-95"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-amber-900/30 transition-all active:scale-95"
           >
             <span>+</span> Log Found Asset
           </button>
@@ -408,7 +412,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
             />
-            <span className="absolute left-3 top-2.5 text-slate-500">🔍</span>
+            <span className="absolute left-3 top-2.5 text-slate-500"></span>
           </div>
 
           {/* Status Filter */}
@@ -447,21 +451,25 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
             data-testid="btn-toggle-high-value"
             onClick={() => setIsHighValueOnly(!isHighValueOnly)}
             className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
-              isHighValueOnly
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm shadow-amber-950'
-                : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
-            }`}
+ isHighValueOnly
+ ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm shadow-amber-950'
+ : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+ }`}
           >
-            ⭐ High-Value Only
+            <span className="inline-flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>High-Value Only</span>
+            </span>
           </button>
         </div>
 
         <button
           onClick={fetchVaultData}
-          className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors"
+          className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors flex items-center gap-1.5"
           title="Refresh Vault Items"
         >
-          🔄 Refresh
+          <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+          <span>Refresh</span>
         </button>
       </div>
 
@@ -469,8 +477,8 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
       {loading ? (
         <div className="py-20 text-center text-slate-500 text-sm">Loading Digital Vault Assets...</div>
       ) : items.length === 0 ? (
-        <div className="py-16 text-center rounded-2xl bg-slate-900/40 border border-slate-800/80">
-          <p className="text-3xl mb-2">📦</p>
+        <div className="py-16 text-center rounded-xl bg-slate-900/40 border border-slate-800/80">
+          <Package className="w-10 h-10 mx-auto text-slate-500 opacity-40 mb-2" />
           <h3 className="text-base font-bold text-slate-300">No Vault Items Found</h3>
           <p className="text-xs text-slate-500 mt-1">Adjust filters or click "+ Log Found Asset" to register an item.</p>
         </div>
@@ -486,11 +494,11 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
               <div
                 key={item._id}
                 data-testid={`vault-card-${item.trackingNumber}`}
-                className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
-                  isHighVal
-                    ? 'bg-gradient-to-b from-slate-900 to-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-950/20'
-                    : 'bg-slate-900/80 border-slate-800'
-                }`}
+                className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
+ isHighVal
+ ? 'bg-gradient-to-t from-slate-900 border-amber-500/40 shadow-lg shadow-amber-950/20'
+ : 'bg-slate-900/80 border-slate-800'
+ }`}
               >
                 <div>
                   {/* Top Badges */}
@@ -502,19 +510,19 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                     <div className="flex items-center gap-1.5">
                       {isHighVal && (
                         <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider flex items-center gap-1">
-                          👑 High Value
+                           High Value
                         </span>
                       )}
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${
-                          isDispatched
-                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                            : isVerified
-                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                            : isClaimed
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                            : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-                        }`}
+ isDispatched
+ ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+ : isVerified
+ ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+ : isClaimed
+ ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+ : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+ }`}
                       >
                         {item.status.replace(/_/g, ' ')}
                       </span>
@@ -566,7 +574,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                   {isDispatched && item.courierDispatch && (
                     <div className="mb-3 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs">
                       <div className="flex items-center justify-between text-slate-700 dark:text-slate-300 font-semibold">
-                        <span>🚚 {item.courierDispatch.courierPartner.replace(/_/g, ' ')}</span>
+                        <span> {item.courierDispatch.courierPartner.replace(/_/g, ' ')}</span>
                         <span className="font-mono">{item.courierDispatch.waybillNumber}</span>
                       </div>
                       <p className="text-[11px] text-slate-700 dark:text-slate-300/80 mt-1">
@@ -579,7 +587,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                   {isVerified && item.claimVerification && (
                     <div className="mb-3 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs">
                       <div className="flex items-center justify-between text-slate-700 dark:text-slate-300 font-semibold">
-                        <span>✓ Verified Claimant</span>
+                        <span> Verified Claimant</span>
                         <span>{item.claimVerification.matchConfidenceScore}% Match</span>
                       </div>
                       <p className="text-[11px] text-slate-700 dark:text-slate-300/80 mt-1">
@@ -661,16 +669,16 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
       {/* MODAL 1: Log Found Asset Modal */}
       {logModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>🔐</span> Log Found Asset into Digital Vault
+                <span></span> Log Found Asset into Digital Vault
               </h2>
               <button
                 onClick={() => setLogModalOpen(false)}
                 className="text-slate-400 hover:text-slate-200 text-sm font-bold"
               >
-                ✕
+                
               </button>
             </div>
 
@@ -728,9 +736,8 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Estimated Value (₹ INR)</label>
-                  <input
+                  <NumericInput
                     data-testid="input-log-value"
-                    type="number"
                     min="0"
                     placeholder="e.g. 75000"
                     value={logForm.estimatedValue || ''}
@@ -772,8 +779,7 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Retention Expiry (Days)</label>
-                  <input
-                    type="number"
+                  <NumericInput
                     value={logForm.retentionDays}
                     onChange={(e) => setLogForm({ ...logForm, retentionDays: Number(e.target.value) || 90 })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-amber-500"
@@ -818,16 +824,16 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
       {/* MODAL 2: Verify Claim Modal */}
       {selectedItemForVerify && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>🛡️</span> Duty Manager Claim Verification
+                <span>️</span> Duty Manager Claim Verification
               </h2>
               <button
                 onClick={() => setSelectedItemForVerify(null)}
                 className="text-slate-400 hover:text-slate-200 text-sm font-bold"
               >
-                ✕
+                
               </button>
             </div>
 
@@ -925,16 +931,16 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
       {/* MODAL 3: Courier Dispatch Modal */}
       {selectedItemForCourier && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>🚚</span> Prepare Courier Shipping Dispatch
+                <span></span> Prepare Courier Shipping Dispatch
               </h2>
               <button
                 onClick={() => setSelectedItemForCourier(null)}
                 className="text-slate-400 hover:text-slate-200 text-sm font-bold"
               >
-                ✕
+                
               </button>
             </div>
 
@@ -1061,9 +1067,8 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Shipping Fee Amount (₹)</label>
-                  <input
+                  <NumericInput
                     data-testid="input-shipping-fee"
-                    type="number"
                     min="0"
                     value={courierForm.shippingFeeAmount}
                     onChange={(e) => setCourierForm({ ...courierForm, shippingFeeAmount: Number(e.target.value) || 0 })}
@@ -1096,16 +1101,16 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
       {/* MODAL 4: In-Person Handover Modal */}
       {selectedItemForHandover && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-sm dark:shadow-none space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-md p-6 shadow-sm dark:shadow-none space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>🤝</span> Front Desk Handover
+                <span></span> Front Desk Handover
               </h2>
               <button
                 onClick={() => setSelectedItemForHandover(null)}
                 className="text-slate-400 hover:text-slate-200 text-sm font-bold"
               >
-                ✕
+                
               </button>
             </div>
 
@@ -1182,16 +1187,16 @@ export const LostAndFoundVaultApp: React.FC<LostAndFoundVaultAppProps> = ({
       {/* MODAL 5: Custody Chain Audit Modal */}
       {selectedItemForCustody && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-lg p-6 shadow-sm dark:shadow-none space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>📜</span> Chain of Custody Audit Log
+                <span></span> Chain of Custody Audit Log
               </h2>
               <button
                 onClick={() => setSelectedItemForCustody(null)}
                 className="text-slate-400 hover:text-slate-200 text-sm font-bold"
               >
-                ✕
+                
               </button>
             </div>
 

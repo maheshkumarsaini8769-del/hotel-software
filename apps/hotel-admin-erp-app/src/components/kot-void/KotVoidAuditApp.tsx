@@ -65,29 +65,29 @@ export const KotVoidAuditApp: React.FC<KotVoidAuditAppProps> = ({
   }, [logs]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-950 p-6 space-y-6">
+    <div className="flex-1 overflow-y-auto bg-slate-50 p-6 space-y-6 rounded-2xl border border-slate-200 text-slate-900 shadow-xs">
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shadow-xs">
               <ShieldAlert className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white tracking-wide">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                 KOT Lock & Manager Security PIN Void Control
               </h1>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500 mt-0.5">
                 Shift 50: Anti-Theft Protection, Item Deletion Lock & Real-time Kitchen Food Waste Auditor
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-[11px] font-semibold text-slate-300">
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs">
           <span
             className={`h-2 w-2 rounded-full ${
-              loading ? 'animate-pulse bg-amber-400' : loadError ? 'bg-red-500' : 'bg-emerald-400'
+              loading ? 'animate-pulse bg-amber-500' : loadError ? 'bg-rose-500' : 'bg-emerald-500'
             }`}
           />
           {loading ? 'Syncing live audit log…' : loadError ? 'Live sync unavailable' : 'Live audit log'}
@@ -95,7 +95,7 @@ export const KotVoidAuditApp: React.FC<KotVoidAuditAppProps> = ({
       </div>
 
       {loadError && (
-        <div className="rounded-xl border border-red-500/40 bg-red-950/40 px-4 py-3 text-xs font-semibold text-red-200">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">
           {loadError} Void authorization remains available from the live KOT card in
           Kitchen KDS.
         </div>
@@ -103,53 +103,53 @@ export const KotVoidAuditApp: React.FC<KotVoidAuditAppProps> = ({
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
             <span>Total Void Events</span>
-            <ShieldAlert className="w-4 h-4 text-slate-500" />
+            <ShieldAlert className="w-4 h-4 text-slate-400" />
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold text-white font-mono">{logs.length}</div>
-            <div className="text-[11px] text-slate-500 mt-1">Authorized cancellations</div>
+            <div className="text-2xl font-bold text-slate-900 font-mono">{logs.length}</div>
+            <div className="text-xs text-slate-400 mt-1">Authorized cancellations</div>
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
             <span>Total Void Value</span>
-            <DollarSign className="w-4 h-4 text-red-400" />
+            <DollarSign className="w-4 h-4 text-rose-500" />
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold text-red-400 font-mono">
+            <div className="text-2xl font-bold text-rose-600 font-mono">
               {formatCurrency(kpis.totalVoidAmount)}
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">Total revenue removed</div>
+            <div className="text-xs text-slate-400 mt-1">Total revenue removed</div>
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-red-500/30 bg-red-500/5 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
-          <div className="flex items-center justify-between text-red-300 text-xs font-semibold">
+        <div className="bg-white border border-rose-200 bg-rose-50/30 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-rose-700 text-xs font-semibold">
             <span>Kitchen Scrap (Wasted Food)</span>
-            <Trash2 className="w-4 h-4 text-red-400" />
+            <Trash2 className="w-4 h-4 text-rose-500" />
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold text-red-400 font-mono">
+            <div className="text-2xl font-bold text-rose-600 font-mono">
               {formatCurrency(kpis.scrappedWasteCost)}
             </div>
-            <div className="text-[11px] text-red-300/70 mt-1">Direct inventory loss to hotel</div>
+            <div className="text-xs text-rose-600/70 mt-1">Direct inventory loss to hotel</div>
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-emerald-500/30 bg-emerald-500/5 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
-          <div className="flex items-center justify-between text-emerald-300 text-xs font-semibold">
+        <div className="bg-white border border-emerald-200 bg-emerald-50/30 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-emerald-800 text-xs font-semibold">
             <span>Pre-Cook Savings / Reused</span>
-            <TrendingDown className="w-4 h-4 text-emerald-400" />
+            <TrendingDown className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold text-emerald-400 font-mono">
+            <div className="text-2xl font-bold text-emerald-700 font-mono">
               {formatCurrency(kpis.reusableSavedValue)}
             </div>
-            <div className="text-[11px] text-emerald-300/70 mt-1">Food saved from kitchen scrap</div>
+            <div className="text-xs text-emerald-700/70 mt-1">Food saved from kitchen scrap</div>
           </div>
         </div>
       </div>

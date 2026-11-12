@@ -9,7 +9,7 @@ interface GrnHistoryTableProps {
 
 export const GrnHistoryTable: React.FC<GrnHistoryTableProps> = ({ grns, loading }) => {
   return (
-    <div className="bg-slate-900 rounded-2xl border border-zinc-800 p-5 space-y-4 shadow-xl">
+    <div className="bg-slate-900 rounded-xl border border-zinc-800 p-5 space-y-4 shadow-xl">
       <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
         <div>
           <h2 className="text-base font-bold text-white flex items-center gap-2">

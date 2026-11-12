@@ -30,7 +30,7 @@ export const SeatMapGrid: React.FC<SeatMapGridProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <div>
           <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-            🍽️ Table {table.tableNumber} ({table.section})
+            ️ Table {table.tableNumber} ({table.section})
           </h3>
           <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#6B7280' }}>
             {CoDiningHelper.formatSeatingSummary(table)}
@@ -109,7 +109,7 @@ export const SeatMapGrid: React.FC<SeatMapGridProps> = ({
                     boxShadow: isSelected ? '0 0 0 3px rgba(79, 70, 229, 0.2)' : 'none',
                   }}
                 >
-                  <span style={{ fontSize: '18px' }}>🪑</span>
+                  <span style={{ fontSize: '18px' }}></span>
                   <span style={{ fontSize: '12px', fontWeight: 700 }}>
                     {seat.seatLabel || `Seat ${seat.seatNumber}`}
                   </span>
@@ -131,7 +131,7 @@ export const SeatMapGrid: React.FC<SeatMapGridProps> = ({
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    👤 {seat.guestName}
+                     {seat.guestName}
                   </div>
                 )}
 

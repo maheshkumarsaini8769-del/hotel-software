@@ -59,6 +59,11 @@ export interface IUniversalCustomerSession extends Document {
     phone?: string;
     paxCount?: number;
   };
+  preferences: {
+    language: 'en' | 'hi';
+    theme: 'light' | 'dark';
+    fontSize: 'small' | 'medium' | 'large';
+  };
   inRoomContext?: {
     roomId?: Types.ObjectId;
     roomNumber?: string;
@@ -138,6 +143,11 @@ const UniversalCustomerSessionSchema = new Schema<IUniversalCustomerSession>(
       guestName: { type: String, trim: true },
       phone: { type: String, trim: true },
       paxCount: { type: Number, default: 1, min: 1 },
+    },
+    preferences: {
+      language: { type: String, enum: ['en', 'hi'], default: 'en' },
+      theme: { type: String, enum: ['light', 'dark'], default: 'light' },
+      fontSize: { type: String, enum: ['small', 'medium', 'large'], default: 'medium' },
     },
     inRoomContext: {
       roomId: { type: Schema.Types.ObjectId, ref: 'Room' },

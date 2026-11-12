@@ -41,11 +41,11 @@ export const FastCashierReceiptModal: React.FC<FastCashierReceiptModalProps> = (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
-      <div className="bg-slate-900 border-2 border-amber-500/40 rounded-3xl w-full max-w-md flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
+      <div className="bg-slate-900 border-2 border-amber-500/40 rounded-xl w-full max-w-md flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
         {/* Modal Header */}
         <div className="bg-slate-950 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xl">🧾</span>
+            <span className="text-xl"></span>
             <span className="text-sm font-bold text-white">80mm Thermal Receipt</span>
           </div>
           <button
@@ -53,7 +53,7 @@ export const FastCashierReceiptModal: React.FC<FastCashierReceiptModalProps> = (
             onClick={onClose}
             className="text-zinc-400 hover:text-white text-xs p-1"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -140,14 +140,14 @@ export const FastCashierReceiptModal: React.FC<FastCashierReceiptModalProps> = (
             onClick={handlePrint}
             className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
           >
-            <span>🖨️ Print Slip</span>
+            <span>️ Print Slip</span>
           </button>
           <button
             type="button"
             onClick={onNextCustomer}
             className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center justify-center gap-1"
           >
-            <span>⚡ Next Customer</span>
+            <span> Next Customer</span>
           </button>
         </div>
       </div>

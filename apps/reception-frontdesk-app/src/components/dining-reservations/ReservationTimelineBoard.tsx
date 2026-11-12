@@ -32,7 +32,7 @@ export const ReservationTimelineBoard: React.FC<ReservationTimelineBoardProps> =
   return (
     <div className="space-y-4">
       {/* Search & Status Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-900/60 border border-zinc-800 p-3 rounded-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-900/60 border border-zinc-800 p-3 rounded-xl">
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           {['ALL', 'CONFIRMED', 'SEATED', 'NO_SHOW', 'CANCELLED'].map((st) => (
             <button
@@ -40,10 +40,10 @@ export const ReservationTimelineBoard: React.FC<ReservationTimelineBoardProps> =
               type="button"
               onClick={() => setStatusFilter(st)}
               className={`px-3 py-1.5 rounded-xl font-semibold transition-all ${
-                statusFilter === st
-                  ? 'bg-red-500 text-white shadow-md shadow-sm'
-                  : 'bg-zinc-800 text-zinc-400 hover:text-white'
-              }`}
+ statusFilter === st
+ ? 'bg-red-500 text-white shadow-md shadow-sm'
+ : 'bg-zinc-800 text-zinc-400 hover:text-white'
+ }`}
             >
               {st}
             </button>
@@ -63,7 +63,7 @@ export const ReservationTimelineBoard: React.FC<ReservationTimelineBoardProps> =
 
       {/* Grid of Reservation Cards */}
       {filtered.length === 0 ? (
-        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-12 text-center text-zinc-400 text-xs">
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-12 text-center text-zinc-400 text-xs">
           No dining reservations match current filter criteria. Click "New VIP Dining Booking" above to add one.
         </div>
       ) : (
@@ -75,7 +75,7 @@ export const ReservationTimelineBoard: React.FC<ReservationTimelineBoardProps> =
             return (
               <div
                 key={res._id}
-                className="bg-zinc-900/80 border border-zinc-800 hover:border-zinc-700 p-4 rounded-2xl transition-all flex flex-col justify-between space-y-3"
+                className="bg-zinc-900/80 border border-zinc-800 hover:border-zinc-700 p-4 rounded-xl transition-all flex flex-col justify-between space-y-3"
               >
                 <div>
                   {/* Top Bar: Time Slot & Badges */}
@@ -125,11 +125,11 @@ export const ReservationTimelineBoard: React.FC<ReservationTimelineBoardProps> =
                   {/* Table & Occasion Tags */}
                   <div className="flex flex-wrap items-center gap-1 mt-2 text-[11px]">
                     <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">
-                      📍 {res.tableTypePreference}
+                       {res.tableTypePreference}
                     </span>
                     {res.specialOccasion && res.specialOccasion !== 'NONE' && (
                       <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-800">
-                        ✨ {res.specialOccasion}
+                         {res.specialOccasion}
                       </span>
                     )}
                   </div>
@@ -138,7 +138,7 @@ export const ReservationTimelineBoard: React.FC<ReservationTimelineBoardProps> =
                   {res.allergens && res.allergens.length > 0 && (
                     <div className="mt-2.5 p-2 rounded-xl bg-red-950/20 border border-red-500/30 space-y-1">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-red-300 flex items-center gap-1">
-                        <span>⚠️</span> Kitchen Allergen Warning:
+                        <span>️</span> Kitchen Allergen Warning:
                       </span>
                       <div className="flex flex-wrap gap-1">
                         {res.allergens.map((alg, idx) => {
@@ -173,7 +173,7 @@ export const ReservationTimelineBoard: React.FC<ReservationTimelineBoardProps> =
                         onClick={() => onOpenSeatModal(res)}
                         className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all text-center"
                       >
-                        🪑 Seat Table
+                         Seat Table
                       </button>
                       <button
                         type="button"
@@ -192,7 +192,7 @@ export const ReservationTimelineBoard: React.FC<ReservationTimelineBoardProps> =
                     className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold border border-zinc-700"
                     title="View VIP Dietary Profile"
                   >
-                    👤 Profile
+                     Profile
                   </button>
                 </div>
               </div>

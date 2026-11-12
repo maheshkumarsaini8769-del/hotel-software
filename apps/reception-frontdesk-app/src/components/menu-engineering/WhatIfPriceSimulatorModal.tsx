@@ -68,12 +68,12 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-3xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[92vh] flex flex-col">
+      <div className="bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-3xl rounded-xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <span className="text-slate-700 dark:text-slate-300">🔮</span> What-If Price Elasticity & Margin Simulator
+              <span className="text-slate-700 dark:text-slate-300"></span> What-If Price Elasticity & Margin Simulator
             </h2>
             <p className="text-xs text-zinc-400 mt-0.5">
               Simulate menu price hikes, portion cost trims & customer demand elasticity before publishing menu changes.
@@ -84,7 +84,7 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
             onClick={onClose}
             className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-sm"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -112,7 +112,7 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
           </div>
 
           {/* Controls Sliders */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-900/80 border border-zinc-800 p-4 rounded-2xl">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-900/80 border border-zinc-800 p-4 rounded-xl">
             {/* Slider 1: Price Delta */}
             <div>
               <div className="flex justify-between text-xs mb-1">
@@ -177,7 +177,7 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Current State */}
-                <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl space-y-2 text-xs">
+                <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl space-y-2 text-xs">
                   <span className="text-[11px] font-bold uppercase text-zinc-400 block border-b border-zinc-800 pb-1">
                     Current Menu Reality
                   </span>
@@ -208,7 +208,7 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
                 </div>
 
                 {/* Projected State */}
-                <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl space-y-2 text-xs">
+                <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 p-4 rounded-xl space-y-2 text-xs">
                   <span className="text-[11px] font-bold uppercase text-slate-700 dark:text-slate-300 block border-b border-slate-200 dark:border-slate-800 pb-1">
                     Projected Outcome Simulation
                   </span>
@@ -240,7 +240,7 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
               </div>
 
               {/* Profit Impact Highlight Banner */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/40 to-purple-950/40 border border-emerald-500/30 flex items-center justify-between">
+              <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 to-purple-950/40 border border-emerald-500/30 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider block">
                     Simulated Bottom-Line Net Gain:
@@ -252,8 +252,8 @@ export const WhatIfPriceSimulatorModal: React.FC<WhatIfPriceSimulatorModalProps>
                 <div className="text-right">
                   <span
                     className={`text-2xl font-black font-mono ${
-                      simulation.impact.profitDifference >= 0 ? 'text-emerald-400' : 'text-red-400'
-                    }`}
+ simulation.impact.profitDifference >= 0 ? 'text-emerald-400' : 'text-red-400'
+ }`}
                   >
                     {simulation.impact.profitDifference >= 0 ? '+' : ''}
                     {MenuEngineeringHelper.formatCurrency(simulation.impact.profitDifference)}

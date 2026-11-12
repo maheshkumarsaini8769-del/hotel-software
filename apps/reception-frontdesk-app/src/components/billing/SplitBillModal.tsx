@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { formatCurrency } from '../../../../../packages/ui/src/index';
 import { BillingCalculatorHelper } from '../../../../../packages/ui/src/billing/BillingCalculatorHelper';
 import { SplitPersonShare } from '../../../../../packages/ui/src/billing/types';
+import { NumericInput } from '@spicehub/ui';
 
 export interface SplitBillModalProps {
   billNumber: string;
@@ -67,14 +68,14 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full shadow-sm dark:shadow-none p-6 space-y-5">
+      <div className="bg-white dark:bg-slate-900 rounded-xl max-w-lg w-full shadow-sm dark:shadow-none p-6 space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Split Bill • {billNumber}</h2>
             <p className="text-xs text-slate-500">Grand Total: {formatCurrency(grandTotal)}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg text-lg">✕</button>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg text-lg"></button>
         </div>
 
         {/* Split Type Selector */}
@@ -82,16 +83,16 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
           <button
             onClick={() => setSplitType('EQUAL')}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-              splitType === 'EQUAL' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500'
-            }`}
+ splitType === 'EQUAL' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500'
+ }`}
           >
             Equal Split
           </button>
           <button
             onClick={() => setSplitType('CUSTOM')}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-              splitType === 'CUSTOM' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500'
-            }`}
+ splitType === 'CUSTOM' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500'
+ }`}
           >
             Custom Split
           </button>
@@ -108,10 +109,10 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
                     key={num}
                     onClick={() => setSplitCount(num)}
                     className={`w-9 h-9 rounded-lg font-bold text-xs transition ${
-                      splitCount === num
-                        ? 'bg-primary-600 text-white shadow-xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                    }`}
+ splitCount === num
+ ? 'bg-primary-600 text-white shadow-xs'
+ : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+ }`}
                   >
                     {num}
                   </button>
@@ -142,8 +143,7 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
                   <span className="w-16 text-slate-500 font-medium">Guest #{s.personNumber}:</span>
                   <div className="flex-1 relative">
                     <span className="absolute left-3 top-2 text-slate-400">₹</span>
-                    <input
-                      type="number"
+                    <NumericInput
                       min={0}
                       value={s.amount}
                       onChange={(e) => handleCustomAmountChange(s.personNumber, Number(e.target.value))}
@@ -155,7 +155,7 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
                       onClick={() => removeCustomPerson(s.personNumber)}
                       className="p-1.5 text-red-500 hover:bg-red-50 rounded"
                     >
-                      ✕
+                      
                     </button>
                   )}
                 </div>
@@ -171,12 +171,12 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
 
             {/* Validation Indicator */}
             <div className={`p-3 rounded-xl text-xs font-medium flex items-center justify-between ${
-              customValidation.isValid
-                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                : 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
-            }`}>
+ customValidation.isValid
+ ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+ : 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+ }`}>
               <span>Total Allocated: {formatCurrency(customValidation.sum)}</span>
-              <span>{customValidation.isValid ? '✅ Balanced' : `Difference: ${formatCurrency(customValidation.difference)}`}</span>
+              <span>{customValidation.isValid ? ' Balanced' : `Difference: ${formatCurrency(customValidation.difference)}`}</span>
             </div>
           </div>
         )}

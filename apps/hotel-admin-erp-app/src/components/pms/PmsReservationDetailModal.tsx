@@ -1,3 +1,4 @@
+import { ClipboardList, Key, DoorOpen } from 'lucide-react';
 import React, { useState } from 'react';
 import {
   MatrixReservationBlock,
@@ -93,27 +94,29 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-sm dark:shadow-none flex flex-col text-white overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+      <div className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-xl flex flex-col text-slate-900 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Modal Header */}
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-white">
           <div className="flex items-center space-x-3">
-            <span className="text-2xl">📋</span>
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shadow-xs">
+              <ClipboardList className="w-5 h-5 text-emerald-600" />
+            </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="font-mono font-extrabold text-base text-amber-400">
+                <span className="font-mono font-bold text-base text-slate-900">
                   {booking.bookingNumber}
                 </span>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${statusStyle.badge}`}>
                   {booking.bookingStatus}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">{booking.guestName}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{booking.guestName}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
           >
             ✕
           </button>
@@ -128,44 +131,44 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
           )}
 
           {/* Dates & Room Info */}
-          <div className="grid grid-cols-2 gap-4 bg-slate-950 border border-slate-800 rounded-xl p-4">
+          <div className="grid grid-cols-2 gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4">
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Stay Duration</span>
-              <div className="text-xs font-semibold text-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Stay Duration</span>
+              <div className="text-xs font-semibold text-slate-800">
                 {MatrixHelper.formatDateShort(booking.checkInDate)} ➔ {MatrixHelper.formatDateShort(booking.checkOutDate)}
               </div>
               <span className="text-[11px] text-amber-400 font-bold">({nights} Nights)</span>
             </div>
 
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Allocated Room</span>
-              <div className="text-xs font-bold text-white flex items-center space-x-1.5">
-                <span>🚪</span>
+              <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Allocated Room</span>
+              <div className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+                <DoorOpen className="w-4 h-4 text-slate-500" />
                 <span>{assignedRoomName}</span>
               </div>
             </div>
           </div>
 
           {/* Guest Contact */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
             <span className="text-[10px] uppercase font-bold text-slate-400 block">Guest Profile</span>
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400">Mobile Phone:</span>
-              <span className="font-mono text-slate-200 font-semibold">{booking.guestPhone}</span>
+              <span className="font-mono text-slate-800 font-semibold">{booking.guestPhone}</span>
             </div>
             {booking.guestEmail && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-400">Email Address:</span>
-                <span className="text-slate-200 font-semibold">{booking.guestEmail}</span>
+                <span className="text-slate-800 font-semibold">{booking.guestEmail}</span>
               </div>
             )}
           </div>
 
           {/* Financials Breakdown */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
             <div className="flex justify-between text-xs text-slate-400">
               <span>Total Booking Amount</span>
-              <span className="font-mono font-bold text-white">{formatCurrency(booking.grandTotal)}</span>
+              <span className="font-mono font-bold text-slate-900">{formatCurrency(booking.grandTotal)}</span>
             </div>
             <div className="flex justify-between text-xs text-slate-400">
               <span>Advance Deposit Received</span>
@@ -173,10 +176,10 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
                 {formatCurrency(booking.advancePaymentAmount)} ({booking.paymentStatus})
               </span>
             </div>
-            <div className="h-px bg-slate-800 my-1" />
-            <div className="flex justify-between text-xs font-bold text-amber-300">
+            <div className="h-px bg-slate-200 my-1" />
+            <div className="flex justify-between text-xs font-bold text-slate-900">
               <span>Balance Due</span>
-              <span className="font-mono">
+              <span className="font-mono text-emerald-700">
                 {formatCurrency(Math.max(0, booking.grandTotal - booking.advancePaymentAmount))}
               </span>
             </div>
@@ -184,13 +187,13 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
 
           {/* Re-assignment Tool (if not checked in) */}
           {booking.bookingStatus === 'CONFIRMED' && onReassignRoom && (
-            <div className="border border-slate-800 rounded-xl p-4 bg-slate-950 space-y-2.5">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Re-assign Physical Room</span>
+            <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-2.5">
+              <span className="text-[10px] uppercase font-bold text-slate-500 block">Re-assign Physical Room</span>
               <div className="flex items-center space-x-2">
                 <select
                   value={selectedTargetRoomId}
                   onChange={(e) => setSelectedTargetRoomId(e.target.value)}
-                  className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs font-medium text-white outline-none focus:ring-1 focus:ring-amber-400"
+                  className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium text-slate-900 outline-none focus:border-emerald-500 cursor-pointer"
                 >
                   <option value="">Select target room...</option>
                   {roomTypes.flatMap((rt) =>
@@ -205,7 +208,7 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
                 <button
                   onClick={handleReassign}
                   disabled={!selectedTargetRoomId || isProcessing}
-                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-lg border border-amber-500/30 transition disabled:opacity-50"
+                  className="btn-glass-green-subtle px-3.5 py-2 font-bold text-xs rounded-lg transition disabled:opacity-50 cursor-pointer"
                 >
                   Move
                 </button>
@@ -215,12 +218,12 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
         </div>
 
         {/* Modal Action Footer */}
-        <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between space-x-3">
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between space-x-3">
           {booking.bookingStatus === 'CONFIRMED' && onCancelReservation && (
             <button
               onClick={handleCancel}
               disabled={isProcessing}
-              className="py-2.5 px-4 bg-red-950/40 hover:bg-red-900/60 border border-red-800 text-red-300 font-bold text-xs rounded-xl transition active:scale-95 disabled:opacity-50"
+              className="py-2 px-4 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               Cancel Booking
             </button>
@@ -229,7 +232,7 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
           <div className="flex-1 flex justify-end space-x-2">
             <button
               onClick={onClose}
-              className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition"
+              className="py-2 px-4 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
             >
               Close
             </button>
@@ -238,9 +241,9 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
               <button
                 onClick={handleCheckIn}
                 disabled={isProcessing || !booking.allocatedRoomId}
-                className="py-2.5 px-5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-950/40 transition active:scale-95 disabled:opacity-50 flex items-center space-x-1.5"
+                className="btn-glass-green py-2 px-5 font-bold text-xs rounded-xl shadow-md transition active:scale-95 disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
               >
-                <span>🔑</span>
+                <Key className="w-4 h-4 text-white" />
                 <span>{isProcessing ? 'Checking In...' : 'Check-In Guest'}</span>
               </button>
             )}

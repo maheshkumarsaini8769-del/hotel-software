@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IVendorUI, INewPoPayload, InventoryPoHelper } from '@spicehub/ui';
+import { IVendorUI, INewPoPayload, InventoryPoHelper, NumericInput } from '@spicehub/ui';
 
 interface NewPurchaseOrderModalProps {
   isOpen: boolean;
@@ -81,11 +81,11 @@ export const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border-2 border-amber-500/40 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
+      <div className="bg-slate-900 border-2 border-amber-500/40 rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="bg-slate-900 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl">📦</span>
+            <span className="text-xl"></span>
             <div>
               <h2 className="text-lg font-bold text-white">Raise Official Purchase Order (PO)</h2>
               <p className="text-xs text-zinc-400">
@@ -98,7 +98,7 @@ export const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
             onClick={onClose}
             className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -166,7 +166,7 @@ export const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
               </button>
             </div>
 
-            <div className="bg-zinc-950/70 border border-zinc-800 rounded-2xl overflow-hidden p-3 space-y-2">
+            <div className="bg-zinc-950/70 border border-zinc-800 rounded-xl overflow-hidden p-3 space-y-2">
               <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-zinc-400 uppercase pb-1 border-b border-zinc-800 px-2">
                 <span className="col-span-5">Item Description & SKU</span>
                 <span className="col-span-2 text-right">Order Qty</span>
@@ -188,8 +188,7 @@ export const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                     />
                   </div>
                   <div className="col-span-2">
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.1"
                       min="0.1"
                       value={it.orderQuantity}
@@ -214,8 +213,7 @@ export const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.01"
                       min="0"
                       value={it.unitPrice}
@@ -231,7 +229,7 @@ export const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                       disabled={items.length <= 1}
                       className="text-zinc-500 hover:text-red-400 disabled:opacity-30 p-1 text-xs"
                     >
-                      ✕
+                      
                     </button>
                   </div>
                 </div>
@@ -240,7 +238,7 @@ export const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
           </div>
 
           {/* Financial Totals Display */}
-          <div className="bg-zinc-950 border border-amber-500/30 p-4 rounded-2xl flex items-center justify-between">
+          <div className="bg-zinc-950 border border-amber-500/30 p-4 rounded-xl flex items-center justify-between">
             <div className="space-y-1">
               <span className="text-xs text-zinc-400 block">Subtotal: {InventoryPoHelper.formatCurrency(subtotal)}</span>
               <span className="text-xs text-zinc-400 block">GST / Taxes: {InventoryPoHelper.formatCurrency(taxAmount)}</span>

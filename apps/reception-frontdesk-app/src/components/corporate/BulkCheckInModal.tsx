@@ -63,7 +63,7 @@ export const BulkCheckInModal: React.FC<BulkCheckInModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden text-xs text-zinc-300">
+      <div className="bg-slate-900 border border-amber-500/30 rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-sm dark:shadow-none overflow-hidden text-xs text-zinc-300">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-slate-950">
           <div>
@@ -80,7 +80,7 @@ export const BulkCheckInModal: React.FC<BulkCheckInModalProps> = ({
             onClick={onClose}
             className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-lg"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -147,7 +147,7 @@ export const BulkCheckInModal: React.FC<BulkCheckInModalProps> = ({
 
           {availableRooms.length === 0 && (
             <div className="p-3 rounded-xl bg-red-950/40 border border-red-800/40 text-red-300 text-xs">
-              ⚠️ Warning: No clean available rooms found in system. Please release or inspect rooms in Housekeeping before check-in.
+              ️ Warning: No clean available rooms found in system. Please release or inspect rooms in Housekeeping before check-in.
             </div>
           )}
 
@@ -163,7 +163,7 @@ export const BulkCheckInModal: React.FC<BulkCheckInModalProps> = ({
             <button
               type="submit"
               disabled={loading || !isComplete}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold text-xs shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold text-xs shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
             >
               {loading && <span className="w-3.5 h-3.5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />}
               <span>Confirm 1-Click Check-In ({pendingRooms.length} Rooms)</span>

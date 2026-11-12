@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 
 export enum UserRole {
   SUPERADMIN = 'SUPERADMIN',
+  GROUP_ADMIN = 'GROUP_ADMIN',
   HOTEL_ADMIN = 'HOTEL_ADMIN',
   MANAGER = 'MANAGER',
   CASHIER = 'CASHIER',
@@ -31,6 +32,8 @@ export interface AuthenticatedUserPayload {
   role: UserRole;
   email: string;
   permissions: string[];
+  impersonatedBy?: string;
+  impersonationGrantId?: string;
 }
 
 export interface TenantRequest extends Request {

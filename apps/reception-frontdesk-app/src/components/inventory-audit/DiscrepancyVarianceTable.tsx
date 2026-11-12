@@ -22,11 +22,11 @@ export const DiscrepancyVarianceTable: React.FC<DiscrepancyVarianceTableProps> =
   );
 
   return (
-    <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
+    <div className="bg-zinc-900/90 border border-zinc-800 rounded-xl overflow-hidden shadow-xl">
       <div className="p-4 border-b border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <span>⚖️</span> Item Variance & Stocktake Reconciliation Breakdown
+            <span>️</span> Item Variance & Stocktake Reconciliation Breakdown
             {auditNumber && <span className="text-xs text-emerald-400 font-mono">({auditNumber})</span>}
           </h3>
           <p className="text-xs text-zinc-400 mt-0.5">

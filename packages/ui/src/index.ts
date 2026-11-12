@@ -4,8 +4,22 @@ export { TableStatus, RoomStatus, OrderStatus, FoodType };
 export { ErrorBoundary } from './ErrorBoundary';
 export type { ErrorBoundaryProps } from './ErrorBoundary';
 
+export { UserPreferencesPanel } from './settings/UserPreferencesPanel';
+export type { UserPreferencesPanelProps } from './settings/UserPreferencesPanel';
+
 export { StaffLoginGate } from './StaffLoginGate';
 export type { StaffLoginGateProps, StaffSessionUser } from './StaffLoginGate';
+
+export {
+  clearHotelAccessToken,
+  isValidHotelAccessCode,
+  normalizeHotelAccessCode,
+  readHotelAccessHotelId,
+  readHotelAccessToken,
+  storeHotelAccessToken,
+  verifyHotelAccessCode,
+} from './staffHotelAccess';
+export type { VerifiedHotelAccess } from './staffHotelAccess';
 
 // Apple Human Interface Guidelines (HIG) Design Tokens
 export {
@@ -173,6 +187,10 @@ export * from './revenue-manager';
 // Universal Customer Self-Service Portal Exports
 export * from './customer-portal';
 
+// Android hand-off for QR links scanned outside the customer app
+export * from './mobile-app-gate/OpenInSpiceHubApp';
+export * from './mobile-app-gate/CustomerDownloadAppBanner';
+
 // Smart Table Availability & Co-Dining / Community Table Seat-Level Booking Exports
 export * from './co-dining';
 
@@ -235,3 +253,5 @@ export * from './i18n/translations';
 
 
 
+export { IMAGE_PLACEHOLDER } from './ImagePlaceholder';
+export * from './components/NumericInput';

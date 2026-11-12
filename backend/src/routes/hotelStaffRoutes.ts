@@ -5,6 +5,7 @@ import {
   updateHotelStaff,
   deleteHotelStaff,
   approveStaffPin,
+  generateStaffAccessCode,
 } from '../controllers/hotelStaffController';
 import { authenticateBackOffice } from '../middlewares/backOfficeAuth';
 
@@ -14,6 +15,7 @@ router.use(authenticateBackOffice);
 
 // Staff User Creation & Roster Management Endpoints
 router.get('/', getHotelStaff);
+router.post('/access-code', generateStaffAccessCode);
 router.post('/', createHotelStaff);
 router.patch('/:id', updateHotelStaff);
 router.patch('/:id/approve-pin', approveStaffPin);

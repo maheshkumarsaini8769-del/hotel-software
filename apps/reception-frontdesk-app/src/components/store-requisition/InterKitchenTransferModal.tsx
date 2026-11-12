@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { INewTransferPayload } from '@spicehub/ui';
+import { INewTransferPayload, NumericInput } from '@spicehub/ui';
 
 interface InterKitchenTransferModalProps {
   isOpen: boolean;
@@ -59,11 +59,11 @@ export const InterKitchenTransferModal: React.FC<InterKitchenTransferModalProps>
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border-2 border-blue-500/40 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
+      <div className="bg-slate-900 border-2 border-blue-500/40 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="bg-slate-900 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl">🔄</span>
+            <span className="text-xl"></span>
             <div>
               <h2 className="text-lg font-bold text-white">Inter-Kitchen Stock Transfer</h2>
               <p className="text-xs text-zinc-400">
@@ -76,7 +76,7 @@ export const InterKitchenTransferModal: React.FC<InterKitchenTransferModalProps>
             onClick={onClose}
             className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -126,7 +126,7 @@ export const InterKitchenTransferModal: React.FC<InterKitchenTransferModalProps>
               </button>
             </div>
 
-            <div className="bg-zinc-950/70 border border-zinc-800 rounded-2xl overflow-hidden p-3 space-y-2">
+            <div className="bg-zinc-950/70 border border-zinc-800 rounded-xl overflow-hidden p-3 space-y-2">
               <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-zinc-400 uppercase pb-1 border-b border-zinc-800 px-2">
                 <span className="col-span-6">Item / Prep Description</span>
                 <span className="col-span-3 text-right">Transfer Qty</span>
@@ -147,8 +147,7 @@ export const InterKitchenTransferModal: React.FC<InterKitchenTransferModalProps>
                     />
                   </div>
                   <div className="col-span-3">
-                    <input
-                      type="number"
+                    <NumericInput
                       step="0.1"
                       min="0.1"
                       value={it.quantity}
@@ -177,7 +176,7 @@ export const InterKitchenTransferModal: React.FC<InterKitchenTransferModalProps>
                       disabled={items.length <= 1}
                       className="text-zinc-500 hover:text-red-400 disabled:opacity-30 p-1 text-xs"
                     >
-                      ✕
+                      
                     </button>
                   </div>
                 </div>
@@ -210,7 +209,7 @@ export const InterKitchenTransferModal: React.FC<InterKitchenTransferModalProps>
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
+              className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:bg-zinc-800 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
             >
               {loading ? 'Dispatching...' : 'Dispatch Transfer'}
             </button>

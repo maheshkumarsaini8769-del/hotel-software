@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { formatCurrency } from '@spicehub/ui';
 import { BillingCalculatorHelper } from '@spicehub/ui';
-import { CurrencyDenomination, DenominationItem } from '@spicehub/ui';
+import { CurrencyDenomination, DenominationItem, NumericInput } from '@spicehub/ui';
+import { Lock, FileCheck, X } from 'lucide-react';
 
 export interface BlindShiftCloseModalProps {
   cashierName: string;
@@ -70,41 +71,46 @@ export const BlindShiftCloseModal: React.FC<BlindShiftCloseModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-amber-500/30 text-zinc-100 rounded-3xl max-w-lg w-full shadow-sm dark:shadow-none p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white border border-slate-200 text-slate-900 rounded-3xl max-w-lg w-full shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200">
           <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center text-xl font-bold shadow-sm dark:shadow-none">
-              🔒
-            </span>
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shadow-xs">
+              <Lock className="w-5 h-5" />
+            </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-                <h2 className="text-lg font-bold text-white tracking-tight">Cashier Blind Shift Close</h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                <h2 className="text-lg font-bold text-slate-900 tracking-tight">Cashier Blind Shift Close</h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Shift 54
                 </span>
               </div>
-              <p className="text-xs text-zinc-400 mt-0.5">Cashier: {cashierName}</p>
+              <p className="text-xs text-slate-500 mt-0.5">Cashier: {cashierName}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-white rounded-lg text-lg transition">✕</button>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {!result ? (
           <>
             {/* Opening Float */}
             <div>
-              <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Shift Opening Float Cash:</label>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                Shift Opening Float Cash:
+              </label>
               <div className="relative mt-1">
-                <span className="absolute left-3.5 top-2.5 text-zinc-500 text-sm font-bold">₹</span>
-                <input
-                  type="number"
+                <span className="absolute left-3.5 top-2.5 text-slate-400 text-sm font-bold">₹</span>
+                <NumericInput
                   min={0}
                   value={openingFloat}
                   onChange={(e) => setOpeningFloat(Number(e.target.value))}
-                  className="w-full pl-8 pr-3 py-2 text-sm font-bold border border-zinc-800 rounded-xl bg-slate-900 text-white focus:border-amber-500 outline-none transition"
+                  className="w-full pl-8 pr-3 py-2 text-sm font-bold border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:border-emerald-500 focus:bg-white outline-none transition"
                 />
               </div>
             </div>
@@ -112,23 +118,27 @@ export const BlindShiftCloseModal: React.FC<BlindShiftCloseModalProps> = ({
             {/* Blind Physical Denomination Note Counter */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Physical Note Breakdown:</span>
-                <span className="text-[11px] text-amber-400/80 font-semibold">(Blind Physical Count)</span>
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  Physical Note Breakdown:
+                </span>
+                <span className="text-[11px] text-emerald-700 font-semibold">(Blind Physical Count)</span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 bg-slate-900 p-3 rounded-2xl border border-zinc-800">
+              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
                 {([2000, 500, 200, 100, 50, 20, 10, 5, 1] as CurrencyDenomination[]).map((denom) => (
-                  <div key={denom} className="flex items-center space-x-2 bg-slate-900 p-2 rounded-xl border border-zinc-800 text-xs">
-                    <span className="w-12 font-bold text-amber-300">₹{denom} ×</span>
-                    <input
-                      type="number"
+                  <div
+                    key={denom}
+                    className="flex items-center space-x-2 bg-white p-2 rounded-xl border border-slate-200 text-xs shadow-xs"
+                  >
+                    <span className="w-12 font-bold text-slate-700">₹{denom} ×</span>
+                    <NumericInput
                       min={0}
                       value={notesRecord[denom] || ''}
                       placeholder="0"
                       onChange={(e) => handleCountChange(denom, Number(e.target.value))}
-                      className="w-14 px-1.5 py-1 text-center font-bold border rounded-lg bg-slate-900 border-zinc-700 text-white focus:border-amber-400 outline-none"
+                      className="w-14 px-1.5 py-1 text-center font-bold border rounded-lg bg-slate-50 border-slate-200 text-slate-900 focus:border-emerald-500 focus:bg-white outline-none"
                     />
-                    <span className="flex-1 text-right font-semibold text-zinc-400">
+                    <span className="flex-1 text-right font-semibold text-slate-500">
                       ={formatCurrency(denom * (notesRecord[denom] || 0))}
                     </span>
                   </div>
@@ -137,25 +147,29 @@ export const BlindShiftCloseModal: React.FC<BlindShiftCloseModalProps> = ({
             </div>
 
             {/* Total Counted Physical Cash Highlight */}
-            <div className="p-4 bg-gradient-to-r from-amber-950/30 to-amber-900/20 border border-amber-500/40 rounded-2xl flex items-center justify-between">
+            <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex items-center justify-between">
               <div>
-                <div className="text-[10px] font-extrabold text-amber-400 uppercase tracking-widest">Total Physical Counted Cash</div>
-                <div className="text-[11px] text-zinc-400 mt-0.5">System expected cash will be audited upon submit</div>
+                <div className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-widest">
+                  Total Physical Counted Cash
+                </div>
+                <div className="text-[11px] text-emerald-600 mt-0.5">System expected cash will be audited upon submit</div>
               </div>
-              <div className="text-2xl font-black text-amber-400 font-mono tracking-tight shadow-sm dark:shadow-none">
+              <div className="text-2xl font-black text-emerald-700 font-mono tracking-tight">
                 {formatCurrency(denominationSummary.total)}
               </div>
             </div>
 
             {/* Shift Close Notes */}
             <div>
-              <label className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Shift Handover Remarks:</label>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                Shift Handover Remarks:
+              </label>
               <textarea
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Any discrepancy or remarks for manager..."
-                className="w-full mt-1 p-2.5 text-xs border border-zinc-800 rounded-xl bg-slate-900 text-white focus:border-amber-500 outline-none placeholder-zinc-600"
+                className="w-full mt-1 p-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:border-emerald-500 focus:bg-white outline-none placeholder:text-slate-400"
               />
             </div>
 
@@ -164,7 +178,7 @@ export const BlindShiftCloseModal: React.FC<BlindShiftCloseModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 py-3 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 text-xs font-bold rounded-xl transition"
+                className="flex-1 py-3 border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl transition"
               >
                 Cancel
               </button>
@@ -173,9 +187,9 @@ export const BlindShiftCloseModal: React.FC<BlindShiftCloseModalProps> = ({
                 data-testid="blind-close-submit-btn"
                 disabled={isSubmitting || denominationSummary.total === 0}
                 onClick={handleSubmit}
-                className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-amber-950/40 transition active:scale-95 flex items-center justify-center gap-1.5"
+                className="btn-glass-green flex-1 py-3 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold uppercase tracking-wider rounded-xl flex items-center justify-center gap-1.5"
               >
-                <span>🔒</span>
+                <Lock className="w-4 h-4" />
                 <span>{isSubmitting ? 'Auditing Shift...' : 'Blind Close Shift'}</span>
               </button>
             </div>
@@ -184,25 +198,27 @@ export const BlindShiftCloseModal: React.FC<BlindShiftCloseModalProps> = ({
           /* Shift Close Result & Certificate */
           <div className="space-y-4 py-2">
             <div className="text-center">
-              <span className="text-4xl block mb-1">📜</span>
-              <h3 className="font-extrabold text-lg text-white">Shift Reconciliation Complete</h3>
-              <div className="inline-block mt-1 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono text-xs font-bold">
+              <div className="w-12 h-12 mx-auto mb-2 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs">
+                <FileCheck className="w-6 h-6" />
+              </div>
+              <h3 className="font-extrabold text-lg text-slate-900">Shift Reconciliation Complete</h3>
+              <div className="inline-block mt-1 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-mono text-xs font-bold">
                 {result.certificateNumber}
               </div>
             </div>
 
-            <div className="bg-slate-900 border border-zinc-800 p-4 rounded-2xl space-y-2.5 text-xs text-zinc-300">
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-2.5 text-xs text-slate-700">
               <div className="flex justify-between items-center">
-                <span className="text-zinc-400">System Expected Cash:</span>
-                <span className="font-bold text-white font-mono text-sm">{formatCurrency(result.systemExpectedCash)}</span>
+                <span className="text-slate-500">System Expected Cash:</span>
+                <span className="font-bold text-slate-900 font-mono text-sm">{formatCurrency(result.systemExpectedCash)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-zinc-400">Physical Counted Cash:</span>
-                <span className="font-bold text-amber-400 font-mono text-sm">{formatCurrency(result.actualCountedCash)}</span>
+                <span className="text-slate-500">Physical Counted Cash:</span>
+                <span className="font-bold text-emerald-700 font-mono text-sm">{formatCurrency(result.actualCountedCash)}</span>
               </div>
-              <div className="flex justify-between items-center pt-2.5 border-t border-zinc-800 text-sm font-black">
+              <div className="flex justify-between items-center pt-2.5 border-t border-slate-200 text-sm font-black">
                 <span>Variance:</span>
-                <span className={result.varianceAmount === 0 ? 'text-emerald-400' : result.varianceAmount < 0 ? 'text-red-400' : 'text-sky-400'}>
+                <span className={result.varianceAmount === 0 ? 'text-emerald-600' : result.varianceAmount < 0 ? 'text-rose-600' : 'text-sky-600'}>
                   {result.varianceAmount > 0 ? `+${formatCurrency(result.varianceAmount)}` : formatCurrency(result.varianceAmount)}
                 </span>
               </div>
@@ -210,10 +226,10 @@ export const BlindShiftCloseModal: React.FC<BlindShiftCloseModalProps> = ({
 
             <div className={`p-3 rounded-xl text-center text-xs font-extrabold uppercase tracking-wider border ${
               result.status === 'BALANCED'
-                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 : result.status === 'SHORTAGE'
-                ? 'bg-red-950/60 text-red-300 border-red-500/40'
-                : 'bg-sky-950/60 text-sky-300 border-sky-500/40'
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : 'bg-sky-50 text-sky-700 border-sky-200'
             }`}>
               Audit Status: {result.status}
             </div>
@@ -221,7 +237,7 @@ export const BlindShiftCloseModal: React.FC<BlindShiftCloseModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-full py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-950/40 transition active:scale-95"
+              className="btn-glass-green w-full py-3 text-xs font-bold uppercase tracking-wider rounded-xl"
             >
               Done & Logout Shift
             </button>

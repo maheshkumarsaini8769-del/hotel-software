@@ -33,6 +33,9 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
     highCostRecipesCount: 0,
     averageFoodCostPercentage: 0,
     targetFoodCostPercentage: 32,
+    menuItemCount: 0,
+    recipeCoverageCount: 0,
+    recipeCoveragePercentage: 0,
   });
   const [wasteLogs, setWasteLogs] = useState<IFoodWasteLogUI[]>([]);
   const [wasteSummary, setWasteSummary] = useState<IFoodWasteSummaryUI>({
@@ -48,6 +51,10 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
   const [activeModal, setActiveModal] = useState<'EDIT_RECIPE' | 'LOG_WASTE' | 'VIEW_RECIPE' | null>(null);
   const [menuItems, setMenuItems] = useState<Array<{ _id: string; name: string; basePrice: number }>>([]);
   const [loading, setLoading] = useState(false);
+  const [recipesError, setRecipesError] = useState('');
+  const [wasteError, setWasteError] = useState('');
+  const [menuItemsError, setMenuItemsError] = useState('');
+  const [actionError, setActionError] = useState('');
 
   // Subscribe to store
   useEffect(() => {
@@ -79,12 +86,14 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
         credentials: 'include',
         headers: authHeaders(),
       });
-      if (res.ok) {
-        const data = await res.json();
-        store.setRecipes(data.recipes, data.metrics);
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success || !Array.isArray(data.recipes)) {
+        throw new Error(data?.message || 'Recipe data could not be loaded.');
       }
-    } catch {
-      // Fallback sample data in dev
+      store.setRecipes(data.recipes, data.metrics);
+      setRecipesError('');
+    } catch (error) {
+      setRecipesError(error instanceof Error ? error.message : 'Recipe data could not be loaded.');
     } finally {
       store.setLoading(false);
     }
@@ -95,12 +104,14 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
     try {
       const url = `${apiBaseUrl}/recipe-costing/waste/audit?wasteType=${wasteFilter}`;
       const res = await fetch(url, { credentials: 'include', headers: authHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        store.setWasteLogs(data.logs, data.summary);
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success || !Array.isArray(data.logs)) {
+        throw new Error(data?.message || 'Food waste audit could not be loaded.');
       }
-    } catch {
-      // Fallback
+      store.setWasteLogs(data.logs, data.summary);
+      setWasteError('');
+    } catch (error) {
+      setWasteError(error instanceof Error ? error.message : 'Food waste audit could not be loaded.');
     }
   }, [apiBaseUrl, authHeaders, store, wasteFilter]);
 
@@ -108,18 +119,20 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
   const fetchMenuItems = useCallback(async () => {
     try {
       const res = await fetch(`${apiBaseUrl}/pos/menu`, { credentials: 'include', headers: authHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        const items = data.menuItems || data.items || [];
-        setMenuItems(items);
+      const data = await res.json().catch(() => null);
+      const items = data?.data?.menuItems || data?.data?.items || data?.data || data?.menuItems || data?.items;
+      if (!res.ok || !Array.isArray(items)) {
+        throw new Error(data?.message || 'Hotel menu items could not be loaded.');
       }
-    } catch {
-      setMenuItems([
-        { _id: 'item-1', name: 'Signature Dum Biryani', basePrice: 280 },
-        { _id: 'item-2', name: 'Butter Chicken Gravy', basePrice: 320 },
-        { _id: 'item-3', name: 'Paneer Tikka Masala', basePrice: 240 },
-        { _id: 'item-4', name: 'Dal Makhani Heritage', basePrice: 190 },
-      ]);
+      setMenuItems(items.map((item: any) => ({
+        _id: String(item._id || item.id || ''),
+        name: String(item.name || ''),
+        basePrice: Number(item.basePrice ?? item.price ?? 0),
+      })).filter((item: { _id: string; name: string; basePrice: number }) => item._id && item.name));
+      setMenuItemsError('');
+    } catch (error) {
+      setMenuItems([]);
+      setMenuItemsError(error instanceof Error ? error.message : 'Hotel menu items could not be loaded.');
     }
   }, [apiBaseUrl, authHeaders]);
 
@@ -132,19 +145,21 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
   // Handle Save Recipe BOM
   const handleSaveRecipe = async (payload: INewRecipePayload) => {
     try {
+      setActionError('');
       store.setLoading(true);
       const res = await fetch(`${apiBaseUrl}/recipe-costing/recipes`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify(payload),
       });
-
-      if (res.ok) {
-        store.setActiveModal(null);
-        fetchRecipes();
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || 'Recipe BOM could not be saved.');
       }
-    } catch {
       store.setActiveModal(null);
+      await fetchRecipes();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Recipe BOM could not be saved.');
     } finally {
       store.setLoading(false);
     }
@@ -153,19 +168,21 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
   // Handle Log Food Waste
   const handleSaveWaste = async (payload: ILogWastePayload) => {
     try {
+      setActionError('');
       store.setLoading(true);
       const res = await fetch(`${apiBaseUrl}/recipe-costing/waste`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify(payload),
       });
-
-      if (res.ok) {
-        store.setActiveModal(null);
-        fetchWasteAudit();
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || 'Food waste entry could not be saved.');
       }
-    } catch {
       store.setActiveModal(null);
+      await fetchWasteAudit();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Food waste entry could not be saved.');
     } finally {
       store.setLoading(false);
     }
@@ -182,7 +199,7 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
   });
 
   return (
-    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans select-none">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans select-none">
       {/* Header */}
       <RecipeCostingHeader
         metrics={metrics}
@@ -190,6 +207,10 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
         activeTab={activeTab}
         onTabChange={(tab) => store.setActiveTab(tab)}
         onNewRecipeClick={() => {
+          if (menuItems.length === 0) {
+            setMenuItemsError('Add a menu item before creating a recipe BOM.');
+            return;
+          }
           store.setSelectedRecipe(null);
           store.setActiveModal('EDIT_RECIPE');
         }}
@@ -197,18 +218,44 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
         onRefreshClick={() => {
           fetchRecipes();
           fetchWasteAudit();
+          fetchMenuItems();
         }}
         loading={loading}
       />
 
       {/* Main Workspace Body */}
       <div className="flex-1 p-6 max-w-[1700px] w-full mx-auto">
+        {[recipesError, wasteError, menuItemsError].filter(Boolean).length > 0 && (
+          <div
+            role="alert"
+            className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-200"
+          >
+            {[...new Set([recipesError, wasteError, menuItemsError].filter(Boolean))].map((message) => (
+              <p key={message}>{message}</p>
+            ))}
+          </div>
+        )}
+        {actionError && (
+          <div
+            role="alert"
+            className="fixed left-1/2 top-4 z-[80] flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-start justify-between gap-4 rounded-xl border border-red-200 bg-red-950 px-4 py-3 text-sm text-red-100 shadow-xl"
+          >
+            <p>{actionError}</p>
+            <button
+              type="button"
+              onClick={() => setActionError('')}
+              className="shrink-0 rounded px-2 py-1 text-red-200 hover:bg-red-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         {activeTab === 'RECIPES' ? (
           <div className="space-y-6">
             {/* Search Bar */}
             <div className="flex items-center justify-between gap-4">
               <div className="relative flex-1 max-w-md">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">
                   🔍
                 </span>
                 <input
@@ -216,10 +263,10 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
                   value={searchQuery}
                   onChange={(e) => store.setSearchQuery(e.target.value)}
                   placeholder="Search standard recipe or recipe code..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white placeholder:text-zinc-500 outline-none focus:border-amber-400"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-amber-400"
                 />
               </div>
-              <span className="text-xs text-zinc-400 font-mono">
+              <span className="text-xs text-slate-600 font-mono">
                 Showing {filteredRecipes.length} of {recipes.length} standard recipes
               </span>
             </div>
@@ -227,18 +274,19 @@ export const RecipeCostingApp: React.FC<RecipeCostingAppProps> = ({
             {/* Recipe Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredRecipes.length === 0 ? (
-                <div className="col-span-full py-16 text-center text-zinc-500 text-sm flex flex-col items-center gap-3">
+                <div className="col-span-full py-16 text-center text-slate-500 text-sm flex flex-col items-center gap-3">
                   <span className="text-3xl">📋</span>
                   <span>No recipe specifications found matching your query</span>
                   <button
                     type="button"
+                    disabled={menuItems.length === 0}
                     onClick={() => {
                       store.setSelectedRecipe(null);
                       store.setActiveModal('EDIT_RECIPE');
                     }}
-                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs"
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    + Create First Recipe BOM
+                    {menuItems.length === 0 ? 'Add a Menu Item First' : '+ Create First Recipe BOM'}
                   </button>
                 </div>
               ) : (

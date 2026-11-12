@@ -7,6 +7,8 @@ export interface IGuestSession extends Document {
   sessionTokenHash: string; // Opaque cryptographic token hash
   lastKnownRoute: string;   // e.g. '/room-service/cart', '/my-folio'
   language: string;
+  theme: 'light' | 'dark';
+  fontSize: 'small' | 'medium' | 'large';
   isActive: boolean;
   expiresAt: Date;
   createdAt: Date;
@@ -21,6 +23,8 @@ const GuestSessionSchema = new Schema<IGuestSession>(
     sessionTokenHash: { type: String, required: true, index: true },
     lastKnownRoute: { type: String, default: '/guest-portal/home' },
     language: { type: String, default: 'en' },
+    theme: { type: String, enum: ['light', 'dark'], default: 'light' },
+    fontSize: { type: String, enum: ['small', 'medium', 'large'], default: 'medium' },
     isActive: { type: Boolean, default: true, index: true },
     expiresAt: { type: Date, required: true },
   },

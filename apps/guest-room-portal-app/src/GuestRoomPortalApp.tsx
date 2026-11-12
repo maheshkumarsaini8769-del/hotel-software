@@ -56,8 +56,6 @@ import {
   Calendar,
   User,
   Coffee as TeaIcon,
-  Sun,
-  Moon
 } from 'lucide-react';
 import {
   GuestPortalStore,
@@ -65,15 +63,35 @@ import {
   LiveRoomOrder,
   FolioSummaryModel,
   useTranslation,
+  IMAGE_PLACEHOLDER,
 } from '@spicehub/ui';
 import { API_ORIGIN } from './config/api';
 import { RoomCatalogView } from './components/RoomCatalogView';
 
 const API_BASE = API_ORIGIN;
+const FALLBACK_ROOM_IMAGE = '/images/customer-room.jpg';
+const FALLBACK_HOTEL_IMAGE = '/images/customer-hotel-cover.jpg';
+
+const handleImageError =
+  (fallback: string) =>
+  (event: React.SyntheticEvent<HTMLImageElement>): void => {
+    const image = event.currentTarget;
+    const fallbackUrl = new URL(fallback, image.baseURI).href;
+    if (image.src === fallbackUrl) {
+      image.style.display = 'none';
+      console.warn('[Guest Portal] Bundled image fallback failed to load:', fallback);
+      return;
+    }
+    image.src = fallback;
+  };
 
 export interface GuestRoomPortalAppProps {
   store: GuestPortalStore;
   hotelId?: string;
+  settingsApi?: {
+    get: () => Promise<{ language: 'en' | 'hi'; theme: 'light' | 'dark'; fontSize: 'small' | 'medium' | 'large'; hotelContactPhone: string }>;
+    save: (settings: { language: 'en' | 'hi'; theme: 'light' | 'dark'; fontSize: 'small' | 'medium' | 'large' }) => Promise<void>;
+  };
   onConciergeRequest?: (requestType: string, notes?: string, isBillable?: boolean, billableAmount?: number) => Promise<boolean | void> | boolean | void;
   onInRoomOrderPlaced?: (items: { dishId: string; name: string; quantity: number; price: number }[], instructions?: string) => Promise<boolean | void> | boolean | void;
   onExpressCheckout?: (notes?: string, paymentMethod?: string, rating?: number, comment?: string) => Promise<boolean | void> | boolean | void;
@@ -81,6 +99,7 @@ export interface GuestRoomPortalAppProps {
   onRefreshOrders?: () => Promise<void> | void;
   onRefreshFolio?: () => Promise<void> | void;
   onRoomBooked?: (roomNumber: string, sessionToken?: string) => void;
+  currentRoomNumber?: string;
   isCheckoutRequested?: boolean;
   isStayCheckedOut?: boolean;
   checkoutInvoice?: any;
@@ -124,6 +143,7 @@ interface MenuItem {
 
 export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   store,
+  settingsApi,
   onConciergeRequest,
   onInRoomOrderPlaced,
   hotelId,
@@ -132,6 +152,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   onRefreshOrders,
   onRefreshFolio,
   onRoomBooked,
+  currentRoomNumber,
   isCheckoutRequested = false,
   isStayCheckedOut = false,
   checkoutInvoice = null,
@@ -169,24 +190,75 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   }, []);
   const { locale, setLocale, toggleLocale, t: translate } = useTranslation();
   const selectedLanguage: 'EN' | 'HI' = locale === 'hi' ? 'HI' : 'EN';
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [hotelContactPhone, setHotelContactPhone] = useState('');
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsMessage, setSettingsMessage] = useState('');
+  const [settingsLoadVersion, setSettingsLoadVersion] = useState(0);
+  const isDark = theme === 'dark';
 
   const handleSetLanguage = (lang: 'EN' | 'HI') => {
     const code = lang === 'HI' ? 'hi' : 'en';
     setLocale(code);
+    setSettingsMessage('');
   };
 
-  // Theme State: strictly Bright Mode (Light Theme) per system standard
-  const [theme] = useState<'light'>('light');
-  const toggleTheme = () => {};
-  const isDark = false;
+  useEffect(() => {
+    let active = true;
+    if (!settingsApi) return () => { active = false; };
+    setSettingsLoading(true);
+    setSettingsError('');
+    void settingsApi.get()
+      .then((settings) => {
+        if (!active) return;
+        setLocale(settings.language);
+        setTheme(settings.theme);
+        setFontSize(settings.fontSize);
+        setHotelContactPhone(settings.hotelContactPhone);
+      })
+      .catch((error: unknown) => {
+        if (active) setSettingsError(error instanceof Error ? error.message : 'Settings could not be loaded.');
+      })
+      .finally(() => {
+        if (active) setSettingsLoading(false);
+      });
+    return () => { active = false; };
+  }, [settingsApi, setLocale, settingsLoadVersion]);
 
   useEffect(() => {
-    if (typeof document !== 'undefined') {
-      document.documentElement.classList.remove('dark');
-      document.body.style.backgroundColor = '#f8fafc';
-      document.body.style.color = '#0f172a';
+    const root = document.documentElement;
+    root.classList.toggle('dark', isDark);
+    root.dataset.fontSize = fontSize;
+    root.style.colorScheme = isDark ? 'dark' : 'light';
+    root.style.fontSize = { small: '14px', medium: '16px', large: '18px' }[fontSize];
+    document.body.style.backgroundColor = isDark ? '#020617' : '#f8fafc';
+    document.body.style.color = isDark ? '#f8fafc' : '#0f172a';
+  }, [fontSize, isDark]);
+
+  const saveGuestSettings = async () => {
+    if (!settingsApi) {
+      setSettingsError('Settings are unavailable until a room session is active.');
+      return;
     }
-  }, []);
+    setSettingsSaving(true);
+    setSettingsError('');
+    setSettingsMessage('');
+    try {
+      await settingsApi.save({
+        language: selectedLanguage === 'HI' ? 'hi' : 'en',
+        theme,
+        fontSize,
+      });
+      setSettingsMessage('Settings saved');
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : 'Settings could not be saved.');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
 
   // Dining Menu Filters & Search
   const [menuSearch, setMenuSearch] = useState<string>('');
@@ -221,7 +293,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
     return store.subscribe(syncFromStore);
   }, [store]);
 
-  const roomNumber = staySession?.roomNumber || '';
+  const roomNumber = staySession?.roomNumber || currentRoomNumber || '';
   const roomType = staySession?.roomType || 'Room';
   const guestName = staySession?.guestName || 'Valued Guest';
   const wifiSsid = staySession?.wifiSsid || 'SpiceHub_Guest';
@@ -259,6 +331,38 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
       : 0;
   const dynamicallyAdjustedNet = Math.max(0, folioNet + durationAdjustment);
   const dynamicallyAdjustedDue = Math.max(0, folioDue + durationAdjustment);
+
+  // Hotel branding (name, logo, cover) configured by the hotel admin.
+  const [hotelBranding, setHotelBranding] = useState<{
+    name: string;
+    logoUrl: string;
+    coverImageUrl: string;
+    stayImageUrl: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/auth/active-hotels`);
+        const body = await res.json().catch(() => null);
+        const list: any[] = Array.isArray(body?.data) ? body.data : [];
+        const match = hotelId ? list.find((h) => String(h.id) === String(hotelId)) : list[0];
+        if (cancelled || !match) return;
+        setHotelBranding({
+          name: String(match.name || ''),
+          logoUrl: String(match.logoUrl || ''),
+          coverImageUrl: String(match.coverImageUrl || ''),
+          stayImageUrl: String(match.stayImageUrl || match.coverImageUrl || ''),
+        });
+      } catch {
+        /* branding is optional; placeholders render when unavailable */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hotelId]);
 
   // Hotel-specific menu catalog (real Mongo menuItemIds for ordering)
   const [menuCatalog, setMenuCatalog] = useState<MenuItem[]>([]);
@@ -305,7 +409,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             description: item.description || 'Freshly prepared by our in-house kitchen.',
             image:
               (Array.isArray(item.images) && item.images[0]) ||
-              'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80',
+              IMAGE_PLACEHOLDER,
           };
         });
 
@@ -753,13 +857,13 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
   return (
     <div className={`min-h-screen w-full flex justify-center ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
       <div className={`w-full max-w-6xl 2xl:max-w-5xl mx-auto min-h-screen flex flex-col font-sans selection:bg-slate-900 selection:text-white antialiased transition-colors duration-200 overflow-x-hidden relative ${
-        isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
-      }`}>
+ isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+ }`}>
       {/* Toast Notification */}
       {toastMessage && (
         <div data-testid="toast-notification" className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl text-white font-bold text-xs shadow-sm dark:shadow-none border flex items-center gap-2.5 animate-bounce ${
-          isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-900 border-slate-800'
-        }`}>
+ isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-900 border-slate-800'
+ }`}>
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
@@ -768,20 +872,29 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
       {/* ======================================================== */}
       {/* 1. TOP RESPONSIVE LUXURY NAVBAR (FULL DESKTOP & MOBILE)  */}
       {/* ======================================================== */}
-      <header className="sticky top-0 z-40 backdrop-blur-md border-b bg-white/95 border-slate-200 shadow-xs transition-colors">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14 sm:h-16 gap-3">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 shadow-xs backdrop-blur-md transition-colors">
+        <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
+          <div className="flex h-14 items-center justify-between gap-2 sm:h-16 sm:gap-3">
             {/* Brand Logo & Name */}
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
-                <UtensilsCrossed className="w-4 h-4 sm:w-5 sm:h-5" />
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0 overflow-hidden">
+                {hotelBranding?.logoUrl ? (
+                  <img
+                    src={hotelBranding.logoUrl}
+                    alt={hotelBranding.name || 'Hotel logo'}
+                    onError={handleImageError(FALLBACK_HOTEL_IMAGE)}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <UtensilsCrossed className="w-4 h-4 sm:w-5 sm:h-5" />
+                )}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-base sm:text-lg tracking-tight text-slate-900 truncate">
-                    SpiceHub
+                    {hotelBranding?.name || 'SpiceHub'}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 shrink-0">
+                  <span className="shrink-0 rounded-full border border-blue-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-900">
                     Room {roomNumber || 'Portal'}
                   </span>
                 </div>
@@ -791,8 +904,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
             {/* Room Status & Guest Info Pill (Desktop / Tablet) */}
             <div className={`hidden lg:flex items-center gap-4 px-4 py-1.5 rounded-2xl border text-xs ${
-              isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-100 border-slate-200'
-            }`}>
+ isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-100 border-slate-200'
+ }`}>
               <div className="flex items-center gap-2">
                 <div className={`w-2.5 h-2.5 rounded-full ${isEffectiveStayCheckedOut ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`} />
                 <span className={`font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>Room {roomNumber || 'Resident'}</span>
@@ -818,15 +931,15 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             </div>
 
             {/* Right Action Buttons */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
               {/* Call Reception Button */}
               <button
                 onClick={() => setIsCallModalOpen(true)}
                 className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs transition border ${
-                  isDark
-                    ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-400'
-                    : 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-800'
-                }`}
+ isDark
+ ? 'bg-emerald-600/10 hover:bg-emerald-600/20 border-emerald-600/30 text-amber-400'
+ : 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-800'
+ }`}
               >
                 <PhoneCall className="w-3.5 h-3.5" />
                 <span>Call Reception</span>
@@ -843,39 +956,39 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     setIsMobileCartOpen(true);
                   }
                 }}
-                className={`relative flex items-center gap-2 px-3 py-2 rounded-xl text-white font-bold text-xs shadow-md transition ${
-                  isDark ? 'bg-slate-800 hover:bg-slate-900 shadow-stone-900/30' : 'bg-amber-600 hover:bg-amber-700 shadow-amber-900/20'
-                }`}
+                className={`relative flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold text-white shadow-md transition sm:gap-2 sm:px-3 ${
+ isDark ? 'bg-slate-800 hover:bg-slate-900 shadow-stone-900/30' : 'bg-amber-600 hover:bg-amber-700 shadow-amber-900/20'
+ }`}
               >
-                <ShoppingCart className="w-4 h-4 text-amber-300" />
+                <ShoppingCart className="h-4 w-4 shrink-0 text-amber-300" />
                 <span className="hidden sm:inline">Cart</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black">
+                <span className="rounded-full bg-amber-400 px-1.5 py-0.2 text-[10px] font-black text-slate-950 tabular-nums">
                   {totalCartCount}
                 </span>
-                <span className="hidden md:inline text-amber-200 font-extrabold">₹{totalAmount}</span>
+                <span className="hidden font-extrabold tabular-nums text-amber-200 md:inline">₹{totalAmount}</span>
               </button>
 
               {/* Language Switcher */}
-              <div className={`flex items-center border rounded-xl p-0.5 text-xs font-bold ${
-                isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
-              }`}>
+              <div className={`hidden shrink-0 items-center rounded-xl border p-0.5 text-xs font-bold xs:flex sm:flex ${
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+ }`}>
                 <button
                   onClick={() => handleSetLanguage('EN')}
                   className={`px-2 py-1 rounded-lg transition ${
-                    selectedLanguage === 'EN'
-                      ? 'bg-amber-600 text-white'
-                      : isDark ? 'text-slate-400' : 'text-slate-600'
-                  }`}
+ selectedLanguage === 'EN'
+ ? 'bg-amber-600 text-white'
+ : isDark ? 'text-slate-400' : 'text-slate-600'
+ }`}
                 >
                   EN
                 </button>
                 <button
                   onClick={() => handleSetLanguage('HI')}
                   className={`px-2 py-1 rounded-lg transition ${
-                    selectedLanguage === 'HI'
-                      ? 'bg-amber-600 text-white'
-                      : isDark ? 'text-slate-400' : 'text-slate-600'
-                  }`}
+ selectedLanguage === 'HI'
+ ? 'bg-amber-600 text-white'
+ : isDark ? 'text-slate-400' : 'text-slate-600'
+ }`}
                 >
                   हिन्दी
                 </button>
@@ -884,9 +997,9 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
           </div>
 
           {/* Secondary Desktop & Tablet Navigation Links */}
-          <nav className={`hidden md:flex items-center gap-6 border-b border-slate-200 dark:border-slate-800 pb-3 pt-2 text-sm font-semibold overflow-x-auto ${
-            isDark ? 'text-slate-400' : 'text-slate-600'
-          }`}>
+          <nav className={`hidden md:flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-slate-200 dark:border-slate-800 pb-3 pt-2 text-sm font-semibold max-w-full ${
+ isDark ? 'text-slate-400' : 'text-slate-600'
+ }`}>
             {[
               { id: 'ROOMS', label: selectedLanguage === 'HI' ? 'कमरे और उपलब्धता' : 'Rooms & Availability', icon: Building2 },
               { id: 'HOME', label: selectedLanguage === 'HI' ? 'मेरा प्रवास' : 'Overview & Stay', icon: BedDouble },
@@ -905,15 +1018,15 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   key={tab.id}
                   data-testid={`top-nav-${tab.id.toLowerCase()}`}
                   onClick={() => setActiveTab(tab.id as PortalTab)}
-                  className={`flex items-center gap-2 pb-1 transition border-b-2 -mb-[13px] shrink-0 ${
-                    isActive
-                      ? isDark
-                        ? 'text-white border-white font-bold'
-                        : 'text-slate-900 border-slate-900 font-bold'
-                      : isDark
-                        ? 'border-transparent text-slate-400 hover:text-white'
-                        : 'border-transparent text-slate-600 hover:text-slate-900'
-                  }`}
+                  className={`flex items-center gap-2 pb-1 transition border-b-2 ${
+ isActive
+ ? isDark
+ ? 'text-white border-white font-bold'
+ : 'text-slate-900 border-slate-900 font-bold'
+ : isDark
+ ? 'border-transparent text-slate-400 hover:text-white'
+ : 'border-transparent text-slate-600 hover:text-slate-900'
+ }`}
                 >
                   <Icon className="w-4 h-4" />
                   <span>{tab.label}</span>
@@ -935,8 +1048,6 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
           <RoomCatalogView
             hotelId={hotelId}
             currentRoomNumber={roomNumber}
-            theme={theme}
-            onToggleTheme={toggleTheme}
             onRoomBooked={(newRoom, sessionToken) => {
               if (onRoomBooked) {
                 onRoomBooked(newRoom, sessionToken);
@@ -958,8 +1069,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         {/* ===================================================== */}
         {isEffectiveStayCheckedOut && activeTab !== 'ROOMS' && activeTab !== 'BILL' && (
           <div data-testid="post-checkout-locked-view" className={`max-w-xl mx-auto my-8 p-8 rounded-3xl border text-center space-y-6 shadow-sm dark:shadow-none ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-          }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+ }`}>
             <div className="w-20 h-20 mx-auto rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-inner">
               <Lock className="w-10 h-10" />
             </div>
@@ -978,8 +1089,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
             {/* Departure summary box */}
             <div className={`p-4 rounded-2xl border text-left space-y-2.5 text-xs ${
-              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-            }`}>
+ isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}>
               <div className="flex justify-between items-center py-1 border-b border-slate-700/30">
                 <span className="text-slate-400">Guest Name</span>
                 <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{guestName}</span>
@@ -1011,8 +1122,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
               <button
                 onClick={() => setActiveTab('ROOMS')}
                 className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs border transition flex items-center justify-center gap-2 ${
-                  isDark ? 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200' : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800'
-                }`}
+ isDark ? 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200' : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800'
+ }`}
               >
                 <Building2 className="w-4 h-4" />
                 <span>Book Another Room</span>
@@ -1029,11 +1140,12 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             {/* Full-Width Luxury Hero Banner */}
             <div className="relative rounded-3xl overflow-hidden shadow-sm dark:shadow-none bg-stone-900 border border-slate-800 h-64 sm:h-80 lg:h-96">
               <img
-                src="https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1600&auto=format&fit=crop&q=80"
-                alt="Deluxe Room Interior"
+                src={hotelBranding?.stayImageUrl || hotelBranding?.coverImageUrl || FALLBACK_ROOM_IMAGE}
+                alt={hotelBranding?.name ? `${hotelBranding.name} room interior` : 'Deluxe Room Interior'}
+                onError={handleImageError(FALLBACK_ROOM_IMAGE)}
                 className="w-full h-full object-cover opacity-75"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent p-6 sm:p-10 flex flex-col justify-end">
+              <div className="bg-gradient-to-t absolute inset-0 from-slate-950 via-slate-950/40 p-6 sm:p-10 flex flex-col justify-end">
                 <div className="max-w-2xl space-y-2">
                   <div data-testid="guest-welcome-screen" className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 text-xs font-bold">
                     <BedDouble className="w-3.5 h-3.5" />
@@ -1081,7 +1193,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   <button
                     data-testid="hero-browse-rooms-btn"
                     onClick={() => setActiveTab('ROOMS')}
-                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition"
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-amber-400 text-white font-black text-xs flex items-center gap-1.5 shadow-md transition"
                   >
                     <Building2 className="w-3.5 h-3.5" />
                     <span>Browse All Rooms & Rates</span>
@@ -1109,10 +1221,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 <button
                   onClick={() => setActiveTab('DINING')}
                   className={`p-4 sm:p-5 rounded-2xl border transition flex flex-col items-center justify-center text-center gap-3 group shadow-md ${
-                    isDark
-                      ? 'bg-slate-900 hover:bg-slate-900 border-orange-500/20 hover:border-orange-500/50'
-                      : 'bg-white hover:bg-orange-50/50 border-slate-200 hover:border-orange-300'
-                  }`}
+ isDark
+ ? 'bg-slate-900 hover:bg-slate-900 border-emerald-600/20 hover:border-emerald-600/50'
+ : 'bg-white hover:bg-orange-50/50 border-slate-200 hover:border-orange-300'
+ }`}
                 >
                   <div className="w-12 h-12 rounded-2xl bg-orange-600/20 text-orange-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-orange-600 group-hover:text-white transition">
                     <Utensils className="w-6 h-6" />
@@ -1127,10 +1239,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 <button
                   onClick={() => setActiveTab('ROOM_SERVICE')}
                   className={`p-4 sm:p-5 rounded-2xl border transition flex flex-col items-center justify-center text-center gap-3 group shadow-md ${
-                    isDark
-                      ? 'bg-slate-900 hover:bg-slate-900 border-blue-500/20 hover:border-blue-500/50'
-                      : 'bg-white hover:bg-blue-50/50 border-slate-200 hover:border-blue-300'
-                  }`}
+ isDark
+ ? 'bg-slate-900 hover:bg-slate-900 border-blue-500/20 hover:border-blue-500/50'
+ : 'bg-white hover:bg-blue-50/50 border-slate-200 hover:border-blue-300'
+ }`}
                 >
                   <div className="w-12 h-12 rounded-2xl bg-blue-600/20 text-blue-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition">
                     <ConciergeBell className="w-6 h-6" />
@@ -1152,10 +1264,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     setActiveTab('HOUSEKEEPING');
                   }}
                   className={`p-4 sm:p-5 rounded-2xl border transition flex flex-col items-center justify-center text-center gap-3 group shadow-md ${
-                    isDark
-                      ? 'bg-slate-900 hover:bg-slate-900 border-emerald-500/20 hover:border-emerald-500/50'
-                      : 'bg-white hover:bg-emerald-50/50 border-slate-200 hover:border-emerald-300'
-                  }`}
+ isDark
+ ? 'bg-slate-900 hover:bg-slate-900 border-emerald-500/20 hover:border-emerald-500/50'
+ : 'bg-white hover:bg-emerald-50/50 border-slate-200 hover:border-emerald-300'
+ }`}
                 >
                   <div className="w-12 h-12 rounded-2xl bg-emerald-600/20 text-emerald-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition">
                     <Sparkles className="w-6 h-6" />
@@ -1177,10 +1289,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     setActiveTab('HOUSEKEEPING');
                   }}
                   className={`p-4 sm:p-5 rounded-2xl border transition flex flex-col items-center justify-center text-center gap-3 group shadow-md ${
-                    isDark
-                      ? 'bg-slate-900 hover:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-200 dark:border-slate-800'
-                      : 'bg-white hover:bg-slate-100 dark:bg-slate-800 border-slate-200 hover:border-slate-200 dark:border-slate-800'
-                  }`}
+ isDark
+ ? 'bg-slate-900 hover:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-200 dark:border-slate-800'
+ : 'bg-white hover:bg-slate-100 dark:bg-slate-800 border-slate-200 hover:border-slate-200 dark:border-slate-800'
+ }`}
                 >
                   <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center group-hover:scale-110 group-hover:bg-slate-900 dark:bg-white text-white dark:text-slate-900 group-hover:text-white transition">
                     <Shirt className="w-6 h-6" />
@@ -1202,10 +1314,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     setActiveTab('HOUSEKEEPING');
                   }}
                   className={`p-4 sm:p-5 rounded-2xl border transition flex flex-col items-center justify-center text-center gap-3 group shadow-md ${
-                    isDark
-                      ? 'bg-slate-900 hover:bg-slate-900 border-red-500/20 hover:border-red-500/50'
-                      : 'bg-white hover:bg-red-50/50 border-slate-200 hover:border-red-300'
-                  }`}
+ isDark
+ ? 'bg-slate-900 hover:bg-slate-900 border-red-500/20 hover:border-red-500/50'
+ : 'bg-white hover:bg-red-50/50 border-slate-200 hover:border-red-300'
+ }`}
                 >
                   <div className="w-12 h-12 rounded-2xl bg-red-600/20 text-red-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-red-600 group-hover:text-white transition">
                     <Wrench className="w-6 h-6" />
@@ -1224,10 +1336,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 <button
                   onClick={() => setIsCallModalOpen(true)}
                   className={`p-4 sm:p-5 rounded-2xl border transition flex flex-col items-center justify-center text-center gap-3 group shadow-md ${
-                    isDark
-                      ? 'bg-slate-900 hover:bg-slate-900 border-amber-500/20 hover:border-amber-500/50'
-                      : 'bg-white hover:bg-amber-50/50 border-slate-200 hover:border-amber-300'
-                  }`}
+ isDark
+ ? 'bg-slate-900 hover:bg-slate-900 border-emerald-600/20 hover:border-emerald-600/50'
+ : 'bg-white hover:bg-amber-50/50 border-slate-200 hover:border-amber-300'
+ }`}
                 >
                   <div className="w-12 h-12 rounded-2xl bg-amber-600/20 text-amber-400 flex items-center justify-center group-hover:scale-110 group-hover:bg-amber-600 group-hover:text-white transition">
                     <PhoneCall className="w-6 h-6" />
@@ -1246,8 +1358,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {/* Widget 1: Stay Folio & Current Bill Preview */}
               <div className={`p-5 rounded-3xl border shadow-xl flex flex-col justify-between ${
-                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-              }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+ }`}>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -1255,10 +1367,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       <h3 className={`font-black text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>Room {roomNumber || '—'} Folio Summary</h3>
                     </div>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      folioSummary?.folioStatus === 'SETTLED' || folioDue === 0
-                        ? 'bg-emerald-500/20 text-emerald-400 dark:text-emerald-300'
-                        : 'bg-amber-500/20 text-amber-700 dark:text-amber-400'
-                    }`}>
+ folioSummary?.folioStatus === 'SETTLED' || folioDue === 0
+ ? 'bg-emerald-500/20 text-emerald-400 dark:text-emerald-300'
+ : 'bg-emerald-600/20 text-amber-700 dark:text-amber-400'
+ }`}>
                       {folioSummary?.folioStatus || (folioSummary ? 'OPEN' : 'LOADING')}
                     </span>
                   </div>
@@ -1289,8 +1401,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   <button
                     onClick={() => setActiveTab('BILL')}
                     className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition ${
-                      isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300'
-                    }`}
+ isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300'
+ }`}
                   >
                     View Full Folio
                   </button>
@@ -1306,8 +1418,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
               {/* Widget 2: Live In-Room Order Tracking Preview */}
               <div className={`p-5 rounded-3xl border shadow-xl flex flex-col justify-between ${
-                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-              }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+ }`}>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -1317,10 +1429,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       </h3>
                     </div>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      activeLiveOrder
-                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 animate-pulse'
-                        : isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'
-                    }`}>
+ activeLiveOrder
+ ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 animate-pulse'
+ : isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'
+ }`}>
                       {activeLiveOrder?.orderStatus || 'NONE'}
                     </span>
                   </div>
@@ -1330,8 +1442,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       : 'Place an in-room dining order to see live kitchen status here.'}
                   </p>
                   <div className={`p-3 rounded-2xl border space-y-1.5 text-xs ${
-                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
-                  }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}>
                     {activeLiveOrder && activeLiveOrder.items.length > 0 ? (
                       activeLiveOrder.items.slice(0, 3).map((item, idx) => (
                         <div key={`${item.menuItemId}-${idx}`} className={`flex justify-between font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -1353,10 +1465,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 <button
                   onClick={() => setActiveTab('TRACKING')}
                   className={`mt-4 w-full py-2.5 rounded-xl border font-bold text-xs transition flex items-center justify-center gap-2 ${
-                    isDark
-                      ? 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                      : 'bg-slate-800 hover:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
+ isDark
+ ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-100'
+ : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+ }`}
                 >
                   <Compass className="w-4 h-4" /> Open Live Order Stepper
                 </button>
@@ -1364,8 +1476,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
               {/* Widget 3: Dining Highlights & Timings */}
               <div className={`p-5 rounded-3xl border shadow-xl flex flex-col justify-between ${
-                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-              }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+ }`}>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -1376,8 +1488,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   </div>
                   <div className="space-y-2 text-xs">
                     <div className={`p-2.5 rounded-xl border flex justify-between ${
-                      isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
-                    }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}>
                       <div>
                         <div className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Breakfast Buffet</div>
                         <div className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>The Grand Dining Hall</div>
@@ -1385,8 +1497,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       <span className={`font-semibold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>7:00 - 10:30 AM</span>
                     </div>
                     <div className={`p-2.5 rounded-xl border flex justify-between ${
-                      isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
-                    }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}>
                       <div>
                         <div className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>All-Day In-Room Dining</div>
                         <div className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Delivered hot to room</div>
@@ -1394,30 +1506,31 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       <span className={`font-semibold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>24 Hours Live</span>
                     </div>
                     <div className={`p-2.5 rounded-xl border flex justify-between ${
-                      isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
-                    }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}>
                       <div>
                         <div className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Rooftop Lounge & Bar</div>
                         <div className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Happy Hours (1+1 Free)</div>
                       </div>
-                      <span className={`font-semibold ${isDark ? 'text-slate-700 dark:text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>5:00 - 11:30 PM</span>
+                      <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>5:00 - 11:30 PM</span>
                     </div>
                   </div>
                 </div>
                 <button
                   onClick={() => setIsOffersModalOpen(true)}
                   className={`mt-4 w-full py-2.5 rounded-xl border font-bold text-xs transition ${
-                    isDark
-                      ? 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                      : 'bg-slate-800 hover:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
+ isDark
+ ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-100'
+ : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+ }`}
                 >
                   View Special Guest Offers (20% Off)
                 </button>
               </div>
             </div>
-          </div>
-        )}
+
+           </div>
+         )}
 
         {/* ===================================================== */}
         {/* VIEW 2: FOOD & BEVERAGES (RESPONSIVE SPLIT ON DESKTOP & TABLET) */}
@@ -1556,8 +1669,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             <div className="w-full md:w-2/3 min-w-0 space-y-6">
               {/* Dining Header & Search */}
               <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl border shadow-md ${
-                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-              }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+ }`}>
                 <div>
                   <h1 className={`text-xl sm:text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>In-Room Dining Menu</h1>
                   <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -1575,21 +1688,21 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       value={menuSearch}
                       onChange={(e) => setMenuSearch(e.target.value)}
                       className={`w-full pl-9 pr-4 py-2 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 ${
-                        isDark
-                          ? 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500'
-                          : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:bg-white'
-                      }`}
+ isDark
+ ? 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500'
+ : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:bg-white'
+ }`}
                     />
                   </div>
                   <button
                     onClick={() => setVegFilterOnly(!vegFilterOnly)}
                     className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition ${
-                      vegFilterOnly
-                        ? 'bg-emerald-600/20 border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                        : isDark
-                          ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                    }`}
+ vegFilterOnly
+ ? 'bg-emerald-600/20 border-emerald-500 text-emerald-600 dark:text-emerald-400'
+ : isDark
+ ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+ : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+ }`}
                   >
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                     <span>Veg Only</span>
@@ -1606,10 +1719,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       data-testid={`category-pill-${cat.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
                       onClick={() => setSelectedCategory(cat)}
                       className={`px-4 py-2 rounded-full text-sm transition shrink-0 ${
-                        selectedCategory === cat
-                          ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-semibold shadow-xs'
-                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                      }`}
+ selectedCategory === cat
+ ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-semibold shadow-xs'
+ : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+ }`}
                     >
                       {cat}
                     </button>
@@ -1621,8 +1734,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredMenu.length === 0 && (
                   <div className={`col-span-full rounded-xl border p-8 text-center ${
-                    isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white shadow-xs'
-                  }`}>
+ isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white shadow-xs'
+ }`}>
                     <UtensilsCrossed className="w-8 h-8 text-slate-400 mx-auto mb-3" />
                     <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Menu is loading or currently unavailable</div>
                     <p className={`mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -1647,8 +1760,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                         <div className="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900/80 text-[10px] font-bold text-white">
                           <span
                             className={`w-1.5 h-1.5 rounded-full ${
-                              dish.isVeg ? 'bg-emerald-500' : 'bg-red-500'
-                            }`}
+ dish.isVeg ? 'bg-emerald-500' : 'bg-red-500'
+ }`}
                           />
                           <span>{dish.isVeg ? 'VEG' : 'NON-VEG'}</span>
                         </div>
@@ -1698,11 +1811,11 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
               {/* In-Room Dining Cart Section */}
               {cartItems.length > 0 && (
                 <div className={`rounded-3xl border p-5 shadow-xl space-y-4 ${
-                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-                }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+ }`}>
                   <div className={`flex items-center justify-between border-b pb-3 ${
-                    isDark ? 'border-slate-800' : 'border-slate-200'
-                  }`}>
+ isDark ? 'border-slate-800' : 'border-slate-200'
+ }`}>
                     <div className="flex items-center gap-2">
                       <ShoppingBag className="w-5 h-5 text-amber-500" />
                       <h3 className={`font-black text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>Your Room Cart</h3>
@@ -1716,8 +1829,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       <div
                         key={it.id}
                         className={`p-3 rounded-2xl border flex items-center justify-between gap-2 ${
-                          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
-                        }`}
+ isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}
                       >
                         <div className="flex items-center gap-2.5">
                           <img
@@ -1764,8 +1877,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       value={cartSpecialInstructions}
                       onChange={(e) => setCartSpecialInstructions(e.target.value)}
                       className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-300 text-slate-900'
-                      }`}
+ isDark ? 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-300 text-slate-900'
+ }`}
                     />
                   </div>
 
@@ -1955,10 +2068,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   key={tab}
                   onClick={() => setHkTab(tab)}
                   className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition ${
-                    hkTab === tab
-                      ? 'bg-slate-800 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
+ hkTab === tab
+ ? 'bg-slate-800 text-white shadow-md'
+ : 'text-slate-400 hover:text-white hover:bg-slate-800'
+ }`}
                 >
                   {tab}
                 </button>
@@ -1978,10 +2091,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     key={opt.title}
                     onClick={() => setSelectedHkOption(opt.title)}
                     className={`p-5 rounded-3xl border cursor-pointer transition flex flex-col justify-between gap-3 ${
-                      selectedHkOption === opt.title
-                        ? 'bg-slate-800/20 border-amber-600 ring-1 ring-amber-600'
-                        : 'bg-slate-900 border-slate-800 hover:bg-slate-800/60'
-                    }`}
+ selectedHkOption === opt.title
+ ? 'bg-slate-800/20 border-amber-600 ring-1 ring-amber-600'
+ : 'bg-slate-900 border-slate-800 hover:bg-slate-800/60'
+ }`}
                   >
                     <div>
                       <div className="font-bold text-sm text-white">{opt.title}</div>
@@ -2010,10 +2123,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     key={opt.title}
                     onClick={() => setSelectedLaundryOption(opt.title)}
                     className={`p-5 rounded-3xl border cursor-pointer transition flex flex-col justify-between gap-3 ${
-                      selectedLaundryOption === opt.title
-                        ? 'bg-slate-800/20 border-amber-600 ring-1 ring-amber-600'
-                        : 'bg-slate-900 border-slate-800 hover:bg-slate-800/60'
-                    }`}
+ selectedLaundryOption === opt.title
+ ? 'bg-slate-800/20 border-amber-600 ring-1 ring-amber-600'
+ : 'bg-slate-900 border-slate-800 hover:bg-slate-800/60'
+ }`}
                   >
                     <div>
                       <div className="font-bold text-sm text-white">{opt.title}</div>
@@ -2042,10 +2155,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     key={opt.title}
                     onClick={() => setSelectedMaintOption(opt.title)}
                     className={`p-5 rounded-3xl border cursor-pointer transition flex flex-col justify-between gap-3 ${
-                      selectedMaintOption === opt.title
-                        ? 'bg-slate-800/20 border-amber-600 ring-1 ring-amber-600'
-                        : 'bg-slate-900 border-slate-800 hover:bg-slate-800/60'
-                    }`}
+ selectedMaintOption === opt.title
+ ? 'bg-slate-800/20 border-amber-600 ring-1 ring-amber-600'
+ : 'bg-slate-900 border-slate-800 hover:bg-slate-800/60'
+ }`}
                   >
                     <div>
                       <div className="font-bold text-sm text-white">{opt.title}</div>
@@ -2134,8 +2247,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             )}
 
             <div className={`p-5 rounded-3xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-            }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+ }`}>
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className={`text-xl sm:text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>Guest Room Folio & Invoice</h1>
@@ -2145,8 +2258,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     </span>
                   ) : (
                     <span data-testid="folio-pending-badge" className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
-                      isDark ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-amber-100 text-amber-800 border border-amber-300'
-                    }`}>
+ isDark ? 'bg-emerald-600/20 text-amber-400 border border-emerald-600/40' : 'bg-amber-100 text-amber-800 border border-amber-300'
+ }`}>
                       PENDING SETTLEMENT
                     </span>
                   )}
@@ -2161,10 +2274,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   onClick={() => setIsPaymentModalOpen(true)}
                   disabled={isFolioSettled}
                   className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition shadow-sm ${
-                    isFolioSettled
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-default'
-                      : 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black cursor-pointer shadow-md active:scale-95'
-                  }`}
+ isFolioSettled
+ ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-default'
+ : 'bg-emerald-600 hover:bg-amber-400 text-white font-black cursor-pointer shadow-md active:scale-95'
+ }`}
                   title={isFolioSettled ? 'Folio is already settled' : 'Pay outstanding room & dining balance'}
                 >
                   <CreditCard className="w-3.5 h-3.5" />
@@ -2180,8 +2293,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       : 'Available after the full folio is settled'
                   }
                   className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-45 ${
-                    isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300'
-                  }`}
+ isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300'
+ }`}
                 >
                   <Download className="w-3.5 h-3.5" /> {isFolioSettled ? 'Download Tax Invoice' : 'Invoice after Payment'}
                 </button>
@@ -2199,8 +2312,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
             {/* Detailed Table Card */}
             <div className={`p-6 rounded-3xl border shadow-xl space-y-6 ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-            }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+ }`}>
               {/* Header Info */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                 <div>
@@ -2227,8 +2340,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
               {/* Master Folio Immutable Ledger Notice */}
               <div className={`p-3.5 rounded-2xl flex items-center gap-3 ${
-                isDark ? 'bg-slate-900/90 border border-amber-500/30' : 'bg-amber-50 border border-amber-200 text-slate-800'
-              }`}>
+ isDark ? 'bg-slate-900/90 border border-emerald-600/30' : 'bg-amber-50 border border-amber-200 text-slate-800'
+ }`}>
                 <span className="text-amber-500 text-lg">🔒</span>
                 <div className={`text-[11px] leading-snug ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                   <span className={`font-bold ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>Locked Master Folio Ledger:</span> Room charges, in-room dining orders, and services are permanently synchronized with the Front Desk PMS with 12% room / 5% food GST. Charges cannot be altered or removed after placement.
@@ -2239,8 +2352,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
               <div className={`overflow-x-auto border-t pt-4 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                 <table className="w-full text-xs text-left">
                   <thead className={`uppercase text-[10px] tracking-wider border-b ${
-                    isDark ? 'text-slate-400 border-slate-800' : 'text-slate-500 border-slate-200'
-                  }`}>
+ isDark ? 'text-slate-400 border-slate-800' : 'text-slate-500 border-slate-200'
+ }`}>
                     <tr>
                       <th className="py-3 px-3">Item</th>
                       <th className="py-3 px-3 text-center">Qty</th>
@@ -2295,8 +2408,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>₹0 (Waived)</span>
                 </div>
                 <div className={`w-64 pt-2 border-t flex justify-between text-base font-black ${
-                  isDark ? 'border-slate-800' : 'border-slate-200'
-                }`}>
+ isDark ? 'border-slate-800' : 'border-slate-200'
+ }`}>
                   <span className={isDark ? 'text-white' : 'text-slate-900'}>Grand Total:</span>
                   <span className="text-xl font-bold text-slate-900 dark:text-white">₹{dynamicallyAdjustedNet.toLocaleString('en-IN')}</span>
                 </div>
@@ -2320,13 +2433,13 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
               {/* Dynamic Pro-Rata Stay Duration & Early Checkout / Overstay Billing Engine */}
               <div data-testid="dynamic-pro-rata-billing-card" className={`p-5 rounded-2xl border space-y-3.5 ${
-                isDark ? 'bg-slate-900 border-amber-500/30' : 'bg-slate-50 border-amber-300 shadow-xs'
-              }`}>
+ isDark ? 'bg-slate-900 border-emerald-600/30' : 'bg-slate-50 border-amber-300 shadow-xs'
+ }`}>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <span className={`text-[10px] font-black tracking-widest uppercase block ${
-                      isDark ? 'text-amber-400' : 'text-amber-800'
-                    }`}>
+ isDark ? 'text-amber-400' : 'text-amber-800'
+ }`}>
                       Dynamic Pro-Rata Stay Billing Engine
                     </span>
                     <h3 className={`text-sm font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -2339,8 +2452,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   <div className="flex items-center gap-1.5">
                     <span className={`text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Base Hourly Tariff:</span>
                     <span className={`text-xs font-black px-2.5 py-1 rounded-lg border font-mono ${
-                      isDark ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' : 'text-amber-800 bg-amber-100 border-amber-300'
-                    }`}>
+ isDark ? 'text-amber-400 bg-emerald-600/10 border-emerald-600/30' : 'text-amber-800 bg-amber-100 border-amber-300'
+ }`}>
                       ₹{hourlyRate}/hr
                     </span>
                   </div>
@@ -2348,8 +2461,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
                 {/* Duration Variance Selector */}
                 <div className={`p-3.5 rounded-xl border space-y-2.5 ${
-                  isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
-                }`}>
+ isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+ }`}>
                   <div className="flex justify-between items-center text-xs">
                     <span className={`font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Simulate Actual Departure Time:</span>
                     <span className={`font-mono font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
@@ -2367,10 +2480,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       data-testid="simulate-early-6h-btn"
                       onClick={() => setCheckoutHoursDifference(-6)}
                       className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition ${
-                        checkoutHoursDifference === -6
-                          ? 'bg-emerald-600 text-white border-emerald-400 shadow-sm'
-                          : isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                      }`}
+ checkoutHoursDifference === -6
+ ? 'bg-emerald-600 text-white border-emerald-400 shadow-sm'
+ : isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+ }`}
                     >
                       🟢 6h Early (-₹{6 * hourlyRate})
                     </button>
@@ -2380,10 +2493,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       data-testid="simulate-early-3h-btn"
                       onClick={() => setCheckoutHoursDifference(-3)}
                       className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition ${
-                        checkoutHoursDifference === -3
-                          ? 'bg-emerald-600 text-white border-emerald-400 shadow-sm'
-                          : isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                      }`}
+ checkoutHoursDifference === -3
+ ? 'bg-emerald-600 text-white border-emerald-400 shadow-sm'
+ : isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+ }`}
                     >
                       🟢 3h Early (-₹{3 * hourlyRate})
                     </button>
@@ -2393,10 +2506,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       data-testid="simulate-on-time-btn"
                       onClick={() => setCheckoutHoursDifference(0)}
                       className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition ${
-                        checkoutHoursDifference === 0
-                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm font-black'
-                          : isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                      }`}
+ checkoutHoursDifference === 0
+ ? 'bg-emerald-600 text-white border-amber-400 shadow-sm font-black'
+ : isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+ }`}
                     >
                       ⚪ On Schedule
                     </button>
@@ -2406,10 +2519,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       data-testid="simulate-overstay-4h-btn"
                       onClick={() => setCheckoutHoursDifference(4)}
                       className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition ${
-                        checkoutHoursDifference === 4
-                          ? 'bg-red-600 text-white border-red-400 shadow-sm'
-                          : isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                      }`}
+ checkoutHoursDifference === 4
+ ? 'bg-red-600 text-white border-red-400 shadow-sm'
+ : isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+ }`}
                     >
                       🔴 4h Late (+₹{Math.round(4 * hourlyRate * 1.2)})
                     </button>
@@ -2515,7 +2628,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       type="button"
                       data-testid="empty-orders-browse-menu-btn"
                       onClick={() => setActiveTab('DINING')}
-                      className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider transition shadow-md flex items-center justify-center gap-2 mx-auto active:scale-95"
+                      className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-amber-400 text-white font-black text-xs uppercase tracking-wider transition shadow-md flex items-center justify-center gap-2 mx-auto active:scale-95"
                     >
                       <Utensils className="w-4 h-4 text-slate-950" />
                       <span>Browse In-Room Food Menu</span>
@@ -2542,10 +2655,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   data-testid="tracker-back-to-menu-btn"
                   onClick={() => setActiveTab('DINING')}
                   className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition shadow-xs ${
-                    isDark
-                      ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
-                      : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-100'
-                  }`}
+ isDark
+ ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
+ : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-100'
+ }`}
                 >
                   <span>←</span>
                   <span>Back to In-Room Food Menu</span>
@@ -2571,11 +2684,11 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   <div
                     data-testid="order-progress-label"
                     className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                      stepNumber === 4 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
-                      stepNumber === 3 ? 'bg-amber-50 text-amber-800 border-amber-200' :
-                      stepNumber === 2 ? 'bg-blue-50 text-blue-800 border-blue-200' :
-                      'bg-slate-100 text-slate-800 border-slate-200'
-                    }`}
+ stepNumber === 4 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+ stepNumber === 3 ? 'bg-amber-50 text-amber-800 border-amber-200' :
+ stepNumber === 2 ? 'bg-blue-50 text-blue-800 border-blue-200' :
+ 'bg-slate-100 text-slate-800 border-slate-200'
+ }`}
                   >
                     {stepNumber === 4 ? 'Delivered to Room' :
                      stepNumber === 3 ? 'Out for Delivery' :
@@ -2668,10 +2781,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       key={order.id}
                       onClick={() => store.openOrderTracker(order)}
                       className={`rounded-lg border px-3 py-1.5 text-[11px] font-bold transition ${
-                        currentActiveOrder?.id === order.id
-                          ? 'border-amber-500 bg-amber-50 text-amber-900 font-extrabold'
-                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                      }`}
+ currentActiveOrder?.id === order.id
+ ? 'border-emerald-600 bg-amber-50 text-amber-900 font-extrabold'
+ : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+ }`}
                     >
                       {order.orderNumber} · {order.orderStatus}
                     </button>
@@ -2690,8 +2803,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     {/* Step 1: Order Placed */}
                     <div data-testid="stepper-step-1" className="flex items-start gap-4 relative">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 shadow-xs ${
-                        stepNumber >= 1 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
-                      }`}>
+ stepNumber >= 1 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
+ }`}>
                         <Check className="w-4 h-4" />
                       </div>
                       <div>
@@ -2710,18 +2823,18 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     {/* Step 2: Preparing in Kitchen */}
                     <div data-testid="stepper-step-2" className="flex items-start gap-4 relative">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 shadow-xs ${
-                        stepNumber > 2 ? 'bg-emerald-600 text-white' :
-                        stepNumber === 2 ? 'bg-amber-500 text-slate-950 font-black' :
-                        'bg-slate-100 text-slate-400'
-                      }`}>
+ stepNumber > 2 ? 'bg-emerald-600 text-white' :
+ stepNumber === 2 ? 'bg-emerald-600 text-white font-black' :
+ 'bg-slate-100 text-slate-400'
+ }`}>
                         <Utensils className="w-4 h-4" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className={`font-bold text-sm ${
-                            stepNumber === 2 ? 'text-amber-800 font-black' :
-                            stepNumber > 2 ? 'text-slate-900' : 'text-slate-400'
-                          }`}>Preparing in Kitchen</span>
+ stepNumber === 2 ? 'text-amber-800 font-black' :
+ stepNumber > 2 ? 'text-slate-900' : 'text-slate-400'
+ }`}>Preparing in Kitchen</span>
                           <span className="text-xs text-slate-500 font-semibold">
                             {stepNumber >= 2 ? (currentActiveOrder?.preparedAt ? new Date(currentActiveOrder.preparedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'In Progress') : 'Pending'}
                           </span>
@@ -2735,18 +2848,18 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     {/* Step 3: Out for Room Delivery */}
                     <div data-testid="stepper-step-3" className="flex items-start gap-4 relative">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 shadow-xs ${
-                        stepNumber > 3 ? 'bg-emerald-600 text-white' :
-                        stepNumber === 3 ? 'bg-amber-500 text-slate-950 font-black' :
-                        'bg-slate-100 text-slate-400'
-                      }`}>
+ stepNumber > 3 ? 'bg-emerald-600 text-white' :
+ stepNumber === 3 ? 'bg-emerald-600 text-white font-black' :
+ 'bg-slate-100 text-slate-400'
+ }`}>
                         <Clock className="w-4 h-4" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className={`font-bold text-sm ${
-                            stepNumber === 3 ? 'text-amber-800 font-black' :
-                            stepNumber > 3 ? 'text-slate-900' : 'text-slate-400'
-                          }`}>Out for Delivery</span>
+ stepNumber === 3 ? 'text-amber-800 font-black' :
+ stepNumber > 3 ? 'text-slate-900' : 'text-slate-400'
+ }`}>Out for Delivery</span>
                           <span className="text-xs text-slate-500 font-semibold">
                             {stepNumber >= 3 ? (currentActiveOrder?.readyAt ? new Date(currentActiveOrder.readyAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Ready') : 'Estimated 15m'}
                           </span>
@@ -2760,8 +2873,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     {/* Step 4: Delivered at Room */}
                     <div data-testid="stepper-step-4" className="flex items-start gap-4 relative">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 shadow-xs ${
-                        stepNumber >= 4 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
-                      }`}>
+ stepNumber >= 4 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
+ }`}>
                         <BedDouble className="w-4 h-4" />
                       </div>
                       <div>
@@ -2785,7 +2898,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     </button>
                     <button
                       onClick={() => setActiveTab('DINING')}
-                      className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs"
+                      className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-amber-400 text-white font-bold text-xs"
                     >
                       Order More Dishes
                     </button>
@@ -2796,8 +2909,9 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 <div className="rounded-3xl overflow-hidden bg-white border border-slate-200 shadow-sm flex flex-col justify-between">
                   <div className="relative h-72 w-full bg-slate-100">
                     <img
-                      src="https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=900&auto=format&fit=crop&q=80"
+                      src={hotelBranding?.coverImageUrl || FALLBACK_HOTEL_IMAGE}
                       alt="Chef cooking in kitchen"
+                      onError={handleImageError(FALLBACK_HOTEL_IMAGE)}
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent" />
@@ -3056,22 +3170,89 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   <button
                     onClick={() => handleSetLanguage('EN')}
                     className={`px-3 py-1 rounded-lg transition ${
-                      selectedLanguage === 'EN' ? 'bg-amber-600 text-white' : 'text-slate-400'
-                    }`}
+ selectedLanguage === 'EN' ? 'bg-amber-600 text-white' : 'text-slate-400'
+ }`}
                   >
                     English
                   </button>
                   <button
                     onClick={() => handleSetLanguage('HI')}
                     className={`px-3 py-1 rounded-lg transition ${
-                      selectedLanguage === 'HI' ? 'bg-amber-600 text-white' : 'text-slate-400'
-                    }`}
+ selectedLanguage === 'HI' ? 'bg-amber-600 text-white' : 'text-slate-400'
+ }`}
                   >
                     हिंदी
                   </button>
                 </div>
               </div>
             </div>
+            <section className={`rounded-xl border p-4 sm:p-6 ${
+ isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+}`}>
+              <h2 className="text-lg font-bold">Guest settings</h2>
+              <p className="mt-1 text-sm text-slate-500">Preferences are saved to this room session.</p>
+              {settingsLoading ? (
+                <p className="mt-4 text-sm text-slate-500" role="status">Loading settings…</p>
+              ) : (
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(12rem,1fr)]">
+                  <label className="flex items-center justify-between gap-4 text-sm font-medium">
+                    <span>Theme</span>
+                    <select
+                      value={theme}
+                      onChange={(event) => {
+                        setTheme(event.target.value as 'light' | 'dark');
+                        setSettingsMessage('');
+                      }}
+                      className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-slate-900"
+                    >
+                      <option value="light">Light</option>
+                      <option value="dark">Dark</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center justify-between gap-4 text-sm font-medium">
+                    <span>Text size</span>
+                    <select
+                      value={fontSize}
+                      onChange={(event) => {
+                        setFontSize(event.target.value as 'small' | 'medium' | 'large');
+                        setSettingsMessage('');
+                      }}
+                      className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-slate-900"
+                    >
+                      <option value="small">Small</option>
+                      <option value="medium">Medium</option>
+                      <option value="large">Large</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+              {hotelContactPhone && (
+                <p className="mt-4 text-sm">
+                  Hotel contact: <a className="font-semibold text-emerald-700 underline underline-offset-2" href={`tel:${hotelContactPhone}`}>{hotelContactPhone}</a>
+                </p>
+              )}
+              {settingsError && (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-red-700" role="alert">
+                  <span>{settingsError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSettingsLoadVersion((version) => version + 1)}
+                    className="min-h-11 rounded-lg border border-slate-300 px-3 font-semibold text-slate-700"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+              {settingsMessage && <p className="mt-3 text-sm font-semibold text-emerald-700" role="status">{settingsMessage}</p>}
+              <button
+                type="button"
+                onClick={() => void saveGuestSettings()}
+                disabled={settingsSaving || settingsLoading}
+                className="mt-5 min-h-11 rounded-lg bg-emerald-600 px-4 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {settingsSaving ? 'Saving…' : 'Save settings'}
+              </button>
+            </section>
           </div>
         )}
       </main>
@@ -3099,20 +3280,24 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
       {/* ======================================================== */}
       {/* 3. MOBILE STICKY BOTTOM NAVIGATION BAR                   */}
       {/* ======================================================== */}
-      <div className={`md:hidden fixed bottom-0 left-0 right-0 z-40 h-16 border-t px-2 flex items-center justify-around text-[10px] transition-colors pb-[env(safe-area-inset-bottom,12px)] ${
-        isDark ? 'bg-slate-900/95 border-slate-800 text-slate-400' : 'bg-white/95 border-slate-200 text-slate-600 shadow-md'
-      }`}>
+      <div className={`fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t px-1 pb-[env(safe-area-inset-bottom,12px)] text-[10px] transition-colors md:hidden ${
+ isDark ? 'bg-slate-900/95 border-slate-800 text-slate-400' : 'bg-white/95 border-slate-200 text-slate-600 shadow-md'
+ }`}>
         <button
           data-testid="mobile-nav-home"
           onClick={() => setActiveTab('HOME')}
-          className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
-            activeTab === 'HOME'
-              ? isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'
-              : isDark ? 'hover:text-white' : 'hover:text-slate-900'
-          }`}
+          className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 py-1 transition ${
+ activeTab === 'HOME'
+ ? isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'
+ : isDark ? 'hover:text-white' : 'hover:text-slate-900'
+ }`}
         >
           {isEffectiveStayCheckedOut ? <Lock className="w-5 h-5" /> : <BedDouble className="w-5 h-5" />}
-          <span>{isEffectiveStayCheckedOut ? (selectedLanguage === 'HI' ? 'प्रस्थान' : 'Departure') : (selectedLanguage === 'HI' ? 'मेरा प्रवास' : 'My Stay')}</span>
+          <span className="max-w-full truncate leading-none">
+            {isEffectiveStayCheckedOut
+              ? selectedLanguage === 'HI' ? 'प्रस्थान' : 'Departure'
+              : selectedLanguage === 'HI' ? 'मेरा प्रवास' : 'My Stay'}
+          </span>
         </button>
 
         {!isEffectiveStayCheckedOut && (
@@ -3120,26 +3305,26 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             <button
               data-testid="mobile-nav-dining"
               onClick={() => setActiveTab('DINING')}
-              className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
-                activeTab === 'DINING'
-                  ? isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'
-                  : isDark ? 'hover:text-white' : 'hover:text-slate-900'
-              }`}
+              className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 py-1 transition ${
+ activeTab === 'DINING'
+ ? isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'
+ : isDark ? 'hover:text-white' : 'hover:text-slate-900'
+ }`}
             >
               <Utensils className="w-5 h-5" />
-              <span>{selectedLanguage === 'HI' ? 'भोजन' : 'Dining'}</span>
+              <span className="max-w-full truncate leading-none">{selectedLanguage === 'HI' ? 'भोजन' : 'Dining'}</span>
             </button>
             <button
               data-testid="mobile-nav-services"
               onClick={() => setActiveTab('ROOM_SERVICE')}
-              className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
-                activeTab === 'ROOM_SERVICE' || activeTab === 'HOUSEKEEPING'
-                  ? isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'
-                  : isDark ? 'hover:text-white' : 'hover:text-slate-900'
-              }`}
+              className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 py-1 transition ${
+ activeTab === 'ROOM_SERVICE' || activeTab === 'HOUSEKEEPING'
+ ? isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'
+ : isDark ? 'hover:text-white' : 'hover:text-slate-900'
+ }`}
             >
               <ConciergeBell className="w-5 h-5" />
-              <span>{selectedLanguage === 'HI' ? 'सेवाएं' : 'Services'}</span>
+              <span className="max-w-full truncate leading-none">{selectedLanguage === 'HI' ? 'सेवाएं' : 'Services'}</span>
             </button>
           </>
         )}
@@ -3147,41 +3332,45 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         <button
           data-testid="mobile-nav-bill"
           onClick={() => setActiveTab('BILL')}
-          className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
-            activeTab === 'BILL'
-              ? isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'
-              : isDark ? 'hover:text-white' : 'hover:text-slate-900'
-          }`}
+          className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 py-1 transition ${
+ activeTab === 'BILL'
+ ? isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'
+ : isDark ? 'hover:text-white' : 'hover:text-slate-900'
+ }`}
         >
           <Receipt className="w-5 h-5" />
-          <span>{isEffectiveStayCheckedOut ? (selectedLanguage === 'HI' ? 'रसीद' : 'Receipt') : (selectedLanguage === 'HI' ? 'बिल' : 'Folio')}</span>
+          <span className="max-w-full truncate leading-none">
+            {isEffectiveStayCheckedOut
+              ? selectedLanguage === 'HI' ? 'रसीद' : 'Receipt'
+              : selectedLanguage === 'HI' ? 'बिल' : 'Folio'}
+          </span>
         </button>
 
         {!isEffectiveStayCheckedOut ? (
           <button
             data-testid="mobile-nav-tracking"
             onClick={() => setActiveTab('TRACKING')}
-            className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
-              activeTab === 'TRACKING'
-                ? isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'
-                : isDark ? 'hover:text-white' : 'hover:text-slate-900'
-            }`}
+            className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 py-1 transition ${
+ activeTab === 'TRACKING'
+ ? isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'
+ : isDark ? 'hover:text-white' : 'hover:text-slate-900'
+ }`}
           >
             <Clock className="w-5 h-5" />
-            <span>{selectedLanguage === 'HI' ? 'आर्डर' : 'Orders'}</span>
+            <span className="max-w-full truncate leading-none">{selectedLanguage === 'HI' ? 'आर्डर' : 'Orders'}</span>
           </button>
         ) : (
           <button
             data-testid="mobile-nav-hotel-info"
             onClick={() => setActiveTab('HOTEL_INFO')}
-            className={`flex flex-col items-center gap-1 px-2 py-1 transition ${
-              activeTab === 'HOTEL_INFO'
-                ? isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'
-                : isDark ? 'hover:text-white' : 'hover:text-slate-900'
-            }`}
+            className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 py-1 transition ${
+ activeTab === 'HOTEL_INFO'
+ ? isDark ? 'text-white font-bold' : 'text-slate-900 font-bold'
+ : isDark ? 'hover:text-white' : 'hover:text-slate-900'
+ }`}
           >
             <Sparkles className="w-5 h-5" />
-            <span>{selectedLanguage === 'HI' ? 'जानकारी' : 'Hotel Info'}</span>
+            <span className="max-w-full truncate leading-none">{selectedLanguage === 'HI' ? 'जानकारी' : 'Hotel'}</span>
           </button>
         )}
       </div>
@@ -3220,8 +3409,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   </span>
                   <span
                     className={`w-2.5 h-2.5 rounded-full ${
-                      dishToCustomize.isVeg ? 'bg-emerald-500' : 'bg-red-500'
-                    }`}
+ dishToCustomize.isVeg ? 'bg-emerald-500' : 'bg-red-500'
+ }`}
                   />
                 </div>
                 <p className="text-xs text-slate-400 mt-1">{dishToCustomize.description}</p>
@@ -3236,10 +3425,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                       key={lvl}
                       onClick={() => setSpiceLevel(lvl)}
                       className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
-                        spiceLevel === lvl
-                          ? 'bg-slate-800 text-white border border-amber-600/40'
-                          : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
-                      }`}
+ spiceLevel === lvl
+ ? 'bg-slate-800 text-white border border-amber-600/40'
+ : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+ }`}
                     >
                       {lvl === 'Mild' && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
                       {lvl === 'Medium' && <Flame className="w-3.5 h-3.5 text-orange-400" />}
@@ -3315,11 +3504,11 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
       {isMobileCartOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className={`w-full max-w-md border-t sm:border rounded-t-3xl sm:rounded-3xl p-5 shadow-sm dark:shadow-none space-y-4 max-h-[85vh] overflow-y-auto ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-          }`}>
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+ }`}>
             <div className={`flex items-center justify-between border-b pb-3 ${
-              isDark ? 'border-slate-800' : 'border-slate-200'
-            }`}>
+ isDark ? 'border-slate-800' : 'border-slate-200'
+ }`}>
               <div className="flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5 text-amber-500" />
                 <h3 className={`font-black text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>Your Room Cart ({totalCartCount})</h3>
@@ -3327,8 +3516,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
               <button
                 onClick={() => setIsMobileCartOpen(false)}
                 className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                  isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-                }`}
+ isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+ }`}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -3339,8 +3528,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 <div
                   key={it.id}
                   className={`p-3 rounded-2xl border flex items-center justify-between gap-2 ${
-                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
-                  }`}
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
+ }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <img src={it.image} alt={it.name} className="w-10 h-10 rounded-xl object-cover" />
@@ -3353,8 +3542,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     <button
                       onClick={() => handleUpdateQty(it.id, -1)}
                       className={`w-6 h-6 rounded-lg font-bold flex items-center justify-center ${
-                        isDark ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
-                      }`}
+ isDark ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+ }`}
                     >
                       <Minus className="w-3 h-3" />
                     </button>
@@ -3362,8 +3551,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                     <button
                       onClick={() => handleUpdateQty(it.id, 1)}
                       className={`w-6 h-6 rounded-lg font-bold flex items-center justify-center ${
-                        isDark ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
-                      }`}
+ isDark ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+ }`}
                     >
                       <Plus className="w-3 h-3" />
                     </button>
@@ -3382,10 +3571,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 value={cartSpecialInstructions}
                 onChange={(e) => setCartSpecialInstructions(e.target.value)}
                 className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500'
-                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:bg-white'
-                }`}
+ isDark
+ ? 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500'
+ : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:bg-white'
+ }`}
               />
             </div>
 
@@ -3393,8 +3582,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             <div
               data-testid="charge-to-room-folio-preview"
               className={`p-3.5 rounded-2xl border space-y-2 text-xs ${
-                isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200'
-              }`}
+ isDark ? 'bg-emerald-600/10 border-emerald-600/30' : 'bg-amber-50 border-amber-200'
+ }`}
             >
               <div className="flex items-center justify-between">
                 <span className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
@@ -3406,8 +3595,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 </span>
               </div>
               <div className={`space-y-1 text-[11px] border-t pt-2 ${
-                isDark ? 'border-amber-500/20 text-slate-300' : 'border-amber-200 text-slate-700'
-              }`}>
+ isDark ? 'border-emerald-600/20 text-slate-300' : 'border-amber-200 text-slate-700'
+ }`}>
                 <div className="flex justify-between">
                   <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Master Folio:</span>
                   <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{folioSummary?.folioNumber || 'FOLIO-201-9871'}</span>
@@ -3421,8 +3610,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   <span className={`font-mono font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>+₹{totalAmount.toFixed(2)}</span>
                 </div>
                 <div className={`flex justify-between border-t pt-1 font-bold ${
-                  isDark ? 'border-amber-500/20 text-amber-300' : 'border-amber-200 text-amber-800'
-                }`}>
+ isDark ? 'border-emerald-600/20 text-amber-300' : 'border-amber-200 text-amber-800'
+ }`}>
                   <span>Updated Folio Total:</span>
                   <span className="font-mono text-xs text-emerald-600">₹{(Number(folioSummary?.dueAmount || folioSummary?.netAmountPayable || 5080) + totalAmount).toFixed(2)}</span>
                 </div>
@@ -3431,8 +3620,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
 
             {/* Breakdown */}
             <div className={`pt-2 border-t space-y-1 text-xs ${
-              isDark ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-600'
-            }`}>
+ isDark ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-600'
+ }`}>
               <div className="flex justify-between">
                 <span>Items Subtotal:</span>
                 <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>₹{cartSubtotal}</span>
@@ -3442,8 +3631,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>₹{gstAmount}</span>
               </div>
               <div className={`pt-2 border-t flex justify-between font-black text-base ${
-                isDark ? 'border-slate-800 text-white' : 'border-slate-200 text-slate-900'
-              }`}>
+ isDark ? 'border-slate-800 text-white' : 'border-slate-200 text-slate-900'
+ }`}>
                 <span>Total Amount</span>
                 <span className={isDark ? 'text-amber-400' : 'text-amber-700'}>₹{totalAmount}</span>
               </div>
@@ -3472,10 +3661,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
         >
           <div
             className={`w-full max-w-md rounded-3xl border p-6 shadow-sm dark:shadow-none flex flex-col gap-4 text-center ${
-              isDark
-                ? 'bg-slate-950 border-slate-800 text-white'
-                : 'bg-white border-slate-200 text-slate-900'
-            }`}
+ isDark
+ ? 'bg-slate-950 border-slate-800 text-white'
+ : 'bg-white border-slate-200 text-slate-900'
+ }`}
           >
             {/* Animated Success Badge */}
             <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/15 border-2 border-emerald-500 flex items-center justify-center text-3xl shadow-lg shadow-emerald-500/20">
@@ -3495,8 +3684,8 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
             {/* Ticket & Room Folio Summary Box */}
             <div
               className={`rounded-2xl p-4 border text-left space-y-2 text-xs ${
-                isDark ? 'bg-slate-900/80 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-700'
-              }`}
+ isDark ? 'bg-slate-900/80 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-700'
+ }`}
             >
               <div className="flex items-center justify-between font-mono">
                 <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Ticket Reference:</span>
@@ -3562,10 +3751,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   setActiveTab('DINING');
                 }}
                 className={`w-full min-h-[42px] rounded-xl border font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition ${
-                  isDark
-                    ? 'border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700'
-                    : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
+ isDark
+ ? 'border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700'
+ : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
+ }`}
               >
                 <span>🍽️</span>
                 <span>Keep Browsing Food Menu</span>
@@ -3661,10 +3850,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   key={opt.id}
                   onClick={() => setPaymentMode(opt.id as any)}
                   className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition ${
-                    paymentMode === opt.id
-                      ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500'
-                      : 'border-slate-800 bg-slate-900/60 hover:bg-slate-800/60'
-                  }`}
+ paymentMode === opt.id
+ ? 'border-emerald-600 bg-emerald-600/10 ring-1 ring-emerald-600'
+ : 'border-slate-800 bg-slate-900/60 hover:bg-slate-800/60'
+ }`}
                 >
                   <div>
                     <div className="font-bold text-white">{opt.label}</div>
@@ -3888,10 +4077,10 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                   >
                     <Star
                       className={`w-7 h-7 ${
-                        star <= feedbackRating
-                          ? 'fill-amber-400 text-amber-400'
-                          : 'text-slate-600'
-                      }`}
+ star <= feedbackRating
+ ? 'fill-amber-400 text-amber-400'
+ : 'text-slate-600'
+ }`}
                     />
                   </button>
                 ))}
@@ -3941,7 +4130,7 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
                 </div>
                 <p className="text-slate-300">Valid on all 60-min therapeutic massage sessions at 4th Floor Spa.</p>
               </div>
-              <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/30 space-y-1">
+              <div className="p-4 rounded-2xl bg-slate-900/40 border border-amber-500/30 space-y-1">
                 <div className="flex justify-between font-black text-white">
                   <span>Rooftop Lounge Happy Hours</span>
                   <span className="text-amber-400">1 + 1 Free</span>

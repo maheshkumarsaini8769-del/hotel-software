@@ -40,6 +40,111 @@ export interface ClientConfig {
   hotelId?: string;
 }
 
+export interface UserPreferences {
+  userId: string;
+  hotelId?: string;
+  general: {
+    language: 'en' | 'hi';
+    timezone: string;
+    dateFormat: 'DD/MM/YYYY' | 'MM/DD/YYYY';
+  };
+  appearance: {
+    theme: 'light' | 'dark' | 'system';
+    primaryColor: string;
+    fontSize: 'small' | 'medium' | 'large';
+    sidebarCollapsed: boolean;
+  };
+  notifications: {
+    email: boolean;
+    whatsapp: boolean;
+    sms: boolean;
+    soundAlerts: boolean;
+    desktopPush: boolean;
+  };
+  print: {
+    thermalPrinterWidth: '58mm' | '80mm';
+    printHeaderWithLogo: boolean;
+    printKotSeparately: boolean;
+    autoPrintAfterOrder: boolean;
+    footerText: string;
+  };
+  workstation: {
+    shiftStartTime: string;
+    shiftEndTime: string;
+    showTaxBreakdown: boolean;
+    checkInFlow: 'guided' | 'quick';
+    soundVolume: number;
+    displayDensity: 'comfortable' | 'compact';
+    stationName: string;
+  };
+}
+
+export type UserPreferencesUpdate = {
+  [K in keyof Omit<UserPreferences, 'userId' | 'hotelId'>]?: Partial<
+    UserPreferences[K]
+  >;
+};
+
+export interface StaffLaunchContext {
+  staffId: string | null;
+  staffName: string | null;
+  staffRole: string | null;
+}
+
+export function hydrateStaffLaunchContext(): StaffLaunchContext {
+  if (typeof window === 'undefined') {
+    return { staffId: null, staffName: null, staffRole: null };
+  }
+
+  const url = new URL(window.location.href);
+  const token = url.searchParams.get('token');
+  const hotelId = url.searchParams.get('hotelId') || url.searchParams.get('hotel');
+  const context = {
+    staffId: url.searchParams.get('staffId'),
+    staffName: url.searchParams.get('staffName'),
+    staffRole: url.searchParams.get('staffRole'),
+  };
+
+  let shouldCleanUrl = false;
+  if (token) {
+    window.localStorage.setItem('spicehub_token', token);
+    window.localStorage.setItem('token', token);
+    shouldCleanUrl = true;
+  }
+
+  ['token', 'staffId', 'staffName', 'staffRole'].forEach((key) => {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      shouldCleanUrl = true;
+    }
+  });
+
+  if (hotelId) {
+    window.localStorage.setItem('spicehub_hotel_id', hotelId);
+    window.localStorage.setItem('hotelId', hotelId);
+    window.localStorage.setItem('x-hotel-id', hotelId);
+  }
+
+  if (token && context.staffName) {
+    window.localStorage.setItem('spicehub_auth_user', JSON.stringify({
+      id: context.staffId,
+      name: context.staffName,
+      role: context.staffRole,
+      hotelId,
+    }));
+  }
+
+  if (shouldCleanUrl) {
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${url.pathname}${url.search}${url.hash}`
+    );
+  }
+
+  return context;
+}
+
 export class SpiceHubClient {
   private baseUrl: string;
   private authToken: string | null = null;
@@ -76,7 +181,8 @@ export class SpiceHubClient {
     path: string,
     data?: any,
     query?: Record<string, any>,
-    customHeaders?: Record<string, string>
+    customHeaders?: Record<string, string>,
+    signal?: AbortSignal
   ): Promise<T> {
     let url = `${this.baseUrl}${path.startsWith('/') ? path : '/' + path}`;
 
@@ -115,6 +221,7 @@ export class SpiceHubClient {
       method,
       headers,
       body: data ? JSON.stringify(data) : undefined,
+      signal,
     });
 
     let json: any = null;
@@ -142,6 +249,46 @@ export class SpiceHubClient {
       this.request<{ success: boolean; tenant: any; adminUser: any }>('POST', '/api/v1/auth/register', data),
     verifyIsolation: () =>
       this.request<{ success: boolean; hotelId: string; userRole: string; tenantVerified: boolean }>('GET', '/api/v1/tenant/verify-isolation'),
+    activeHotels: (signal?: AbortSignal) =>
+      this.request<{ success: boolean; data: any[] }>('GET', '/api/v1/auth/active-hotels', undefined, undefined, undefined, signal),
+    verifyStaffHotelCode: (code: string) =>
+      this.request<{
+        success: boolean;
+        data: { accessToken: string; hotel: any };
+      }>('POST', '/api/v1/auth/staff-hotel-code/verify', { code }),
+    staffRoster: (hotelId: string, portal: string, accessToken?: string, signal?: AbortSignal) =>
+      this.request<{ success: boolean; data: any[] }>(
+        'GET',
+        `/api/v1/auth/hotels/${encodeURIComponent(hotelId)}/staff-roster`,
+        undefined,
+        { portal },
+        accessToken ? { 'x-hotel-access-token': accessToken } : undefined,
+        signal
+      ),
+    staffPinLogin: (credentials: {
+      pin: string;
+      hotelId: string;
+      staffId: string;
+      portal: string;
+      hotelAccessToken?: string;
+    }) =>
+      this.request<{ success: boolean; message?: string; errorCode?: string; data?: { token: string; user: any } }>(
+        'POST',
+        '/api/v1/auth/staff-pin-login',
+        credentials
+      ),
+    sendStaffPinOtp: (data: { email: string; staffId?: string; hotelId: string; hotelSlug: string }) =>
+      this.request<{ success: boolean; message?: string }>('POST', '/api/v1/auth/send-pin-otp', data),
+    verifyStaffPinOtp: (data: {
+      email: string;
+      staffId?: string;
+      otp: string;
+      newPin: string;
+      hotelId: string;
+      hotelSlug: string;
+    }) => this.request<{ success: boolean; message?: string }>('POST', '/api/v1/auth/verify-pin-otp', data),
+    changeStaffPin: (data: { currentPin: string; newPin: string }) =>
+      this.request<{ success: boolean; message?: string }>('POST', '/api/v1/auth/change-pin', data),
   };
 
   public pos = {
@@ -522,6 +669,20 @@ export class SpiceHubClient {
         dispositionBreakdown: Record<string, number>;
         topVoidedItems: any[];
       }>('GET', '/api/v1/kot-void/daily-summary', undefined, query),
+  };
+
+  public userPreferences = {
+    get: () =>
+      this.request<{ success: boolean; data: UserPreferences }>(
+        'GET',
+        '/api/v1/user-preferences'
+      ),
+    update: (preferences: UserPreferencesUpdate) =>
+      this.request<{ success: boolean; data: UserPreferences }>(
+        'PUT',
+        '/api/v1/user-preferences',
+        preferences
+      ),
   };
 }
 

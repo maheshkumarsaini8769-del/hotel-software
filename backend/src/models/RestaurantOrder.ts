@@ -6,6 +6,14 @@ export enum OrderType {
   TAKEAWAY = 'TAKEAWAY'
 }
 
+export enum OrderSource {
+  TABLE_QR = 'TABLE_QR',
+  IN_ROOM_DINING = 'IN_ROOM_DINING',
+  STAFF_POS = 'STAFF_POS',
+  TAKEAWAY = 'TAKEAWAY',
+  POOLSIDE = 'POOLSIDE',
+}
+
 export enum OverallOrderStatus {
   PLACED = 'PLACED',
   ACCEPTED = 'ACCEPTED',
@@ -58,6 +66,7 @@ export interface IRestaurantOrder extends Document {
   hotelId: Types.ObjectId;
   orderNumber: string;
   orderType: OrderType;
+  source?: OrderSource;
   tableSessionId?: Types.ObjectId;
   tableId?: Types.ObjectId;
   stayId?: Types.ObjectId;
@@ -135,6 +144,7 @@ const RestaurantOrderSchema = new Schema<IRestaurantOrder>(
       default: OrderType.DINE_IN,
       index: true,
     },
+    source: { type: String, enum: Object.values(OrderSource), index: true },
     tableSessionId: { type: Schema.Types.ObjectId, ref: 'TableSession', index: true },
     tableId: { type: Schema.Types.ObjectId, ref: 'DiningTable', index: true },
     stayId: { type: Schema.Types.ObjectId, ref: 'Stay', index: true },

@@ -6,6 +6,7 @@ export interface SendOtpEmailParams {
   otp: string;
   hotelName?: string;
   expiresInMinutes?: number;
+  purpose?: 'pin_reset' | 'onboarding';
 }
 
 export interface SendOtpResult {
@@ -17,14 +18,30 @@ export interface SendOtpResult {
 }
 
 export async function sendPinVerificationOtpEmail(params: SendOtpEmailParams): Promise<SendOtpResult> {
-  const { to, name = 'Staff Member', otp, hotelName = 'SpiceHub Hospitality', expiresInMinutes = 10 } = params;
+  const {
+    to,
+    name = 'Hotel Administrator',
+    otp,
+    hotelName = 'SpiceHub Hospitality',
+    expiresInMinutes = 10,
+    purpose = 'pin_reset',
+  } = params;
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'SpiceHub Security <onboarding@resend.dev>';
-  const fallbackEmail = (process.env.RESEND_FALLBACK_EMAIL || 'maheshkumarsaini8769@gmail.com').toLowerCase().trim();
+  const fallbackEmail = (process.env.RESEND_FALLBACK_EMAIL || 'ashishsaini8saini@gmail.com').toLowerCase().trim();
   const targetRecipient = to.toLowerCase().trim();
+  const isOnboarding = purpose === 'onboarding';
 
-  console.log(`[ResendEmailService] 📧 Preparing PIN verification OTP for ${targetRecipient} (${name})`);
+  console.log(`[ResendEmailService] 📧 Preparing ${isOnboarding ? 'Onboarding' : 'PIN'} verification OTP for ${targetRecipient} (${name})`);
   console.log(`[ResendEmailService] 🔑 Generated OTP: ${otp} (Expires in ${expiresInMinutes} mins)`);
+
+  const titleText = isOnboarding ? 'Hotel Registration & Admin Email Verification' : 'Staff Workstation PIN Verification';
+  const introText = isOnboarding
+    ? `You requested to register and verify your property <strong>${hotelName}</strong> on SpiceHub Hospitality. Please use the one-time verification code below to verify your email:`
+    : `You requested to set or reset your 4-digit workstation PIN for <strong>${hotelName}</strong>. Please use the one-time verification code below:`;
+  const subjectText = isOnboarding
+    ? `[${hotelName}] Your Hotel Registration Verification OTP: ${otp}`
+    : `[${hotelName}] Your Staff PIN Verification OTP: ${otp}`;
 
   const generateHtml = (isForwardedNotice = false) => `
     <!DOCTYPE html>
@@ -45,19 +62,19 @@ export async function sendPinVerificationOtpEmail(params: SendOtpEmailParams): P
     <body>
       <div class="card">
         <div class="logo">🏨 SpiceHub Hospitality</div>
-        <div class="title">Staff Workstation PIN Verification</div>
+        <div class="title">${titleText}</div>
         ${
           isForwardedNotice
             ? `<div class="notice-banner">
                  <strong>📬 Resend Sandbox Routing Notice:</strong><br/>
-                 This OTP was requested for staff member <strong>${name}</strong> (<code>${targetRecipient}</code>). Because the Resend sandbox account is active, test emails are delivered to the verified owner inbox (<code>${fallbackEmail}</code>).
+                 This OTP was requested for <strong>${name}</strong> (<code>${targetRecipient}</code>). Because the Resend sandbox account is active, test emails are delivered to the verified owner inbox (<code>${fallbackEmail}</code>).
                </div>`
             : ''
         }
         <p class="info">Hello <strong>${name}</strong>,</p>
-        <p class="info">You requested to set or reset your 4-digit workstation PIN for <strong>${hotelName}</strong>. Please use the one-time verification code below:</p>
+        <p class="info">${introText}</p>
         <div class="otp-box">${otp}</div>
-        <p class="info">This code is valid for <strong>${expiresInMinutes} minutes</strong>. If you did not request this, please notify your Hotel Admin immediately.</p>
+        <p class="info">This code is valid for <strong>${expiresInMinutes} minutes</strong>. If you did not request this, please ignore this email.</p>
         <div class="footer">
           &copy; ${new Date().getFullYear()} SpiceHub Multi-Tenant Hospitality Cloud. All rights reserved.
         </div>
@@ -83,7 +100,7 @@ export async function sendPinVerificationOtpEmail(params: SendOtpEmailParams): P
       {
         from: fromEmail,
         to: [targetRecipient],
-        subject: `[${hotelName}] Your Staff PIN Verification OTP: ${otp}`,
+        subject: subjectText,
         html: generateHtml(false),
       },
       {
@@ -109,8 +126,10 @@ export async function sendPinVerificationOtpEmail(params: SendOtpEmailParams): P
     // If recipient is already fallbackEmail, or error is not sandbox related, do not retry
     const isSandboxRestriction =
       err.response?.status === 403 ||
+      err.response?.status === 422 ||
       (typeof errorDetails === 'string' &&
         (errorDetails.includes('testing emails to your own email address') ||
+          errorDetails.includes('testing email') ||
           errorDetails.includes('validation_error') ||
           errorDetails.includes('verify a domain')));
 
@@ -122,7 +141,7 @@ export async function sendPinVerificationOtpEmail(params: SendOtpEmailParams): P
           {
             from: fromEmail,
             to: [fallbackEmail],
-            subject: `[${hotelName}] Staff PIN OTP for ${name} (${targetRecipient}): ${otp}`,
+            subject: `[${hotelName}] ${isOnboarding ? 'Hotel Registration' : 'Staff PIN'} OTP for ${name} (${targetRecipient}): ${otp}`,
             html: generateHtml(true),
           },
           {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { IStaffAttendanceLogUI, StaffRosterHelper } from '@spicehub/ui';
+import { Clock, Search } from 'lucide-react';
 
 interface AttendanceAuditTableProps {
   logs: IStaffAttendanceLogUI[];
@@ -15,31 +16,33 @@ export const AttendanceAuditTable: React.FC<AttendanceAuditTableProps> = ({ logs
   );
 
   return (
-    <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
-      <div className="p-4 border-b border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+      <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
         <div>
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <span>⏱️</span> Daily Attendance Clock Logs & Punctuality Audit
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-emerald-600" />
+            <span>Daily Attendance Clock Logs & Punctuality Audit</span>
           </h3>
-          <p className="text-xs text-zinc-400 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             Showing {filtered.length} of {logs.length} logged shift attendances
           </p>
         </div>
 
-        <div className="w-full sm:w-64">
+        <div className="w-full sm:w-64 relative">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="text"
             placeholder="Search staff or department..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-slate-200 dark:border-slate-800"
+            className="w-full bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 transition shadow-2xs"
           />
         </div>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="bg-slate-900 text-zinc-400 font-semibold border-b border-zinc-800 uppercase tracking-wider text-[11px]">
+          <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
             <tr>
               <th className="px-4 py-3">Staff Member</th>
               <th className="px-4 py-3">Department</th>
@@ -52,10 +55,10 @@ export const AttendanceAuditTable: React.FC<AttendanceAuditTableProps> = ({ logs
               <th className="px-4 py-3">Method</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-100 text-slate-700">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
                   No attendance records logged for today yet
                 </td>
               </tr>
@@ -65,9 +68,9 @@ export const AttendanceAuditTable: React.FC<AttendanceAuditTableProps> = ({ logs
                 const dept = StaffRosterHelper.getDepartmentBadge(log.department);
 
                 return (
-                  <tr key={idx} className="hover:bg-zinc-800/40 transition-colors">
+                  <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
                     <td className="px-4 py-3">
-                      <div className="font-bold text-white">{log.staffName}</div>
+                      <div className="font-bold text-slate-900">{log.staffName}</div>
                     </td>
 
                     <td className="px-4 py-3">
@@ -76,35 +79,37 @@ export const AttendanceAuditTable: React.FC<AttendanceAuditTableProps> = ({ logs
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 font-mono text-zinc-300">
+                    <td className="px-4 py-3 font-mono text-slate-600 font-medium">
                       {new Date(log.clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </td>
 
-                    <td className="px-4 py-3 font-mono text-zinc-300">
+                    <td className="px-4 py-3 font-mono text-slate-600 font-medium">
                       {log.clockOutTime ? (
                         new Date(log.clockOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                       ) : (
-                        <span className="text-emerald-400 font-bold animate-pulse">ON DUTY NOW</span>
+                        <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          ON DUTY NOW
+                        </span>
                       )}
                     </td>
 
-                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-700 dark:text-slate-300">
+                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">
                       {log.totalHoursWorked ? `${log.totalHoursWorked}h` : '--'}
                     </td>
 
                     <td className="px-4 py-3 text-right font-mono">
                       {log.lateMinutes > 0 ? (
-                        <span className="text-red-400 font-bold">+{log.lateMinutes} min</span>
+                        <span className="text-rose-600 font-bold">+{log.lateMinutes} min</span>
                       ) : (
-                        <span className="text-emerald-400">On Time</span>
+                        <span className="text-emerald-600 font-medium">On Time</span>
                       )}
                     </td>
 
                     <td className="px-4 py-3 text-right font-mono">
                       {log.overtimeMinutes > 0 ? (
-                        <span className="text-amber-400 font-bold">+{log.overtimeMinutes} min</span>
+                        <span className="text-amber-600 font-bold">+{log.overtimeMinutes} min</span>
                       ) : (
-                        <span className="text-zinc-500">0</span>
+                        <span className="text-slate-400">0</span>
                       )}
                     </td>
 
@@ -121,7 +126,7 @@ export const AttendanceAuditTable: React.FC<AttendanceAuditTableProps> = ({ logs
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 font-mono text-zinc-400 text-[10px]">
+                    <td className="px-4 py-3 font-mono text-slate-400 text-[10px]">
                       {log.clockMethod}
                     </td>
                   </tr>

@@ -109,7 +109,7 @@ export const MenuEngineeringApp: React.FC<MenuEngineeringAppProps> = ({
   const currentItems = state.activeReport?.items || [];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Header */}
       <MenuEngineeringHeader
         report={state.activeReport}
@@ -126,17 +126,17 @@ export const MenuEngineeringApp: React.FC<MenuEngineeringAppProps> = ({
       {/* Main Content Workspace */}
       <main className="flex-1 p-6 space-y-6">
         {currentItems.length === 0 ? (
-          <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-12 text-center">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-12 text-center">
             <span className="text-4xl">📊</span>
-            <h3 className="text-base font-bold text-white mt-3">No Menu Matrix Generated Yet</h3>
-            <p className="text-xs text-zinc-400 mt-1 max-w-sm mx-auto">
+            <h3 className="text-base font-bold text-slate-900 mt-3">No Menu Matrix Generated Yet</h3>
+            <p className="text-xs text-slate-600 mt-1 max-w-sm mx-auto">
               Click "Recalculate Live Matrix" in the top bar to analyze live sales volume, recipe portion costs, and classify all dishes into BCG quadrants.
             </p>
             <button
               type="button"
               onClick={handleGenerateLiveMatrix}
               disabled={state.isLoading}
-              className="mt-4 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-900 font-bold text-xs uppercase tracking-wider transition-all"
+              className="mt-4 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold text-xs uppercase tracking-wider transition-all"
             >
               Generate Live Matrix Now
             </button>
@@ -169,12 +169,12 @@ export const MenuEngineeringApp: React.FC<MenuEngineeringAppProps> = ({
             {/* View 3: Full Page Simulator */}
             {activeTab === 'SIMULATOR' && (
               <div className="space-y-4">
-                <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center justify-between">
+                <div className="bg-slate-100 border border-slate-200 p-4 rounded-2xl flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                    <h3 className="text-sm font-bold text-slate-700">
                       Menu Price Elasticity & Profit Optimization Simulator
                     </h3>
-                    <p className="text-xs text-zinc-400 mt-0.5">
+                    <p className="text-xs text-slate-600 mt-0.5">
                       Select any dish from the table below to project the financial impact of price and food cost adjustments.
                     </p>
                   </div>

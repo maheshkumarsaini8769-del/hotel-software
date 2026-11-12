@@ -26,19 +26,19 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
   });
 
   return (
-    <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
+    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xl">
       {/* Filter & Search Bar */}
-      <div className="p-4 border-b border-zinc-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Quadrant Pills */}
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => setQuadrantFilter('ALL')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'ALL'
-                ? 'bg-zinc-100 text-zinc-900'
-                : 'bg-zinc-800 text-zinc-400 hover:text-white'
-            }`}
+ quadrantFilter === 'ALL'
+ ? 'bg-slate-100 text-slate-900'
+ : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+ }`}
           >
             All Items ({items.length})
           </button>
@@ -46,10 +46,10 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             type="button"
             onClick={() => setQuadrantFilter('STAR')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'STAR'
-                ? 'bg-amber-500 text-zinc-900'
-                : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
-            }`}
+ quadrantFilter === 'STAR'
+ ? 'bg-blue-600 text-slate-900'
+ : 'bg-emerald-50 text-amber-700 hover:bg-emerald-100'
+ }`}
           >
             ⭐ Stars
           </button>
@@ -57,10 +57,10 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             type="button"
             onClick={() => setQuadrantFilter('PLOWHORSE')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'PLOWHORSE'
-                ? 'bg-blue-500 text-white'
-                : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
-            }`}
+ quadrantFilter === 'PLOWHORSE'
+ ? 'bg-blue-500 text-white'
+ : 'bg-blue-50 text-blue-700 hover:bg-blue-500/20'
+ }`}
           >
             🐎 Plowhorses
           </button>
@@ -68,10 +68,10 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             type="button"
             onClick={() => setQuadrantFilter('PUZZLE')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'PUZZLE'
-                ? 'bg-slate-800 dark:bg-slate-200 text-white'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800'
-            }`}
+ quadrantFilter === 'PUZZLE'
+ ? 'bg-blue-600 text-white'
+ : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+ }`}
           >
             🧩 Puzzles
           </button>
@@ -79,10 +79,10 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             type="button"
             onClick={() => setQuadrantFilter('DOG')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'DOG'
-                ? 'bg-red-500 text-white'
-                : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
-            }`}
+ quadrantFilter === 'DOG'
+ ? 'bg-red-500 text-white'
+ : 'bg-red-50 text-red-700 hover:bg-red-500/20'
+ }`}
           >
             🐕 Dogs
           </button>
@@ -95,7 +95,7 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             placeholder="Search dish or category..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+            className="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 placeholder-zinc-500 focus:outline-none focus:border-amber-500"
           />
         </div>
       </div>
@@ -103,7 +103,7 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="bg-slate-900 text-zinc-400 font-semibold border-b border-zinc-800 uppercase tracking-wider text-[11px]">
+          <thead className="bg-white text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
             <tr>
               <th className="px-4 py-3">Menu Item</th>
               <th className="px-4 py-3">Quadrant</th>
@@ -117,10 +117,10 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
               <th className="px-4 py-3 text-center">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-200 text-slate-900">
             {filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
                   No menu items found matching the selected criteria
                 </td>
               </tr>
@@ -130,10 +130,10 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
                 const costHealth = MenuEngineeringHelper.getFoodCostHealth(item.foodCostPercentage);
 
                 return (
-                  <tr key={idx} className="hover:bg-zinc-800/40 transition-colors">
+                  <tr key={idx} className="hover:bg-slate-200 transition-colors">
                     <td className="px-4 py-3">
-                      <div className="font-bold text-white">{item.itemName}</div>
-                      <div className="text-[10px] text-zinc-500">{item.category}</div>
+                      <div className="font-bold text-slate-900">{item.itemName}</div>
+                      <div className="text-[10px] text-slate-500">{item.category}</div>
                     </td>
 
                     <td className="px-4 py-3">
@@ -149,11 +149,11 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 text-right font-mono font-medium text-zinc-300">
+                    <td className="px-4 py-3 text-right font-mono font-medium text-slate-700">
                       {MenuEngineeringHelper.formatCurrency(item.sellingPrice)}
                     </td>
 
-                    <td className="px-4 py-3 text-right font-mono font-medium text-zinc-400">
+                    <td className="px-4 py-3 text-right font-mono font-medium text-slate-600">
                       {MenuEngineeringHelper.formatCurrency(item.foodCost)}
                     </td>
 
@@ -166,20 +166,20 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 text-right font-mono font-bold text-emerald-400">
+                    <td className="px-4 py-3 text-right font-mono font-bold text-emerald-700">
                       {MenuEngineeringHelper.formatCurrency(item.contributionMargin)}
                     </td>
 
-                    <td className="px-4 py-3 text-right font-mono font-bold text-amber-300">
+                    <td className="px-4 py-3 text-right font-mono font-bold text-amber-700">
                       {item.quantitySold}
-                      <span className="text-[10px] text-zinc-500 ml-1">({item.menuSharePercentage}%)</span>
+                      <span className="text-[10px] text-slate-500 ml-1">({item.menuSharePercentage}%)</span>
                     </td>
 
-                    <td className="px-4 py-3 text-right font-mono font-bold text-white">
+                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">
                       {MenuEngineeringHelper.formatCurrency(item.totalContributionMargin)}
                     </td>
 
-                    <td className="px-4 py-3 max-w-xs text-[11px] text-zinc-300">
+                    <td className="px-4 py-3 max-w-xs text-[11px] text-slate-700">
                       {item.actionStrategy}
                     </td>
 
@@ -187,7 +187,7 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
                       <button
                         type="button"
                         onClick={() => onSimulateItem(item)}
-                        className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold border border-zinc-700 hover:border-slate-200 dark:border-slate-800 transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold border border-slate-300 hover:border-slate-300 transition-all"
                       >
                         🔮 Test
                       </button>

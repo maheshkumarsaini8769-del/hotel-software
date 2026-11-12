@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IInventoryAuditSessionUI, ISubmitCountsPayload } from '@spicehub/ui';
+import { IInventoryAuditSessionUI, ISubmitCountsPayload, NumericInput } from '@spicehub/ui';
 
 interface BlindStocktakeSheetModalProps {
   session: IInventoryAuditSessionUI | null;
@@ -49,26 +49,26 @@ export const BlindStocktakeSheetModal: React.FC<BlindStocktakeSheetModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-slate-900 border border-amber-500/30 w-full max-w-3xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white border border-amber-200 w-full max-w-3xl rounded-2xl p-6 shadow-sm text-slate-900 max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-200">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+              <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-amber-50 text-amber-700 border border-amber-200">
                 {session.auditNumber}
               </span>
-              <h2 className="text-lg font-bold text-white">Physical Stocktake Sheet</h2>
+              <h2 className="text-lg font-bold text-slate-900">Physical Stocktake Sheet</h2>
             </div>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              Location: <span className="text-zinc-200 font-semibold">{session.storeLocation}</span> • Type:{' '}
-              <span className="text-zinc-200">{session.auditType}</span>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Location: <span className="text-slate-900 font-semibold">{session.storeLocation}</span> • Type:{' '}
+              <span className="text-slate-900">{session.auditType}</span>
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-sm"
+            className="text-slate-600 hover:text-slate-900 p-1 rounded-lg hover:bg-slate-200 text-sm"
           >
             ✕
           </button>
@@ -76,7 +76,7 @@ export const BlindStocktakeSheetModal: React.FC<BlindStocktakeSheetModalProps> =
 
         {/* Blind Count Notice */}
         {session.isBlindStocktake && (
-          <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 flex items-center gap-2.5">
+          <div className="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700 flex items-center gap-2.5">
             <span className="text-base">🛡️</span>
             <div>
               <span className="font-bold">Blind Stocktake Protection Active:</span> System book balances are obscured from this counting sheet. Enter the exact physical shelf tally without bias.
@@ -92,41 +92,40 @@ export const BlindStocktakeSheetModal: React.FC<BlindStocktakeSheetModalProps> =
               return (
                 <div
                   key={idx}
-                  className="bg-zinc-900/90 border border-zinc-800 p-3 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-zinc-700 transition-all"
+                  className="bg-white border border-slate-200 p-3 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 transition-all"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white">{item.itemName}</span>
+                      <span className="text-xs font-bold text-slate-900">{item.itemName}</span>
                       {item.sku && (
-                        <span className="text-[10px] font-mono text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
                           {item.sku}
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-zinc-400 mt-0.5 flex items-center gap-3">
+                    <div className="text-[11px] text-slate-600 mt-0.5 flex items-center gap-3">
                       <span>Category: {item.category}</span>
-                      <span>Unit: <strong className="text-zinc-300">{item.unit}</strong></span>
+                      <span>Unit: <strong className="text-slate-700">{item.unit}</strong></span>
                       {!session.isBlindStocktake && (
-                        <span className="text-zinc-500">
-                          System Book: <strong className="text-amber-400">{item.systemBookQuantity}</strong>
+                        <span className="text-slate-500">
+                          System Book: <strong className="text-amber-700">{item.systemBookQuantity}</strong>
                         </span>
                       )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <label className="text-xs font-semibold text-zinc-400">Physical Count:</label>
+                    <label className="text-xs font-semibold text-slate-600">Physical Count:</label>
                     <div className="flex items-center">
-                      <input
-                        type="number"
+                      <NumericInput
                         step="any"
                         min="0"
                         required
                         value={currentVal}
                         onChange={(e) => handleCountChange(item.itemName, Number(e.target.value))}
-                        className="w-28 bg-zinc-800 border border-amber-500/50 rounded-lg px-3 py-1.5 text-sm font-bold text-amber-300 text-right focus:outline-none focus:ring-1 focus:ring-amber-400"
+                        className="w-28 bg-slate-100 border border-amber-200 rounded-lg px-3 py-1.5 text-sm font-bold text-amber-700 text-right focus:outline-none focus:ring-1 focus:ring-amber-400"
                       />
-                      <span className="ml-2 text-xs text-zinc-400 font-medium">{item.unit}</span>
+                      <span className="ml-2 text-xs text-slate-600 font-medium">{item.unit}</span>
                     </div>
                   </div>
                 </div>
@@ -135,22 +134,22 @@ export const BlindStocktakeSheetModal: React.FC<BlindStocktakeSheetModalProps> =
           </div>
 
           {/* Footer */}
-          <div className="pt-4 border-t border-zinc-800 flex items-center justify-between">
-            <span className="text-xs text-zinc-400">
-              Total Items in Sheet: <strong className="text-white">{session.items.length}</strong>
+          <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+            <span className="text-xs text-slate-600">
+              Total Items in Sheet: <strong className="text-slate-900">{session.items.length}</strong>
             </span>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-all"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-amber-900/30"
+                className="bg-blue-600 hover:bg-blue-700 px-5 py-2 rounded-xl text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-xs"
               >
                 {loading ? 'Submitting Counts...' : 'Submit Physical Counts'}
               </button>

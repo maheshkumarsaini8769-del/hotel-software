@@ -9,7 +9,7 @@ import { DiningTable, TableStatus } from '../models/DiningTable';
 import { KitchenStation } from '../models/KitchenStation';
 import { MenuCategory } from '../models/MenuCategory';
 import { MenuItem } from '../models/MenuItem';
-import { RestaurantOrder } from '../models/RestaurantOrder';
+import { RestaurantOrder, OrderSource } from '../models/RestaurantOrder';
 import { TableSession, SessionStatus } from '../models/TableSession';
 import { DynamicUpiQr } from '../models/DynamicUpiQr';
 import { WaiterCashFloat } from '../models/WaiterCashFloat';
@@ -17,6 +17,9 @@ import { WaiterCashFloat } from '../models/WaiterCashFloat';
 describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLIT SETTLEMENT & ANTI-FRAUD VERIFICATION ---', () => {
   let hotelId: string;
   let adminToken: string;
+  let hotelAccessToken: string;
+  let cashierToken: string;
+  let waiterToken: string;
   let waiterUser: any;
   let cashierUser: any;
   let testTable: any;
@@ -92,6 +95,11 @@ describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLI
       role: UserRole.CASHIER,
       isActive: true,
     });
+    const cashierLogin = await request(app).post('/api/v1/auth/login').send({
+      email: cashierUser.email,
+      password: 'CashierPass@1234',
+    });
+    cashierToken = cashierLogin.body.data.token;
 
     // Create Dining Table
     testTable = await DiningTable.create({
@@ -170,6 +178,36 @@ describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLI
     expect(found.enabledPortals).toContain('waiter');
   });
 
+  test('1a. Staff hotel code is generated once and gates the hotel roster', async () => {
+    const generated = await request(app)
+      .post('/api/v1/hotel-staff/access-code')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('x-hotel-id', hotelId)
+      .send({ hotelId });
+
+    expect(generated.status).toBe(200);
+    expect(generated.body.success).toBe(true);
+    expect(generated.body.data.code).toMatch(/^(?:\d{6}|[A-Z]{2}\d{4,6})$/);
+
+    const invalidCode = await request(app)
+      .post('/api/v1/auth/staff-hotel-code/verify')
+      .send({ code: 'XX000000' });
+    expect(invalidCode.status).toBe(401);
+
+    const verified = await request(app)
+      .post('/api/v1/auth/staff-hotel-code/verify')
+      .send({ code: generated.body.data.code });
+    expect(verified.status).toBe(200);
+    expect(verified.body.data.hotel.id).toBe(hotelId);
+    expect(verified.body.data.accessToken).toBeTruthy();
+    hotelAccessToken = verified.body.data.accessToken;
+
+    const deniedRoster = await request(app)
+      .get(`/api/v1/auth/hotels/${hotelId}/staff-roster?portal=waiter`);
+    expect(deniedRoster.status).toBe(403);
+    expect(deniedRoster.body.errorCode).toBe('HOTEL_CODE_REQUIRED');
+  });
+
   // TEST 2: Staff PIN Self-Request Workflow
   test('2. POST /api/v1/auth/request-pin allows staff to request 4-digit PIN with status PENDING_APPROVAL', async () => {
     const res = await request(app)
@@ -189,7 +227,10 @@ describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLI
       .post('/api/v1/auth/waiter-login')
       .send({
         hotelId,
+        staffId: waiterUser._id.toString(),
+        portal: 'waiter',
         pinCode: '4321',
+        hotelAccessToken,
       });
 
     expect(loginAttempt.status).toBe(403);
@@ -211,16 +252,111 @@ describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLI
 
     // Waiter PIN login now succeeds!
     const loginSuccess = await request(app)
-      .post('/api/v1/auth/waiter-login')
+      .post('/api/v1/auth/staff-pin-login')
       .send({
         hotelId,
-        pinCode: '4321',
+        staffId: waiterUser._id.toString(),
+        portal: 'waiter',
+        pin: '4321',
+        hotelAccessToken,
       });
 
     expect(loginSuccess.status).toBe(200);
     expect(loginSuccess.body.success).toBe(true);
     expect(loginSuccess.body.data.token).toBeDefined();
     expect(loginSuccess.body.data.user.role).toBe(UserRole.WAITER);
+    waiterToken = loginSuccess.body.data.token;
+
+    const profile = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${loginSuccess.body.data.token}`)
+      .set('x-hotel-id', hotelId);
+    expect(profile.status).toBe(200);
+    expect(profile.body.data.user.id).toBe(waiterUser._id.toString());
+    expect(profile.body.data.user).not.toHaveProperty('staffRoster');
+
+    const unassignedTables = await request(app)
+      .get(`/api/v1/pos/tables?hotelId=${hotelId}`)
+      .set('Authorization', `Bearer ${loginSuccess.body.data.token}`);
+    expect(unassignedTables.status).toBe(200);
+    expect(unassignedTables.body.data).toHaveLength(0);
+
+    await User.updateOne(
+      { _id: waiterUser._id },
+      { assignedTableStart: 10, assignedTableEnd: 10, assignedSection: 'Main Dining AC' }
+    );
+    const assignedTables = await request(app)
+      .get(`/api/v1/pos/tables?hotelId=${hotelId}`)
+      .set('Authorization', `Bearer ${loginSuccess.body.data.token}`);
+    expect(assignedTables.status).toBe(200);
+    expect(assignedTables.body.data).toHaveLength(1);
+    expect(assignedTables.body.data[0].id).toBe(testTable._id.toString());
+
+    const crossHotelProfile = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${loginSuccess.body.data.token}`)
+      .set('x-hotel-id', new Types.ObjectId().toString());
+    expect(crossHotelProfile.status).toBe(403);
+    expect(crossHotelProfile.body.errorCode).toBe('TENANT_MISMATCH');
+
+    await User.updateOne({ _id: waiterUser._id }, { isActive: false });
+    const revokedProfile = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${loginSuccess.body.data.token}`)
+      .set('x-hotel-id', hotelId);
+    const revokedPortalAccess = await request(app)
+      .get(`/api/v1/waiter-cash-float/active?hotelId=${hotelId}&waiterId=${waiterUser._id}`)
+      .set('Authorization', `Bearer ${loginSuccess.body.data.token}`);
+    await User.updateOne({ _id: waiterUser._id }, { isActive: true });
+    expect(revokedProfile.status).toBe(401);
+    expect(revokedProfile.body.errorCode).toBe('SESSION_REVOKED');
+    expect(revokedPortalAccess.status).toBe(401);
+    expect(revokedPortalAccess.body.errorCode).toBe('SESSION_REVOKED');
+
+    const invalidPinLogin = await request(app)
+      .post('/api/v1/auth/waiter-login')
+      .send({ hotelId, staffId: waiterUser._id.toString(), portal: 'waiter', pinCode: '0000', hotelAccessToken });
+    const wrongPortalLogin = await request(app)
+      .post('/api/v1/auth/staff-pin-login')
+      .send({ hotelId, staffId: waiterUser._id.toString(), portal: 'cashier', pin: '4321', hotelAccessToken });
+    const unknownStaffLogin = await request(app)
+      .post('/api/v1/auth/waiter-login')
+      .send({ hotelId, staffId: new Types.ObjectId().toString(), portal: 'waiter', pinCode: '0000', hotelAccessToken });
+
+    expect(invalidPinLogin.status).toBe(401);
+    expect(wrongPortalLogin.status).toBe(403);
+    expect(wrongPortalLogin.body.errorCode).toBe('STAFF_PORTAL_ROLE_MISMATCH');
+    expect(unknownStaffLogin.status).toBe(401);
+    expect(unknownStaffLogin.body.errorCode).toBe(invalidPinLogin.body.errorCode);
+    expect(unknownStaffLogin.body.message).toBe(invalidPinLogin.body.message);
+  });
+
+  test('3a. GET /api/v1/auth/hotels/:hotelId/staff-roster returns only safe portal staff fields', async () => {
+    const res = await request(app)
+      .get(`/api/v1/auth/hotels/${hotelId}/staff-roster?portal=waiter`)
+      .set('x-hotel-access-token', hotelAccessToken);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: waiterUser._id.toString(),
+        name: waiterUser.name,
+        role: UserRole.WAITER,
+      }),
+    ]));
+    expect(res.body.data[0]).not.toHaveProperty('email');
+    expect(res.body.data[0]).not.toHaveProperty('phone');
+    expect(res.body.data[0]).not.toHaveProperty('pinCodeHash');
+    expect(res.body.data[0]).not.toHaveProperty('passwordHash');
+    expect(res.body.data[0]).not.toHaveProperty('assignedTableStart');
+    expect(res.body.data.every((member: any) => member.role === UserRole.WAITER)).toBe(true);
+
+    const missingPortal = await request(app)
+      .get(`/api/v1/auth/hotels/${hotelId}/staff-roster`)
+      .set('x-hotel-access-token', hotelAccessToken);
+    expect(missingPortal.status).toBe(400);
+    expect(missingPortal.body.errorCode).toBe('INVALID_STAFF_PORTAL');
   });
 
   // TEST 4: Food Customization & Cooking Notes Engine
@@ -265,6 +401,9 @@ describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLI
     expect(orderRes.status).toBe(201);
     expect(orderRes.body.success).toBe(true);
     const savedOrder = orderRes.body.data;
+    expect(savedOrder.source).toBe(OrderSource.TABLE_QR);
+    const persistedOrder = await RestaurantOrder.findById(savedOrder._id);
+    expect(persistedOrder?.source).toBe(OrderSource.TABLE_QR);
     expect(savedOrder.cookingInstructions).toBe('Kam namak / less salt across all dishes');
     expect(savedOrder.items[0].specialInstructions).toBe('Kam namak / less salt, mirchi kam');
     expect(savedOrder.items[1].specialInstructions).toBe('Extra crispy, no butter');
@@ -286,10 +425,22 @@ describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLI
       totalAmount: 1500,
     });
 
+    const waiterQrAttempt = await request(app)
+      .post('/api/v1/dynamic-upi/generate')
+      .set('Authorization', `Bearer ${waiterToken}`)
+      .send({
+        hotelId,
+        tableSessionId: (splitSession._id as Types.ObjectId).toString(),
+        tableNumber: 'T-10',
+        amount: onlineUpiPortion,
+      });
+    expect(waiterQrAttempt.status).toBe(403);
+    expect(waiterQrAttempt.body.errorCode).toBe('STAFF_ROLE_FORBIDDEN');
+
     // 1. Generate Dynamic UPI QR for ₹500
     const upiQrRes = await request(app)
       .post('/api/v1/dynamic-upi/generate')
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${cashierToken}`)
       .send({
         hotelId,
         tableSessionId: (splitSession._id as Types.ObjectId).toString(),
@@ -308,9 +459,26 @@ describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLI
     const transactionRef = upiData.transactionRef;
 
     // 2. ANTI-FRAUD ATTEMPT: Waiter attempts to settle multi-tender bill before payment is verified -> MUST FAIL!
+    const waiterSettleRes = await request(app)
+      .post('/api/v1/billing/multi-tender-settle')
+      .set('Authorization', `Bearer ${waiterToken}`)
+      .send({
+        hotelId,
+        tableSessionId: (splitSession._id as Types.ObjectId).toString(),
+        tableNumber: 'T-10',
+        tenders: [
+          { method: 'CASH', amount: cashPortion },
+          { method: 'UPI', amount: onlineUpiPortion, transactionRef },
+        ],
+        waiterId: waiterUser._id.toString(),
+        waiterName: waiterUser.name,
+      });
+    expect(waiterSettleRes.status).toBe(403);
+    expect(waiterSettleRes.body.errorCode).toBe('STAFF_ROLE_FORBIDDEN');
+
     const unverifiedSettleRes = await request(app)
       .post('/api/v1/billing/multi-tender-settle')
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${cashierToken}`)
       .send({
         hotelId,
         tableSessionId: (splitSession._id as Types.ObjectId).toString(),
@@ -344,7 +512,7 @@ describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLI
     // 4. Retry Multi-Tender Settlement after verification -> SUCCEEDS!
     const verifiedSettleRes = await request(app)
       .post('/api/v1/billing/multi-tender-settle')
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${cashierToken}`)
       .send({
         hotelId,
         tableSessionId: (splitSession._id as Types.ObjectId).toString(),
@@ -365,7 +533,7 @@ describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLI
     // 5. Verify Waiter Cash Float automatically received the ₹1000 Cash portion
     const waiterFloatRes = await request(app)
       .get(`/api/v1/waiter-cash-float/active?hotelId=${hotelId}&waiterId=${waiterUser._id}`)
-      .set('Authorization', `Bearer ${adminToken}`);
+      .set('Authorization', `Bearer ${waiterToken}`);
 
     expect(waiterFloatRes.status).toBe(200);
     expect(waiterFloatRes.body.success).toBe(true);
@@ -377,7 +545,7 @@ describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLI
   test('6. Fast Cashier punches walk-in verbal order directly and settles on the spot', async () => {
     const cashierOrderRes = await request(app)
       .post('/api/v1/fast-cashier/order')
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${cashierToken}`)
       .send({
         hotelId,
         items: [

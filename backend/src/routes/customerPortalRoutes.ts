@@ -3,6 +3,8 @@ import { CustomerPortalController } from '../controllers/customerPortalControlle
 
 const router = Router();
 
+router.get('/preferences', CustomerPortalController.getPreferences);
+router.put('/preferences', CustomerPortalController.updatePreferences);
 router.post('/detect-or-init', CustomerPortalController.detectOrInit);
 router.post('/select-mode', CustomerPortalController.selectMode);
 router.post('/switch-mode', CustomerPortalController.switchMode);

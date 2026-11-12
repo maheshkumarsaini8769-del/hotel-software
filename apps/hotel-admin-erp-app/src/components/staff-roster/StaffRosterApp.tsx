@@ -10,6 +10,7 @@ import { WeeklyRosterCalendarView } from './WeeklyRosterCalendarView';
 import { StaffClockPinTerminalModal } from './StaffClockPinTerminalModal';
 import { TipPoolDistributionModal } from './TipPoolDistributionModal';
 import { AttendanceAuditTable } from './AttendanceAuditTable';
+import { Check, Plus } from 'lucide-react';
 
 interface StaffRosterAppProps {
   apiBaseUrl?: string;
@@ -29,6 +30,7 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
   const [isClockModalOpen, setIsClockModalOpen] = useState(false);
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
   const [selectedDept, setSelectedDept] = useState('ALL');
+  const [feedbackBanner, setFeedbackBanner] = useState<{ type: 'info' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     const unsubscribe = store.subscribe((newState) => {
@@ -117,7 +119,7 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
       }
     } catch (err: any) {
       console.error('Error generating tip pool:', err);
-      alert(err.response?.data?.message || 'Failed to generate tip pool');
+      setFeedbackBanner({ type: 'error', message: err.response?.data?.message || 'Failed to generate tip pool' });
     } finally {
       store.setLoading(false);
     }
@@ -136,21 +138,21 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
       }
     } catch (err: any) {
       console.error('Error approving tip payout:', err);
-      alert(err.response?.data?.message || 'Failed to approve payout');
+      setFeedbackBanner({ type: 'error', message: err.response?.data?.message || 'Failed to approve payout' });
     } finally {
       store.setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Header */}
       <StaffRosterHeader
         metrics={state.metrics}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onOpenClockTerminal={() => setIsClockModalOpen(true)}
-        onOpenNewShiftModal={() => alert('Quick shift creator: Add shifts in Roster Planner')}
+        onOpenNewShiftModal={() => setFeedbackBanner({ type: 'info', message: 'Quick shift creator: Select a shift slot below in the Roster Planner.' })}
         onOpenTipPoolModal={() => setIsTipModalOpen(true)}
         onRefresh={fetchData}
         loading={state.isLoading}
@@ -158,13 +160,31 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
 
       {/* Main Workspace */}
       <main className="flex-1 p-6 space-y-6">
+        {feedbackBanner && (
+          <div
+            className={`px-4 py-3 rounded-xl border text-xs font-semibold flex items-center justify-between ${
+              feedbackBanner.type === 'error'
+                ? 'bg-red-50 border-red-200 text-red-700'
+                : 'bg-blue-50 border-blue-200 text-blue-700'
+            }`}
+          >
+            <span>{feedbackBanner.message}</span>
+            <button
+              type="button"
+              onClick={() => setFeedbackBanner(null)}
+              className="ml-4 font-bold underline cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         {/* Tab 1: Roster Schedule */}
         {activeTab === 'ROSTER' && (
           <WeeklyRosterCalendarView
             schedules={state.schedules}
             selectedDepartment={selectedDept}
             onDepartmentChange={setSelectedDept}
-            onNewShiftClick={() => alert('Use schedule creator to add shifts')}
+            onNewShiftClick={() => setFeedbackBanner({ type: 'info', message: 'Use the roster table slots to add or assign shifts.' })}
           />
         )}
 
@@ -176,26 +196,27 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
         {/* Tab 3: Tip Pool Distribution */}
         {activeTab === 'TIP_POOL' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between bg-emerald-950/20 border border-emerald-500/30 p-4 rounded-2xl">
+            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-4 rounded-2xl shadow-xs">
               <div>
-                <h3 className="text-sm font-bold text-emerald-300">
+                <h3 className="text-sm font-bold text-emerald-900">
                   Gratuity & Tip Pool Settlement Sessions
                 </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
+                <p className="text-xs text-emerald-700 mt-0.5">
                   Daily service charge & tips collected with hours-weighted payout approval.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsTipModalOpen(true)}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider"
+                className="btn-glass-green px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
               >
-                + New Tip Split Session
+                <Plus className="w-4 h-4" />
+                <span>New Tip Split Session</span>
               </button>
             </div>
 
             {state.tipSessions.length === 0 ? (
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-12 text-center text-zinc-400 text-xs">
+              <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-400 text-xs shadow-xs">
                 No tip pool sessions generated yet. Click "+ New Tip Split Session" to calculate today's pool.
               </div>
             ) : (
@@ -203,21 +224,21 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
                 {state.tipSessions.map((session) => (
                   <div
                     key={session._id}
-                    className="bg-zinc-900/90 border border-zinc-800 p-5 rounded-2xl space-y-4"
+                    className="bg-white border border-slate-200 p-5 rounded-2xl space-y-4 shadow-xs"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-mono font-bold text-emerald-400">
+                          <span className="text-sm font-mono font-bold text-emerald-700">
                             {session.sessionNumber}
                           </span>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-800 text-zinc-300">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                             {session.status}
                           </span>
                         </div>
-                        <div className="text-xs text-zinc-400 mt-1">
+                        <div className="text-xs text-slate-500 mt-1">
                           Date: {new Date(session.poolDate).toLocaleDateString('en-GB')} • Total Pool:{' '}
-                          <strong className="text-white">
+                          <strong className="text-slate-900">
                             {StaffRosterHelper.formatCurrency(session.totalTipsCollected)}
                           </strong>
                         </div>
@@ -228,9 +249,10 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
                           <button
                             type="button"
                             onClick={() => handleApproveTipPayout(session._id)}
-                            className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider transition-all"
+                            className="btn-glass-green px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
                           >
-                            ✓ Approve Disbursement
+                            <Check className="w-4 h-4" />
+                            <span>Approve Disbursement</span>
                           </button>
                         )}
                       </div>
@@ -238,21 +260,21 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
 
                     {/* Breakdown Chips */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-                      <div className="bg-zinc-800/60 p-2 rounded-xl">
-                        <span className="text-zinc-500 text-[10px] block">FOH Share ({session.fohPercentage}%)</span>
-                        <strong className="text-blue-400">{StaffRosterHelper.formatCurrency(session.fohPoolAmount)}</strong>
+                      <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+                        <span className="text-slate-500 text-[10px] block">FOH Share ({session.fohPercentage}%)</span>
+                        <strong className="text-sky-700">{StaffRosterHelper.formatCurrency(session.fohPoolAmount)}</strong>
                       </div>
-                      <div className="bg-zinc-800/60 p-2 rounded-xl">
-                        <span className="text-zinc-500 text-[10px] block">BOH Share ({session.bohPercentage}%)</span>
-                        <strong className="text-amber-400">{StaffRosterHelper.formatCurrency(session.bohPoolAmount)}</strong>
+                      <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+                        <span className="text-slate-500 text-[10px] block">BOH Share ({session.bohPercentage}%)</span>
+                        <strong className="text-amber-700">{StaffRosterHelper.formatCurrency(session.bohPoolAmount)}</strong>
                       </div>
-                      <div className="bg-zinc-800/60 p-2 rounded-xl">
-                        <span className="text-zinc-500 text-[10px] block">Eligible Staff</span>
-                        <strong className="text-white">{session.payouts?.length || 0} Staff</strong>
+                      <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+                        <span className="text-slate-500 text-[10px] block">Eligible Staff</span>
+                        <strong className="text-slate-900">{session.payouts?.length || 0} Staff</strong>
                       </div>
-                      <div className="bg-zinc-800/60 p-2 rounded-xl">
-                        <span className="text-zinc-500 text-[10px] block">Total Hours</span>
-                        <strong className="text-slate-700 dark:text-slate-300">{session.totalEligibleHours}h</strong>
+                      <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+                        <span className="text-slate-500 text-[10px] block">Total Hours</span>
+                        <strong className="text-slate-900">{session.totalEligibleHours}h</strong>
                       </div>
                     </div>
                   </div>

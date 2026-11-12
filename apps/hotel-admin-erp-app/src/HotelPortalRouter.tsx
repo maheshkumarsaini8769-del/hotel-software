@@ -150,8 +150,6 @@ export const HotelPortalRouter: React.FC = () => {
       appName="Hotel Admin ERP"
       appSubtitle="Command center for hotel operations, revenue, staff and compliance."
       accent="amber"
-      demoEmail="admin@tajgateway.com"
-      demoPassword="SpiceHub@123"
     >
       <AdminErpShell onNavigatePortal={navigatePortal} />
     </StaffLoginGate>

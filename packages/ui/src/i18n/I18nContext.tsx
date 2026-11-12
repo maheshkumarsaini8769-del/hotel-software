@@ -108,10 +108,10 @@ export const LanguageToggle: React.FC<LanguageToggleProps> = ({ className = '', 
       type="button"
       onClick={toggleLocale}
       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition shadow-xs ${
-        isDark
-          ? 'bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white'
-          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-      } ${className}`}
+ isDark
+ ? 'bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white'
+ : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+ } ${className}`}
       title={locale === 'en' ? 'हिन्दी में बदलें (Switch to Hindi)' : 'Switch to English (अंग्रेजी में बदलें)'}
     >
       <span className="text-sm leading-none">🌐</span>

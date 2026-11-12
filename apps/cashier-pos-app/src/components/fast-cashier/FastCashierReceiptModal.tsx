@@ -145,7 +145,7 @@ export const FastCashierReceiptModal: React.FC<FastCashierReceiptModalProps> = (
           <button
             type="button"
             onClick={onNextCustomer}
-            className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center justify-center gap-1"
+            className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-amber-400 text-white font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center justify-center gap-1"
           >
             <span>⚡ Next Customer</span>
           </button>

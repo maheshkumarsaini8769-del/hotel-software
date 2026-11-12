@@ -11,7 +11,7 @@ TARGET_DIRS = [
     'apps/guest-room-portal-app/src',
     'apps/customer-table-app/src',
     'apps/spicehub-customer-android/src',
-    'apps/spicehub-staff-android/src',
+    'apps/staff-pwa/src',
     'packages/ui/src',
 ]
 

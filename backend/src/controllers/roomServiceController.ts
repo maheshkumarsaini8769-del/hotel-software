@@ -9,7 +9,7 @@ import { Booking, BookingStatus } from '../models/Booking';
 import { GuestSession } from '../models/GuestSession';
 import { MenuItem } from '../models/MenuItem';
 import { KitchenStation } from '../models/KitchenStation';
-import { RestaurantOrder, OrderType, OverallOrderStatus, ItemProductionStatus } from '../models/RestaurantOrder';
+import { RestaurantOrder, OrderType, OrderSource, OverallOrderStatus, ItemProductionStatus } from '../models/RestaurantOrder';
 import { MasterFolio } from '../models/MasterFolio';
 import { FolioLineItem, DepartmentType } from '../models/FolioLineItem';
 import { ServiceRequest, ServiceRequestType, ServiceRequestPriority, ServiceRequestStatus } from '../models/ServiceRequest';
@@ -20,9 +20,19 @@ import { HousekeepingTask, HousekeepingTaskType, HousekeepingTaskStatus } from '
 import { io } from '../index';
 import { TenantRequest } from '../types';
 import { generateReferenceNumber } from '../utils/referenceNumber';
+import { resolveTenantCapabilities } from '../utils/tenantCapabilities';
 
 const GUEST_SESSION_PURPOSE = 'GUEST_SESSION';
 const GUEST_SESSION_TTL_MS = 24 * 3600000;
+const DEFAULT_HOTEL_COORDINATES = { lat: 26.9124, lng: 75.7873 };
+
+const resolveHotelCoordinates = (tenant: any): { lat: number; lng: number } => {
+  const lat = Number(tenant?.coordinates?.latitude ?? tenant?.latitude);
+  const lng = Number(tenant?.coordinates?.longitude ?? tenant?.longitude);
+  const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
+
+  return hasCoordinates ? { lat, lng } : DEFAULT_HOTEL_COORDINATES;
+};
 
 const hashGuestToken = (token: string): string =>
   crypto.createHash('sha256').update(String(token)).digest('hex');
@@ -651,6 +661,7 @@ export const placeRoomServiceOrder = async (req: Request, res: Response): Promis
       hotelId: new Types.ObjectId(hotelId),
       orderNumber,
       orderType: OrderType.ROOM_SERVICE,
+      source: OrderSource.IN_ROOM_DINING,
       stayId: stay._id,
       roomId: room._id,
       folioId: stay.masterFolioId,
@@ -843,6 +854,69 @@ const resolveGuestSession = async (token?: string, allowCheckedOut = false) => {
   if (!allowCheckedOut && stay.stayStatus !== StayStatus.ACTIVE) return null;
 
   return { session, stay };
+};
+
+export const getGuestPortalPreferences = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const resolved = await resolveGuestSession(req.header('x-guest-session-token'));
+    if (!resolved) {
+      res.status(401).json({ success: false, errorCode: 'GUEST_SESSION_REQUIRED', message: 'A valid room session is required.' });
+      return;
+    }
+
+    const tenant = await Tenant.findById(resolved.session.hotelId).select('contactPhone').lean();
+    res.status(200).json({
+      success: true,
+      data: {
+        language: resolved.session.language || 'en',
+        theme: resolved.session.theme || 'light',
+        fontSize: resolved.session.fontSize || 'medium',
+        hotelContactPhone: tenant?.contactPhone || '',
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Guest preferences could not be loaded.' });
+  }
+};
+
+export const updateGuestPortalPreferences = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const resolved = await resolveGuestSession(req.header('x-guest-session-token'));
+    if (!resolved) {
+      res.status(401).json({ success: false, errorCode: 'GUEST_SESSION_REQUIRED', message: 'A valid room session is required.' });
+      return;
+    }
+
+    const { language, theme, fontSize } = req.body || {};
+    if (
+      (language !== undefined && !['en', 'hi'].includes(language)) ||
+      (theme !== undefined && !['light', 'dark'].includes(theme)) ||
+      (fontSize !== undefined && !['small', 'medium', 'large'].includes(fontSize)) ||
+      (language === undefined && theme === undefined && fontSize === undefined)
+    ) {
+      res.status(400).json({ success: false, errorCode: 'INVALID_PREFERENCES', message: 'Provide valid language, theme, or font size preferences.' });
+      return;
+    }
+
+    if (language !== undefined) resolved.session.language = language;
+    if (theme !== undefined) resolved.session.theme = theme;
+    if (fontSize !== undefined) resolved.session.fontSize = fontSize;
+    await resolved.session.save();
+
+    const tenant = await Tenant.findById(resolved.session.hotelId).select('contactPhone').lean();
+    res.status(200).json({
+      success: true,
+      message: 'Settings saved',
+      data: {
+        language: resolved.session.language,
+        theme: resolved.session.theme,
+        fontSize: resolved.session.fontSize,
+        hotelContactPhone: tenant?.contactPhone || '',
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Guest preferences could not be saved.' });
+  }
 };
 
 // 4. Live Room Service Orders Tracker
@@ -1159,8 +1233,8 @@ export const getGuestStayStatus = async (req: Request, res: Response): Promise<v
     const lineItems = folio
       ? await FolioLineItem.find({ folioId: folio._id }).sort({ createdAt: 1 })
       : [];
-    const tenantDoc = await Tenant.findById(session.hotelId).select('enabledPortals wifiSsid wifiPassword');
-    const waiterEnabled = tenantDoc?.enabledPortals?.includes('waiter') ?? true;
+    const tenantDoc = await Tenant.findById(session.hotelId).select('enabledPortals featureFlags wifiSsid wifiPassword');
+    const waiterEnabled = tenantDoc ? resolveTenantCapabilities(tenantDoc).waiterDispatch : false;
     const dynamicWifiSsid = tenantDoc?.wifiSsid || 'TajGateway_HighSpeed';
     const dynamicWifiPassword = tenantDoc?.wifiPassword || `TajGuest@${room.roomNumber}`;
 
@@ -1623,18 +1697,8 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
       .populate('roomTypeId')
       .sort({ floorNumber: 1, roomNumber: 1 });
 
-    const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
-      mumbai: { lat: 19.0760, lng: 72.8777 },
-      delhi: { lat: 28.6139, lng: 77.2090 },
-      bengaluru: { lat: 12.9716, lng: 77.5946 },
-      jaipur: { lat: 26.9124, lng: 75.7873 },
-      goa: { lat: 15.2993, lng: 74.1240 },
-      kolkata: { lat: 22.5726, lng: 88.3639 },
-    };
-
     const anyTenant = tenant as any;
-    const cityKey = (anyTenant.city || 'mumbai').toLowerCase().trim();
-    const defaultCoords = CITY_COORDS[cityKey] || { lat: 19.0760, lng: 72.8777 };
+    const hotelCoordinates = resolveHotelCoordinates(anyTenant);
 
     let availableCount = 0;
     let cleaningCount = 0;
@@ -1718,6 +1782,15 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
       };
     });
 
+    const tenantAddr = typeof anyTenant.address === 'object' && anyTenant.address ? anyTenant.address : {};
+    const hotelStreet = tenantAddr.street || anyTenant.street || '';
+    const hotelCity = tenantAddr.city || anyTenant.city || 'Jaipur';
+    const hotelState = tenantAddr.state || anyTenant.state || 'Rajasthan';
+    const hotelCountry = tenantAddr.country || anyTenant.country || 'India';
+    const hotelPincode = tenantAddr.pincode || anyTenant.pincode || '';
+    const hotelGoogleMapUrl = anyTenant.googleMapUrl || `https://www.google.com/maps/search/?api=1&query=${hotelCoordinates.lat},${hotelCoordinates.lng}`;
+    const hotelLocationNotes = anyTenant.locationNotes || '';
+
     res.status(200).json({
       success: true,
       data: {
@@ -1725,12 +1798,30 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
           id: tenant._id,
           name: tenant.name,
           slug: tenant.slug,
-          city: anyTenant.city || 'Mumbai',
-          state: anyTenant.state || 'Maharashtra',
-          latitude: defaultCoords.lat,
-          longitude: defaultCoords.lng,
+          city: hotelCity,
+          state: hotelState,
+          street: hotelStreet,
+          pincode: hotelPincode,
+          country: hotelCountry,
+          address: {
+            street: hotelStreet,
+            city: hotelCity,
+            state: hotelState,
+            pincode: hotelPincode,
+            country: hotelCountry,
+          },
+          googleMapUrl: hotelGoogleMapUrl,
+          locationNotes: hotelLocationNotes,
+          latitude: hotelCoordinates.lat,
+          longitude: hotelCoordinates.lng,
+          coordinates: {
+            latitude: hotelCoordinates.lat,
+            longitude: hotelCoordinates.lng,
+          },
           phone: tenant.contactPhone || '+91 98200 11223',
-          waiterEnabled: tenant.enabledPortals?.includes('waiter') ?? true,
+          logoUrl: tenant.logoUrl || '',
+          coverImageUrl: tenant.coverImageUrl || '',
+          waiterEnabled: resolveTenantCapabilities(tenant).waiterDispatch,
           wifiSsid: tenant.wifiSsid || 'TajGateway_HighSpeed',
           wifiPassword: tenant.wifiPassword || 'SpiceGuest@2026',
           allRoomsAcOnly: !hasNonAcRooms,
@@ -2116,13 +2207,32 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
     const isHotelClaimed = bookingLocation === 'IN_HOTEL' || bookingLocation === 'HOTEL_RADIUS';
     let computedDistanceKm: number | undefined = typeof distanceFromHotelKm === 'number' ? distanceFromHotelKm : undefined;
 
-    const tenant = await Tenant.findById(hotelId).select('coordinates latitude longitude name');
-    const hotelLat = tenant?.coordinates?.latitude ?? (tenant as any)?.latitude ?? 26.9124;
-    const hotelLng = tenant?.coordinates?.longitude ?? (tenant as any)?.longitude ?? 75.7873;
+    const tenant = await Tenant.findById(hotelId).select('coordinates latitude longitude city name address googleMapUrl locationNotes');
+    const hotelCoordinates = resolveHotelCoordinates(tenant);
     const uLat = typeof req.body.userLat === 'number' ? req.body.userLat : deviceLocation?.latitude;
     const uLng = typeof req.body.userLng === 'number' ? req.body.userLng : deviceLocation?.longitude;
 
-    if (hotelLat && hotelLng && typeof uLat === 'number' && typeof uLng === 'number') {
+    if (isHotelClaimed && !hotelCoordinates) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'HOTEL_LOCATION_UNAVAILABLE',
+        message: 'This hotel has not configured its precise map location yet. Please switch to Advance Booking or contact Reception.',
+      });
+      return;
+    }
+
+    if (isHotelClaimed && (typeof uLat !== 'number' || typeof uLng !== 'number')) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'GUEST_LOCATION_REQUIRED',
+        message: 'Verify your device location before choosing At Hotel Check-In.',
+      });
+      return;
+    }
+
+    if (hotelCoordinates && typeof uLat === 'number' && typeof uLng === 'number') {
+      const hotelLat = hotelCoordinates.lat;
+      const hotelLng = hotelCoordinates.lng;
       const R = 6371;
       const dLat = ((hotelLat - uLat) * Math.PI) / 180;
       const dLon = ((hotelLng - uLng) * Math.PI) / 180;
@@ -2995,5 +3105,3 @@ export const extendStayDates = async (req: Request, res: Response): Promise<void
     res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: error.message });
   }
 };
-
-

@@ -1,8 +1,18 @@
-import React from 'react';
 import { FloorOverviewSummaryDTO, FloorDutyHelper } from '@spicehub/ui';
+import { Building2, RefreshCw, AlertTriangle, CheckCircle2, Sliders, Users } from 'lucide-react';
 
-export interface FloorDutyMatrixViewProps {
-  floors: FloorOverviewSummaryDTO[];
+export interface FloorDutyState extends Partial<FloorOverviewSummaryDTO> {
+  floorCode: string;
+  floorName: string;
+  totalOccupiedPax?: number;
+  totalCapacityPax?: number;
+  activeWaitersCount?: number;
+  overloadedWaitersCount?: number;
+  [key: string]: any;
+}
+
+interface FloorDutyMatrixViewProps {
+  floors: FloorDutyState[];
   onAssignRange?: (floorCode: string) => void;
   onRefresh?: () => void;
 }
@@ -13,156 +23,118 @@ export const FloorDutyMatrixView: React.FC<FloorDutyMatrixViewProps> = ({
   onRefresh,
 }) => {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#111827', margin: 0 }}>
-            🏢 Multi-Floor Waiter Duty Matrix
-          </h1>
-          <p style={{ margin: '4px 0 0 0', color: '#6B7280', fontSize: '14px' }}>
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              Multi-Floor Waiter Duty Matrix
+            </h1>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
             Live floor workloads, table range assignments, and overload safety alerts
           </p>
         </div>
         {onRefresh && (
           <button
             onClick={onRefresh}
-            style={{
-              padding: '10px 18px',
-              minHeight: '48px',
-              backgroundColor: '#1E40AF',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: '10px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
+            className="btn-glass-green flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer shadow-xs active:scale-95"
           >
-            <span>🔄</span> Refresh Floors
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Refresh Floors</span>
           </button>
         )}
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: '16px',
-        }}
-      >
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {floors.map((floor) => {
           const colors = FloorDutyHelper.getFloorBadgeColor(floor.floorCode);
-          const utilization = FloorDutyHelper.getFloorUtilization(floor);
-          const hasOverload = floor.overloadedWaitersCount > 0;
+          const rawUtilization = FloorDutyHelper.getFloorUtilization(floor as any);
+          const utilizationPct = typeof rawUtilization === 'number' ? rawUtilization : (rawUtilization as any)?.percentage || 0;
+          const statusColor = utilizationPct > 90 ? '#ef4444' : utilizationPct > 75 ? '#f59e0b' : '#10b981';
+          const hasOverload = (floor.overloadedWaitersCount || 0) > 0;
 
           return (
             <div
               key={floor.floorCode}
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: '16px',
-                border: `1px solid ${colors.border}`,
-                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-                padding: '20px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '14px',
-              }}
+              className={`rounded-2xl p-5 border flex flex-col justify-between transition-all shadow-xs ${
+                hasOverload
+                  ? 'bg-rose-50/40 border-rose-200'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span
-                  style={{
-                    backgroundColor: colors.bg,
-                    color: colors.text,
-                    border: `1px solid ${colors.border}`,
-                    fontWeight: 800,
-                    fontSize: '12px',
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                  }}
-                >
-                  {floor.floorCode}
-                </span>
-
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#4B5563' }}>
-                  Captain: {floor.supervisorName}
-                </span>
-              </div>
-
               <div>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#111827' }}>
-                  {floor.floorName}
-                </h3>
-                <div style={{ fontSize: '13px', color: '#6B7280', marginTop: '4px' }}>
-                  {floor.totalTables} Tables ({floor.totalCapacity} Pax Capacity)
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <span
+                    className="px-2.5 py-1 rounded-lg text-xs font-bold"
+                    style={{ backgroundColor: colors.bg, color: colors.text }}
+                  >
+                    {floor.floorName} ({floor.floorCode})
+                  </span>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <Users className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="font-semibold text-slate-800">{floor.activeWaitersCount}</span> On Duty
+                  </div>
+                </div>
+
+                {/* Utilization Progress Bar */}
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
+                    <span>Floor Pax Capacity:</span>
+                    <span className="font-mono font-semibold text-slate-800">
+                      {floor.totalOccupiedPax} / {floor.totalCapacityPax} Pax ({utilizationPct}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.min(100, utilizationPct)}%`,
+                        backgroundColor: statusColor,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Overload Alert */}
+                {hasOverload && (
+                  <div className="mt-3 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>
+                      Overload Alert: {floor.overloadedWaiters[0].waiterName} assigned{' '}
+                      {floor.overloadedWaiters[0].paxCapacity} pax (Cap: {floor.overloadedWaiters[0].cap})!
+                    </span>
+                  </div>
+                )}
+
+                {/* Unassigned Tables Notice */}
+                <div className="mt-3">
+                  {floor.unassignedTablesCount > 0 ? (
+                    <div className="flex items-center gap-1.5 text-xs text-amber-700 font-semibold">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                      <span>
+                        {floor.unassignedTablesCount} Unassigned Tables ({floor.unassignedTables.slice(0, 4).join(', ')}...)
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>All Tables Fully Covered</span>
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* Progress Bar */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
-                  <span style={{ fontWeight: 600, color: '#374151' }}>Coverage</span>
-                  <span style={{ fontWeight: 700, color: '#1E40AF' }}>{utilization}%</span>
-                </div>
-                <div style={{ width: '100%', height: '8px', backgroundColor: '#E5E7EB', borderRadius: '4px' }}>
-                  <div
-                    style={{
-                      width: `${utilization}%`,
-                      height: '100%',
-                      backgroundColor: utilization >= 80 ? '#10B981' : '#F59E0B',
-                      borderRadius: '4px',
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Overload Warning Alert */}
-              {hasOverload && (
-                <div
-                  style={{
-                    backgroundColor: '#FEF2F2',
-                    border: '1px solid #F87171',
-                    borderRadius: '10px',
-                    padding: '10px',
-                    color: '#991B1B',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                  }}
-                >
-                  ⚠️ Overload Alert: {floor.overloadedWaiters[0].waiterName} assigned{' '}
-                  {floor.overloadedWaiters[0].paxCapacity} pax (Cap: {floor.overloadedWaiters[0].cap})!
-                </div>
-              )}
-
-              {/* Unassigned Tables Notice */}
-              {floor.unassignedTablesCount > 0 ? (
-                <div style={{ fontSize: '13px', color: '#D97706', fontWeight: 600 }}>
-                  ⚠️ {floor.unassignedTablesCount} Unassigned Tables ({floor.unassignedTables.slice(0, 4).join(', ')}...)
-                </div>
-              ) : (
-                <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>
-                  ✅ All Tables Fully Covered
-                </div>
-              )}
 
               {onAssignRange && (
                 <button
                   onClick={() => onAssignRange(floor.floorCode)}
-                  style={{
-                    marginTop: 'auto',
-                    minHeight: '48px',
-                    backgroundColor: '#F3F4F6',
-                    border: '1px solid #D1D5DB',
-                    borderRadius: '10px',
-                    color: '#111827',
-                    fontWeight: 700,
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
+                  className="btn-glass-green-subtle mt-4 w-full py-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition active:scale-95"
                 >
-                  ⚙️ Dynamic Range Assigner
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span>Dynamic Range Assigner</span>
                 </button>
               )}
             </div>

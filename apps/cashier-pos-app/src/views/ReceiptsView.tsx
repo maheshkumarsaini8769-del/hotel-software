@@ -38,7 +38,7 @@ function formatTime(value: string): string {
   });
 }
 
-export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ isDark = true, onToast }) => {
+export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ onToast }) => {
   const [search, setSearch] = useState('');
   const [receipts, setReceipts] = useState<ReceiptRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,10 +139,10 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ isDark = true, onToa
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
+ 'bg-white border-slate-200 shadow-sm'
+ }`}>
         <div>
-          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${'text-slate-900'}`}>
             <Receipt className="w-5 h-5 text-amber-500" />
             <span>Tax Invoices & GST Receipts Repository</span>
           </h2>
@@ -186,13 +186,13 @@ export const ReceiptsView: React.FC<ReceiptsViewProps> = ({ isDark = true, onToa
       )}
 
       <div className={`rounded-2xl border overflow-hidden ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
+ 'bg-white border-slate-200'
+ }`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className={`border-b text-[11px] font-black uppercase tracking-wider ${
-              isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
-            }`}>
+ 'bg-slate-50 border-slate-200 text-slate-600'
+ }`}>
               <tr>
                 <th className="py-3 px-4">Invoice #</th>
                 <th className="py-3 px-4">Destination</th>

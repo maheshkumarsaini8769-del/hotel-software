@@ -116,3 +116,102 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+.kds-app.kds-heritage-light {
+  color-scheme: light;
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  --kds-primary: #2563EB;
+  --kds-primary-hover: #1D4ED8;
+  --kds-surface: #FFFFFF;
+  --kds-canvas: #F1F5F9;
+  --kds-border: #E2E8F0;
+  --kds-ink: #0F172A;
+  --kds-muted: #64748B;
+}
+
+.kds-app.kds-heritage-light .bg-white { background-color: var(--kds-surface) !important; }
+.kds-app.kds-heritage-light .bg-slate-50,
+.kds-app.kds-heritage-light .bg-slate-50\/70,
+.kds-app.kds-heritage-light .bg-slate-50\/80 { background-color: #F8FAFC !important; }
+.kds-app.kds-heritage-light .bg-slate-100,
+.kds-app.kds-heritage-light .bg-slate-100\/70,
+.kds-app.kds-heritage-light .bg-slate-100\/80 { background-color: #F1F5F9 !important; }
+.kds-app.kds-heritage-light .bg-slate-200 { background-color: #E2E8F0 !important; }
+.kds-app.kds-heritage-light .bg-slate-800,
+.kds-app.kds-heritage-light .bg-slate-800\/80,
+.kds-app.kds-heritage-light .bg-slate-800\/60 { background-color: var(--kds-canvas) !important; }
+.kds-app.kds-heritage-light .bg-slate-700 { background-color: #F1F5F9 !important; }
+.kds-app.kds-heritage-light .bg-slate-900,
+.kds-app.kds-heritage-light .bg-slate-950 { background-color: var(--kds-surface) !important; }
+.kds-app.kds-heritage-light .hover\:bg-slate-50:hover { background-color: #F8FAFC !important; }
+.kds-app.kds-heritage-light .hover\:bg-slate-100:hover { background-color: #F1F5F9 !important; }
+.kds-app.kds-heritage-light .hover\:bg-slate-200:hover { background-color: #E2E8F0 !important; }
+.kds-app.kds-heritage-light .hover\:bg-slate-800:hover { background-color: #EEF2F7 !important; }
+
+.kds-app.kds-heritage-light .text-white,
+.kds-app.kds-heritage-light .text-slate-50,
+.kds-app.kds-heritage-light .text-slate-100 { color: var(--kds-ink) !important; }
+.kds-app.kds-heritage-light .text-slate-200 { color: #1E293B !important; }
+.kds-app.kds-heritage-light .text-slate-300,
+.kds-app.kds-heritage-light .text-slate-700 { color: #334155 !important; }
+.kds-app.kds-heritage-light .text-slate-400,
+.kds-app.kds-heritage-light .text-slate-500,
+.kds-app.kds-heritage-light .text-slate-600 { color: var(--kds-muted) !important; }
+.kds-app.kds-heritage-light .text-slate-800,
+.kds-app.kds-heritage-light .text-slate-900,
+.kds-app.kds-heritage-light .text-slate-950 { color: var(--kds-ink) !important; }
+
+.kds-app.kds-heritage-light .border-slate-100 { border-color: #F1F5F9 !important; }
+.kds-app.kds-heritage-light .border-slate-200,
+.kds-app.kds-heritage-light .border-slate-200\/80 { border-color: var(--kds-border) !important; }
+.kds-app.kds-heritage-light .border-slate-300 { border-color: #CBD5E1 !important; }
+.kds-app.kds-heritage-light .border-slate-700,
+.kds-app.kds-heritage-light .border-slate-800,
+.kds-app.kds-heritage-light .border-slate-800\/80,
+.kds-app.kds-heritage-light .border-slate-800\/90 { border-color: var(--kds-border) !important; }
+
+.kds-app.kds-heritage-light .bg-blue-600,
+.kds-app.kds-heritage-light .bg-indigo-600 { background-color: var(--kds-primary) !important; }
+.kds-app.kds-heritage-light .hover\:bg-blue-700:hover,
+.kds-app.kds-heritage-light .hover\:bg-indigo-700:hover { background-color: var(--kds-primary-hover) !important; }
+.kds-app.kds-heritage-light .bg-blue-50 { background-color: #EFF6FF !important; }
+.kds-app.kds-heritage-light .text-blue-500,
+.kds-app.kds-heritage-light .text-blue-600,
+.kds-app.kds-heritage-light .text-blue-700 { color: var(--kds-primary) !important; }
+.kds-app.kds-heritage-light .border-blue-200 { border-color: #BFDBFE !important; }
+.kds-app.kds-heritage-light .bg-emerald-50 { background-color: #ECFDF5 !important; }
+.kds-app.kds-heritage-light .bg-emerald-500,
+.kds-app.kds-heritage-light .bg-emerald-600 { background-color: var(--kds-primary) !important; }
+.kds-app.kds-heritage-light .hover\:bg-emerald-500:hover,
+.kds-app.kds-heritage-light .hover\:bg-emerald-600:hover { background-color: var(--kds-primary-hover) !important; }
+.kds-app.kds-heritage-light .text-emerald-600,
+.kds-app.kds-heritage-light .text-emerald-700 { color: #047857 !important; }
+.kds-app.kds-heritage-light .bg-amber-50 { background-color: #FFFBEB !important; }
+.kds-app.kds-heritage-light .text-amber-600,
+.kds-app.kds-heritage-light .text-amber-700 { color: #B45309 !important; }
+.kds-app.kds-heritage-light .bg-red-50 { background-color: #FEF2F2 !important; }
+
+.kds-app.kds-heritage-light .kds-primary-action {
+  background-color: var(--kds-primary) !important;
+  border-color: var(--kds-primary) !important;
+  color: #FFFFFF !important;
+}
+.kds-app.kds-heritage-light .kds-primary-action .text-white,
+.kds-app.kds-heritage-light .bg-blue-600.text-white,
+.kds-app.kds-heritage-light .bg-indigo-600.text-white,
+.kds-app.kds-heritage-light .bg-emerald-500.text-white,
+.kds-app.kds-heritage-light .bg-emerald-600.text-white,
+.kds-app.kds-heritage-light .bg-red-600.text-white,
+.kds-app.kds-heritage-light .bg-amber-600.text-white { color: #FFFFFF !important; }
+.kds-app.kds-heritage-light .kds-primary-action:hover {
+  background-color: var(--kds-primary-hover) !important;
+  border-color: var(--kds-primary-hover) !important;
+}
+
+.kds-app.kds-heritage-light input::placeholder { color: var(--kds-muted); opacity: 1; }
+.kds-app.kds-heritage-light input:focus,
+.kds-app.kds-heritage-light select:focus { --tw-ring-color: #2563EB !important; }
+.kds-app.kds-heritage-light ::selection { background: #DBEAFE; color: var(--kds-ink); }
+.kds-app.kds-heritage-light ::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.18); }
+.kds-app.kds-heritage-light ::-webkit-scrollbar-thumb:hover { background: rgba(15, 23, 42, 0.32); }

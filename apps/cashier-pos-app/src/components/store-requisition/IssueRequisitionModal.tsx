@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IStoreRequisitionUI, IIssueRequisitionPayload, StoreRequisitionHelper } from '@spicehub/ui';
+import { IStoreRequisitionUI, IIssueRequisitionPayload, StoreRequisitionHelper, NumericInput } from '@spicehub/ui';
 
 interface IssueRequisitionModalProps {
   isOpen: boolean;
@@ -101,7 +101,7 @@ export const IssueRequisitionModal: React.FC<IssueRequisitionModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* FEFO Warning Banner */}
-          <div className="bg-amber-950/30 border border-amber-500/30 p-3 rounded-xl flex items-center gap-3 text-xs text-amber-300">
+          <div className="bg-slate-900/30 border border-amber-500/30 p-3 rounded-xl flex items-center gap-3 text-xs text-amber-300">
             <span className="text-lg">⏱️</span>
             <div>
               <strong className="block text-amber-200">FEFO Policy Enforced (First-Expired, First-Out):</strong>
@@ -127,8 +127,7 @@ export const IssueRequisitionModal: React.FC<IssueRequisitionModalProps> = ({
                   {it.requestedQuantity} {it.unit}
                 </div>
                 <div className="col-span-3">
-                  <input
-                    type="number"
+                  <NumericInput
                     step="0.1"
                     min="0"
                     max={it.requestedQuantity}

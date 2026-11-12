@@ -346,12 +346,17 @@ describe('--- SHIFT 19 / GATE 19: HOUSEKEEPING MOBILE OPERATIONS & ROOM TURNAROU
   });
 
   // TEST 5: Supervisor Inspection (Pass and Reject Flow)
-  it('TEST 5: Should allow supervisor to approve room 401 (AVAILABLE) and reject another (DIRTY)', async () => {
+  it('TEST 5: Should release checkout rooms with stale stay references and reject failed inspections', async () => {
     // Room 401 is in INSPECTION state
     const task401 = await HousekeepingTask.findOne({ roomId: room401._id, hotelId: tenantId });
     expect(task401).toBeDefined();
 
-    // 5a: Supervisor approves Room 401
+    // 5a: A completed checkout must not keep the room occupied through a stale stay reference.
+    stay401.stayStatus = StayStatus.CHECKED_OUT;
+    await stay401.save();
+    room401.currentStayId = stay401._id;
+    await room401.save();
+
     const approveRes = await client.housekeeping.inspectTask(
       task401!._id.toString(),
       true,
@@ -364,6 +369,7 @@ describe('--- SHIFT 19 / GATE 19: HOUSEKEEPING MOBILE OPERATIONS & ROOM TURNAROU
 
     const roomAfterApprove = await Room.findById(room401._id);
     expect(roomAfterApprove?.status).toBe(RoomStatus.AVAILABLE);
+    expect(roomAfterApprove?.currentStayId).toBeUndefined();
 
     // 5b: Rejection scenario on a new task
     const testTask = await HousekeepingTask.create({

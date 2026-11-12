@@ -1,3 +1,4 @@
+import { IMAGE_PLACEHOLDER } from '@spicehub/ui';
 import React, { useState } from 'react';
 import { formatCurrency } from '../../../../packages/ui/src/index';
 
@@ -20,7 +21,7 @@ const IN_ROOM_DISHES: InRoomDiningDish[] = [
     price: 320,
     prepTime: '10m',
     foodType: 'VEG',
-    image: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400&auto=format&fit=crop&q=80',
+    image: IMAGE_PLACEHOLDER,
     description: 'Fresh cottage cheese cubes in rich and creamy tomato-cashew satin gravy with fenugreek butter.',
   },
   {
@@ -30,7 +31,7 @@ const IN_ROOM_DISHES: InRoomDiningDish[] = [
     price: 280,
     prepTime: '12m',
     foodType: 'VEG',
-    image: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=400&auto=format&fit=crop&q=80',
+    image: IMAGE_PLACEHOLDER,
     description: 'Charcoal grilled cottage cheese marinated in spiced hung yogurt, Kashmiri deghi mirch and kasoori methi.',
   },
   {
@@ -40,7 +41,7 @@ const IN_ROOM_DISHES: InRoomDiningDish[] = [
     price: 340,
     prepTime: '14m',
     foodType: 'NON_VEG',
-    image: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=400&auto=format&fit=crop&q=80',
+    image: IMAGE_PLACEHOLDER,
     description: 'Velvety chicken chunks marinated in rich cream cheese, green cardamom and charcoal grilled.',
   },
   {
@@ -50,7 +51,7 @@ const IN_ROOM_DISHES: InRoomDiningDish[] = [
     price: 310,
     prepTime: '8m',
     foodType: 'VEG',
-    image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&auto=format&fit=crop&q=80',
+    image: IMAGE_PLACEHOLDER,
     description: 'Slow-simmered black lentils overnight with fresh white butter, tomato puree and dairy cream.',
   },
   {
@@ -60,7 +61,7 @@ const IN_ROOM_DISHES: InRoomDiningDish[] = [
     price: 420,
     prepTime: '12m',
     foodType: 'NON_VEG',
-    image: 'https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?w=400&auto=format&fit=crop&q=80',
+    image: IMAGE_PLACEHOLDER,
     description: 'Smoky roasted tandoori chicken cooked in velvety tomato makhani satin gravy with fenugreek butter.',
   },
   {
@@ -70,7 +71,7 @@ const IN_ROOM_DISHES: InRoomDiningDish[] = [
     price: 70,
     prepTime: '6m',
     foodType: 'VEG',
-    image: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=400&auto=format&fit=crop&q=80',
+    image: IMAGE_PLACEHOLDER,
     description: 'Clay-oven baked leavened bread brushed with melted garlic butter and freshly chopped cilantro.',
   },
   {
@@ -80,7 +81,7 @@ const IN_ROOM_DISHES: InRoomDiningDish[] = [
     price: 160,
     prepTime: '5m',
     foodType: 'BEVERAGE',
-    image: 'https://images.unsplash.com/photo-1571006682893-4a12368a183d?w=400&auto=format&fit=crop&q=80',
+    image: IMAGE_PLACEHOLDER,
     description: 'Traditional thick churned yogurt lassi infused with Kashmiri saffron strands and slivered pistachios.',
   },
 ];
@@ -181,21 +182,21 @@ export const InRoomDiningView: React.FC<InRoomDiningViewProps> = ({
                   <div className="flex items-center gap-2 mb-1">
                     <span
                       className={`w-3.5 h-3.5 border flex items-center justify-center rounded-[3px] ${
-                        dish.foodType === 'VEG'
-                          ? 'border-emerald-500'
-                          : dish.foodType === 'BEVERAGE'
-                          ? 'border-slate-200 dark:border-slate-800'
-                          : 'border-red-500'
-                      }`}
+ dish.foodType === 'VEG'
+ ? 'border-emerald-500'
+ : dish.foodType === 'BEVERAGE'
+ ? 'border-slate-200 dark:border-slate-800'
+ : 'border-red-500'
+ }`}
                     >
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${
-                          dish.foodType === 'VEG'
-                            ? 'bg-emerald-500'
-                            : dish.foodType === 'BEVERAGE'
-                            ? 'bg-slate-800 dark:bg-slate-200'
-                            : 'bg-red-500'
-                        }`}
+ dish.foodType === 'VEG'
+ ? 'bg-emerald-500'
+ : dish.foodType === 'BEVERAGE'
+ ? 'bg-slate-800 dark:bg-slate-200'
+ : 'bg-red-500'
+ }`}
                       />
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -231,7 +232,7 @@ export const InRoomDiningView: React.FC<InRoomDiningViewProps> = ({
                       <span className="font-black text-xs text-amber-300">{qty}</span>
                       <button
                         onClick={() => handleUpdate(dish.id, 1)}
-                        className="w-6 h-6 rounded-lg bg-amber-500 text-slate-950 font-extrabold text-xs flex items-center justify-center"
+                        className="w-6 h-6 rounded-lg bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center"
                       >
                         +
                       </button>
@@ -240,7 +241,7 @@ export const InRoomDiningView: React.FC<InRoomDiningViewProps> = ({
                     <button
                       data-testid={`add-dish-${dish.id}`}
                       onClick={() => handleUpdate(dish.id, 1)}
-                      className="w-full py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition"
+                      className="w-full py-1 bg-emerald-600 hover:bg-amber-400 text-white font-black text-xs rounded-xl shadow-md transition"
                     >
                       + ADD
                     </button>

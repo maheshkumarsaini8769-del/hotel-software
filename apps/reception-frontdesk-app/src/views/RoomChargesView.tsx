@@ -8,6 +8,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { getApiClient } from '../lib/apiClient';
+import { NumericInput } from '@spicehub/ui';
 
 interface RoomChargesViewProps {
   isDark?: boolean;
@@ -224,22 +225,22 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
-      <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-      }`}>
-        <div>
-          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
-            <Coffee className="w-5 h-5 text-amber-500" />
-            <span>Room Charges & In-Room Dining Billing Hub</span>
+      <div className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+ }`}>
+        <div className="shrink-0 min-w-[280px]">
+          <h2 className={`text-base sm:text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
+            <Coffee className="w-5 h-5 text-amber-500 shrink-0" />
+            <span>Room Charges & Dining Billing Hub</span>
           </h2>
           <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             Post F&B, mini-bar, laundry and amenity charges directly to a live guest folio.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Select Room:</span>
-          <div className={`flex p-0.5 rounded-xl border text-xs font-bold overflow-x-auto ${
+        <div className="flex items-center gap-2 min-w-0 flex-1 justify-end max-w-2xl">
+          <span className={`text-xs font-bold shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Select Room:</span>
+          <div className={`flex items-center gap-1 p-1 rounded-xl border text-xs font-bold overflow-x-auto max-w-full custom-scrollbar ${
             isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-slate-100'
           }`}>
             {activeStays.length === 0 ? (
@@ -249,12 +250,12 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
                 <button
                   key={stay.stayId || stay.roomNumber}
                   onClick={() => setSelectedRoom(stay.roomNumber || '')}
-                  className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
+                  className={`px-2.5 py-1 rounded-lg transition whitespace-nowrap text-xs font-bold ${
                     selectedRoom === stay.roomNumber
                       ? 'bg-amber-600 text-white shadow-xs'
                       : isDark
-                        ? 'text-slate-400 hover:text-white'
-                        : 'text-slate-600 hover:text-slate-900'
+                      ? 'text-slate-400 hover:text-white'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Rm {stay.roomNumber}
@@ -266,10 +267,10 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
             onClick={() => void loadStays()}
             disabled={loading}
             className={`p-2 rounded-xl border transition disabled:opacity-50 ${
-              isDark
-                ? 'border-slate-700 bg-slate-900 text-slate-300 hover:text-white'
-                : 'border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900'
-            }`}
+ isDark
+ ? 'border-slate-700 bg-slate-900 text-slate-300 hover:text-white'
+ : 'border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900'
+ }`}
             title="Refresh occupied rooms"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -290,9 +291,9 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
       )}
 
       <div className="grid grid-cols-12 gap-4">
-        <div className={`col-span-12 lg:col-span-4 p-4 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-        }`}>
+        <div className={`col-span-12 lg:col-span-4 p-4 rounded-xl border space-y-4 ${
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+ }`}>
           <h3 className={`font-black text-xs flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-800'}`}>
             <Plus className="w-4 h-4 text-emerald-500" />
             <span>Post New Charge {selectedRoom ? `to Room ${selectedRoom}` : ''}</span>
@@ -305,10 +306,10 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
                 value={department}
                 onChange={(event) => setDepartment(event.target.value)}
                 className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none transition ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-800 text-white'
-                    : 'bg-slate-50 border-slate-200 text-slate-800'
-                }`}
+ isDark
+ ? 'bg-slate-900 border-slate-800 text-white'
+ : 'bg-slate-50 border-slate-200 text-slate-800'
+ }`}
               >
                 {DEPARTMENTS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -326,28 +327,27 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none transition ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500'
-                    : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
-                }`}
+ isDark
+ ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500'
+ : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
+ }`}
                 required
               />
             </div>
 
             <div>
               <label className={`text-[11px] font-bold block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Amount (₹)</label>
-              <input
-                type="number"
+              <NumericInput
                 min="1"
                 step="0.01"
                 placeholder="₹ Amount"
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
                 className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none font-mono transition ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500'
-                    : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
-                }`}
+ isDark
+ ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500'
+ : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'
+ }`}
                 required
               />
             </div>
@@ -355,7 +355,7 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
             <button
               type="submit"
               disabled={isPosting || !selectedRoom}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 text-white font-black text-xs shadow-lg transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+              className="bg-emerald-600 hover:bg-emerald-700 w-full py-2.5 rounded-xl text-white font-black text-xs shadow-lg transition flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>{isPosting ? 'Posting…' : 'Post Charge to Room Folio'}</span>
@@ -363,9 +363,9 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
           </form>
         </div>
 
-        <div className={`col-span-12 lg:col-span-8 p-4 rounded-2xl border space-y-4 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-        }`}>
+        <div className={`col-span-12 lg:col-span-8 p-4 rounded-xl border space-y-4 ${
+ isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+ }`}>
           {loading && !details ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm font-semibold text-slate-400">
               <RefreshCw className="w-4 h-4 animate-spin" />
@@ -382,25 +382,25 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
           ) : (
             <>
               <div className={`flex items-center justify-between pb-3 border-b gap-3 flex-wrap ${
-                isDark ? 'border-slate-800/80' : 'border-slate-100'
-              }`}>
+ isDark ? 'border-slate-800/80' : 'border-slate-100'
+ }`}>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`font-black text-base ${isDark ? 'text-white' : 'text-slate-800'}`}>Room {details?.room.roomNumber} Master Folio</span>
                     <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
-                      isDark ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-amber-800 bg-amber-50 border-amber-200'
-                    }`}>
+ isDark ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-amber-800 bg-amber-50 border-amber-200'
+ }`}>
                       {folio.folioNumber}
                     </span>
                     <span className={`text-[9px] font-bold px-2 py-0.5 rounded border ${
-                      folio.folioStatus === 'OPEN'
-                        ? isDark
-                          ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                          : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        : isDark
-                          ? 'bg-slate-700/40 text-slate-300 border-slate-600'
-                          : 'bg-slate-100 text-slate-700 border-slate-200'
-                    }`}>
+ folio.folioStatus === 'OPEN'
+ ? isDark
+ ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+ : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+ : isDark
+ ? 'bg-slate-700/40 text-slate-300 border-slate-600'
+ : 'bg-slate-100 text-slate-700 border-slate-200'
+ }`}>
                       {folio.folioStatus}
                     </span>
                   </div>
@@ -413,10 +413,10 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
                 <button
                   onClick={printFolio}
                   className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition ${
-                    isDark
-                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                  }`}
+ isDark
+ ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+ : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+ }`}
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Print Folio Statement</span>
@@ -425,26 +425,26 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                 <div className={`p-3 rounded-xl border ${
-                  isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-slate-50'
-                }`}>
+ isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-slate-50'
+ }`}>
                   <span className={`text-[10px] font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Room Tariff</span>
                   <span className={`text-base font-black tabular-nums ${isDark ? 'text-white' : 'text-slate-800'}`}>₹{folio.totalRoomTariff.toLocaleString('en-IN')}</span>
                 </div>
                 <div className={`p-3 rounded-xl border ${
-                  isDark ? 'border-slate-800 bg-slate-900' : 'border-amber-200/80 bg-amber-50/60'
-                }`}>
+ isDark ? 'border-slate-800 bg-slate-900' : 'border-amber-200/80 bg-amber-50/60'
+ }`}>
                   <span className={`text-[10px] font-bold block ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>F&B Total</span>
                   <span className={`text-base font-black tabular-nums ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>₹{folio.totalFoodAndBeverage.toLocaleString('en-IN')}</span>
                 </div>
                 <div className={`p-3 rounded-xl border ${
-                  isDark ? 'border-slate-800 bg-slate-900' : 'border-emerald-200/80 bg-emerald-50/60'
-                }`}>
+ isDark ? 'border-slate-800 bg-slate-900' : 'border-emerald-200/80 bg-emerald-50/60'
+ }`}>
                   <span className={`text-[10px] font-bold block ${isDark ? 'text-emerald-400' : 'text-emerald-800'}`}>Grand Total</span>
                   <span className={`text-base font-black tabular-nums ${isDark ? 'text-emerald-400' : 'text-emerald-800'}`}>₹{folio.netAmountPayable.toLocaleString('en-IN')}</span>
                 </div>
                 <div className={`p-3 rounded-xl border ${
-                  isDark ? 'border-red-900/60 bg-red-950/30' : 'border-red-200/80 bg-red-50/60'
-                }`}>
+ isDark ? 'border-red-900/60 bg-red-950/30' : 'border-red-200/80 bg-red-50/60'
+ }`}>
                   <span className={`text-[10px] font-bold block ${isDark ? 'text-red-300' : 'text-red-800'}`}>Due Balance</span>
                   <span className={`text-base font-black tabular-nums ${isDark ? 'text-red-400' : 'text-red-800'}`}>₹{folio.dueAmount.toLocaleString('en-IN')}</span>
                 </div>
@@ -453,8 +453,8 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
               <div className="space-y-2">
                 <h4 className={`text-xs font-black ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>Itemized Posted Charges ({items.length})</h4>
                 <div className={`border rounded-xl overflow-hidden divide-y ${
-                  isDark ? 'border-slate-800/80 divide-slate-800/80' : 'border-slate-200 divide-slate-100'
-                }`}>
+ isDark ? 'border-slate-800/80 divide-slate-800/80' : 'border-slate-200 divide-slate-100'
+ }`}>
                   {items.length === 0 ? (
                     <div className="p-6 text-center text-xs text-slate-500">
                       No charges posted to this folio yet.
@@ -462,12 +462,12 @@ export const RoomChargesView: React.FC<RoomChargesViewProps> = ({ isDark = true,
                   ) : (
                     items.map((item) => (
                       <div key={item.id} className={`p-2.5 flex items-center justify-between text-xs gap-3 transition ${
-                        isDark ? 'bg-slate-900/60 hover:bg-slate-900' : 'bg-slate-50/70 hover:bg-slate-100/80'
-                      }`}>
+ isDark ? 'bg-slate-900/60 hover:bg-slate-900' : 'bg-slate-50/70 hover:bg-slate-100/80'
+ }`}>
                         <div className="flex items-center gap-2.5 min-w-0">
                           <span className={`px-2 py-0.5 rounded text-[9px] font-bold border shrink-0 ${
-                            isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-200 text-slate-700 border-slate-200'
-                          }`}>
+ isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-200 text-slate-700 border-slate-200'
+ }`}>
                             {item.department}
                           </span>
                           <span className={`font-semibold truncate ${isDark ? 'text-white' : 'text-slate-800'}`}>{item.description}</span>

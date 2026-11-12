@@ -35,7 +35,7 @@ function formatStatus(status: string): string {
 }
 
 export const CashierTableManagementView: React.FC<CashierTableManagementViewProps> = ({
-  isDark = true,
+
   onToast,
   onSelectTableForBilling,
 }) => {
@@ -118,10 +118,10 @@ export const CashierTableManagementView: React.FC<CashierTableManagementViewProp
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-      }`}>
+ 'bg-white border-slate-200 shadow-sm'
+ }`}>
         <div>
-          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${'text-slate-900'}`}>
             <Grid className="w-5 h-5 text-amber-500" />
             <span>Dining Tables & Quick Cashier Billing Switcher</span>
           </h2>
@@ -135,8 +135,8 @@ export const CashierTableManagementView: React.FC<CashierTableManagementViewProp
             <button
               onClick={() => setSelectedFloor('ALL')}
               className={`px-3 py-1.5 rounded-lg transition ${
-                selectedFloor === 'ALL' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-              }`}
+ selectedFloor === 'ALL' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+ }`}
             >
               All Floors
             </button>
@@ -145,8 +145,8 @@ export const CashierTableManagementView: React.FC<CashierTableManagementViewProp
                 key={floor}
                 onClick={() => setSelectedFloor(floor)}
                 className={`px-3 py-1.5 rounded-lg transition ${
-                  selectedFloor === floor ? 'bg-amber-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                }`}
+ selectedFloor === floor ? 'bg-amber-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+ }`}
               >
                 {floor}
               </button>
@@ -215,24 +215,22 @@ export const CashierTableManagementView: React.FC<CashierTableManagementViewProp
                 key={table.id}
                 onClick={() => handleTableClick(table)}
                 className={`p-3.5 rounded-2xl border cursor-pointer transition hover:scale-102 flex flex-col justify-between gap-2.5 ${
-                  isBilling
-                    ? 'border-blue-500/50 bg-blue-950/30 hover:border-blue-500'
-                    : isOccupied
-                    ? 'border-amber-500/50 bg-amber-950/30 hover:border-amber-500'
-                    : isDark
-                    ? 'border-slate-800 bg-slate-900 hover:border-slate-700'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
-                }`}
+ isBilling
+ ? 'border-blue-500/50 bg-blue-950/30 hover:border-blue-500'
+ : isOccupied
+ ? 'border-emerald-600/50 bg-slate-900/30 hover:border-emerald-600'
+ : 'border-slate-200 bg-white hover:border-slate-300'
+ }`}
               >
                 <div className="flex items-center justify-between">
                   <span className="font-black text-sm text-white">Table {table.tableNumber}</span>
                   <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
-                    isBilling
-                      ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                      : isOccupied
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                  }`}>
+ isBilling
+ ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+ : isOccupied
+ ? 'bg-emerald-600/20 text-amber-300 border-emerald-600/30'
+ : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+ }`}>
                     {formatStatus(status)}
                   </span>
                 </div>

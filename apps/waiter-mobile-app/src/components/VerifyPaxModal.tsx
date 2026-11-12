@@ -15,7 +15,7 @@ export interface VerifyPaxModalProps {
   isOpen: boolean;
   onClose: () => void;
   table: TableStatusItem | null;
-  isDark: boolean;
+  isDark?: boolean;
   onSavePax: (tableId: number, actualGuests: number, reason: string) => void;
 }
 
@@ -23,7 +23,6 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
   isOpen,
   onClose,
   table,
-  isDark,
   onSavePax,
 }) => {
   const [actualPax, setActualPax] = useState<number>(2);
@@ -57,10 +56,8 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-fadeIn">
       <div
         className={`w-full max-w-md rounded-2xl border shadow-sm dark:shadow-none overflow-hidden transition-all duration-200 transform scale-100 ${
-          isDark
-            ? 'bg-slate-900 border-amber-500/40 text-slate-100'
-            : 'bg-white border-amber-300 text-slate-800'
-        }`}
+ 'bg-white border-amber-300 text-slate-800'
+ }`}
       >
         {/* Header */}
         <div className="bg-amber-600 p-4 text-white flex items-center justify-between shadow-xs">
@@ -97,20 +94,18 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
             {/* Box 1: Customer Claimed via QR */}
             <div
               className={`p-3 rounded-xl border flex flex-col justify-between ${
-                isDark
-                  ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                  : 'bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-              }`}
+ 'bg-slate-50 border-slate-200 text-slate-800'
+ }`}
             >
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
-                <Smartphone className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
+                <Smartphone className="w-3.5 h-3.5 text-slate-700" />
                 <span>Customer Entered on QR</span>
               </div>
               <div className="my-1">
-                <span className="text-2xl font-black text-slate-700 dark:text-slate-300">{customerClaimed}</span>
-                <span className="text-xs ml-1 font-bold text-slate-400">Guests</span>
+                <span className="text-2xl font-black text-slate-900">{customerClaimed}</span>
+                <span className="text-xs ml-1 font-bold text-slate-600">Guests</span>
               </div>
-              <div className="text-[10px] text-slate-700 dark:text-slate-300 font-medium">
+              <div className="text-[10px] text-slate-600 font-medium">
                 Entered on mobile menu
               </div>
             </div>
@@ -118,10 +113,8 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
             {/* Box 2: Table Max Capacity */}
             <div
               className={`p-3 rounded-xl border flex flex-col justify-between ${
-                isDark
-                  ? 'bg-slate-900/60 border-slate-800 text-slate-300'
-                  : 'bg-slate-50 border-slate-200 text-slate-700'
-              }`}
+ 'bg-slate-50 border-slate-200 text-slate-700'
+ }`}
             >
               <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
                 <Users className="w-3.5 h-3.5 text-slate-400" />
@@ -150,20 +143,16 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
                 type="button"
                 onClick={() => setActualPax((p) => Math.max(1, p - 1))}
                 className={`w-11 h-11 rounded-xl text-lg font-black border transition flex items-center justify-center ${
-                  isDark
-                    ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-white'
-                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-                }`}
+ 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+ }`}
               >
                 -
               </button>
 
               <div
                 className={`flex-1 h-11 rounded-xl border flex items-center justify-center font-black text-lg gap-2 ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-800 text-white'
-                    : 'bg-slate-50 border-slate-200 text-slate-900'
-                }`}
+ 'bg-slate-50 border-slate-200 text-slate-900'
+ }`}
               >
                 <Users className="w-5 h-5 text-orange-500" />
                 <span>{actualPax} Guests Seated</span>
@@ -173,10 +162,8 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
                 type="button"
                 onClick={() => setActualPax((p) => Math.min(12, p + 1))}
                 className={`w-11 h-11 rounded-xl text-lg font-black border transition flex items-center justify-center ${
-                  isDark
-                    ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-white'
-                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-                }`}
+ 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+ }`}
               >
                 +
               </button>
@@ -190,12 +177,10 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
                   type="button"
                   onClick={() => setActualPax(num)}
                   className={`py-1.5 rounded-lg font-black text-xs transition border ${
-                    actualPax === num
-                      ? 'bg-orange-500 text-white border-orange-400 shadow-sm'
-                      : isDark
-                      ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-                  }`}
+ actualPax === num
+ ? 'bg-emerald-600 text-white border-orange-400 shadow-sm'
+ : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+ }`}
                 >
                   {num} {num === 1 ? 'Guest' : 'Pax'}
                 </button>
@@ -207,10 +192,8 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
           {hasDiscrepancy ? (
             <div
               className={`p-3 rounded-xl border flex items-start gap-2.5 ${
-                isDark
-                  ? 'bg-amber-950/30 border-amber-500/50 text-amber-200'
-                  : 'bg-amber-50 border-amber-300 text-amber-900'
-              }`}
+ 'bg-amber-50 border-amber-300 text-amber-900'
+ }`}
             >
               <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
               <div className="text-[11px] leading-relaxed">
@@ -223,10 +206,8 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
           ) : (
             <div
               className={`p-3 rounded-xl border flex items-center gap-2.5 ${
-                isDark
-                  ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300'
-                  : 'bg-emerald-50 border-emerald-300 text-emerald-900'
-              }`}
+ 'bg-emerald-50 border-emerald-300 text-emerald-900'
+ }`}
             >
               <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
               <div className="text-[11px]">
@@ -244,10 +225,8 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 transition cursor-pointer ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 text-white'
-                  : 'bg-white border-slate-300 text-slate-900'
-              }`}
+ 'bg-white border-slate-300 text-slate-900'
+ }`}
             >
               {reasonOptions.map((r, i) => (
                 <option key={i} value={r}>
@@ -261,17 +240,15 @@ export const VerifyPaxModal: React.FC<VerifyPaxModalProps> = ({
         {/* Footer Actions */}
         <div
           className={`p-4 border-t flex items-center justify-between gap-3 ${
-            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-          }`}
+ 'bg-slate-50 border-slate-200'
+ }`}
         >
           <button
             type="button"
             onClick={onClose}
             className={`px-4 py-2 rounded-xl font-bold text-xs transition border ${
-              isDark
-                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
-            }`}
+ 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+ }`}
           >
             Cancel
           </button>

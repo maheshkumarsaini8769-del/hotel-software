@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StaffRosterHelper } from '@spicehub/ui';
+import { StaffRosterHelper, NumericInput } from '@spicehub/ui';
 
 interface TipPoolDistributionModalProps {
   isOpen: boolean;
@@ -46,12 +46,12 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="bg-slate-900 border border-emerald-500/30 w-full max-w-2xl rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
+      <div className="bg-slate-900 border border-emerald-500/30 w-full max-w-2xl rounded-xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <span className="text-emerald-400">💰</span> Daily Gratuity & Tip Pool Distribution
+              <span className="text-emerald-400"></span> Daily Gratuity & Tip Pool Distribution
             </h2>
             <p className="text-xs text-zinc-400 mt-0.5">
               Equitably distribute guest credit card & service charge tips across FOH waitstaff and BOH kitchen brigade.
@@ -62,7 +62,7 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
             onClick={onClose}
             className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-sm"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -73,8 +73,7 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
             <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
               Total Shift / Daily Tips Collected (₹)
             </label>
-            <input
-              type="number"
+            <NumericInput
               min="100"
               step="100"
               required
@@ -85,7 +84,7 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
           </div>
 
           {/* Department Ratio Slider */}
-          <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-2xl space-y-3">
+          <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-xl space-y-3">
             <div className="flex justify-between items-center text-xs">
               <span className="font-bold text-blue-400">
                 Front-of-House (FOH): {fohPercentage}%
@@ -177,7 +176,7 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/30"
+              className="bg-emerald-600 hover:bg-emerald-700 px-5 py-2 rounded-xl text-white text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/30"
             >
               {loading ? 'Processing Split...' : 'Generate Tip Session'}
             </button>

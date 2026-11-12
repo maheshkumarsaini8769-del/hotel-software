@@ -1,16 +1,20 @@
 import './index.css';
+import { Capacitor } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { waiterFetch, getWaiterToken } from './lib/waiterApi';
 import { API_BASE_URL, SOCKET_URL } from './config/api';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { WaiterMobileApp, TableStatusItem } from './WaiterMobileApp';
-import { ErrorBoundary, WaiterStore, I18nProvider } from '@spicehub/ui';
-import { SpiceHubSocket } from '@spicehub/api-client';
+import type { RoomServiceOrder } from './views/RoomServiceView';
+import { ErrorBoundary, WaiterStore, I18nProvider, IMAGE_PLACEHOLDER, installGlobalNumericInputGuard } from '@spicehub/ui';
+import { hydrateStaffLaunchContext, SpiceHubSocket } from '@spicehub/api-client';
+
+installGlobalNumericInputGuard();
 import {
   WaiterLoginScreen,
   WaiterStaffProfile,
   WaiterAuthSession,
-  PRECONFIGURED_WAITERS,
 } from './components/WaiterLoginScreen';
 import { PortalsSwitcherModal } from './components/PortalsSwitcherModal';
 import { Bell, UtensilsCrossed } from 'lucide-react';
@@ -32,6 +36,40 @@ const socket = SpiceHubSocket.getInstance();
 function persistWaiterSession(staff: WaiterStaffProfile): void {
   const { pin: _pin, ...safeStaff } = staff;
   localStorage.setItem('spicehub_waiter_session', JSON.stringify(safeStaff));
+}
+
+function waiterProfileFromServer(user: any): WaiterStaffProfile | null {
+  if (!user || String(user.role || '').toUpperCase() !== 'WAITER') return null;
+  const start = Number(user.assignedTableStart) || 0;
+  const end = Number(user.assignedTableEnd) || 0;
+  return {
+    staffId: String(user.id || user._id || ''),
+    name: String(user.name || 'Waiter'),
+    role: 'Senior Waiter',
+    avatar: String(user.avatar || IMAGE_PLACEHOLDER),
+    assignedSection: String(user.assignedSection || ''),
+    assignedTableStart: start,
+    assignedTableEnd: end,
+    assignedTableCount: start > 0 && end >= start ? end - start + 1 : 0,
+    shift: String(user.shift || ''),
+    permissions: Array.isArray(user.permissions) ? user.permissions : [],
+  };
+}
+
+// A waiter with no assigned zone covers the whole floor. Treating 0-0 as an
+// empty range used to drop every service request, so an unassigned waiter never
+// heard a "Call Waiter" buzzer.
+function isTableInWaiterZone(
+  table: unknown,
+  start: number | undefined,
+  end: number | undefined
+): boolean {
+  const numOnly = parseInt(String(table ?? '').replace(/[^0-9]/g, ''), 10);
+  if (Number.isNaN(numOnly)) return true;
+  const hasZone =
+    Number.isFinite(start) && Number.isFinite(end) && Number(end) >= Number(start) && Number(end) > 0;
+  if (!hasZone) return true;
+  return numOnly >= Number(start) && numOnly <= Number(end);
 }
 
 // Audio chime using browser Web Audio API
@@ -67,23 +105,72 @@ function playAlertChime(type: 'request' | 'ready' = 'request') {
   }
 }
 
-// Native Browser Push Notification Trigger
-function triggerNativeNotification(title: string, body: string, tag?: string) {
-  if (typeof window !== 'undefined' && 'Notification' in window) {
-    if (Notification.permission === 'granted') {
-      try {
-        const notif = new Notification(title, {
-          body,
-          icon: '/favicon.ico',
-          tag: tag || String(Date.now()),
-        });
-        notif.onclick = () => {
-          window.focus();
-          notif.close();
-        };
-      } catch (err) {
-        console.warn('Native notification trigger error:', err);
+async function requestWaiterNotificationPermission(): Promise<void> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const permission = await LocalNotifications.requestPermissions();
+      if (permission.display !== 'granted') {
+        console.info('System notifications are disabled for the Waiter app.');
       }
+      return;
+    } catch (error) {
+      console.warn('Could not request Android notification permission:', error);
+    }
+  }
+
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        console.info('Browser notifications are disabled for the Waiter portal.');
+      }
+    } catch (error) {
+      console.warn('Could not request browser notification permission:', error);
+    }
+  }
+}
+
+async function triggerNativeNotification(title: string, body: string, tag?: string): Promise<void> {
+  if (typeof window !== 'undefined' && window.parent !== window) {
+    window.parent.postMessage(
+      { type: 'spicehub:system-notification', title, body, tag },
+      '*'
+    );
+  }
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const permission = await LocalNotifications.checkPermissions();
+      if (permission.display === 'granted') {
+        await LocalNotifications.schedule({
+          notifications: [{
+            id: Math.floor(Math.random() * 2_147_483_647),
+            title,
+            body,
+            schedule: { at: new Date(Date.now() + 1000) },
+            extra: { tag },
+          }],
+        });
+        return;
+      }
+    } catch (error) {
+      console.warn('Android system notification could not be scheduled:', error);
+    }
+  }
+
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      const notification = new Notification(title, {
+        body,
+        icon: '/favicon.ico',
+        tag: tag || String(Date.now()),
+      });
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    } catch (error) {
+      console.warn('Browser system notification could not be shown:', error);
     }
   }
 }
@@ -92,76 +179,46 @@ export const WaiterAppRoot: React.FC = () => {
   // Tenant context comes from the signed-in staff session. No hardcoded hotel.
   const [hotelId, setHotelId] = useState<string>('');
   const [notSubscribed, setNotSubscribed] = useState<boolean>(false);
-  const [waiterSession, setWaiterSession] = useState<WaiterStaffProfile | null>(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        const q = new URLSearchParams(window.location.search);
-        const qToken = q.get('token');
-        const qStaffId = q.get('staffId');
-        const qStaffName = q.get('staffName');
-        const qHotelId = q.get('hotelId');
-        if (qToken && qStaffId) {
-          localStorage.setItem('spicehub_token', qToken);
-          if (qHotelId) localStorage.setItem('spicehub_hotel_id', qHotelId);
-          const staff: WaiterStaffProfile = {
-            staffId: qStaffId,
-            name: qStaffName ? decodeURIComponent(qStaffName) : 'Staff Member',
-            role: (q.get('staffRole') as any) || 'Captain',
-            avatar: q.get('avatar') ? decodeURIComponent(q.get('avatar')!) : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-            assignedSection: q.get('section') ? decodeURIComponent(q.get('section')!) : 'Indoor AC Dining Hall',
-            assignedTableStart: Number(q.get('tableStart')) || 1,
-            assignedTableEnd: Number(q.get('tableEnd')) || 6,
-            assignedTableCount: (Number(q.get('tableEnd')) || 6) - (Number(q.get('tableStart')) || 1) + 1,
-            shift: q.get('shift') ? decodeURIComponent(q.get('shift')!) : 'Morning Shift',
-            permissions: ['KOT Punching', 'Food Pickup & Serving', 'Table Transfer', 'Bill Settle Request', 'Guest Calls'],
-          };
-          persistWaiterSession(staff);
-          return staff;
-        }
-      }
+  const [expectedStaffId] = useState<string>(() => {
+    const launchContext = hydrateStaffLaunchContext();
+    if (typeof window === 'undefined') return '';
 
-      const saved = localStorage.getItem('spicehub_waiter_session');
-      if (saved) {
-        let staff: WaiterStaffProfile = { ...JSON.parse(saved), pin: '' };
-        const adminAllocRaw = localStorage.getItem('spicehub_admin_waiter_allocations');
-        if (adminAllocRaw) {
-          const parsed = JSON.parse(adminAllocRaw);
-          if (parsed[staff.staffId]) {
-            const alloc = parsed[staff.staffId];
-            const start = Number(alloc.start) || staff.assignedTableStart;
-            const end = Number(alloc.end) || staff.assignedTableEnd;
-            staff = {
-              ...staff,
-              assignedTableStart: start,
-              assignedTableEnd: end,
-              assignedTableCount: (end - start + 1),
-              assignedSection: alloc.section || staff.assignedSection,
-            };
-          }
-        }
-        // Migrate old sessions that used to contain the PIN in plain text.
-        persistWaiterSession(staff);
-        return staff;
-      }
-    } catch (_) {
-      try {
-        localStorage.removeItem('spicehub_waiter_session');
-      } catch {}
-    }
-    return null;
+    const url = new URL(window.location.href);
+    ['staffId', 'staffName', 'staffRole', 'avatar', 'section', 'tableStart', 'tableEnd', 'shift'].forEach((key) => {
+      url.searchParams.delete(key);
+    });
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${url.pathname}${url.search}${url.hash}`
+    );
+    return launchContext.staffId || '';
   });
+  const [waiterSession, setWaiterSession] = useState<WaiterStaffProfile | null>(null);
+  const [authChecking, setAuthChecking] = useState(() => Boolean(localStorage.getItem('spicehub_token')));
+  const [authError, setAuthError] = useState('');
+  const handledServiceRequestsRef = useRef(new Set<string>());
   // Validate the persisted staff session on boot. An expired JWT must not leave
   // the terminal in a half-authenticated state.
   useEffect(() => {
     const token =
       (typeof window !== 'undefined' && localStorage.getItem('spicehub_token')) || '';
-    if (!token) return;
+    if (!token) {
+      setAuthChecking(false);
+      setWaiterSession(null);
+      return;
+    }
 
     let cancelled = false;
     (async () => {
       try {
         const response = await waiterFetch(`${API_BASE_URL}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            ...(localStorage.getItem('spicehub_hotel_id')
+              ? { 'x-hotel-id': localStorage.getItem('spicehub_hotel_id')! }
+              : {}),
+          },
         });
         if (response.status === 401 || response.status === 403) {
           localStorage.removeItem('spicehub_token');
@@ -169,14 +226,40 @@ export const WaiterAppRoot: React.FC = () => {
           localStorage.removeItem('spicehub_auth_user');
           localStorage.removeItem('spicehub_waiter_session');
           if (!cancelled) setWaiterSession(null);
+          if (!cancelled) setAuthError('Your staff session is no longer valid. Sign in again.');
+          return;
+        }
+        if (!response.ok) {
+          if (!cancelled) {
+            setWaiterSession(null);
+            setAuthError('Could not verify staff access with the hotel server. Retry when connected.');
+          }
           return;
         }
         const body = await response.json().catch(() => null);
         const user = body?.data?.user;
         const tenant = body?.data?.tenant;
+        const profile = waiterProfileFromServer(user);
+        if (
+          !profile?.staffId ||
+          (expectedStaffId && profile.staffId !== expectedStaffId)
+        ) {
+          localStorage.removeItem('spicehub_token');
+          localStorage.removeItem('spicehub_hotel_id');
+          localStorage.removeItem('spicehub_auth_user');
+          localStorage.removeItem('spicehub_waiter_session');
+          if (!cancelled) {
+            setWaiterSession(null);
+            setAuthError('This account is not authorized for the Waiter portal. Sign in with an active waiter profile.');
+          }
+          return;
+        }
         if (tenant?.enabledPortals && Array.isArray(tenant.enabledPortals)) {
           if (!tenant.enabledPortals.includes('waiter')) {
-            if (!cancelled) setNotSubscribed(true);
+            if (!cancelled) {
+              setNotSubscribed(true);
+              setWaiterSession(null);
+            }
             return;
           } else {
             if (!cancelled) setNotSubscribed(false);
@@ -185,22 +268,31 @@ export const WaiterAppRoot: React.FC = () => {
         if (user?.hotelId && !cancelled) {
           localStorage.setItem('spicehub_hotel_id', String(user.hotelId));
           setHotelId(String(user.hotelId));
+          setWaiterSession(profile);
+          setAuthError('');
+          persistWaiterSession(profile);
+          localStorage.setItem('spicehub_auth_user', JSON.stringify(user));
         }
       } catch {
-        // Network issues keep the session; the next API call will surface it.
+        if (!cancelled) {
+          setWaiterSession(null);
+          setAuthError('Could not verify staff access with the hotel server. Retry when connected.');
+        }
+      } finally {
+        if (!cancelled) setAuthChecking(false);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [expectedStaffId]);
 
   const [isPortalsModalOpen, setIsPortalsModalOpen] = useState(false);
   const [waiterUser, setWaiterUser] = useState<{ id: string; name: string }>(() => {
     return {
-      id: waiterSession?.staffId || 'W-101',
-      name: waiterSession ? `${waiterSession.name} (${waiterSession.role})` : 'Ravi Kumar (Captain)',
+      id: waiterSession?.staffId || '',
+      name: waiterSession ? `${waiterSession.name} (${waiterSession.role})` : 'Staff not signed in',
     };
   });
   const [notification, setNotification] = useState<{ message: string; type: 'urgent' | 'success' } | null>(null);
@@ -229,11 +321,12 @@ export const WaiterAppRoot: React.FC = () => {
     if (!waiterSession) return notifications;
     return notifications.filter((n) => {
       if (!n.tableNumber) return true;
-      const numOnly = parseInt(n.tableNumber.replace(/[^0-9]/g, ''), 10);
-      if (isNaN(numOnly)) return true;
       return (
-        (numOnly >= waiterSession.assignedTableStart && numOnly <= waiterSession.assignedTableEnd) ||
-        (n as any).isDelegatedToMe
+        isTableInWaiterZone(
+          n.tableNumber,
+          waiterSession.assignedTableStart,
+          waiterSession.assignedTableEnd
+        ) || (n as any).isDelegatedToMe
       );
     });
   }, [notifications, waiterSession]);
@@ -259,7 +352,7 @@ export const WaiterAppRoot: React.FC = () => {
       actionLabel: 'Pick Up & Serve',
     };
     setNotifications((prev) => [testNotif, ...prev]);
-    triggerNativeNotification('🍳 Test Kitchen Alert: Table 5', 'Order #D1035 ready for pickup at Hot Pass!');
+    void triggerNativeNotification('Kitchen Alert: Table 5', 'Order #D1035 ready for pickup at Hot Pass!');
     setNotification({
       message: 'Real-time test notification triggered! Sound chime & card attached.',
       type: 'success',
@@ -269,6 +362,8 @@ export const WaiterAppRoot: React.FC = () => {
 
   const handleLogin = (staff: WaiterStaffProfile, session?: WaiterAuthSession) => {
     setWaiterSession(staff);
+    setAuthError('');
+    void requestWaiterNotificationPermission();
     try {
       persistWaiterSession(staff);
     } catch (_) {}
@@ -301,7 +396,9 @@ export const WaiterAppRoot: React.FC = () => {
       shiftStatus: 'ON_DUTY' as any,
     });
     setNotification({
-      message: `Logged in as ${staff.name} (${staff.role}). Assigned Zone: Tables T-${String(staff.assignedTableStart).padStart(2, '0')} to T-${String(staff.assignedTableEnd).padStart(2, '0')}.`,
+      message: staff.assignedTableStart > 0 && staff.assignedTableEnd >= staff.assignedTableStart
+        ? `Logged in as ${staff.name} (${staff.role}). Assigned Zone: Tables T-${String(staff.assignedTableStart).padStart(2, '0')} to T-${String(staff.assignedTableEnd).padStart(2, '0')}.`
+        : `Logged in as ${staff.name} (${staff.role}). No table assignment is configured.`,
       type: 'success',
     });
     setTimeout(() => setNotification(null), 5000);
@@ -349,13 +446,25 @@ export const WaiterAppRoot: React.FC = () => {
         const body = await res.json();
         if (body.success && Array.isArray(body.data)) {
           const tablesServedMap = getTablesServedMap();
-          const mapped: TableStatusItem[] = body.data.slice(0, 16).map((t: any, idx: number) => {
-            const tableNum = idx + 1;
-            const isAssigned = waiterSession
-              ? (tableNum >= waiterSession.assignedTableStart && tableNum <= waiterSession.assignedTableEnd)
-              : (tableNum <= 6);
+          const mapped: TableStatusItem[] = body.data.flatMap((t: any) => {
+            const tableNumber = typeof t.tableNumber === 'string' ? t.tableNumber.trim() : '';
+            const tableNum = Number(tableNumber.replace(/\D/g, ''));
+            if (!tableNumber || !Number.isInteger(tableNum) || tableNum <= 0) return [];
 
-            const rawStatus = t.currentStatus || 'AVAILABLE';
+            const assignedWaiterId = t.assignedWaiterId?._id || t.assignedWaiterId?.id || t.assignedWaiterId;
+            const hasExplicitAssignment = Boolean(assignedWaiterId);
+            const isAssigned = hasExplicitAssignment
+              ? String(assignedWaiterId) === String(waiterUser.id)
+              : isTableInWaiterZone(
+                  tableNum,
+                  waiterSession?.assignedTableStart,
+                  waiterSession?.assignedTableEnd
+                );
+
+            const rawStatus = String(t.currentStatus || '').toUpperCase();
+            if (!['AVAILABLE', 'OCCUPIED', 'PARTIALLY_OCCUPIED', 'BILLING', 'PAYMENT_SETTLED', 'CLEANING', 'DIRTY', 'RESERVED'].includes(rawStatus)) {
+              return [];
+            }
             let status: 'Available' | 'Occupied' | 'My Table' | 'Cleaning' | 'Reserved' = 'Available';
             if (rawStatus === 'OCCUPIED' || rawStatus === 'PARTIALLY_OCCUPIED') {
               status = isAssigned ? 'My Table' : 'Occupied';
@@ -370,25 +479,28 @@ export const WaiterAppRoot: React.FC = () => {
             }
             return {
               id: tableNum,
-              name: t.tableNumber ? t.tableNumber.replace(/^T-0?/, '') : String(tableNum),
-              guests: t.capacity || 4,
+              name: tableNumber.replace(/^T-0?/, ''),
+              guests: Number.isFinite(t.capacity) ? Number(t.capacity) : undefined,
               status,
               isAssignedToMe: isAssigned,
+              assignedWaiterName: typeof t.assignedWaiter === 'string' ? t.assignedWaiter : t.assignedWaiter?.name,
+              assignedWaiterId: assignedWaiterId ? String(assignedWaiterId) : undefined,
+              section: t.section,
               servedStatus: (tablesServedMap[String(tableNum)] === 'SERVED' || t.orderStatus === 'SERVED')
                 ? 'SERVED'
                 : (status === 'My Table' || status === 'Occupied' ? 'NOT_SERVED' : undefined),
-              customerClaimedGuests: t.customerClaimedGuests || (tableNum === 4 ? 4 : undefined),
-              actualGuests: t.actualGuests || (tableNum === 4 ? 2 : (t.capacity || 4)),
-              paxVerified: t.paxVerified || (tableNum === 4 ? false : true),
+              customerClaimedGuests: t.customerClaimedGuests ?? undefined,
+              actualGuests: t.actualGuests ?? undefined,
+              paxVerified: typeof t.paxVerified === 'boolean' ? t.paxVerified : undefined,
             };
           });
-          if (mapped.length > 0) setTables(mapped);
+          setTables(mapped);
         }
       }
     } catch (err) {
       console.warn('Tables fetch error:', err);
     }
-  }, [waiterSession]);
+  }, [waiterSession, waiterUser.id]);
 
   // Live waiter cash float (server side, tenant + staff scoped).
   const fetchWaiterFloat = useCallback(async () => {
@@ -449,6 +561,22 @@ export const WaiterAppRoot: React.FC = () => {
     }
   }, []);
 
+  // Live menu catalog for the Menu & Stock view and Quick KOT sheet.
+  const fetchMenuItems = useCallback(async (hId: string) => {
+    if (!hId) return;
+    try {
+      const res = await waiterFetch(`${API_BASE_URL}/pos/menu?hotelId=${encodeURIComponent(hId)}`);
+      if (res.ok) {
+        const body = await res.json();
+        if (body.success && Array.isArray(body.data)) {
+          setMenuItems(body.data);
+        }
+      }
+    } catch (err) {
+      console.warn('Menu fetch error:', err);
+    }
+  }, []);
+
   useEffect(() => {
     async function init() {
       try {
@@ -469,8 +597,9 @@ export const WaiterAppRoot: React.FC = () => {
             if (d.hotel?.id) {
               fetchTables(d.hotel.id);
               void fetchRecentOrders(d.hotel.id);
+              void fetchMenuItems(d.hotel.id);
             }
-            if (d.menuItems && Array.isArray(d.menuItems)) {
+            if (d.menuItems && Array.isArray(d.menuItems) && d.menuItems.length > 0) {
               setMenuItems(d.menuItems);
             }
             if (!waiterSession && d.waiter) {
@@ -526,18 +655,24 @@ export const WaiterAppRoot: React.FC = () => {
       fetchTables(hotelId);
       void fetchRecentOrders(hotelId);
       void fetchWaiterFloat();
+      void fetchMenuItems(hotelId);
     }
-  }, [waiterSession, hotelId, fetchTables, fetchRecentOrders, fetchWaiterFloat]);
+  }, [waiterSession, hotelId, fetchTables, fetchRecentOrders, fetchWaiterFloat, fetchMenuItems]);
 
   // Pickup tickets are created by the kitchen over the socket stream only.
   // No demo ticket is fabricated on startup.
   const [pickupTickets, setPickupTickets] = useState<any[]>([]);
+  const [roomServiceOrders, setRoomServiceOrders] = useState<RoomServiceOrder[]>([]);
+  const [roomServiceLoadState, setRoomServiceLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [roomServiceRefresh, setRoomServiceRefresh] = useState(0);
 
   const [kitchenBuzzers, setKitchenBuzzers] = useState<any[]>([]);
 
   // Fetch initial kitchen buzzers & ready pickups
   useEffect(() => {
     if (!hotelId) return;
+    let cancelled = false;
+    setRoomServiceLoadState('loading');
     waiterFetch(`${API_BASE_URL}/pos/kds/buzzers?hotelId=${hotelId}`)
       .then((r) => r.json())
       .then((res) => {
@@ -547,11 +682,53 @@ export const WaiterAppRoot: React.FC = () => {
       })
       .catch(() => {});
 
-    waiterFetch(`${API_BASE_URL}/pos/kds/orders?status=READY`)
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success && Array.isArray(res.data)) {
-          const tickets = res.data.map((order: any) => {
+    waiterFetch(`${API_BASE_URL}/pos/kds/orders?status=ALL${hotelId ? `&hotelId=${encodeURIComponent(hotelId)}` : ''}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Room orders request failed (${response.status})`);
+        const res = await response.json();
+        if (!res.success || !Array.isArray(res.data)) {
+          throw new Error(res.message || 'Room orders response was invalid');
+        }
+        if (!cancelled) {
+          const roomOrders = res.data
+            .filter((order: any) => order.roomId?.roomNumber)
+            .map((order: any): RoomServiceOrder => {
+              const totalAmount = (order.items || []).reduce(
+                (sum: number, item: any) =>
+                  sum + Number(item.subtotal || Number(item.unitPrice || item.price || 0) * Number(item.quantity || 1)),
+                0
+              );
+              const placedAt = new Date(order.placedAt || order.createdAt || Date.now());
+              const elapsedMinutes = Number.isFinite(placedAt.getTime())
+                ? Math.max(0, Math.floor((Date.now() - placedAt.getTime()) / 60000))
+                : 0;
+              return {
+                id: String(order._id),
+                room: `Room ${order.roomId.roomNumber}`,
+                guestName: 'In-room guest',
+                timeAgo: elapsedMinutes < 1 ? 'Just now' : `${elapsedMinutes} min ago`,
+                status: order.orderStatus === 'READY' ? 'READY_FOR_TRAY' : 'PREPARING',
+                items: (order.items || []).map((item: any) =>
+                  `${item.quantity || 1}x ${item.name || 'Menu item'}`
+                ),
+                totalAmount: Number.isFinite(totalAmount) ? totalAmount : undefined,
+              };
+            });
+          setRoomServiceOrders((prev) => {
+            const currentById = new Map(prev.map((order) => [order.id, order]));
+            const serverIds = new Set(roomOrders.map((order) => order.id));
+            const merged = roomOrders.map((order) => {
+              const current = currentById.get(order.id);
+              return current && (current.status === 'IN_TRANSIT' || current.status === 'DELIVERED')
+                ? current
+                : order;
+            });
+            return [...merged, ...prev.filter((order) => !serverIds.has(order.id))];
+          });
+
+          const tickets = res.data
+            .filter((order: any) => order.orderStatus === 'READY')
+            .map((order: any) => {
             const tableNum = order.tableId?.tableNumber || order.tableNumber || (order.roomId ? `Room ${order.roomId.roomNumber}` : 'T-01');
             return {
               _id: String(order._id),
@@ -573,10 +750,18 @@ export const WaiterAppRoot: React.FC = () => {
             const newOnes = tickets.filter((t: any) => !existingIds.has(t.id));
             return [...prev, ...newOnes];
           });
+          setRoomServiceLoadState('ready');
         }
       })
-      .catch(() => {});
-  }, [hotelId]);
+      .catch((error) => {
+        console.error('Could not load active room-service orders:', error);
+        if (!cancelled) setRoomServiceLoadState('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hotelId, roomServiceRefresh]);
 
   useEffect(() => {
     if (!hotelId) return;
@@ -592,15 +777,19 @@ export const WaiterAppRoot: React.FC = () => {
     const handleIncomingRequest = (data: any) => {
       console.log('Realtime service request arrived:', data);
       const table = data.table || data.tableNumber || '';
-      const numOnly = parseInt(String(table).replace(/[^0-9]/g, ''), 10);
-      const isMine = waiterSession
-        ? (!isNaN(numOnly) && numOnly >= waiterSession.assignedTableStart && numOnly <= waiterSession.assignedTableEnd)
-        : (isNaN(numOnly) || numOnly <= 6);
+      const isInMyTableRange = isTableInWaiterZone(
+        table,
+        waiterSession?.assignedTableStart,
+        waiterSession?.assignedTableEnd
+      );
+      const hasExplicitAssignment = Boolean(data.toWaiterId || data.toWaiterName);
+      const isAssignedToMe =
+        data.toWaiterId === waiterUser.id ||
+        (Boolean(data.toWaiterName) &&
+          Boolean(waiterSession) &&
+          String(data.toWaiterName).toLowerCase().includes(waiterSession!.name.toLowerCase()));
 
-      const isDelegatedToMe = data.toWaiterId === waiterUser.id || 
-        (data.toWaiterName && waiterSession && data.toWaiterName.toLowerCase().includes(waiterSession.name.toLowerCase()));
-
-      if (!isMine && !isDelegatedToMe) {
+      if (hasExplicitAssignment ? !isAssignedToMe : !isInMyTableRange) {
         console.log(`[WaiterApp] Skipping request for ${table} as it is outside assigned range (${waiterSession?.assignedTableStart}-${waiterSession?.assignedTableEnd})`);
         return;
       }
@@ -613,6 +802,18 @@ export const WaiterAppRoot: React.FC = () => {
       }
 
       const type = data.type || data.requestType || 'CALL_WAITER';
+      const requestKey = String(
+        data.id ||
+        data.requestId ||
+        data._id ||
+        `${table}:${type}:${data.createdAt || ''}`
+      );
+      if (handledServiceRequestsRef.current.has(requestKey)) return;
+      handledServiceRequestsRef.current.add(requestKey);
+      if (handledServiceRequestsRef.current.size > 100) {
+        const oldestRequest = handledServiceRequestsRef.current.values().next().value;
+        if (oldestRequest) handledServiceRequestsRef.current.delete(oldestRequest);
+      }
 
       store.addRequest({
         id: data.id || data.requestId || `req-${Date.now()}`,
@@ -637,7 +838,11 @@ export const WaiterAppRoot: React.FC = () => {
         actionLabel: 'Attend Guest',
       };
       setNotifications((prev) => [newNotif, ...prev]);
-      triggerNativeNotification(`🛎️ Assistance Call: ${table}`, `Guest requested ${type.replace(/_/g, ' ')}`);
+      void triggerNativeNotification(
+        `Assistance Call: ${table}`,
+        `Guest requested ${type.replace(/_/g, ' ')}`,
+        requestKey
+      );
 
       setNotification({
         message: `Assistance Needed: ${table} requested ${type.replace(/_/g, ' ')}!`,
@@ -649,11 +854,71 @@ export const WaiterAppRoot: React.FC = () => {
     const unbindServiceRequest = socket.on('service:request', handleIncomingRequest);
     const unbindRequestNew = socket.on('request:new', handleIncomingRequest);
 
+    const unbindRoomOrder = socket.on('waiter:room_order', (data: any) => {
+      const roomNumber = String(data.roomNumber || '').trim();
+      const orderId = String(data.orderId || data.id || '');
+      if (!roomNumber || !orderId) return;
+
+      const destination = `Room ${roomNumber}`;
+      const orderNumber = data.orderNumber || 'New room-service order';
+      const items = Array.isArray(data.items)
+        ? data.items.map((item: any) => `${item.quantity || item.qty || 1}x ${item.name || 'Menu item'}`)
+        : [];
+      const totalAmount = Array.isArray(data.items)
+        ? data.items.reduce((sum: number, item: any) => {
+            const quantity = Number(item.quantity || item.qty || 1);
+            const unitPrice = Number(item.unitPrice ?? item.price ?? 0);
+            return sum + (Number.isFinite(quantity) && Number.isFinite(unitPrice) ? quantity * unitPrice : 0);
+          }, 0)
+        : undefined;
+      setRoomServiceOrders((prev) => [
+        {
+          id: orderId,
+          room: destination,
+          guestName: 'In-room guest',
+          timeAgo: 'Just now',
+          status: 'PREPARING',
+          items,
+          totalAmount,
+        },
+        ...prev.filter((order) => order.id !== orderId),
+      ]);
+      playAlertChime('request');
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([200, 100, 200]);
+      }
+      setNotifications((prev) => [
+        {
+          id: `notif-room-order-${data.orderId || Date.now()}`,
+          title: `Room Service: ${destination}`,
+          message: `${orderNumber} is being prepared. ${data.itemsSummary || 'Guest order sent to Kitchen.'}`,
+          type: 'new_order',
+          severity: 'urgent',
+          timestamp: new Date().toISOString(),
+          timeAgo: 'Just now',
+          tableNumber: destination,
+          orderNumber,
+          isRead: false,
+          actionLabel: 'Track for delivery',
+        },
+        ...prev.filter((notification) => notification.orderNumber !== orderNumber),
+      ]);
+      void triggerNativeNotification(
+        `Room Service: ${destination}`,
+        `${orderNumber} is being prepared for delivery.`
+      );
+      setNotification({
+        message: `${orderNumber} for ${destination} is being prepared in Kitchen.`,
+        type: 'success',
+      });
+      window.setTimeout(() => setNotification(null), 7000);
+    });
+
     // Handle Food Ready notifications from Kitchen KDS
     const handleOrderReady = (data: any) => {
       console.log('Order ready from Kitchen:', data);
-      const tableNum = data.tableNumber || '';
-      const numOnly = parseInt(String(tableNum).replace(/[^0-9]/g, ''), 10);
+      const roomNumber = data.roomNumber || data.roomId?.roomNumber;
+      const tableNum = roomNumber ? `Room ${roomNumber}` : data.tableNumber || '';
 
       let currentStart = waiterSession?.assignedTableStart;
       let currentEnd = waiterSession?.assignedTableEnd;
@@ -670,7 +935,11 @@ export const WaiterAppRoot: React.FC = () => {
       if (currentStart === undefined) currentStart = 1;
       if (currentEnd === undefined) currentEnd = 6;
 
-      const isMine = !isNaN(numOnly) && numOnly >= currentStart && numOnly <= currentEnd;
+      const isAssignedWaiter =
+        !data.assignedWaiterId || String(data.assignedWaiterId) === String(waiterUser.id);
+      const isMine = isAssignedWaiter && (
+        Boolean(roomNumber) || isTableInWaiterZone(tableNum, currentStart, currentEnd)
+      );
 
       const isDelegatedToMe = data.toWaiterId === waiterUser.id || 
         (data.toWaiterName && waiterSession && data.toWaiterName.toLowerCase().includes(waiterSession.name.toLowerCase()));
@@ -689,6 +958,23 @@ export const WaiterAppRoot: React.FC = () => {
 
       const ticketId = data.id || data.orderId || `pickup-${Date.now()}`;
       const orderNum = data.orderNumber || `KOT #${Date.now().toString().slice(-4)}`;
+      if (roomNumber) {
+        setRoomServiceOrders((prev) => {
+          const existing = prev.find((order) => order.id === String(ticketId));
+          const readyOrder: RoomServiceOrder = {
+            id: String(ticketId),
+            room: `Room ${roomNumber}`,
+            guestName: existing?.guestName || 'In-room guest',
+            timeAgo: existing?.timeAgo || 'Just now',
+            status: 'READY_FOR_TRAY',
+            items: Array.isArray(data.items)
+              ? data.items.map((item: any) => `${item.quantity || item.qty || 1}x ${item.name || 'Menu item'}`)
+              : existing?.items || [],
+            totalAmount: existing?.totalAmount,
+          };
+          return [readyOrder, ...prev.filter((order) => order.id !== readyOrder.id)];
+        });
+      }
 
       setReadyOrderAlert({ orderNumber: orderNum, tableNumber: tableNum });
 
@@ -724,7 +1010,7 @@ export const WaiterAppRoot: React.FC = () => {
         actionLabel: 'Pick Up & Serve',
       };
       setNotifications((prev) => [newNotif, ...prev.filter((n) => n.orderNumber !== orderNum)]);
-      triggerNativeNotification(`🍳 Kitchen Ready: ${tableNum}`, `Order ${orderNum} is ready at Hot Pass!`);
+      void triggerNativeNotification(`Kitchen Ready: ${tableNum}`, `Order ${orderNum} is ready at Hot Pass!`);
 
       setNotification({
         message: `Order Ready: Kitchen finished ${orderNum} for ${tableNum}! Pickup ready (60s SLA).`,
@@ -743,6 +1029,13 @@ export const WaiterAppRoot: React.FC = () => {
 
     const unbindOrderServed = socket.on('order:served', (data: any) => {
       markOrderServedInStorage(data.orderId, data.orderNumber || data.orderId, data.tableNumber);
+      if (data.orderId) {
+        setRoomServiceOrders((prev) =>
+          prev.map((order) =>
+            order.id === String(data.orderId) ? { ...order, status: 'DELIVERED' } : order
+          )
+        );
+      }
       setPickupTickets((prev) => prev.filter((t) => t.orderNumber !== data.orderNumber && t.id !== data.orderId && t._id !== data.orderId));
       fetchTables(hotelId);
     });
@@ -751,10 +1044,11 @@ export const WaiterAppRoot: React.FC = () => {
       console.log('Incoming order in waiter app:', data);
       fetchTables(hotelId);
       const targetT = data.tableNumber || data.table || 'Table';
-      const numOnly = parseInt(String(targetT).replace(/[^0-9]/g, ''), 10);
-      const isMine = waiterSession
-        ? (numOnly >= waiterSession.assignedTableStart && numOnly <= waiterSession.assignedTableEnd)
-        : (numOnly <= 6);
+      const isMine = isTableInWaiterZone(
+        targetT,
+        waiterSession?.assignedTableStart,
+        waiterSession?.assignedTableEnd
+      );
       if (isMine) {
         const newNotif: AppNotificationItem = {
           id: `notif-ord-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -768,7 +1062,7 @@ export const WaiterAppRoot: React.FC = () => {
           isRead: false,
         };
         setNotifications((prev) => [newNotif, ...prev]);
-        triggerNativeNotification(`📝 New Order: ${targetT}`, `Dispatched to Kitchen`);
+        void triggerNativeNotification(`New Order: ${targetT}`, 'Dispatched to Kitchen');
 
         setNotification({
           message: `New Order: ${targetT} ordered ${Array.isArray(data.items) ? data.items.length : 'items'}! Sent to Kitchen.`,
@@ -883,6 +1177,7 @@ export const WaiterAppRoot: React.FC = () => {
     return () => {
       unbindServiceRequest();
       unbindRequestNew();
+      unbindRoomOrder();
       unbindOrderReady();
       unbindKdsTicketReady();
       unbindTableStatusChanged();
@@ -898,24 +1193,32 @@ export const WaiterAppRoot: React.FC = () => {
     };
   }, [hotelId, waiterUser.id, fetchTables]);
 
+  if (authChecking && !waiterSession) {
+    return (
+      <div role="status" className="min-h-screen flex items-center justify-center bg-[#F6F1E6] text-[#1B2A22]">
+        Verifying staff access…
+      </div>
+    );
+  }
+
   if (notSubscribed) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-full max-w-sm rounded-3xl border border-red-500/30 bg-slate-900 p-8 shadow-sm dark:shadow-none space-y-4">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10 text-3xl">
+      <div className="min-h-screen bg-[#F6F1E6] text-[#1B2A22] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-full max-w-sm rounded-3xl border border-[#EFC9BC] bg-[#FFFDF8] p-8 shadow-md space-y-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-[#EFC9BC] bg-[#F9ECE7] text-3xl">
             🔒
           </div>
-          <span className="inline-block px-3 py-1 rounded-full border border-red-500/30 bg-red-500/10 text-xs font-bold text-red-400">
+          <span className="inline-block px-3 py-1 rounded-full border border-[#EFC9BC] bg-[#F9ECE7] text-xs font-bold text-[#A93B21]">
             Workstation Not Subscribed
           </span>
-          <h2 className="text-xl font-black text-white">Waiter Handheld Is Inactive</h2>
-          <p className="text-xs leading-relaxed text-slate-400">
+          <h2 className="text-xl font-black text-[#123C2B]">Waiter Handheld Is Inactive</h2>
+          <p className="text-xs leading-relaxed text-[#7C7566]">
             This property's subscription does not include the Waiter Mobile Handheld terminal.
             Please contact your Super Administrator to activate this module.
           </p>
           <button
             onClick={() => setIsPortalsModalOpen(true)}
-            className="w-full rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-3 text-xs font-bold text-white hover:bg-slate-800 dark:bg-slate-200 transition"
+            className="w-full rounded-xl bg-[#123C2B] hover:bg-[#1B5138] px-4 py-3 text-xs font-bold text-white transition"
           >
             Switch Operational Portal
           </button>
@@ -931,7 +1234,12 @@ export const WaiterAppRoot: React.FC = () => {
 
   if (!waiterSession) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between">
+      <div className="min-h-screen bg-[#F6F1E6] text-[#1B2A22] flex flex-col justify-between">
+        {authError && (
+          <p role="alert" className="mx-auto mt-4 w-full max-w-md rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {authError}
+          </p>
+        )}
         <WaiterLoginScreen
           onLoginSuccess={handleLogin}
           onOpenPortalsSwitcher={() => setIsPortalsModalOpen(true)}
@@ -948,13 +1256,13 @@ export const WaiterAppRoot: React.FC = () => {
   return (
     <div className="h-screen w-full max-w-full overflow-x-hidden flex flex-col justify-between">
       {notification && (
-        <div data-testid="live-urgent-notification-banner" className="fixed top-3 left-3 right-3 z-50 animate-bounce max-w-lg mx-auto">
+        <div data-testid="live-urgent-notification-banner" className="fixed top-3 left-3 right-3 z-50 animate-in fade-in slide-in-from-top-2 max-w-lg mx-auto">
           <div
             className={`p-4 rounded-2xl shadow-sm dark:shadow-none border flex items-center justify-between gap-3 ${
-              notification.type === 'urgent'
-                ? 'bg-slate-900 border-amber-500/80 text-white'
-                : 'bg-slate-900 border-emerald-500/80 text-white'
-            }`}
+ notification.type === 'urgent'
+ ? 'bg-[#FFFDF8] border-[#E9C98A] text-[#123C2B]'
+ : 'bg-[#FFFDF8] border-[#CFE0D2] text-[#123C2B]'
+ }`}
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
@@ -1004,6 +1312,31 @@ export const WaiterAppRoot: React.FC = () => {
           });
         }}
         pickupTickets={pickupTickets}
+        roomServiceOrders={roomServiceOrders}
+        roomServiceLoadState={roomServiceLoadState}
+        onRefreshRoomServiceOrders={() => setRoomServiceRefresh((current) => current + 1)}
+        onRoomServiceOrderStatusChange={async (orderId, nextStatus) => {
+          if (nextStatus === 'DELIVERED') {
+            const response = await waiterFetch(`${API_BASE_URL}/pos/orders/${encodeURIComponent(orderId)}/serve`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'SERVED' }),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+              setNotification({
+                message: result.message || 'Could not save room delivery. Please retry.',
+                type: 'urgent',
+              });
+              return false;
+            }
+          }
+
+          setRoomServiceOrders((prev) =>
+            prev.map((order) => order.id === orderId ? { ...order, status: nextStatus } : order)
+          );
+          return true;
+        }}
         onServeOrder={async (orderId, orderNum, table) => {
           console.log(`Marking order served: ${orderNum} to ${table}`);
           markOrderServedInStorage(orderId, orderNum, table);

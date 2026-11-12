@@ -17,7 +17,7 @@ export const FloorDutyMatrixView: React.FC<FloorDutyMatrixViewProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#111827', margin: 0 }}>
-            🏢 Multi-Floor Waiter Duty Matrix
+             Multi-Floor Waiter Duty Matrix
           </h1>
           <p style={{ margin: '4px 0 0 0', color: '#6B7280', fontSize: '14px' }}>
             Live floor workloads, table range assignments, and overload safety alerts
@@ -40,7 +40,7 @@ export const FloorDutyMatrixView: React.FC<FloorDutyMatrixViewProps> = ({
               gap: '6px',
             }}
           >
-            <span>🔄</span> Refresh Floors
+            <span></span> Refresh Floors
           </button>
         )}
       </div>
@@ -131,7 +131,7 @@ export const FloorDutyMatrixView: React.FC<FloorDutyMatrixViewProps> = ({
                     fontWeight: 700,
                   }}
                 >
-                  ⚠️ Overload Alert: {floor.overloadedWaiters[0].waiterName} assigned{' '}
+                  ️ Overload Alert: {floor.overloadedWaiters[0].waiterName} assigned{' '}
                   {floor.overloadedWaiters[0].paxCapacity} pax (Cap: {floor.overloadedWaiters[0].cap})!
                 </div>
               )}
@@ -139,11 +139,11 @@ export const FloorDutyMatrixView: React.FC<FloorDutyMatrixViewProps> = ({
               {/* Unassigned Tables Notice */}
               {floor.unassignedTablesCount > 0 ? (
                 <div style={{ fontSize: '13px', color: '#D97706', fontWeight: 600 }}>
-                  ⚠️ {floor.unassignedTablesCount} Unassigned Tables ({floor.unassignedTables.slice(0, 4).join(', ')}...)
+                  ️ {floor.unassignedTablesCount} Unassigned Tables ({floor.unassignedTables.slice(0, 4).join(', ')}...)
                 </div>
               ) : (
                 <div style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>
-                  ✅ All Tables Fully Covered
+                   All Tables Fully Covered
                 </div>
               )}
 
@@ -162,7 +162,7 @@ export const FloorDutyMatrixView: React.FC<FloorDutyMatrixViewProps> = ({
                     cursor: 'pointer',
                   }}
                 >
-                  ⚙️ Dynamic Range Assigner
+                  ️ Dynamic Range Assigner
                 </button>
               )}
             </div>

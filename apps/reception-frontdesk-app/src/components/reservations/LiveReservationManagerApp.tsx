@@ -24,6 +24,11 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
   const store = useMemo(() => new ReservationStore(), []);
   const [, setTick] = useState(0);
 
+  // Default tab mode to ROOMS for reception front desk
+  useEffect(() => {
+    store.setTabMode('ROOMS');
+  }, [store]);
+
   // Subscribe to reactive store
   useEffect(() => {
     const unsubscribe = store.subscribe(() => {
@@ -154,7 +159,7 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
   const roomList = store.getFilteredRoomArrivals();
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
+    <div className="heritage-light min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
       {/* Luxury Dual Header */}
       <ReservationHeader
         activeTab={activeTab}
@@ -193,7 +198,7 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
               </div>
             ) : diningList.length === 0 ? (
               <div className="py-20 text-center text-slate-500">
-                <div className="text-4xl mb-2">🍽️</div>
+                <div className="text-4xl mb-2">️</div>
                 <h3 className="text-sm font-semibold text-slate-300">No Dining Reservations Found</h3>
                 <p className="text-xs text-slate-500 mt-1">
                   No table bookings scheduled for {store.getSelectedDate()}.
@@ -231,7 +236,7 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
               </div>
             ) : roomList.length === 0 ? (
               <div className="py-20 text-center text-slate-500">
-                <div className="text-4xl mb-2">🛎️</div>
+                <div className="text-4xl mb-2">️</div>
                 <h3 className="text-sm font-semibold text-slate-300">No Room Bookings Found</h3>
                 <p className="text-xs text-slate-500 mt-1">
                   No guest arrivals or departures recorded for this date.

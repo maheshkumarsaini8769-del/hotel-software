@@ -85,7 +85,7 @@ export const FloorPlanView: React.FC<FloorPlanViewProps> = ({ store, onTableActi
 
       {/* Tables Grid */}
       {tables.length === 0 ? (
-        <div className="text-center py-16 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+        <div className="text-center py-16 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
           <p className="text-slate-400 font-medium text-lg">No tables match the selected filters.</p>
         </div>
       ) : (

@@ -22,14 +22,14 @@ export const DiscrepancyVarianceTable: React.FC<DiscrepancyVarianceTableProps> =
   );
 
   return (
-    <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
-      <div className="p-4 border-b border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xl">
+      <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <span>⚖️</span> Item Variance & Stocktake Reconciliation Breakdown
-            {auditNumber && <span className="text-xs text-emerald-400 font-mono">({auditNumber})</span>}
+            {auditNumber && <span className="text-xs text-emerald-700 font-mono">({auditNumber})</span>}
           </h3>
-          <p className="text-xs text-zinc-400 mt-0.5">
+          <p className="text-xs text-slate-600 mt-0.5">
             {storeLocation ? `Store: ${storeLocation} • ` : ''}Showing {filteredItems.length} of{' '}
             {items.length} items
           </p>
@@ -41,14 +41,14 @@ export const DiscrepancyVarianceTable: React.FC<DiscrepancyVarianceTableProps> =
             placeholder="Search item, sku or category..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+            className="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
           />
         </div>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="bg-slate-900 text-zinc-400 font-semibold border-b border-zinc-800 uppercase tracking-wider text-[11px]">
+          <thead className="bg-white text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
             <tr>
               <th className="px-4 py-3">Item Details</th>
               <th className="px-4 py-3 text-right">System Book</th>
@@ -60,10 +60,10 @@ export const DiscrepancyVarianceTable: React.FC<DiscrepancyVarianceTableProps> =
               <th className="px-4 py-3">Action Taken</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800/60 text-zinc-200">
+          <tbody className="divide-y divide-slate-200 text-slate-900">
             {filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                   No inventory items match search criteria
                 </td>
               </tr>
@@ -75,20 +75,20 @@ export const DiscrepancyVarianceTable: React.FC<DiscrepancyVarianceTableProps> =
                 );
 
                 return (
-                  <tr key={idx} className="hover:bg-zinc-800/40 transition-colors">
+                  <tr key={idx} className="hover:bg-slate-200 transition-colors">
                     <td className="px-4 py-3">
-                      <div className="font-bold text-white">{item.itemName}</div>
-                      <div className="text-[10px] text-zinc-500 flex items-center gap-2 mt-0.5">
+                      <div className="font-bold text-slate-900">{item.itemName}</div>
+                      <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
                         <span>{item.category}</span>
                         {item.sku && <span>• SKU: {item.sku}</span>}
                       </div>
                     </td>
 
-                    <td className="px-4 py-3 text-right font-mono font-medium text-zinc-300">
+                    <td className="px-4 py-3 text-right font-mono font-medium text-slate-700">
                       {item.systemBookQuantity} {item.unit}
                     </td>
 
-                    <td className="px-4 py-3 text-right font-mono font-bold text-amber-300">
+                    <td className="px-4 py-3 text-right font-mono font-bold text-amber-700">
                       {item.physicalCountQuantity} {item.unit}
                     </td>
 
@@ -102,7 +102,7 @@ export const DiscrepancyVarianceTable: React.FC<DiscrepancyVarianceTableProps> =
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 text-right font-mono text-zinc-400">
+                    <td className="px-4 py-3 text-right font-mono text-slate-600">
                       {InventoryAuditHelper.formatCurrency(item.unitCost)}
                     </td>
 
@@ -113,12 +113,12 @@ export const DiscrepancyVarianceTable: React.FC<DiscrepancyVarianceTableProps> =
                       </span>
                     </td>
 
-                    <td className="px-4 py-3 text-zinc-300 text-[11px]">
+                    <td className="px-4 py-3 text-slate-700 text-[11px]">
                       {InventoryAuditHelper.getVarianceReasonLabel(item.varianceReason)}
                     </td>
 
                     <td className="px-4 py-3">
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono">
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-300 font-mono">
                         {item.actionTaken || 'ADJUST_BOOK_STOCK'}
                       </span>
                     </td>

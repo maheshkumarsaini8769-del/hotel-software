@@ -28,3 +28,46 @@ export const authLoginLimiter = rateLimit({
     return req.ip || req.socket.remoteAddress || 'unknown-client';
   },
 });
+
+export const publicStaffRosterLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { keyGeneratorIpFallback: false },
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      message: 'Too many staff roster requests. Please wait before retrying.',
+      retryAfterSeconds: 60,
+    });
+  },
+  keyGenerator: (req: Request) => {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string') {
+      return forwarded.split(',')[0].trim();
+    }
+    return req.ip || req.socket.remoteAddress || 'unknown-client';
+  },
+});
+
+export const staffHotelCodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { keyGeneratorIpFallback: false },
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      errorCode: 'HOTEL_CODE_RATE_LIMITED',
+      message: 'Too many hotel code attempts. Try again in 15 minutes.',
+      retryAfterSeconds: 900,
+    });
+  },
+  keyGenerator: (req: Request) => {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
+    return req.ip || req.socket.remoteAddress || 'unknown-client';
+  },
+});

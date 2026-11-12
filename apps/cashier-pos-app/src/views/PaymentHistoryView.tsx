@@ -56,7 +56,7 @@ function formatTimestamp(value: string): string {
   });
 }
 
-export const PaymentHistoryView: React.FC<PaymentHistoryViewProps> = ({ isDark = true, onToast }) => {
+export const PaymentHistoryView: React.FC<PaymentHistoryViewProps> = ({ onToast }) => {
   const [filterMode, setFilterMode] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [invoices, setInvoices] = useState<SettledInvoice[]>([]);
@@ -115,14 +115,14 @@ export const PaymentHistoryView: React.FC<PaymentHistoryViewProps> = ({ isDark =
     <div className="space-y-4 max-w-7xl mx-auto pb-8">
       <div
         className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-        }`}
+ 'bg-white border-slate-200 shadow-sm'
+ }`}
       >
         <div>
           <h2
             className={`text-lg font-black tracking-tight flex items-center gap-2 ${
-              isDark ? 'text-white' : 'text-slate-900'
-            }`}
+ 'text-slate-900'
+ }`}
           >
             <FileText className="w-5 h-5 text-emerald-500" />
             <span>Settled Payment History</span>
@@ -157,12 +157,10 @@ export const PaymentHistoryView: React.FC<PaymentHistoryViewProps> = ({ isDark =
               key={mode}
               onClick={() => setFilterMode(mode)}
               className={`px-3 py-1.5 rounded-xl transition ${
-                filterMode === mode
-                  ? 'bg-amber-600 text-white shadow-md'
-                  : isDark
-                    ? 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-              }`}
+ filterMode === mode
+ ? 'bg-amber-600 text-white shadow-md'
+ : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+ }`}
             >
               {mode.replace(/_/g, ' ')}
             </button>
@@ -195,17 +193,15 @@ export const PaymentHistoryView: React.FC<PaymentHistoryViewProps> = ({ isDark =
 
       <div
         className={`rounded-2xl border overflow-hidden ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-        }`}
+ 'bg-white border-slate-200 shadow-sm'
+ }`}
       >
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead
               className={`border-b text-[11px] font-black uppercase tracking-wider ${
-                isDark
-                  ? 'bg-slate-900/60 border-slate-800 text-slate-400'
-                  : 'bg-slate-50 border-slate-200 text-slate-600'
-              }`}
+ 'bg-slate-50 border-slate-200 text-slate-600'
+ }`}
             >
               <tr>
                 <th className="py-3 px-4">Receipt / Bill</th>
@@ -238,14 +234,14 @@ export const PaymentHistoryView: React.FC<PaymentHistoryViewProps> = ({ isDark =
                     <td className="py-3 px-4">
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                          inv.paymentMode === 'UPI'
-                            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
-                            : inv.paymentMode === 'CASH'
-                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/25'
-                              : inv.paymentMode === 'CARD'
-                                ? 'bg-blue-500/10 text-blue-300 border-blue-500/25'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                        }`}
+ inv.paymentMode === 'UPI'
+ ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
+ : inv.paymentMode === 'CASH'
+ ? 'bg-emerald-600/10 text-amber-300 border-emerald-600/25'
+ : inv.paymentMode === 'CARD'
+ ? 'bg-blue-500/10 text-blue-300 border-blue-500/25'
+ : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+ }`}
                       >
                         {inv.paymentMode.replace(/_/g, ' ')}
                       </span>

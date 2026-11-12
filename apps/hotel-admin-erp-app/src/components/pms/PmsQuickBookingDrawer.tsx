@@ -1,7 +1,8 @@
+import { CalendarPlus } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { QuickReserveTarget, MatrixRoomCategory } from '@spicehub/ui';
 import { MatrixHelper } from '@spicehub/ui';
-import { formatCurrency } from '@spicehub/ui';
+import { formatCurrency, NumericInput } from '@spicehub/ui';
 
 export interface PmsQuickBookingDrawerProps {
   target: QuickReserveTarget | null;
@@ -108,20 +109,22 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden flex justify-end bg-black/70 backdrop-blur-sm transition-opacity">
-      <div className="w-full max-w-lg bg-slate-900 border-l border-slate-800 shadow-sm dark:shadow-none flex flex-col h-full text-white animate-in slide-in-from-right duration-200">
+    <div className="fixed inset-0 z-50 overflow-hidden flex justify-end bg-slate-900/50 backdrop-blur-xs transition-opacity">
+      <div className="w-full max-w-lg bg-white border-l border-slate-200 shadow-xl flex flex-col h-full text-slate-900 animate-in slide-in-from-right duration-200">
         {/* Drawer Header */}
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
-          <div className="flex items-center space-x-2">
-            <span className="text-xl">🛎️</span>
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-white">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shadow-xs">
+              <CalendarPlus className="w-5 h-5 text-emerald-600" />
+            </div>
             <div>
-              <h2 className="text-base font-extrabold text-white">Quick Reservation</h2>
-              <p className="text-xs text-amber-400 font-medium">Front-Desk Instant Room Allocation</p>
+              <h2 className="text-base font-bold text-slate-900">Quick Reservation</h2>
+              <p className="text-xs text-slate-500 font-medium">Front-Desk Instant Room Allocation</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
           >
             ✕
           </button>
@@ -139,14 +142,14 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
           {/* Room & Category Selection */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Room Category</label>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase">Room Category</label>
               <select
                 value={selectedRoomTypeId}
                 onChange={(e) => {
                   setSelectedRoomTypeId(e.target.value);
                   setSelectedRoomId('');
                 }}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:ring-1 focus:ring-amber-400 outline-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 outline-none"
               >
                 {roomTypes.map((rt) => (
                   <option key={rt.id} value={rt.id}>
@@ -157,11 +160,11 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Room Number</label>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase">Room Number</label>
               <select
                 value={selectedRoomId}
                 onChange={(e) => setSelectedRoomId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:ring-1 focus:ring-amber-400 outline-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:border-emerald-500 outline-none"
               >
                 <option value="">Unassigned (Auto Pool)</option>
                 {currentCategory?.rooms.map((r) => (
@@ -176,23 +179,23 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
           {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Check-In Date</label>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase">Check-In Date</label>
               <input
                 type="date"
                 value={checkInDate}
                 onChange={(e) => setCheckInDate(e.target.value)}
                 required
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:ring-1 focus:ring-amber-400 outline-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:border-emerald-500 outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Check-Out Date</label>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase">Check-Out Date</label>
               <input
                 type="date"
                 value={checkOutDate}
                 onChange={(e) => setCheckOutDate(e.target.value)}
                 required
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:ring-1 focus:ring-amber-400 outline-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:bg-white focus:border-emerald-500 outline-none"
               />
             </div>
           </div>
@@ -200,51 +203,50 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
           {/* Guest Info */}
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Guest Full Name *</label>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase">Guest Full Name *</label>
               <input
                 type="text"
                 placeholder="e.g. Vikram Malhotra"
                 value={guestName}
                 onChange={(e) => setGuestName(e.target.value)}
                 required
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-medium text-white placeholder-slate-600 focus:ring-1 focus:ring-amber-400 outline-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 outline-none"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Mobile Number *</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase">Mobile Number *</label>
                 <input
                   type="tel"
                   placeholder="9876543210"
                   value={guestPhone}
                   onChange={(e) => setGuestPhone(e.target.value)}
                   required
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-medium text-white placeholder-slate-600 focus:ring-1 focus:ring-amber-400 outline-none font-mono"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 outline-none font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Adults</label>
-                <input
-                  type="number"
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase">Adults</label>
+                <NumericInput
                   min="1"
                   max="6"
                   value={adults}
                   onChange={(e) => setAdults(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-medium text-white focus:ring-1 focus:ring-amber-400 outline-none font-mono"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 outline-none font-mono"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Guest Email (Optional)</label>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase">Guest Email (Optional)</label>
               <input
                 type="email"
                 placeholder="vikram@example.com"
                 value={guestEmail}
                 onChange={(e) => setGuestEmail(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-medium text-white placeholder-slate-600 focus:ring-1 focus:ring-amber-400 outline-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 outline-none"
               />
             </div>
           </div>
@@ -252,42 +254,41 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
           {/* Advance Deposit & Notes */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Advance Deposit (₹)</label>
-              <input
-                type="number"
+              <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase">Advance Deposit (₹)</label>
+              <NumericInput
                 min="0"
                 value={advanceAmount}
                 onChange={(e) => setAdvanceAmount(Number(e.target.value))}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-medium text-amber-300 font-mono focus:ring-1 focus:ring-amber-400 outline-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-medium text-emerald-700 font-mono focus:bg-white focus:border-emerald-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Special Notes</label>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase">Special Notes</label>
               <input
                 type="text"
                 placeholder="High floor, quiet room"
                 value={specialRequests}
                 onChange={(e) => setSpecialRequests(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-medium text-white placeholder-slate-600 focus:ring-1 focus:ring-amber-400 outline-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 outline-none"
               />
             </div>
           </div>
 
           {/* Real-time Authoritative Tariff Card */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2 shadow-inner">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 shadow-xs">
             <div className="flex justify-between text-xs text-slate-400">
               <span>Duration ({tariffDetails.nights} Night{tariffDetails.nights > 1 ? 's' : ''})</span>
-              <span className="font-mono text-slate-200">{formatCurrency(tariffDetails.baseTariff)}</span>
+              <span className="font-mono text-slate-800 font-semibold">{formatCurrency(tariffDetails.baseTariff)}</span>
             </div>
             <div className="flex justify-between text-xs text-slate-400">
               <span>GST ({tariffDetails.gstRate}%)</span>
-              <span className="font-mono text-slate-200">{formatCurrency(tariffDetails.taxAmount)}</span>
+              <span className="font-mono text-slate-800 font-semibold">{formatCurrency(tariffDetails.taxAmount)}</span>
             </div>
-            <div className="h-px bg-slate-800 my-1" />
+            <div className="h-px bg-slate-200 my-1" />
             <div className="flex justify-between text-sm font-extrabold text-white">
               <span>Grand Total</span>
-              <span className="font-mono text-amber-400">{formatCurrency(tariffDetails.grandTotal)}</span>
+              <span className="font-mono text-emerald-700">{formatCurrency(tariffDetails.grandTotal)}</span>
             </div>
             {advanceAmount > 0 && (
               <div className="flex justify-between text-xs text-emerald-400 font-semibold pt-1">
@@ -302,7 +303,7 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition"
+              className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition"
             >
               Cancel
             </button>
@@ -310,9 +311,9 @@ export const PmsQuickBookingDrawer: React.FC<PmsQuickBookingDrawerProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-amber-950/40 transition active:scale-98 disabled:opacity-50"
+              className="btn-glass-green text-white flex-1 py-3 font-semibold text-xs rounded-xl shadow-xs transition active:scale-98 disabled:opacity-50"
             >
-              {isSubmitting ? 'Confirming...' : '✨ Confirm & Block Room'}
+              {isSubmitting ? 'Confirming...' : 'Confirm & Block Room'}
             </button>
           </div>
         </form>

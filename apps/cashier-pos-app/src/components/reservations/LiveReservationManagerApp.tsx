@@ -200,7 +200,7 @@ export const LiveReservationManagerApp: React.FC<LiveReservationManagerAppProps>
                 </p>
                 <button
                   onClick={() => store.openNewDiningModal()}
-                  className="mt-4 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-md cursor-pointer"
+                  className="mt-4 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-amber-400 text-white text-xs font-bold shadow-md cursor-pointer"
                 >
                   + Add First Booking
                 </button>

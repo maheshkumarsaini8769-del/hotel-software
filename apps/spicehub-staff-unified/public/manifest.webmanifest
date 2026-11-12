@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "SpiceHub Staff Access",
+  "short_name": "Staff Access",
+  "description": "Unified sign-in for SpiceHub staff workstations.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#f8fafc",
+  "icons": [
+    {
+      "src": "/staff-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

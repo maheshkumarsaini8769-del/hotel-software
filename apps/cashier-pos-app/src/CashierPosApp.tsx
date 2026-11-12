@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getPortalUrl } from './config/env';
+import { hydrateStaffLaunchContext } from '@spicehub/api-client';
 import {
   CreditCard,
   DollarSign,
@@ -29,7 +30,6 @@ import {
   X,
   Bell,
   Sun,
-  Moon,
   Laptop,
   Building2,
   Crown,
@@ -49,7 +49,8 @@ import { SplitBillModal } from './components/billing/SplitBillModal';
 import { CashPaymentModal } from './components/billing/CashPaymentModal';
 import { NightAuditApp } from './components/night-audit/NightAuditApp';
 import { QuickPolicyReferenceModal } from '../../../packages/ui/src/pms/QuickPolicyReferenceModal';
-import { LanguageToggle } from '@spicehub/ui';
+
+import { LanguageToggle, IMAGE_PLACEHOLDER } from '@spicehub/ui';
 import { OpenBillsView } from './views/OpenBillsView';
 import { PaymentHistoryView } from './views/PaymentHistoryView';
 import { CashDrawerView } from './views/CashDrawerView';
@@ -62,6 +63,8 @@ import { CashierReportsView } from './views/CashierReportsView';
 import { CashierSettingsView } from './views/CashierSettingsView';
 import { API_ORIGIN } from './config/api';
 import { getApiClient } from './lib/apiClient';
+
+hydrateStaffLaunchContext();
 
 const API_BASE = API_ORIGIN;
 
@@ -162,64 +165,26 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
 
   // Theme State (Dark / Light with persistence)
   const [clock, setClock] = useState(() => new Date());
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('spicehub_cashier_theme');
-      if (saved === 'dark' || saved === 'light') return saved;
-    }
-    return 'light';
-  });
+  // Bright heritage theme is the single supported palette.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    document.documentElement.classList.remove('dark');
+    localStorage.setItem('spicehub_cashier_theme', 'light');
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(new Date()), 30000);
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const tokenParam = params.get('token');
-      const hotelParam = params.get('hotelId');
-      if (tokenParam) {
-        localStorage.setItem('spicehub_token', tokenParam);
-        localStorage.setItem('token', tokenParam);
-        try {
-          const payload = JSON.parse(atob(tokenParam.split('.')[1]));
-          if (payload) {
-            localStorage.setItem('spicehub_auth_user', JSON.stringify(payload));
-          }
-        } catch {}
-      }
-      if (hotelParam) {
-        localStorage.setItem('spicehub_hotel_id', hotelParam);
-        localStorage.setItem('hotelId', hotelParam);
-      }
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('spicehub_cashier_theme', next);
-    }
-  };
-
-  useEffect(() => {
-    if (typeof document !== 'undefined') {
-      document.documentElement.classList.toggle('dark', theme === 'dark');
-    }
-  }, [theme]);
-
-  const isDark = theme === 'dark';
-
   // Current Order State
-  const [orderTable, setOrderTable] = useState('Table 5 (Dine-in)');
+  const [orderTable, setOrderTable] = useState('');
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderNote, setOrderNote] = useState('');
   const [notesList, setNotesList] = useState<string[]>([]);
   const [selectedOrderItemId, setSelectedOrderItemId] = useState<string | null>(null);
   const [numpadInput, setNumpadInput] = useState<string>('');
+  const [tableDraft, setTableDraft] = useState('');
 
   // Live workspace data
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -385,7 +350,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
           category: item.categoryName || 'Other',
           image:
             item.images?.[0] ||
-            'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&auto=format&fit=crop&q=80',
+            IMAGE_PLACEHOLDER,
         }))
       );
     } catch (err: any) {
@@ -470,6 +435,18 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
     if (confirm('Clear current order items?')) {
       setOrderItems([]);
     }
+  };
+
+  const applyTableDraft = () => {
+    const next = tableDraft.trim();
+    if (!next) return;
+    const match = openBills.find(
+      (bill) => bill.table.toLowerCase() === next.toLowerCase()
+    );
+    setOrderTable(match ? match.table : next);
+    if (match?.orderItems?.length) setOrderItems(match.orderItems);
+    setGeneratedBill(null);
+    setTableDraft('');
   };
 
   const handleAddNote = () => {
@@ -918,9 +895,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
   };
 
   return (
-    <div className={`flex h-screen w-screen overflow-hidden font-sans select-none antialiased transition-colors duration-200 ${
-      isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'
-    }`}>
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans text-slate-900 antialiased select-none">
       {/* Toast Notification */}
       {successPaymentToast && (
         <div className="fixed top-5 right-5 z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-3 transition-all duration-200 border border-emerald-500/30">
@@ -941,18 +916,18 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
       {/* LEFT SIDEBAR                                             */}
       {/* ======================================================== */}
       <aside className={`${
-        mobileMenuOpen ? 'flex fixed inset-y-0 left-0 z-50 w-64 shadow-sm dark:shadow-none' : 'hidden md:flex'
-      } w-64 flex-col justify-between shrink-0 border-r z-20 ${
-        isDark ? 'bg-slate-900 text-slate-300 border-slate-800 shadow-xl' : 'bg-white text-slate-700 border-slate-200 shadow-sm'
-      }`}>
+ mobileMenuOpen ? 'flex fixed inset-y-0 left-0 z-50 w-64 shadow-sm dark:shadow-none' : 'hidden md:flex'
+ } w-64 flex-col justify-between shrink-0 border-r z-20 ${
+ 'bg-white text-slate-700 border-slate-200 shadow-sm'
+ }`}>
         <div className="flex flex-col h-full overflow-hidden">
           {/* Logo & Header */}
-          <div className={`p-4 flex items-center gap-3 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+          <div className={`p-4 flex items-center gap-3 border-b ${'border-slate-200'}`}>
             <div className="w-10 h-10 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 flex items-center justify-center font-bold shadow-sm">
               <UtensilsCrossed className="w-5 h-5" />
             </div>
             <div>
-              <div className={`font-semibold text-lg tracking-tight flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <div className={`font-semibold text-lg tracking-tight flex items-center gap-1.5 ${'text-slate-900'}`}>
                 SpiceHub
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Restaurant & Hotel</p>
@@ -988,14 +963,12 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                     setMobileMenuOpen(false);
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-semibold shadow-xs'
-                      : isDark
-                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
+ isActive
+ ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-semibold shadow-xs'
+ : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+ }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-white dark:text-slate-900' : isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-white dark:text-slate-900' : 'text-slate-500'}`} />
                   <span className="truncate">{item.label}</span>
                   {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-70" />}
                 </button>
@@ -1004,30 +977,36 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
           </nav>
 
           {/* Cashier User Box with End Shift Button */}
-          <div className={`p-3 border-t ${isDark ? 'border-slate-800/80 bg-slate-950 text-slate-400' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+          <div className={`p-3 border-t ${'border-slate-200 bg-slate-50 text-slate-600'}`}>
             <div className="flex items-center gap-3 mb-2.5">
-              <div className="relative">
-                <img
-                  src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80"
-                  alt="Cashier"
-                  className="w-9 h-9 rounded-full object-cover border border-amber-500/40"
-                />
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-900" />
+              <div className="relative shrink-0">
+                {cashierAvatar ? (
+                  <img
+                    src={cashierAvatar}
+                    alt=""
+                    className="h-9 w-9 rounded-full border border-slate-200 object-cover"
+                  />
+                ) : (
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-[13px] font-semibold text-slate-600">
+                    {cashierName.charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
               </div>
               <div className="min-w-0">
-                <div className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{cashierName}</div>
+                <div className={`text-xs font-bold truncate ${'text-slate-900'}`}>{cashierName}</div>
                 <div className="text-[10px] text-slate-400 flex items-center gap-1">
                   Cashier <span className="text-emerald-500 font-bold">● Online</span>
                 </div>
               </div>
             </div>
 
-            <div className={`space-y-0.5 text-[10px] px-1 mb-2.5 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            <div className={`space-y-0.5 text-[10px] px-1 mb-2.5 font-medium ${'text-slate-500'}`}>
               <div>Shift: {shiftId ? 'Open' : 'Closed'}</div>
               <div>Terminal: Live</div>
               <div>
                 Cash in Hand:{' '}
-                <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                <span className={`font-bold ${'text-slate-900'}`}>
                   ₹{(drawerBalance.expectedCash || Math.max(0, drawerBalance.openingFloat + drawerBalance.cashSales - drawerBalance.pettyCash)).toLocaleString('en-IN')}
                 </span>
               </div>
@@ -1050,8 +1029,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Top Header Bar */}
         <header className={`h-14 px-3 sm:px-5 border-b flex items-center justify-between shrink-0 shadow-xs z-10 transition-colors ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
+ 'bg-white border-slate-200'
+ }`}>
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -1065,8 +1044,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
             </div>
             <div className="min-w-0">
               <h1 className={`text-sm sm:text-base font-bold tracking-tight truncate ${
-                isDark ? 'text-white' : 'text-slate-900'
-              }`}>
+ 'text-slate-900'
+ }`}>
                 Cashier POS
               </h1>
               <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">Billing & Float Counter</span>
@@ -1076,9 +1055,9 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Live Clock */}
             <div className={`hidden md:flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg border ${
-              isDark ? 'bg-slate-800/80 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-500'
-            }`}>
-              <Clock className={`w-3.5 h-3.5 ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />
+ 'bg-slate-100 border-slate-200 text-slate-500'
+ }`}>
+              <Clock className={`w-3.5 h-3.5 ${'text-slate-400'}`} />
               <span>
                 {clock.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
                 {' | '}
@@ -1097,8 +1076,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                 triggerToast(`Cashier Notifications: ${notices.join(' ')}`);
               }}
               className={`relative p-2 rounded-lg transition ${
-                isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-              }`}
+ 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+ }`}
               title="Cashier operational notifications"
             >
               <Bell className="w-4 h-4" />
@@ -1110,21 +1089,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
             </button>
 
             {/* Bilingual English / Hindi Language Toggle */}
-            <LanguageToggle isDark={isDark} />
-
-            {/* Theme Toggle Button */}
-            <button
-              data-testid="theme-toggle-btn"
-              onClick={toggleTheme}
-              className={`p-2 rounded-lg border transition ${
-                isDark
-                  ? 'bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700'
-                  : 'bg-slate-100 border-slate-200 text-amber-600 hover:bg-slate-200'
-              }`}
-              title={isDark ? 'Switch to Bright Light Mode' : 'Switch to Dark Mode'}
-            >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
+            <LanguageToggle />
 
             {/* Quick Policies & Rules Guide Button */}
             <button
@@ -1140,10 +1105,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
             <button
               onClick={() => setProfileOpen(true)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition shadow-sm ${
-                isDark
-                  ? 'bg-slate-800/90 border-slate-700 text-slate-200 hover:bg-slate-700'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
+ 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+ }`}
               title="Cashier Profile & Shift Controls"
             >
               <div className="w-6 h-6 rounded-full overflow-hidden bg-slate-200 border border-slate-300 dark:border-slate-600 flex items-center justify-center shrink-0">
@@ -1171,14 +1134,14 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                   setNotesList([]);
                 }}
                 className={`p-3 rounded-xl border flex items-center gap-3 transition text-left cursor-pointer ${
-                  isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800/80' : 'bg-white border-slate-200 hover:bg-slate-50'
-                }`}
+ 'bg-white border-slate-200 hover:bg-slate-50'
+ }`}
               >
                 <div className="w-10 h-10 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 flex items-center justify-center font-bold">
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className={`font-semibold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>New Bill</div>
+                  <div className={`font-semibold text-xs ${'text-slate-900'}`}>New Bill</div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400">Dine-in / Takeaway</div>
                 </div>
               </button>
@@ -1187,11 +1150,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               <div
                 onClick={() => setActiveSidebarItem('Table Management')}
                 className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition ${
-                  isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800/80' : 'bg-white border-slate-200 hover:bg-slate-50'
-                }`}
+ 'bg-white border-slate-200 hover:bg-slate-50'
+ }`}
               >
                 <div>
-                  <div className={`font-semibold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>Open Tables</div>
+                  <div className={`font-semibold text-xs ${'text-slate-900'}`}>Open Tables</div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400">View Active</div>
                 </div>
                 <div className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-xs">
@@ -1203,14 +1166,14 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               <div
                 onClick={() => setActiveSidebarItem('Room Charges (F&B)')}
                 className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition ${
-                  isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800/80' : 'bg-white border-slate-200 hover:bg-slate-50'
-                }`}
+ 'bg-white border-slate-200 hover:bg-slate-50'
+ }`}
               >
                 <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-bold">
                   <Coffee className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className={`font-semibold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>Room Bills</div>
+                  <div className={`font-semibold text-xs ${'text-slate-900'}`}>Room Bills</div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400">View Folio</div>
                 </div>
               </div>
@@ -1219,11 +1182,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               <div
                 onClick={() => setActiveSidebarItem('Open Bills')}
                 className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition ${
-                  isDark ? 'bg-slate-900 border-slate-800 hover:bg-slate-800/80' : 'bg-white border-slate-200 hover:bg-slate-50'
-                }`}
+ 'bg-white border-slate-200 hover:bg-slate-50'
+ }`}
               >
                 <div>
-                  <div className={`font-semibold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>Pending</div>
+                  <div className={`font-semibold text-xs ${'text-slate-900'}`}>Pending</div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400">Bills</div>
                 </div>
                 <div className="px-2.5 py-1 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold text-xs">
@@ -1251,7 +1214,6 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
             {activeSidebarItem === 'Open Bills' ? (
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <OpenBillsView
-                  isDark={isDark}
                   onToast={triggerToast}
                   onSelectBillForPos={(tbl) => {
                     setOrderTable(tbl);
@@ -1266,24 +1228,23 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               </div>
             ) : activeSidebarItem === 'Payment History' ? (
               <div className="flex-1 min-h-0 overflow-y-auto">
-                <PaymentHistoryView isDark={isDark} onToast={triggerToast} />
+                <PaymentHistoryView onToast={triggerToast} />
               </div>
             ) : activeSidebarItem === 'Split Bills' ? (
               <div className={`flex-1 min-h-0 overflow-y-auto p-4 rounded-2xl border transition-colors ${
-                isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200'
-              }`}>
+ 'bg-white border-slate-200'
+ }`}>
                 <SeatBillingApp />
               </div>
             ) : activeSidebarItem === 'Refunds & Void' ? (
               <div className={`flex-1 min-h-0 overflow-y-auto p-4 rounded-2xl border transition-colors ${
-                isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200'
-              }`}>
+ 'bg-white border-slate-200'
+ }`}>
                 <KotVoidAuditApp hotelId={hotelId} />
               </div>
             ) : activeSidebarItem === 'Cash Drawer' ? (
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <CashDrawerView
-                  isDark={isDark}
                   onToast={triggerToast}
                   drawerBalance={drawerBalance}
                   shiftId={shiftId}
@@ -1293,7 +1254,6 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
             ) : activeSidebarItem === 'Shift Management' ? (
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <ShiftManagementView
-                  isDark={isDark}
                   onToast={triggerToast}
                   onOpenShiftModal={() => setIsShiftModalOpen(true)}
                   drawerBalance={drawerBalance}
@@ -1302,7 +1262,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               </div>
             ) : activeSidebarItem === 'Receipts' ? (
               <div className="flex-1 min-h-0 overflow-y-auto">
-                <ReceiptsView isDark={isDark} onToast={triggerToast} />
+                <ReceiptsView onToast={triggerToast} />
               </div>
             ) : activeSidebarItem === 'Daily Summary' ? (
               <div className="flex-1 min-h-0 overflow-y-auto">
@@ -1311,7 +1271,6 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
             ) : activeSidebarItem === 'Table Management' ? (
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <CashierTableManagementView
-                  isDark={isDark}
                   onToast={triggerToast}
                   onSelectTableForBilling={(tbl) => {
                     setOrderTable(tbl);
@@ -1321,12 +1280,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               </div>
             ) : activeSidebarItem === 'Room Charges (F&B)' || activeSidebarItem === 'Guest Folio Payment' ? (
               <div className="flex-1 min-h-0 overflow-y-auto">
-                <RoomChargesPosView isDark={isDark} onToast={triggerToast} />
+                <RoomChargesPosView onToast={triggerToast} />
               </div>
             ) : activeSidebarItem === 'Expenses (Front Desk)' ? (
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <ExpensesView
-                  isDark={isDark}
                   onToast={triggerToast}
                   onExpenseRecorded={loadCashierSnapshot}
                 />
@@ -1334,7 +1292,6 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
             ) : activeSidebarItem === 'Reports' ? (
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <CashierReportsView
-                  isDark={isDark}
                   onToast={triggerToast}
                   drawerBalance={drawerBalance}
                   openBills={openBills}
@@ -1343,27 +1300,25 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               </div>
             ) : activeSidebarItem === 'Settings' ? (
               <div className="flex-1 min-h-0 overflow-y-auto">
-                <CashierSettingsView isDark={isDark} onToast={triggerToast} />
+                <CashierSettingsView onToast={triggerToast} />
               </div>
             ) : (
               <>
                 {/* Food Menu Section */}
                 <div className={`p-4 rounded-xl border space-y-4 transition-colors ${
-                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-                }`}>
+ 'bg-white border-slate-200 shadow-sm'
+ }`}>
                   {/* Search bar (h-12 rounded-lg border) */}
                   <div className="relative w-full">
-                    <Search className={`w-4 h-4 absolute left-3.5 top-4 ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />
+                    <Search className={`w-4 h-4 absolute left-3.5 top-4 ${'text-slate-400'}`} />
                     <input
                       type="text"
                       placeholder="Search menu items..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className={`h-12 w-full pl-10 pr-4 rounded-lg border text-sm transition focus:outline-none focus:ring-1 focus:ring-slate-400 ${
-                        isDark
-                          ? 'bg-slate-950 border-slate-800 text-white placeholder-slate-500'
-                          : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
-                      }`}
+ 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
+ }`}
                     />
                   </div>
 
@@ -1374,12 +1329,10 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                         key={cat}
                         onClick={() => setSelectedCategory(cat)}
                         className={`px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                          selectedCategory === cat
-                            ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                            : isDark
-                              ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
-                              : 'bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100'
-                        }`}
+ selectedCategory === cat
+ ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+ : 'bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100'
+ }`}
                       >
                         {cat}
                       </button>
@@ -1426,11 +1379,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                               <Plus className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-slate-600 dark:text-slate-400 font-medium">
+                          <div className="flex items-end justify-between gap-2">
+                            <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100">
                               ₹{item.price}
                             </span>
-                            <span className="text-[11px] text-slate-500 capitalize">
+                            <span className="min-w-0 truncate text-right text-[10px] leading-tight text-slate-500">
                               {item.category}
                             </span>
                           </div>
@@ -1442,49 +1395,49 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
 
                 {/* Open Bills (Dine-in) Table Section */}
                 <div className={`p-4 rounded-2xl border shadow-2xs space-y-3 transition-colors ${
-                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-                }`}>
+ 'bg-white border-slate-200'
+ }`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <h3 className={`font-extrabold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>Open Bills (Dine-in)</h3>
+                      <h3 className={`font-extrabold text-xs ${'text-slate-900'}`}>Open Bills (Dine-in)</h3>
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => setOpenBillsTab('dine-in')}
                           className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                            openBillsTab === 'dine-in'
-                              ? 'bg-amber-600 text-white'
-                              : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
-                          }`}
+ openBillsTab === 'dine-in'
+ ? 'bg-amber-600 text-white'
+ : 'bg-slate-100 text-slate-600'
+ }`}
                         >
                           Dine-in ({openBillCounts.dineIn})
                         </button>
                         <button
                           onClick={() => setOpenBillsTab('takeaway')}
                           className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                            openBillsTab === 'takeaway'
-                              ? 'bg-amber-600 text-white'
-                              : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
-                          }`}
+ openBillsTab === 'takeaway'
+ ? 'bg-amber-600 text-white'
+ : 'bg-slate-100 text-slate-600'
+ }`}
                         >
                           Takeaway ({openBillCounts.takeaway})
                         </button>
                         <button
                           onClick={() => setOpenBillsTab('room')}
                           className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                            openBillsTab === 'room'
-                              ? 'bg-amber-600 text-white'
-                              : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
-                          }`}
+ openBillsTab === 'room'
+ ? 'bg-amber-600 text-white'
+ : 'bg-slate-100 text-slate-600'
+ }`}
                         >
                           Room ({openBillCounts.room})
                         </button>
                         <button
                           onClick={() => setOpenBillsTab('pending')}
                           className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                            openBillsTab === 'pending'
-                              ? 'bg-amber-600 text-white'
-                              : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
-                          }`}
+ openBillsTab === 'pending'
+ ? 'bg-amber-600 text-white'
+ : 'bg-slate-100 text-slate-600'
+ }`}
                         >
                           Pending ({openBillCounts.pending})
                         </button>
@@ -1499,8 +1452,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                   <div className="overflow-x-auto">
                     <table className="w-full text-[11px] text-left">
                       <thead className={`font-bold border-b ${
-                        isDark ? 'bg-slate-900/80 text-slate-400 border-slate-800' : 'bg-slate-50 text-slate-400 border-slate-100'
-                      }`}>
+ 'bg-slate-50 text-slate-400 border-slate-100'
+ }`}>
                         <tr>
                           <th className="py-2 px-3">Bill No</th>
                           <th className="py-2 px-3">Table</th>
@@ -1511,7 +1464,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                           <th className="py-2 px-3 text-right">Action</th>
                         </tr>
                       </thead>
-                      <tbody className={`divide-y ${isDark ? 'divide-slate-800' : 'divide-slate-100'}`}>
+                      <tbody className={`divide-y ${'divide-slate-100'}`}>
                         {visibleOpenBills.length === 0 ? (
                           <tr>
                             <td colSpan={7} className="py-6 text-center text-slate-400 font-semibold">
@@ -1519,11 +1472,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                             </td>
                           </tr>
                         ) : visibleOpenBills.map((b) => (
-                          <tr key={b.billNo} className={`transition ${isDark ? 'hover:bg-slate-800/40 text-slate-300' : 'hover:bg-slate-50/80 text-slate-700'}`}>
+                          <tr key={b.billNo} className={`transition ${'hover:bg-slate-50/80 text-slate-700'}`}>
                             <td className="py-2 px-3 font-semibold">{b.billNo}</td>
                             <td className="py-2 px-3 font-bold text-orange-500">{b.table}</td>
                             <td className="py-2 px-3">{b.items}</td>
-                            <td className={`py-2 px-3 font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>₹{b.amount}</td>
+                            <td className={`py-2 px-3 font-bold ${'text-slate-900'}`}>₹{b.amount}</td>
                             <td className="py-2 px-3 text-slate-400">{b.time}</td>
                             <td className="py-2 px-3">
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
@@ -1567,18 +1520,18 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
 
                 {/* Recent Payments Section */}
                 <div className={`p-4 rounded-2xl border shadow-2xs space-y-3 transition-colors ${
-                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-                }`}>
+ 'bg-white border-slate-200'
+ }`}>
                   <div className="flex items-center gap-2">
-                    <Receipt className={`w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} />
-                    <h3 className={`font-extrabold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>Recent Payments</h3>
+                    <Receipt className={`w-4 h-4 ${'text-slate-600'}`} />
+                    <h3 className={`font-extrabold text-xs ${'text-slate-900'}`}>Recent Payments</h3>
                   </div>
 
                   <div className="overflow-x-auto">
                     <table className="w-full text-[11px] text-left">
                       <thead className={`font-bold border-b ${
-                        isDark ? 'bg-slate-900/80 text-slate-400 border-slate-800' : 'bg-white text-amber-900/60 border-amber-100'
-                      }`}>
+ 'bg-white text-amber-900/60 border-amber-100'
+ }`}>
                         <tr>
                           <th className="py-2 px-3">Time</th>
                           <th className="py-2 px-3">Bill No</th>
@@ -1589,7 +1542,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                           <th className="py-2 px-3 text-right">Action</th>
                         </tr>
                       </thead>
-                      <tbody className={`divide-y ${isDark ? 'divide-slate-800' : 'divide-slate-100'}`}>
+                      <tbody className={`divide-y ${'divide-slate-100'}`}>
                         {recentPayments.length === 0 ? (
                           <tr>
                             <td colSpan={7} className="py-6 text-center text-slate-400 font-semibold">
@@ -1597,11 +1550,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                             </td>
                           </tr>
                         ) : recentPayments.map((p) => (
-                          <tr key={p.id} className={`transition ${isDark ? 'hover:bg-slate-800/40 text-slate-300' : 'hover:bg-slate-50 text-slate-700'}`}>
+                          <tr key={p.id} className={`transition ${'hover:bg-slate-50 text-slate-700'}`}>
                             <td className="py-2 px-3 text-slate-400">{p.time}</td>
                             <td className="py-2 px-3 font-semibold">{p.billNo}</td>
                             <td className="py-2 px-3">{p.type}</td>
-                            <td className={`py-2 px-3 font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>₹{p.amount}</td>
+                            <td className={`py-2 px-3 font-bold ${'text-slate-900'}`}>₹{p.amount}</td>
                             <td className="py-2 px-3 font-semibold">{p.method}</td>
                             <td className="py-2 px-3">
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
@@ -1625,10 +1578,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                                   })
                                 }
                                 className={`px-2.5 py-1 rounded border font-bold transition ${
-                                  isDark
-                                    ? 'border-blue-500/30 text-blue-400 hover:bg-blue-600 hover:text-white'
-                                    : 'border-blue-200 text-blue-600 hover:bg-blue-50'
-                                }`}
+ 'border-blue-200 text-blue-600 hover:bg-blue-50'
+ }`}
                               >
                                 Receipt
                               </button>
@@ -1650,20 +1601,20 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
             <div className={`sticky top-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col justify-between space-y-4 shadow-sm transition-colors`}>
               {/* Header: 'Order Summary' text-lg font-bold text-slate-900 dark:text-white */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                <div>
+                <div className="min-w-0">
                   <h2 className="text-lg font-bold text-slate-900 dark:text-white">Order Summary</h2>
-                  <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{orderTable}</div>
+                  <div className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {orderTable || 'No table selected'}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
                     data-testid="btn-walkin-direct-settle"
                     onClick={() => {
-                      setOrderTable('Walk-In Counter (Direct Settle)');
-                      setOrderItems([
-                        { id: 'item-walkin-1', name: 'Butter Chicken Special', qty: 1, price: 380 },
-                        { id: 'item-walkin-2', name: 'Garlic Naan', qty: 2, price: 60 },
-                      ]);
-                      triggerToast('Walk-in verbal order loaded.');
+                      setOrderTable('Walk-In Counter');
+                      setOrderItems([]);
+                      setGeneratedBill(null);
+                      triggerToast('Walk-in counter selected. Add items from the menu.');
                     }}
                     className="px-2 py-1 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
                     title="Walk-In Direct Settle"
@@ -1680,67 +1631,67 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                 </div>
               </div>
 
-              {/* Table Switcher Chips */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  data-testid="btn-select-table-t01"
-                  onClick={() => {
-                    setOrderTable('Table T-01');
-                    const t01Bill = openBills.find((ob) => ob.table.includes('01') || ob.table.includes('T-01'));
-                    if (t01Bill?.orderItems && t01Bill.orderItems.length > 0) {
-                      setOrderItems(t01Bill.orderItems);
-                    } else {
-                      setOrderItems([
-                        { id: '6ae06d00ddbafddfbb0a8032', name: 'Club Sandwich', qty: 1, price: 220 },
-                        { id: '6ae06d00ddbafddfbb0a8031', name: 'Paneer Tikka', qty: 1, price: 200 },
-                      ]);
-                    }
-                    setGeneratedBill(null);
-                  }}
-                  className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-                >
-                  T-01 (₹420)
-                </button>
-                <button
-                  data-testid="btn-select-table-t02"
-                  onClick={() => {
-                    setOrderTable('Table T-02');
-                    setOrderItems([
-                      { id: '6ae06d00ddbafddfbb0a803b', name: 'Chicken Biryani', qty: 2, price: 500 },
-                    ]);
-                    setGeneratedBill(null);
-                  }}
-                  className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-                >
-                  T-02 (₹1,000)
-                </button>
-                <button
-                  onClick={() => {
-                    const next = prompt('Enter Table Number / Name:', 'Table T-01');
-                    if (next) {
-                      setOrderTable(next);
-                      if (next.includes('01') || next.includes('T-01') || next === '1') {
-                        setOrderItems([
-                          { id: '6ae06d00ddbafddfbb0a8032', name: 'Club Sandwich', qty: 1, price: 220 },
-                          { id: '6ae06d00ddbafddfbb0a8031', name: 'Paneer Tikka', qty: 1, price: 200 },
-                        ]);
-                      } else if (next.includes('12') || next.includes('T-12')) {
-                        setOrderItems([
-                          { id: 'item-1012', name: 'Paneer Tikka Test', qty: 2, price: 320 },
-                        ]);
+              {/* Table selector: real open bills, plus a free-text counter/table */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {openBills.slice(0, 4).map((bill) => {
+                    const isActive = orderTable === bill.table;
+                    return (
+                      <button
+                        key={bill.id}
+                        type="button"
+                        onClick={() => {
+                          setOrderTable(bill.table);
+                          setOrderItems(bill.orderItems ?? []);
+                          setGeneratedBill(null);
+                        }}
+                        className={`flex max-w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold transition ${
+ isActive
+ ? 'bg-slate-900 text-white'
+ : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+ }`}
+                      >
+                        <span className="max-w-[8rem] truncate">{bill.table}</span>
+                        <span className="shrink-0 tabular-nums opacity-80">₹{bill.amount}</span>
+                      </button>
+                    );
+                  })}
+                  {openBills.length === 0 && (
+                    <span className="text-[11px] leading-snug text-slate-500">
+                      No open table bills yet. Open one from Open Bills or Table Management.
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={tableDraft}
+                    onChange={(event) => setTableDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        applyTableDraft();
                       }
-                    }
-                  }}
-                  className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 hover:underline"
-                >
-                  Change Table
-                </button>
+                    }}
+                    placeholder="Table or counter name"
+                    className="h-8 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 text-[11px] font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyTableDraft}
+                    disabled={!tableDraft.trim()}
+                    className="h-8 shrink-0 rounded-md bg-slate-900 px-2.5 text-[11px] font-semibold text-white transition hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-500"
+                  >
+                    Set table
+                  </button>
+                </div>
               </div>
 
               {/* Order Items List with Quantity Steppers (+ / - buttons w-8 h-8 rounded-md border) */}
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {orderItems.length === 0 ? (
-                  <div className={`py-6 text-center text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <div className={`py-6 text-center text-xs ${'text-slate-400'}`}>
                     No items in current order. Click '+' on menu items.
                   </div>
                 ) : (
@@ -1749,13 +1700,13 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                       key={item.id}
                       onClick={() => setSelectedOrderItemId(item.id)}
                       className={`flex items-center justify-between py-2 px-2.5 rounded-lg border transition cursor-pointer ${
-                        selectedOrderItemId === item.id
-                          ? 'border-slate-400 dark:border-slate-500 bg-slate-50 dark:bg-slate-800/80'
-                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                      }`}
+ selectedOrderItemId === item.id
+ ? 'border-slate-400 dark:border-slate-500 bg-slate-50 dark:bg-slate-800/80'
+ : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+ }`}
                     >
                       <div className="flex-1 min-w-0 pr-2">
-                        <div className={`font-semibold text-sm truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        <div className={`font-semibold text-sm truncate ${'text-slate-900'}`}>
                           {item.name}
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400">
@@ -1775,7 +1726,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className={`w-7 text-center font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        <span className={`w-7 text-center font-bold text-sm ${'text-slate-900'}`}>
                           {item.qty}
                         </span>
                         <button
@@ -1790,7 +1741,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                         </button>
                       </div>
 
-                      <div className={`w-16 text-right font-bold text-sm shrink-0 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      <div className={`w-16 text-right font-bold text-sm shrink-0 ${'text-slate-900'}`}>
                         ₹{item.qty * item.price}
                       </div>
                     </div>
@@ -1800,10 +1751,10 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
 
               {/* POS Hardware Numpad: 3-column grid (grid grid-cols-3 gap-2) */}
               <div className={`p-3 rounded-xl border space-y-2 ${
-                isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-              }`}>
+ 'bg-slate-50 border-slate-200'
+ }`}>
                 <div className="flex items-center justify-between">
-                  <span className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  <span className={`text-xs font-semibold uppercase tracking-wider ${'text-slate-700'}`}>
                     Numpad
                   </span>
                   <div className="flex items-center gap-1.5">
@@ -1855,7 +1806,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               </div>
 
               {/* Add Note */}
-              <div className={`flex gap-2 pt-2 border-t ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+              <div className={`flex gap-2 pt-2 border-t ${'border-slate-100'}`}>
                 <input
                   type="text"
                   placeholder="Add note (e.g. Less Spicy)..."
@@ -1863,16 +1814,14 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                   onChange={(e) => setOrderNote(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
                   className={`flex-1 px-3 py-1.5 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-slate-400 ${
-                    isDark
-                      ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500'
-                      : 'bg-slate-50 border-slate-200 text-slate-900'
-                  }`}
+ 'bg-slate-50 border-slate-200 text-slate-900'
+ }`}
                 />
                 <button
                   onClick={handleAddNote}
                   className={`px-3 py-1.5 rounded-lg font-semibold text-xs ${
-                    isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
+ 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+ }`}
                 >
                   Add
                 </button>
@@ -1917,7 +1866,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               )}
 
               {/* GST Breakdown (text-sm text-slate-600) & Grand Total (text-xl font-bold text-slate-900 dark:text-white) */}
-              <div className={`space-y-1.5 pt-2 border-t text-sm ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+              <div className={`space-y-1.5 pt-2 border-t text-sm ${'border-slate-100'}`}>
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
                   <span>Subtotal</span>
                   <span className="font-semibold text-slate-900 dark:text-white">₹{subtotal.toFixed(2)}</span>
@@ -1935,8 +1884,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                   <span className="font-semibold text-slate-900 dark:text-white">₹{gst.toFixed(2)}</span>
                 </div>
                 <div className={`flex justify-between text-xl font-bold pt-2 border-t ${
-                  isDark ? 'text-white border-slate-800' : 'text-slate-900 border-slate-200'
-                }`}>
+ 'text-slate-900 border-slate-200'
+ }`}>
                   <span>Grand Total</span>
                   <span className="text-xl font-bold text-slate-900 dark:text-white">₹{grandTotal.toFixed(2)}</span>
                 </div>
@@ -1958,8 +1907,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                   data-testid="btn-split-bill"
                   onClick={() => setIsSplitModalOpen(true)}
                   className={`py-2 rounded-lg font-semibold text-xs border transition flex items-center justify-center gap-1 cursor-pointer ${
-                    isDark ? 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
+ 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+ }`}
                 >
                   <Scissors className="w-3.5 h-3.5" />
                   <span>Split Bill</span>
@@ -1972,8 +1921,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                     triggerToast('Current bill cleared.');
                   }}
                   className={`py-2 rounded-lg font-semibold text-xs border transition cursor-pointer ${
-                    isDark ? 'border-slate-700 bg-slate-800 text-red-400 hover:bg-slate-700' : 'border-slate-300 bg-white text-red-600 hover:bg-slate-50'
-                  }`}
+ 'border-slate-300 bg-white text-red-600 hover:bg-slate-50'
+ }`}
                 >
                   Clear Bill
                 </button>
@@ -1984,8 +1933,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                     triggerToast('Refreshed data.');
                   }}
                   className={`py-2 rounded-lg font-semibold text-xs border transition cursor-pointer ${
-                    isDark ? 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
+ 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+ }`}
                 >
                   Refresh
                 </button>
@@ -2033,10 +1982,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                   onClick={() => handleProcessPayment('Split')}
                   disabled={isProcessingPayment}
                   className={`py-2.5 rounded-xl font-bold text-xs shadow-sm flex flex-col items-center justify-center gap-0.5 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border ${
-                    isDark
-                      ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
-                      : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
+ 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+ }`}
                 >
                   <span className="text-sm font-black">⋯</span>
                   <span>Split</span>
@@ -2046,11 +1993,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
 
             {/* Card 2: Payment Methods Today (Donut chart & breakdown) */}
             <div className={`p-4 rounded-2xl border shadow-2xs space-y-3 transition-colors ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-            }`}>
+ 'bg-white border-slate-200'
+ }`}>
               <div className="flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-emerald-500" />
-                <h3 className={`font-extrabold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>Payment Methods Today</h3>
+                <h3 className={`font-extrabold text-xs ${'text-slate-900'}`}>Payment Methods Today</h3>
               </div>
 
               {paymentTotal === 0 ? (
@@ -2065,8 +2012,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                       background: `conic-gradient(#8b5cf6 0 ${upiShare}%, #10b981 ${upiShare}% ${upiShare + cashShare}%, #3b82f6 ${upiShare + cashShare}% ${upiShare + cashShare + cardShare}%, #94a3b8 ${upiShare + cashShare + cardShare}% 100%)`,
                     }}
                   >
-                    <div className={`w-20 h-20 rounded-full flex flex-col items-center justify-center text-center ${isDark ? 'bg-slate-900' : 'bg-white'}`}>
-                      <span className={`text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>₹{paymentTotal.toLocaleString('en-IN')}</span>
+                    <div className={`w-20 h-20 rounded-full flex flex-col items-center justify-center text-center ${'bg-white'}`}>
+                      <span className={`text-xs font-black ${'text-slate-900'}`}>₹{paymentTotal.toLocaleString('en-IN')}</span>
                       <span className="text-[8px] text-slate-400 font-bold uppercase">Total Collected</span>
                     </div>
                   </div>
@@ -2083,7 +2030,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: row.color }} /> {row.label}
                         </span>
                         <span className="text-slate-400">{row.pct}%</span>
-                        <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>₹{row.amount.toLocaleString('en-IN')}</span>
+                        <span className={`font-bold ${'text-slate-800'}`}>₹{row.amount.toLocaleString('en-IN')}</span>
                       </div>
                     ))}
                   </div>
@@ -2093,10 +2040,10 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
 
             {/* Card 3: Shift Summary */}
             <div className={`p-4 rounded-2xl border shadow-2xs space-y-2.5 transition-colors ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-            }`}>
+ 'bg-white border-slate-200'
+ }`}>
               <div className="flex items-center justify-between">
-                <h3 className={`font-extrabold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>Shift Summary</h3>
+                <h3 className={`font-extrabold text-xs ${'text-slate-900'}`}>Shift Summary</h3>
                 <button
                   onClick={() => setIsShiftModalOpen(true)}
                   className="text-[11px] font-bold text-blue-500 hover:underline"
@@ -2106,51 +2053,51 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               </div>
 
               <div className="space-y-1 text-xs">
-                <div className={`flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <div className={`flex justify-between ${'text-slate-500'}`}>
                   <span>Opening Cash</span>
-                  <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>₹{drawerBalance.openingFloat.toLocaleString('en-IN')}</span>
+                  <span className={`font-semibold ${'text-slate-800'}`}>₹{drawerBalance.openingFloat.toLocaleString('en-IN')}</span>
                 </div>
-                <div className={`flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <div className={`flex justify-between ${'text-slate-500'}`}>
                   <span>Total Sales</span>
-                  <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>₹{drawerBalance.totalSales.toLocaleString('en-IN')}</span>
+                  <span className={`font-semibold ${'text-slate-800'}`}>₹{drawerBalance.totalSales.toLocaleString('en-IN')}</span>
                 </div>
-                <div className={`flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <div className={`flex justify-between ${'text-slate-500'}`}>
                   <span>Cash Received</span>
-                  <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>₹{drawerBalance.cashSales.toLocaleString('en-IN')}</span>
+                  <span className={`font-semibold ${'text-slate-800'}`}>₹{drawerBalance.cashSales.toLocaleString('en-IN')}</span>
                 </div>
-                <div className={`flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <div className={`flex justify-between ${'text-slate-500'}`}>
                   <span>UPI Received</span>
-                  <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>₹{drawerBalance.upiSales.toLocaleString('en-IN')}</span>
+                  <span className={`font-semibold ${'text-slate-800'}`}>₹{drawerBalance.upiSales.toLocaleString('en-IN')}</span>
                 </div>
-                <div className={`flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <div className={`flex justify-between ${'text-slate-500'}`}>
                   <span>Card Received</span>
-                  <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>₹{drawerBalance.cardSales.toLocaleString('en-IN')}</span>
+                  <span className={`font-semibold ${'text-slate-800'}`}>₹{drawerBalance.cardSales.toLocaleString('en-IN')}</span>
                 </div>
-                <div className={`flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <div className={`flex justify-between ${'text-slate-500'}`}>
                   <span>Refunds</span>
-                  <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>₹{drawerBalance.refunds}</span>
+                  <span className={`font-semibold ${'text-slate-800'}`}>₹{drawerBalance.refunds}</span>
                 </div>
                 <div className={`flex justify-between font-black pt-1.5 border-t ${
-                  isDark ? 'text-white border-slate-800' : 'text-slate-900 border-slate-100'
-                }`}>
+ 'text-slate-900 border-slate-100'
+ }`}>
                   <span>Current Cash in Hand</span>
-                  <span className={`text-sm ${isDark ? 'text-amber-400' : 'text-slate-900'}`}>₹{(drawerBalance.openingFloat + drawerBalance.cashSales).toLocaleString('en-IN')}</span>
+                  <span className={`text-sm ${'text-slate-900'}`}>₹{(drawerBalance.openingFloat + drawerBalance.cashSales).toLocaleString('en-IN')}</span>
                 </div>
               </div>
             </div>
 
             {/* Card 4: Waiters Cash Float Live Reconciliation */}
             <div className={`p-4 rounded-2xl border shadow-2xs space-y-3 transition-colors ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-            }`}>
+ 'bg-white border-slate-200'
+ }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-amber-500" />
-                  <h3 className={`font-extrabold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  <Users className="h-4 w-4 text-emerald-600" />
+                  <h3 className={`font-extrabold text-xs ${'text-slate-900'}`}>
                     Waiters Cash-in-Hand Float
                   </h3>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-violet-0 ring-emerald-200">
                   Floor Ledger
                 </span>
               </div>
@@ -2164,11 +2111,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                   <div
                     key={idx}
                     className={`p-2.5 rounded-xl border flex items-center justify-between ${
-                      isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-                    }`}
+ 'bg-slate-50 border-slate-200'
+ }`}
                   >
                     <div>
-                      <div className={`font-bold text-xs ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                      <div className={`font-bold text-xs ${'text-slate-800'}`}>
                         {w.name}
                       </div>
                       <div className="text-[10px] text-slate-400">
@@ -2201,8 +2148,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                 ))}
 
                 <div className={`p-2.5 rounded-xl border flex items-center justify-between font-black ${
-                  isDark ? 'bg-amber-950/20 border-amber-900/40 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-900'
-                }`}>
+ 'bg-amber-50 border-amber-200 text-amber-900'
+ }`}>
                   <span className="text-[11px]">Total Cash Held on Floor:</span>
                   <span className="text-sm font-mono text-emerald-600">₹1,450.00</span>
                 </div>
@@ -2233,11 +2180,11 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                 <span>{receiptModalData.time}</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-bold">Table: {receiptModalData.table || 'Table T-12'}</span>
+                <span className="font-bold">Table: {receiptModalData.table || '—'}</span>
                 <span>SAC: 9963</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-bold">Waiter: {receiptModalData.waiter || 'Waiter John'}</span>
+                <span className="font-bold">Waiter: {receiptModalData.waiter || '—'}</span>
                 <span>Mode: {receiptModalData.method}</span>
               </div>
             </div>
@@ -2274,14 +2221,18 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                 <span>Grand Total:</span>
                 <span>₹{receiptModalData.grandTotal}</span>
               </div>
-              <div className="flex justify-between text-xs pt-1">
-                <span>Cash Tendered:</span>
-                <span>₹{receiptModalData.cashTendered || 700}</span>
-              </div>
-              <div className="flex justify-between text-xs font-black text-emerald-700">
-                <span>Change Returned:</span>
-                <span>₹{receiptModalData.changeReturned || '28.00'}</span>
-              </div>
+              {receiptModalData.method === 'Cash' && (
+                <>
+                  <div className="flex justify-between text-xs pt-1">
+                    <span>Cash Tendered:</span>
+                    <span>₹{receiptModalData.cashTendered ?? 0}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-black text-emerald-700">
+                    <span>Change Returned:</span>
+                    <span>₹{receiptModalData.changeReturned ?? 0}</span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="pt-3 text-center text-[10px] text-slate-400 space-y-3">
@@ -2414,7 +2365,6 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
       <QuickPolicyReferenceModal
         isOpen={isPolicyModalOpen}
         onClose={() => setIsPolicyModalOpen(false)}
-        isDark={isDark}
       />
 
       {/* 5. Cashier Staff Profile & Shift Drawer/Modal */}
@@ -2422,13 +2372,13 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
           <div
             className={`w-full max-w-md rounded-2xl shadow-sm dark:shadow-none border overflow-hidden transition-all ${
-              isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
-            }`}
+ 'bg-white border-slate-200 text-slate-800'
+ }`}
           >
             {/* Modal Header */}
-            <div className={`flex items-center justify-between p-4 border-b ${isDark ? 'border-slate-800 bg-slate-900/50' : 'border-slate-100 bg-slate-50'}`}>
+            <div className={`flex items-center justify-between p-4 border-b ${'border-slate-100 bg-slate-50'}`}>
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 font-semibold text-emerald-600">
                   <User className="w-4 h-4" />
                 </div>
                 <div>
@@ -2438,7 +2388,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               </div>
               <button
                 onClick={() => setProfileOpen(false)}
-                className={`p-1.5 rounded-lg transition ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-200 text-slate-500'}`}
+                className={`p-1.5 rounded-lg transition ${'hover:bg-slate-200 text-slate-500'}`}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2447,18 +2397,20 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
             {/* Modal Body */}
             <div className="p-5 space-y-5">
               {/* Profile Card & Avatar */}
-              <div className={`p-4 rounded-xl border flex items-center gap-4 ${isDark ? 'bg-slate-800/50 border-slate-700/60' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-amber-500/40 bg-slate-200 shrink-0 flex items-center justify-center shadow-inner">
+              <div className={`p-4 rounded-xl border flex items-center gap-4 ${'bg-slate-50 border-slate-200'}`}>
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100">
                   {cashierAvatar ? (
-                    <img src={cashierAvatar} alt={cashierUser.name} className="w-full h-full object-cover" />
+                    <img src={cashierAvatar} alt={cashierUser.name} className="h-full w-full object-cover" />
                   ) : (
-                    <User className="w-8 h-8 text-slate-400" />
+                    <span className="text-lg font-semibold text-slate-500">
+                      {cashierUser.name.charAt(0).toUpperCase()}
+                    </span>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-base font-bold truncate">{cashierUser.name}</h4>
-                  <p className="text-xs text-amber-500 font-semibold">{cashierUser.role}</p>
-                  <p className="text-xs text-slate-400 truncate mt-0.5">{cashierUser.email || 'cashier@hotel.com'}</p>
+                  <h4 className="truncate text-base font-semibold text-slate-900">{cashierUser.name}</h4>
+                  <p className="text-xs font-medium text-emerald-600">{cashierUser.role}</p>
+                  <p className="mt-0.5 truncate text-xs text-amber-500">{cashierUser.email || 'No email on file'}</p>
                 </div>
               </div>
 
@@ -2469,9 +2421,9 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                 </label>
                 <div className="grid grid-cols-2 gap-2.5">
                   <label className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-dashed cursor-pointer transition text-center ${
-                    isDark ? 'border-slate-700 hover:border-amber-500 bg-slate-800/40' : 'border-slate-300 hover:border-amber-500 bg-slate-50/50'
-                  }`}>
-                    <Camera className="w-5 h-5 text-amber-500" />
+ 'border-slate-300 hover:border-amber-500 bg-slate-50'
+ }`}>
+                    <Camera className="h-5 w-5 text-emerald-600" />
                     <span className="text-xs font-semibold">Live Camera</span>
                     <span className="text-[10px] text-slate-400">Capture Photo</span>
                     <input
@@ -2484,9 +2436,9 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                   </label>
 
                   <label className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-dashed cursor-pointer transition text-center ${
-                    isDark ? 'border-slate-700 hover:border-amber-500 bg-slate-800/40' : 'border-slate-300 hover:border-amber-500 bg-slate-50/50'
-                  }`}>
-                    <Upload className="w-5 h-5 text-sky-500" />
+ 'border-slate-300 hover:border-amber-500 bg-slate-50'
+ }`}>
+                    <Upload className="h-5 w-5 text-emerald-600" />
                     <span className="text-xs font-semibold">Device Gallery</span>
                     <span className="text-[10px] text-slate-400">Pick from Storage</span>
                     <input
@@ -2503,7 +2455,7 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
               </div>
 
               {/* Shift Information */}
-              <div className={`p-3.5 rounded-xl border space-y-1.5 text-xs ${isDark ? 'bg-slate-800/30 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+              <div className={`p-3.5 rounded-xl border space-y-1.5 text-xs ${'bg-slate-50 border-slate-200'}`}>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Current Shift:</span>
                   <span className="font-semibold text-emerald-500 flex items-center gap-1.5">
@@ -2530,8 +2482,8 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                     setIsShiftModalOpen(true);
                   }}
                   className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-semibold transition ${
-                    isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-200' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
-                  }`}
+ 'border-slate-300 hover:bg-slate-100 text-slate-700'
+ }`}
                 >
                   Close Shift
                 </button>

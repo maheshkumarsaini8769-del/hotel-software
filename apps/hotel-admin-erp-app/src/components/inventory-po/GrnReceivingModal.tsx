@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { IPurchaseOrderUI, INewGrnPayload, InventoryPoHelper } from '@spicehub/ui';
+import { IPurchaseOrderUI, INewGrnPayload, InventoryPoHelper, NumericInput } from '@spicehub/ui';
+import { Truck, X, Building2, Calendar, FileText, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface GrnReceivingModalProps {
   isOpen: boolean;
@@ -59,6 +60,15 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
     }
   }, [order, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !order) return null;
 
   const handleItemChange = (index: number, field: string, val: any) => {
@@ -102,140 +112,174 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
     });
   };
 
+  const vendorName = typeof order.vendorId === 'object' ? order.vendorId?.name : 'Supplier';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border-2 border-emerald-500/40 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-sm dark:shadow-none animate-in fade-in zoom-in-95">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200"
+    >
+      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-slate-800 animate-in zoom-in-95">
         {/* Header */}
-        <div className="bg-slate-900 px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl">🚚</span>
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs">
+              <Truck className="w-5 h-5 text-emerald-600" />
+            </div>
             <div>
-              <h2 className="text-lg font-bold text-white">
-                Goods Received Note (GRN) • Dock Receiving
-              </h2>
-              <p className="text-xs text-zinc-400">
-                Inspect shipment against PO <span className="font-mono text-amber-400 font-bold">{order.poNumber}</span>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-900">
+                  Goods Received Note (GRN) • Dock Receiving
+                </h2>
+                <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  {order.poNumber}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Physical dock verification, delivery inspection and accepted inventory value
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white"
+            aria-label="Close GRN modal"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
           >
-            ✕
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* Vendor Invoice Inputs */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-950/60 p-4 rounded-2xl border border-zinc-800">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Supplier & Delivery Challan Info */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
-                Vendor / Supplier
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                Delivering Supplier
               </label>
-              <div className="text-sm font-bold text-white">
-                {typeof order.vendorId === 'object' ? order.vendorId?.name : 'Vendor'}
+              <div className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-slate-400" />
+                <span>{vendorName}</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                Target: {order.deliveryLocation || 'Central Store Receiving Dock'}
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
-                Vendor Physical Invoice #
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
+                <FileText className="w-3.5 h-3.5 text-slate-400" />
+                <span>Supplier Invoice / Challan #</span>
               </label>
               <input
                 type="text"
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
-                placeholder="e.g. INV-2026-9810"
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white font-mono outline-none focus:border-emerald-400"
+                placeholder="e.g. INV-2026-9081"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:border-emerald-500 shadow-2xs font-mono"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
-                Invoice Date
+              <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                <span>Invoice / Delivery Date</span>
               </label>
               <input
                 type="date"
                 value={invoiceDate}
                 onChange={(e) => setInvoiceDate(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white outline-none focus:border-emerald-400"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:border-emerald-500 shadow-2xs"
+                required
               />
             </div>
           </div>
 
-          {/* Inspection Items Table */}
+          {/* Checklist Table */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+              <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                 Dock Physical Inspection & Verification
               </span>
-              {hasRejections && (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-950/70 text-red-300 border border-red-500/40 animate-pulse">
-                  ⚠️ Discrepancy / Rejections Flagged
-                </span>
-              )}
+              <span className="text-xs text-slate-500">
+                Adjust received & accepted counts if goods were damaged
+              </span>
             </div>
 
-            <div className="bg-zinc-950/70 border border-zinc-800 rounded-2xl overflow-hidden p-3 space-y-2">
-              <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-zinc-400 uppercase pb-1 border-b border-zinc-800 px-2">
-                <span className="col-span-4">Item</span>
-                <span className="col-span-2 text-right">Ordered</span>
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2">
+              <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-slate-500 uppercase pb-1 border-b border-slate-200 px-2">
+                <span className="col-span-4">Item Name</span>
+                <span className="col-span-2 text-right">PO Qty</span>
                 <span className="col-span-2 text-right">Received</span>
                 <span className="col-span-2 text-right">Accepted</span>
                 <span className="col-span-2 text-right">Rejected</span>
               </div>
 
               {items.map((it, idx) => (
-                <div key={idx} className="bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-800/80 space-y-2">
+                <div
+                  key={idx}
+                  className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2"
+                >
                   <div className="grid grid-cols-12 gap-2 items-center">
                     <div className="col-span-4">
-                      <span className="text-xs font-semibold text-white truncate block">{it.itemName}</span>
-                      <span className="text-[10px] text-zinc-500 font-mono">₹{it.unitPrice}/{it.unit}</span>
+                      <span className="text-xs font-bold text-slate-900 block truncate">
+                        {it.itemName}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Rate: ₹{it.unitPrice}/{it.unit}
+                      </span>
                     </div>
-                    <div className="col-span-2 text-right font-mono text-xs text-zinc-400">
+
+                    <div className="col-span-2 text-right font-mono text-xs font-semibold text-slate-600">
                       {it.orderedQty} {it.unit}
                     </div>
+
                     <div className="col-span-2">
-                      <input
-                        type="number"
-                        step="0.1"
+                      <NumericInput
                         min="0"
+                        step="0.1"
                         value={it.receivedQty}
-                        onChange={(e) => handleItemChange(idx, 'receivedQty', Number(e.target.value))}
-                        className="w-full px-2 py-1 bg-zinc-950 border border-zinc-700 rounded-lg text-xs text-white font-mono text-right outline-none focus:border-emerald-400"
+                        onChange={(e) => handleItemChange(idx, 'receivedQty', e.target.value)}
+                        className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 font-mono text-right outline-none focus:border-emerald-500 focus:bg-white"
                         required
                       />
                     </div>
+
                     <div className="col-span-2">
-                      <input
-                        type="number"
-                        step="0.1"
+                      <NumericInput
                         min="0"
+                        step="0.1"
                         value={it.acceptedQty}
-                        onChange={(e) => handleItemChange(idx, 'acceptedQty', Number(e.target.value))}
-                        className="w-full px-2 py-1 bg-zinc-950 border border-zinc-700 rounded-lg text-xs text-emerald-400 font-mono font-bold text-right outline-none focus:border-emerald-400"
+                        onChange={(e) => handleItemChange(idx, 'acceptedQty', e.target.value)}
+                        className="w-full px-2 py-1.5 bg-emerald-50/50 border border-emerald-200 rounded-lg text-xs text-emerald-800 font-mono text-right font-bold outline-none focus:border-emerald-500 focus:bg-white"
                         required
                       />
                     </div>
-                    <div className="col-span-2 text-right font-mono text-xs font-bold text-red-400 pr-2">
-                      {it.rejectedQty} {it.unit}
+
+                    <div className="col-span-2 text-right">
+                      <span
+                        className={`text-xs font-mono font-bold ${
+                          it.rejectedQty > 0 ? 'text-rose-600' : 'text-slate-400'
+                        }`}
+                      >
+                        {it.rejectedQty} {it.unit}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Rejection Reason Row if any rejected */}
                   {it.rejectedQty > 0 && (
-                    <div className="pt-1.5 border-t border-zinc-800/60 flex items-center gap-2">
-                      <span className="text-[10px] font-semibold text-red-400 shrink-0">Reason:</span>
+                    <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                       <input
                         type="text"
                         value={it.rejectionReason}
                         onChange={(e) => handleItemChange(idx, 'rejectionReason', e.target.value)}
-                        placeholder="e.g. Torn bag, spoiled vegetable, leakage..."
-                        className="flex-1 px-2 py-1 bg-red-950/30 border border-red-500/30 rounded text-[11px] text-red-200 outline-none"
+                        placeholder="Reason for dock rejection (e.g. broken seal, expired batch, crushed crates)..."
+                        className="w-full px-2.5 py-1 bg-rose-50/50 border border-rose-200 rounded-lg text-xs text-rose-900 placeholder:text-rose-400 outline-none focus:border-rose-400"
                         required
                       />
                     </div>
@@ -245,49 +289,61 @@ export const GrnReceivingModal: React.FC<GrnReceivingModalProps> = ({
             </div>
           </div>
 
-          {/* Totals Summary */}
-          <div className="bg-zinc-950 border border-emerald-500/30 p-4 rounded-2xl flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs text-zinc-400 block">Accepted Subtotal: {InventoryPoHelper.formatCurrency(totalAccepted)}</span>
-              <span className="text-xs text-zinc-400 block">Accepted Tax: {InventoryPoHelper.formatCurrency(totalTax)}</span>
+          {/* Notes and Total Accepted Value */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                Dock Receiver Inspection Notes
+              </label>
+              <textarea
+                value={dockNotes}
+                onChange={(e) => setDockNotes(e.target.value)}
+                placeholder="e.g. Delivery truck arrived at 10:15 AM. Packaging seals intact. Temperature 4°C verified."
+                rows={3}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:bg-white resize-none"
+              />
             </div>
-            <div className="text-right">
-              <span className="text-[11px] text-zinc-500 uppercase font-semibold block">Payable Invoice Amount</span>
-              <span className="text-2xl font-black font-mono text-emerald-400">
-                {InventoryPoHelper.formatCurrency(finalInvoiceAmount)}
-              </span>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
+              <div className="space-y-1.5 text-xs text-slate-600">
+                <div className="flex items-center justify-between">
+                  <span>Accepted Items Value:</span>
+                  <span className="font-mono font-bold text-slate-800">
+                    {InventoryPoHelper.formatCurrency(totalAccepted)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Applicable GST Tax:</span>
+                  <span className="font-mono font-bold text-slate-800">
+                    {InventoryPoHelper.formatCurrency(totalTax)}
+                  </span>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-base">
+                <span className="font-bold text-slate-900">Final Accepted GRN Total:</span>
+                <span className="font-mono font-extrabold text-emerald-700 text-lg">
+                  {InventoryPoHelper.formatCurrency(finalInvoiceAmount)}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Inspector Notes */}
-          <div>
-            <label className="block text-xs font-semibold text-zinc-300 uppercase mb-1">
-              Storekeeper / Receiving Dock Notes
-            </label>
-            <input
-              type="text"
-              value={dockNotes}
-              onChange={(e) => setDockNotes(e.target.value)}
-              placeholder="e.g. Delivered by refrigerated truck temp at 4°C. Weighed on dock scale."
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white placeholder:text-zinc-600 outline-none focus:border-emerald-400"
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs"
+              className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading || !invoiceNumber.trim()}
-              className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 text-black font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none"
+              disabled={loading}
+              className="btn-glass-green text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shadow-xs flex items-center gap-1.5"
             >
-              {loading ? 'Creating GRN...' : 'Verify & Generate GRN'}
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{loading ? 'Generating GRN...' : 'Generate Official GRN'}</span>
             </button>
           </div>
         </form>

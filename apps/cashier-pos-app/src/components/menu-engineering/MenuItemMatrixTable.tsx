@@ -35,10 +35,10 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             type="button"
             onClick={() => setQuadrantFilter('ALL')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'ALL'
-                ? 'bg-zinc-100 text-zinc-900'
-                : 'bg-zinc-800 text-zinc-400 hover:text-white'
-            }`}
+ quadrantFilter === 'ALL'
+ ? 'bg-zinc-100 text-zinc-900'
+ : 'bg-zinc-800 text-zinc-400 hover:text-white'
+ }`}
           >
             All Items ({items.length})
           </button>
@@ -46,10 +46,10 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             type="button"
             onClick={() => setQuadrantFilter('STAR')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'STAR'
-                ? 'bg-amber-500 text-zinc-900'
-                : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
-            }`}
+ quadrantFilter === 'STAR'
+ ? 'bg-emerald-600 text-zinc-900'
+ : 'bg-emerald-600/10 text-amber-400 hover:bg-emerald-600/20'
+ }`}
           >
             ⭐ Stars
           </button>
@@ -57,10 +57,10 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             type="button"
             onClick={() => setQuadrantFilter('PLOWHORSE')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'PLOWHORSE'
-                ? 'bg-blue-500 text-white'
-                : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
-            }`}
+ quadrantFilter === 'PLOWHORSE'
+ ? 'bg-blue-500 text-white'
+ : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
+ }`}
           >
             🐎 Plowhorses
           </button>
@@ -68,10 +68,10 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             type="button"
             onClick={() => setQuadrantFilter('PUZZLE')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'PUZZLE'
-                ? 'bg-slate-800 dark:bg-slate-200 text-white'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800'
-            }`}
+ quadrantFilter === 'PUZZLE'
+ ? 'bg-slate-800 dark:bg-slate-200 text-white'
+ : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800'
+ }`}
           >
             🧩 Puzzles
           </button>
@@ -79,10 +79,10 @@ export const MenuItemMatrixTable: React.FC<MenuItemMatrixTableProps> = ({
             type="button"
             onClick={() => setQuadrantFilter('DOG')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              quadrantFilter === 'DOG'
-                ? 'bg-red-500 text-white'
-                : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
-            }`}
+ quadrantFilter === 'DOG'
+ ? 'bg-red-500 text-white'
+ : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+ }`}
           >
             🐕 Dogs
           </button>

@@ -17,8 +17,8 @@ export const TableCard: React.FC<TableCardProps> = ({ table, onClick, isSelected
     <div
       onClick={() => onClick(table)}
       className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 select-none shadow-sm hover:shadow-md ${statusConfig.border} ${statusConfig.bg} ${
-        isSelected ? 'ring-2 ring-primary-500 scale-[1.02]' : 'hover:scale-[1.01]'
-      }`}
+ isSelected ? 'ring-2 ring-primary-500 scale-[1.02]' : 'hover:scale-[1.01]'
+ }`}
       data-testid={`table-card-${table.tableNumber}`}
     >
       <div className="flex items-center justify-between mb-2">

@@ -26,7 +26,7 @@ export interface DelegateTaskModalProps {
   onClose: () => void;
   task: DelegatableTask | null;
   currentStaff: WaiterStaffProfile;
-  isDark: boolean;
+  isDark?: boolean;
   onConfirmDelegation: (targetWaiter: WaiterStaffProfile, reason: string, task: DelegatableTask) => void;
 }
 
@@ -35,7 +35,6 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
   onClose,
   task,
   currentStaff,
-  isDark,
   onConfirmDelegation,
 }) => {
   const allWaiters = getHotelAdminAllocatedWaiters();
@@ -72,10 +71,8 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs animate-fadeIn">
       <div
         className={`w-full max-w-md rounded-2xl border shadow-sm dark:shadow-none overflow-hidden transition-all duration-200 transform scale-100 ${
-          isDark
-            ? 'bg-slate-900 border-orange-500/40 text-slate-100'
-            : 'bg-white border-orange-300 text-slate-800'
-        }`}
+ 'bg-white border-orange-300 text-slate-800'
+ }`}
       >
         {/* Header */}
         <div className="bg-amber-600 p-4 text-white flex items-center justify-between shadow-xs">
@@ -107,14 +104,12 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
           {/* Active Task Info Card */}
           <div
             className={`p-3.5 rounded-xl border space-y-1.5 ${
-              isDark
-                ? 'bg-slate-900/80 border-slate-800 text-slate-200'
-                : 'bg-orange-50/70 border-orange-200 text-slate-800'
-            }`}
+ 'bg-orange-50/70 border-orange-200 text-slate-800'
+ }`}
           >
             <div className="flex items-center justify-between text-[11px] font-bold">
               <span className="text-orange-500 uppercase tracking-wider font-mono">
-                {task.type === 'REQUEST' ? '🛎️ Guest Call' : task.type === 'PICKUP' ? '🍲 Food Ready Pickup' : '🪑 Table Task'}
+                {task.type === 'REQUEST' ? 'Guest Call' : task.type === 'PICKUP' ? 'Food Ready Pickup' : 'Table Task'}
               </span>
               <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 font-black">
                 {task.tableNumber}
@@ -138,7 +133,10 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
           <div>
             <label className="block text-xs font-black uppercase tracking-wider mb-2 text-slate-400 flex items-center justify-between">
               <span>Choose Available Colleague</span>
-              <span className="text-emerald-400 text-[10px]">🟢 On Duty Staff</span>
+              <span className="text-emerald-400 text-[10px] flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                On Duty Staff
+              </span>
             </label>
 
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -149,14 +147,10 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
                     key={colleague.staffId}
                     onClick={() => setSelectedStaffId(colleague.staffId)}
                     className={`p-3 rounded-xl border cursor-pointer transition flex items-center justify-between ${
-                      isSelected
-                        ? isDark
-                          ? 'bg-orange-500/15 border-orange-500/80 text-white shadow-sm'
-                          : 'bg-orange-50 border-orange-500 text-orange-950 shadow-xs'
-                        : isDark
-                        ? 'bg-slate-900/50 border-slate-800 hover:bg-slate-800/60 text-slate-300'
-                        : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
-                    }`}
+ isSelected
+ ? 'bg-orange-50 border-emerald-600 text-orange-950 shadow-xs'
+ : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
+ }`}
                   >
                     <div className="flex items-center gap-3">
                       <img
@@ -207,14 +201,10 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
                   type="button"
                   onClick={() => setReason(r)}
                   className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition ${
-                    reason === r
-                      ? isDark
-                        ? 'bg-amber-500/20 border-amber-500/70 text-amber-300'
-                        : 'bg-amber-100 border-amber-400 text-amber-900'
-                      : isDark
-                      ? 'bg-slate-900/40 border-slate-800 text-slate-400 hover:text-slate-200'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
-                  }`}
+ reason === r
+ ? 'bg-amber-100 border-amber-400 text-amber-900'
+ : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+ }`}
                 >
                   • {r}
                 </button>
@@ -227,10 +217,8 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
               value={customNote}
               onChange={(e) => setCustomNote(e.target.value)}
               className={`w-full mt-2 px-3 py-2 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 transition ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-600'
-                  : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
-              }`}
+ 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
+ }`}
             />
           </div>
         </div>
@@ -238,17 +226,15 @@ export const DelegateTaskModal: React.FC<DelegateTaskModalProps> = ({
         {/* Footer Actions */}
         <div
           className={`p-4 border-t flex items-center justify-between gap-3 ${
-            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-          }`}
+ 'bg-slate-50 border-slate-200'
+ }`}
         >
           <button
             type="button"
             onClick={onClose}
             className={`px-4 py-2 rounded-xl font-bold text-xs transition border ${
-              isDark
-                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
-            }`}
+ 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+ }`}
           >
             Cancel
           </button>

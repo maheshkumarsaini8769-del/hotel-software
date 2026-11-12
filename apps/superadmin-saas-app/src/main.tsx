@@ -1,9 +1,11 @@
 import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { ErrorBoundary, StaffLoginGate, I18nProvider } from '@spicehub/ui';
+import { ErrorBoundary, StaffLoginGate, I18nProvider, installGlobalNumericInputGuard } from '@spicehub/ui';
 import { env } from './config/env';
 import { SuperAdminDashboardApp } from './SuperAdminDashboardApp';
+
+installGlobalNumericInputGuard();
 
 const rootElement = document.getElementById('root');
 if (rootElement) {

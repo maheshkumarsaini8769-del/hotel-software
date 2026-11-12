@@ -8,8 +8,6 @@ import {
   ChefHat,
   UtensilsCrossed,
   KeyRound,
-  Eye,
-  EyeOff,
   CheckCircle2,
   AlertTriangle,
   Search,
@@ -32,10 +30,24 @@ import {
   LayoutList,
   LayoutGrid
 } from 'lucide-react';
+import { NumericInput } from '@spicehub/ui';
 
 export type StaffRoleType = 'CASHIER' | 'WAITER' | 'CHEF' | 'RECEPTIONIST' | 'MANAGER';
 
 export const DEFAULT_STAFF_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24" fill="%2394a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+
+/**
+ * Table sections are stored as codes (`AC_DINING`). Waiters are matched to
+ * tables by exact section code, so the staff form must save the code and only
+ * show a readable label.
+ */
+const humanizeSection = (section?: string): string => {
+  if (!section) return '';
+  return section
+    .replace(/[_-]+/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+};
 
 export interface HotelStaffMember {
   id: string;
@@ -43,7 +55,7 @@ export interface HotelStaffMember {
   email: string;
   phone: string;
   role: StaffRoleType | string;
-  pin: string;
+  hasPin?: boolean;
   shift: string;
   shiftStatus: 'ON_DUTY' | 'OFFLINE' | string;
   assignedSection?: string;
@@ -61,6 +73,14 @@ export interface HotelStaffMember {
 interface StaffUserManagementAppProps {
   isDark?: boolean;
   hotelId?: string;
+}
+
+interface StaffPortalCapabilities {
+  roomBooking: boolean;
+  reception: boolean;
+  inRoomServices: boolean;
+  tableOrdering: boolean;
+  waiterDispatch: boolean;
 }
 
 const MAX_AVATAR_SOURCE_BYTES = 10 * 1024 * 1024;
@@ -113,8 +133,25 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [activeRoleFilter, setActiveRoleFilter] = useState<'ALL' | StaffRoleType>('ALL');
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches ? 'grid' : 'table'
+  );
   const [toast, setToast] = useState<string | null>(null);
+  const [staffAccessCode, setStaffAccessCode] = useState<string | null>(null);
+  const [requestedStaffAccessCode, setRequestedStaffAccessCode] = useState('');
+  const [isGeneratingAccessCode, setIsGeneratingAccessCode] = useState(false);
+
+  useEffect(() => {
+    setStaffAccessCode(null);
+    setRequestedStaffAccessCode('');
+  }, [hotelId]);
+
+  useEffect(() => {
+    const mobileViewport = window.matchMedia('(max-width: 640px)');
+    const syncViewMode = () => setViewMode(mobileViewport.matches ? 'grid' : 'table');
+    mobileViewport.addEventListener('change', syncViewMode);
+    return () => mobileViewport.removeEventListener('change', syncViewMode);
+  }, []);
 
   // Subscribed portals for this hotel property (enforced from Super Admin subscription)
   const [enabledPortals, setEnabledPortals] = useState<string[]>(() => {
@@ -124,6 +161,28 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
     } catch {}
     return ['admin', 'cashier', 'reception', 'kds', 'waiter', 'customer', 'guest'];
   });
+  const [serviceCapabilities, setServiceCapabilities] = useState<StaffPortalCapabilities>({
+    roomBooking: true,
+    reception: true,
+    inRoomServices: true,
+    tableOrdering: true,
+    waiterDispatch: true,
+  });
+
+  const isStaffRoleEnabled = (role: StaffRoleType): boolean => {
+    switch (role) {
+      case 'WAITER':
+        return enabledPortals.includes('waiter') && serviceCapabilities.tableOrdering && serviceCapabilities.waiterDispatch;
+      case 'CHEF':
+        return enabledPortals.includes('kds') && (serviceCapabilities.tableOrdering || serviceCapabilities.inRoomServices);
+      case 'CASHIER':
+        return enabledPortals.includes('cashier');
+      case 'RECEPTIONIST':
+        return enabledPortals.includes('reception') && serviceCapabilities.reception;
+      case 'MANAGER':
+        return enabledPortals.includes('admin');
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -147,6 +206,17 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
             setEnabledPortals(current.enabledPortals);
             localStorage.setItem('spicehub_enabled_portals', JSON.stringify(current.enabledPortals));
           }
+          if (current?.serviceCapabilities) {
+            setServiceCapabilities(current.serviceCapabilities);
+          } else if (current?.enabledPortals && Array.isArray(current.enabledPortals)) {
+            setServiceCapabilities({
+              roomBooking: current.enabledPortals.includes('guest'),
+              reception: current.enabledPortals.includes('reception'),
+              inRoomServices: current.enabledPortals.includes('guest'),
+              tableOrdering: current.enabledPortals.includes('customer'),
+              waiterDispatch: current.enabledPortals.includes('waiter'),
+            });
+          }
         }
       } catch (err) {
         console.warn('Could not refresh hotel enabledPortals:', err);
@@ -158,9 +228,6 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
     };
   }, [hotelId]);
 
-  // PIN visibility state map
-  const [revealedPins, setRevealedPins] = useState<Record<string, boolean>>({});
-
   // Create Staff Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<StaffRoleType>('WAITER');
@@ -171,7 +238,8 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
   const [shift, setShift] = useState('Morning Shift (08:00 AM - 04:30 PM)');
 
   // Role specific fields
-  const [assignedSection, setAssignedSection] = useState('Indoor AC Hall');
+  const [assignedSection, setAssignedSection] = useState('');
+  const [tableSections, setTableSections] = useState<string[]>([]);
   const [tableStart, setTableStart] = useState('1');
   const [tableEnd, setTableEnd] = useState('6');
   const [assignedStation, setAssignedStation] = useState('Executive Chef Hot Pass');
@@ -202,17 +270,9 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
       });
       if (res.ok) {
         setStaffList((prev) =>
-          prev.map((s) => (s.id === editingStaffPin.id ? { ...s, pin: newStaffPin.trim(), pinStatus: 'ACTIVE', pinApprovedByAdmin: true } : s))
+          prev.map((s) => (s.id === editingStaffPin.id ? { ...s, hasPin: true, pinStatus: 'ACTIVE', pinApprovedByAdmin: true } : s))
         );
-        try {
-          const currentAllocRaw = localStorage.getItem('spicehub_admin_waiter_allocations') || '{}';
-          const allocs = JSON.parse(currentAllocRaw);
-          if (allocs[editingStaffPin.id]) {
-            allocs[editingStaffPin.id].pin = newStaffPin.trim();
-            localStorage.setItem('spicehub_admin_waiter_allocations', JSON.stringify(allocs));
-          }
-        } catch (_) {}
-        showToast(`✓ PIN updated to "${newStaffPin.trim()}" for staff "${editingStaffPin.name}"! Previous PIN removed.`);
+        showToast(`PIN updated for "${editingStaffPin.name}". The PIN is stored securely and cannot be viewed.`);
         setEditingStaffPin(null);
         setNewStaffPin('');
       } else {
@@ -258,7 +318,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
           customAvatars[editingStaffPhoto.id] = editPhotoUrl.trim();
           localStorage.setItem('spicehub_custom_waiter_avatars', JSON.stringify(customAvatars));
         } catch (_) {}
-        showToast(`✓ Profile photo updated for "${editingStaffPhoto.name}"!`);
+        showToast(`Profile photo updated for "${editingStaffPhoto.name}"!`);
         setEditingStaffPhoto(null);
       }
     } catch (err: any) {
@@ -269,6 +329,44 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 5000);
+  };
+
+  const handleGenerateStaffAccessCode = async () => {
+    if (!hotelId || isGeneratingAccessCode) return;
+    const customCode = requestedStaffAccessCode.trim();
+    if (customCode && !/^(?:\d{6}|[A-Z]{2}\d{4,6})$/.test(customCode.toUpperCase())) {
+      showToast('Use six digits or the existing two-letter plus 4–6 digit format.');
+      return;
+    }
+    setIsGeneratingAccessCode(true);
+    setStaffAccessCode(null);
+    try {
+      const response = await apiFetch('/hotel-staff/access-code', {
+        method: 'POST',
+        body: JSON.stringify({ hotelId, ...(customCode ? { code: customCode } : {}) }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body?.success || typeof body.data?.code !== 'string') {
+        throw new Error(body?.message || 'Could not generate the staff hotel code.');
+      }
+      setStaffAccessCode(body.data.code);
+      setRequestedStaffAccessCode('');
+      showToast('Hotel code issued. Share it with your staff; it is shown only once.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not generate the staff hotel code.');
+    } finally {
+      setIsGeneratingAccessCode(false);
+    }
+  };
+
+  const handleCopyStaffAccessCode = async () => {
+    if (!staffAccessCode) return;
+    try {
+      await navigator.clipboard.writeText(staffAccessCode);
+      showToast('Hotel code copied. Share it with your staff securely.');
+    } catch {
+      showToast('Could not copy the hotel code. Select and copy it manually.');
+    }
   };
 
   // Fetch staff list from backend API
@@ -291,6 +389,36 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
 
   useEffect(() => {
     fetchStaff();
+  }, [hotelId]);
+
+  // Real dining table sections drive the waiter allocation dropdown so the
+  // saved value matches the section stored on the hotel's tables.
+  useEffect(() => {
+    let cancelled = false;
+    const loadSections = async () => {
+      try {
+        const res = await apiFetch('/table-management/tables');
+        if (!res.ok) return;
+        const body = await res.json().catch(() => null);
+        if (!Array.isArray(body?.data)) return;
+        const sections = Array.from(
+          new Set(
+            body.data
+              .map((t: { section?: string }) => (t.section || '').trim())
+              .filter((s: string) => s.length > 0)
+          )
+        ) as string[];
+        if (cancelled) return;
+        setTableSections(sections);
+        setAssignedSection((prev) => prev || sections[0] || '');
+      } catch (err) {
+        console.warn('Could not load dining table sections:', err);
+      }
+    };
+    void loadSections();
+    return () => {
+      cancelled = true;
+    };
   }, [hotelId]);
 
   // Derived counts
@@ -331,11 +459,6 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
       return;
     }
 
-    if (!avatar || !avatar.trim() || avatar === DEFAULT_STAFF_AVATAR) {
-      showToast('Staff profile photo is mandatory. Please capture with camera or choose from gallery.');
-      return;
-    }
-
     const payload = {
       name: name.trim(),
       role: selectedRole,
@@ -343,7 +466,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
       email: email || `${name.toLowerCase().replace(/[^a-z0-9]/g, '')}.${selectedRole.toLowerCase()}@spicehub.hotel`,
       pin: pin.trim(),
       shift,
-      avatar: avatar.trim(),
+      avatar: avatar.trim() || DEFAULT_STAFF_AVATAR,
       assignedSection: selectedRole === 'WAITER' ? assignedSection : undefined,
       assignedTableStart: selectedRole === 'WAITER' ? Number(tableStart) || 1 : undefined,
       assignedTableEnd: selectedRole === 'WAITER' ? Number(tableEnd) || 6 : undefined,
@@ -367,7 +490,10 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
       }
 
       if (body.data) {
-        setStaffList((prev) => [body.data, ...prev.filter((p) => p.id !== body.data.id)]);
+        setStaffList((prev) => [
+          { ...body.data, hasPin: true, pinStatus: 'ACTIVE' },
+          ...prev.filter((p) => p.id !== body.data.id),
+        ]);
         
         // Also sync to localStorage allocations for instant Waiter app login
         if (selectedRole === 'WAITER') {
@@ -381,7 +507,6 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
               name: body.data.name,
               role: body.data.role,
               avatar: body.data.avatar,
-              pin: body.data.pin,
             };
             localStorage.setItem('spicehub_admin_waiter_allocations', JSON.stringify(allocs));
 
@@ -395,7 +520,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
           } catch (_) {}
         }
 
-        showToast(`✓ Staff member "${name}" (${selectedRole}) created successfully! Access PIN: ${pin}`);
+        showToast(`Staff member "${name}" (${selectedRole}) created. Their PIN is securely stored.`);
         setIsCreateModalOpen(false);
         // Reset form
         setName('');
@@ -429,7 +554,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
       });
       const body = await res.json();
       if (res.ok && body.success) {
-        showToast(`✓ PIN approved for ${staffName}! Status is now ACTIVE.`);
+        showToast(`PIN approved for ${staffName}! Status is now ACTIVE.`);
         setStaffList((prev) =>
           prev.map((s) => (s.id === id ? { ...s, pinStatus: 'ACTIVE', pinApprovedByAdmin: true } : s))
         );
@@ -439,10 +564,6 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
     } catch (err: any) {
       showToast(`Error approving PIN: ${err.message}`);
     }
-  };
-
-  const togglePinReveal = (id: string) => {
-    setRevealedPins((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   return (
@@ -458,8 +579,8 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
       )}
 
       {/* 1. Header & Actions Bar */}
-      <div className="p-5 rounded-2xl border border-slate-200 bg-white flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
-        <div className="flex items-center gap-3.5">
+      <div className="p-5 rounded-2xl border border-slate-200 bg-white flex flex-col xl:flex-row xl:items-center justify-between gap-4 shadow-xs">
+        <div className="flex min-w-0 items-center gap-3.5">
           <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center font-black">
             <Users className="w-6 h-6" />
           </div>
@@ -478,36 +599,116 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
           </div>
         </div>
 
-        <button
-          data-testid="open-create-staff-modal-btn"
-          onClick={() => {
-            const allowed = [
-              { role: 'WAITER' as const, portal: 'waiter' },
-              { role: 'CHEF' as const, portal: 'kds' },
-              { role: 'CASHIER' as const, portal: 'cashier' },
-              { role: 'RECEPTIONIST' as const, portal: 'reception' },
-            ].filter((r) => enabledPortals.includes(r.portal));
-            if (allowed.length > 0 && !allowed.some((r) => r.role === selectedRole)) {
-              setSelectedRole(allowed[0].role);
+        <div className="flex flex-col sm:flex-row gap-2 w-full xl:w-auto">
+          <label className="sr-only" htmlFor="custom-staff-hotel-code">
+            Optional six-digit custom hotel code
+          </label>
+          <input
+            id="custom-staff-hotel-code"
+            data-testid="custom-staff-hotel-code"
+            type="text"
+            inputMode="text"
+            autoComplete="off"
+            autoCapitalize="characters"
+            maxLength={8}
+            value={requestedStaffAccessCode}
+            onChange={(event) =>
+              setRequestedStaffAccessCode(
+                event.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 8)
+              )
             }
-            setIsCreateModalOpen(true);
-          }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-98"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>+ Add Staff</span>
-        </button>
+            placeholder="Custom code (e.g. SH774273)"
+            className="min-h-11 w-full sm:w-40 rounded-xl border border-slate-300 bg-white px-3 text-center text-sm font-bold tracking-[0.16em] text-slate-900 placeholder:font-normal placeholder:tracking-normal"
+          />
+          <button
+            type="button"
+            data-testid="generate-staff-hotel-code"
+            onClick={() => void handleGenerateStaffAccessCode()}
+            disabled={
+              !hotelId ||
+              isGeneratingAccessCode ||
+              (Boolean(requestedStaffAccessCode) &&
+                !/^(?:\d{6}|[A-Z]{2}\d{4,6})$/.test(requestedStaffAccessCode))
+            }
+            className="bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 disabled:opacity-60 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition"
+          >
+            <KeyRound className="w-4 h-4" />
+            <span>
+              {isGeneratingAccessCode
+                ? 'Issuing…'
+                : requestedStaffAccessCode
+                  ? 'Set Staff Code'
+                  : 'Generate Hotel Code'}
+            </span>
+          </button>
+          <button
+            data-testid="open-create-staff-modal-btn"
+            onClick={() => {
+              const allowed = (['WAITER', 'CHEF', 'CASHIER', 'RECEPTIONIST'] as StaffRoleType[])
+                .filter(isStaffRoleEnabled);
+              if (allowed.length === 0) {
+                showToast('No staff portals are enabled for this hotel.');
+                return;
+              }
+              if (!allowed.includes(selectedRole)) {
+                setSelectedRole(allowed[0]);
+              }
+              setIsCreateModalOpen(true);
+            }}
+            className="btn-glass-green text-white px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition active:scale-98"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>+ Add Staff</span>
+          </button>
+        </div>
       </div>
+
+      {staffAccessCode && (
+        <section
+          aria-labelledby="staff-access-code-heading"
+          className="rounded-2xl bg-blue-50 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          data-testid="staff-hotel-code-panel"
+        >
+          <div className="min-w-0">
+            <h2 id="staff-access-code-heading" className="text-sm font-bold text-slate-900">
+              Share this hotel code with your staff
+            </h2>
+            <p className="mt-1 text-xs text-slate-600">
+              This code is shown only now. Generating another code will invalidate this one.
+            </p>
+            <code className="mt-3 inline-block rounded-lg bg-white px-3 py-2 text-xl font-black tracking-[0.18em] text-slate-900 select-all">
+              {staffAccessCode}
+            </code>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => void handleCopyStaffAccessCode()}
+              className="min-h-11 rounded-lg bg-white px-4 text-sm font-bold text-slate-800 border border-slate-200 hover:bg-slate-50"
+            >
+              Copy code
+            </button>
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(`Staff login for this hotel: enter code ${staffAccessCode} in the SpiceHub Staff app.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="min-h-11 rounded-lg bg-emerald-600 px-4 text-sm font-bold text-white inline-flex items-center"
+            >
+              Share on WhatsApp
+            </a>
+          </div>
+        </section>
+      )}
 
       {/* 2. Role KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Waiters */}
-        {enabledPortals.includes('waiter') && (
+        {isStaffRoleEnabled('WAITER') && (
           <div
             onClick={() => setActiveRoleFilter('WAITER')}
             className={`p-4 rounded-xl border bg-white transition-all cursor-pointer hover:border-orange-300 shadow-xs ${
-              activeRoleFilter === 'WAITER' ? 'ring-2 ring-orange-500 border-orange-300' : 'border-slate-200'
-            }`}
+ activeRoleFilter === 'WAITER' ? 'ring-2 ring-emerald-600 border-orange-300' : 'border-slate-200'
+ }`}
           >
             <div className="flex items-center justify-between text-orange-600 font-bold text-xs uppercase tracking-wider">
               <span>Waiters / Captains</span>
@@ -522,12 +723,12 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
         )}
 
         {/* Kitchen Chefs */}
-        {enabledPortals.includes('kds') && (
+        {isStaffRoleEnabled('CHEF') && (
           <div
             onClick={() => setActiveRoleFilter('CHEF')}
             className={`p-4 rounded-xl border bg-white transition-all cursor-pointer hover:border-red-300 shadow-xs ${
-              activeRoleFilter === 'CHEF' ? 'ring-2 ring-red-500 border-red-300' : 'border-slate-200'
-            }`}
+ activeRoleFilter === 'CHEF' ? 'ring-2 ring-red-500 border-red-300' : 'border-slate-200'
+ }`}
           >
             <div className="flex items-center justify-between text-red-600 font-bold text-xs uppercase tracking-wider">
               <span>Kitchen Chefs</span>
@@ -542,12 +743,12 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
         )}
 
         {/* Cashiers */}
-        {enabledPortals.includes('cashier') && (
+        {isStaffRoleEnabled('CASHIER') && (
           <div
             onClick={() => setActiveRoleFilter('CASHIER')}
             className={`p-4 rounded-xl border bg-white transition-all cursor-pointer hover:border-blue-300 shadow-xs ${
-              activeRoleFilter === 'CASHIER' ? 'ring-2 ring-blue-500 border-blue-300' : 'border-slate-200'
-            }`}
+ activeRoleFilter === 'CASHIER' ? 'ring-2 ring-blue-500 border-blue-300' : 'border-slate-200'
+ }`}
           >
             <div className="flex items-center justify-between text-blue-600 font-bold text-xs uppercase tracking-wider">
               <span>Cashiers (Billing)</span>
@@ -562,21 +763,21 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
         )}
 
         {/* Receptionists */}
-        {enabledPortals.includes('reception') && (
+        {isStaffRoleEnabled('RECEPTIONIST') && (
           <div
             onClick={() => setActiveRoleFilter('RECEPTIONIST')}
-            className={`p-4 rounded-xl border bg-white transition-all cursor-pointer hover:border-purple-300 shadow-xs ${
-              activeRoleFilter === 'RECEPTIONIST' ? 'ring-2 ring-purple-500 border-purple-300' : 'border-slate-200'
-            }`}
+            className={`p-4 rounded-xl border bg-white transition-all cursor-pointer hover:border-sky-300 shadow-xs ${
+ activeRoleFilter === 'RECEPTIONIST' ? 'ring-2 ring-sky-500 border-sky-300' : 'border-slate-200'
+ }`}
           >
-            <div className="flex items-center justify-between text-purple-600 font-bold text-xs uppercase tracking-wider">
+            <div className="flex items-center justify-between text-sky-700 font-bold text-xs uppercase tracking-wider">
               <span>Reception Frontdesk</span>
               <Building2 className="w-4 h-4" />
             </div>
             <div className="text-2xl font-black mt-2 text-slate-900">{countReception}</div>
             <div className="text-[11px] text-slate-500 mt-0.5 flex items-center justify-between">
               <span>PMS Check-in</span>
-              <span className="font-semibold text-emerald-600">Front Desk PMS</span>
+              <span className="font-semibold text-blue-600">Front Desk PMS</span>
             </div>
           </div>
         )}
@@ -588,10 +789,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
           {(['ALL', 'WAITER', 'CHEF', 'CASHIER', 'RECEPTIONIST'] as const)
             .filter((r) => {
               if (r === 'ALL') return true;
-              if (r === 'WAITER') return enabledPortals.includes('waiter');
-              if (r === 'CHEF') return enabledPortals.includes('kds');
-              if (r === 'CASHIER') return enabledPortals.includes('cashier');
-              if (r === 'RECEPTIONIST') return enabledPortals.includes('reception');
+              if (r === 'WAITER' || r === 'CHEF' || r === 'CASHIER' || r === 'RECEPTIONIST') return isStaffRoleEnabled(r);
               return true;
             })
             .map((r) => (
@@ -599,10 +797,10 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
               key={r}
               onClick={() => setActiveRoleFilter(r)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                activeRoleFilter === r
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 shadow-2xs'
-              }`}
+ activeRoleFilter === r
+ ? 'btn-glass-green text-white shadow-xs'
+ : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 shadow-2xs'
+ }`}
             >
               {r === 'ALL' ? 'All Staff' : r === 'WAITER' ? 'Waiters & Captains' : r === 'CHEF' ? 'Kitchen Chefs' : r === 'CASHIER' ? 'Cashiers' : 'Receptionists'}
             </button>
@@ -615,8 +813,8 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
               type="button"
               onClick={() => setViewMode('table')}
               className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition ${
-                viewMode === 'table' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
+ viewMode === 'table' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+ }`}
               title="Table View"
             >
               <LayoutList className="w-4 h-4" />
@@ -626,8 +824,8 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
               type="button"
               onClick={() => setViewMode('grid')}
               className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition ${
-                viewMode === 'grid' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
+ viewMode === 'grid' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+ }`}
               title="Grid Cards View"
             >
               <LayoutGrid className="w-4 h-4" />
@@ -674,8 +872,6 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                 const isChef = staff.role.includes('CHEF') || staff.role.includes('KITCHEN');
                 const isCashier = staff.role.includes('CASHIER');
                 const isRec = staff.role.includes('RECEPTION') || staff.role.includes('FRONTDESK') || staff.role.includes('MANAGER');
-                const isRevealed = revealedPins[staff.id];
-
                 const portalUrl = isWaiter
                   ? getPortalUrl('waiter')
                   : isChef
@@ -685,12 +881,12 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                   : getPortalUrl('reception');
 
                 const portalLabel = isWaiter
-                  ? '📱 Waiter App'
+                  ? 'Waiter App'
                   : isChef
-                  ? '🍳 Kitchen KDS'
+                  ? 'Kitchen KDS'
                   : isCashier
-                  ? '⚡ Cashier POS'
-                  : '🛎️ Reception';
+                  ? 'Cashier POS'
+                  : 'Front Desk Reception';
 
                 return (
                   <tr key={staff.id} className="border-b border-slate-200 hover:bg-slate-50 px-4 py-3 text-sm text-slate-700 transition">
@@ -713,8 +909,8 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                             <Camera className="w-3.5 h-3.5" />
                           </div>
                           <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
-                            staff.shiftStatus === 'ON_DUTY' ? 'bg-emerald-500' : 'bg-slate-300'
-                          }`} />
+ staff.shiftStatus === 'ON_DUTY' ? 'bg-emerald-500' : 'bg-slate-300'
+ }`} />
                         </div>
                         <div>
                           <div className="font-bold text-slate-900">{staff.name}</div>
@@ -730,21 +926,21 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
 
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold ${
-                        isWaiter
-                          ? 'bg-orange-50 text-orange-700 border border-orange-200'
-                          : isChef
-                          ? 'bg-red-50 text-red-700 border border-red-200'
-                          : isCashier
-                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                          : 'bg-purple-50 text-purple-700 border border-purple-200'
-                      }`}>
+ isWaiter
+ ? 'bg-orange-50 text-orange-700 border border-orange-200'
+ : isChef
+ ? 'bg-red-50 text-red-700 border border-red-200'
+ : isCashier
+ ? 'bg-blue-50 text-blue-700 border border-blue-200'
+ : 'bg-sky-50 text-sky-700 border border-sky-200'
+ }`}>
                         {staff.role}
                       </span>
                     </td>
 
                     <td className="px-4 py-3">
                       <div className="text-xs font-semibold text-slate-700">
-                        {isWaiter && (staff.assignedSection || 'All Tables')}
+                        {isWaiter && (humanizeSection(staff.assignedSection) || 'All Tables')}
                         {isChef && (staff.assignedStation || 'Hot Pass')}
                         {isCashier && (staff.assignedCounter || 'POS Counter #1')}
                         {isRec && (staff.assignedCounter || 'Frontdesk Terminal #1')}
@@ -764,20 +960,20 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold w-fit ${
-                          staff.shiftStatus === 'ON_DUTY'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-slate-100 text-slate-600 border border-slate-200'
-                        }`}>
+ staff.shiftStatus === 'ON_DUTY'
+ ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+ : 'bg-slate-100 text-slate-600 border border-slate-200'
+ }`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${staff.shiftStatus === 'ON_DUTY' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                           {staff.shiftStatus === 'ON_DUTY' ? 'On Duty' : 'Offline'}
                         </span>
                         {staff.pinStatus === 'PENDING_APPROVAL' ? (
                           <span className="text-[10px] text-amber-600 font-semibold flex items-center gap-1">
-                            <span>⏳ PIN Pending</span>
+                            <span>PIN Pending</span>
                           </span>
                         ) : (
                           <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                            <span>✓ PIN Active</span>
+                            <span>PIN Active</span>
                           </span>
                         )}
                       </div>
@@ -799,21 +995,12 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                         )}
                         <button
                           type="button"
-                          onClick={() => togglePinReveal(staff.id)}
-                          className="px-2 py-1 rounded-md border border-slate-200 hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-xs font-mono font-bold flex items-center gap-1"
-                          title={isRevealed ? `PIN: ${staff.pin}` : 'Reveal PIN'}
-                        >
-                          <KeyRound className="w-3 h-3 text-slate-400" />
-                          <span>{isRevealed ? staff.pin : '••••'}</span>
-                        </button>
-                        <button
-                          type="button"
                           data-testid={`edit-pin-btn-${staff.id}`}
                           onClick={() => {
                             setEditingStaffPin(staff);
-                            setNewStaffPin(staff.pin || '');
+                            setNewStaffPin('');
                           }}
-                          className="px-2 py-1 rounded-md border border-blue-200 hover:bg-blue-50 text-blue-600 hover:text-blue-800 text-xs font-bold flex items-center gap-1"
+                          className="px-2 py-1 rounded-md border border-slate-200 hover:bg-blue-50 text-blue-600 hover:text-blue-800 text-xs font-bold flex items-center gap-1"
                           title="Change Staff PIN"
                         >
                           <Edit2 className="w-3 h-3" />
@@ -842,8 +1029,6 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
             const isChef = staff.role.includes('CHEF') || staff.role.includes('KITCHEN');
             const isCashier = staff.role.includes('CASHIER');
             const isRec = staff.role.includes('RECEPTION') || staff.role.includes('FRONTDESK') || staff.role.includes('MANAGER');
-            const isRevealed = revealedPins[staff.id];
-
             const portalUrl = isWaiter
               ? getPortalUrl('waiter')
               : isChef
@@ -853,12 +1038,12 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
               : getPortalUrl('reception');
 
             const portalLabel = isWaiter
-              ? '📱 Waiter App'
+              ? 'Waiter App'
               : isChef
-              ? '🍳 Kitchen KDS'
+              ? 'Kitchen KDS'
               : isCashier
-              ? '⚡ Cashier POS'
-              : '🛎️ Reception';
+              ? 'Cashier POS'
+              : 'Front Desk Reception';
 
             return (
               <div
@@ -885,8 +1070,8 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                           <Camera className="w-4 h-4 text-blue-400" />
                         </div>
                         <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ring-2 ring-white ${
-                          staff.shiftStatus === 'ON_DUTY' ? 'bg-emerald-500' : 'bg-slate-400'
-                        }`} />
+ staff.shiftStatus === 'ON_DUTY' ? 'bg-emerald-500' : 'bg-slate-400'
+ }`} />
                       </div>
                       <div>
                         <h3 className="font-bold text-sm text-slate-900">
@@ -894,18 +1079,18 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                         </h3>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                            isWaiter
-                              ? 'bg-orange-50 text-orange-700 border border-orange-200'
-                              : isChef
-                              ? 'bg-red-50 text-red-700 border border-red-200'
-                              : isCashier
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : 'bg-purple-50 text-purple-700 border border-purple-200'
-                          }`}>
+ isWaiter
+ ? 'bg-orange-50 text-orange-700 border border-orange-200'
+ : isChef
+ ? 'bg-red-50 text-red-700 border border-red-200'
+ : isCashier
+ ? 'bg-blue-50 text-blue-700 border border-blue-200'
+ : 'bg-sky-50 text-sky-700 border border-sky-200'
+ }`}>
                             {staff.role}
                           </span>
                           <span className="text-[10px] text-emerald-600 font-bold">
-                            ● On Duty
+                            On Duty
                           </span>
                         </div>
                       </div>
@@ -931,7 +1116,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-slate-500 font-semibold">Dining Section:</span>
-                          <span className="font-medium text-slate-700">{staff.assignedSection || 'Main Dining Hall'}</span>
+                          <span className="font-medium text-slate-700">{humanizeSection(staff.assignedSection) || 'Main Dining Hall'}</span>
                         </div>
                       </>
                     )}
@@ -957,7 +1142,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                     {isRec && (
                       <div className="flex items-center justify-between">
                         <span className="text-slate-500 font-semibold">Frontdesk Desk:</span>
-                        <span className="font-bold text-purple-600">
+                        <span className="font-bold text-sky-700">
                           {staff.assignedCounter || 'Frontdesk Terminal #1'}
                         </span>
                       </div>
@@ -978,26 +1163,19 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <KeyRound className="w-3.5 h-3.5 text-slate-600" />
-                        <span className="text-[11px] font-bold text-slate-700">Quick Access PIN:</span>
+                        <span className="text-[11px] font-bold text-slate-700">Access PIN:</span>
                         <span className="font-mono font-bold tracking-widest text-xs px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-800">
-                          {isRevealed ? staff.pin : '••••'}
+                          {staff.hasPin ? 'Set securely' : 'Not set'}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => togglePinReveal(staff.id)}
-                          className="text-slate-600 hover:text-slate-900 p-1 text-xs font-bold flex items-center gap-1"
-                        >
-                          {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          <span className="text-[10px]">{isRevealed ? 'Hide' : 'Reveal'}</span>
-                        </button>
-                        <button
                           type="button"
                           onClick={() => {
                             setEditingStaffPin(staff);
-                            setNewStaffPin(staff.pin || '');
+                            setNewStaffPin('');
                           }}
-                          className="text-blue-600 hover:text-blue-800 p-1 text-xs font-bold flex items-center gap-1"
+                          className="text-slate-600 hover:text-blue-800 p-1 text-xs font-bold flex items-center gap-1"
                           title="Change Staff PIN"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
@@ -1011,11 +1189,11 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                         <span className="text-[10px] text-slate-500 font-semibold">PIN Status:</span>
                         {staff.pinStatus === 'PENDING_APPROVAL' ? (
                           <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
-                            ⏳ Pending Approval
+                            Pending Approval
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            ✓ Active
+                            Active
                           </span>
                         )}
                       </div>
@@ -1039,14 +1217,14 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-                    isWaiter
-                      ? 'bg-orange-500 hover:bg-orange-600 text-white'
-                      : isChef
-                      ? 'bg-red-600 hover:bg-red-700 text-white'
-                      : isCashier
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                      : 'bg-purple-600 hover:bg-purple-700 text-white'
-                  }`}
+ isWaiter
+ ? 'bg-emerald-600 hover:bg-orange-600 text-white'
+ : isChef
+ ? 'bg-red-600 hover:bg-red-700 text-white'
+ : isCashier
+ ? 'btn-glass-green text-white'
+ : 'bg-sky-600 hover:bg-sky-700 text-white'
+ }`}
                 >
                   <span>{portalLabel}</span>
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -1090,9 +1268,9 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                     { role: 'WAITER' as const, label: 'Waiter / Captain', icon: UtensilsCrossed, color: 'text-orange-600', border: 'border-orange-500', portal: 'waiter' },
                     { role: 'CHEF' as const, label: 'Kitchen Chef', icon: ChefHat, color: 'text-red-600', border: 'border-red-500', portal: 'kds' },
                     { role: 'CASHIER' as const, label: 'Cashier (Billing)', icon: CreditCard, color: 'text-blue-600', border: 'border-blue-500', portal: 'cashier' },
-                    { role: 'RECEPTIONIST' as const, label: 'Reception Frontdesk', icon: Building2, color: 'text-purple-600', border: 'border-purple-500', portal: 'reception' },
+                    { role: 'RECEPTIONIST' as const, label: 'Reception Frontdesk', icon: Building2, color: 'text-sky-600', border: 'border-sky-500', portal: 'reception' },
                   ]
-                    .filter((r) => enabledPortals.includes(r.portal))
+                    .filter((r) => isStaffRoleEnabled(r.role))
                     .map((r) => {
                     const Icon = r.icon;
                     const isSel = selectedRole === r.role;
@@ -1103,10 +1281,10 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                         data-testid={`create-staff-role-${r.role.toLowerCase()}`}
                         onClick={() => setSelectedRole(r.role as StaffRoleType)}
                         className={`p-3 rounded-xl border text-left flex flex-col justify-between transition ${
-                          isSel
-                            ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-500 text-blue-900'
-                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                        }`}
+ isSel
+ ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-500 text-blue-900'
+ : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+ }`}
                       >
                         <Icon className={`w-5 h-5 ${r.color} mb-1`} />
                         <span className="font-bold text-xs">{r.label}</span>
@@ -1134,10 +1312,11 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                   <label className="text-xs font-semibold text-slate-700 block mb-1">Phone Number</label>
                   <input
                     data-testid="create-staff-phone-input"
-                    type="text"
-                    placeholder="+91 98765 43210"
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="9876543210"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, '').slice(0, 15))}
                     className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -1156,7 +1335,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                       }}
                       className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition flex items-center gap-1 cursor-pointer"
                     >
-                      <span>🎲 Generate 4-Digit PIN</span>
+                      <span>Generate 4-Digit PIN</span>
                     </button>
                   </div>
                   <input
@@ -1170,10 +1349,10 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                     value={pin}
                     onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
                     className={`w-full p-2.5 rounded-xl border bg-white text-slate-900 text-xs font-mono tracking-widest font-bold focus:outline-none focus:ring-1 ${
-                      pin.length !== 4
-                        ? 'border-red-400 focus:ring-red-500 focus:border-red-500 bg-red-50/20'
-                        : 'border-slate-300 focus:ring-blue-500 focus:border-blue-500'
-                    }`}
+ pin.length !== 4
+ ? 'border-red-400 focus:ring-red-500 focus:border-red-500 bg-red-50/20'
+ : 'border-slate-300 focus:ring-blue-500 focus:border-blue-500'
+ }`}
                   />
                   <div className="flex items-center justify-between mt-1">
                     <span className="text-[10px] text-slate-500">Only numbers, strictly 4 digits</span>
@@ -1214,11 +1393,11 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                     <span className="text-xs font-bold text-slate-800">Staff Profile Photo (Camera & Gallery) *</span>
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    avatar && avatar !== DEFAULT_STAFF_AVATAR
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-amber-50 text-amber-700 border-amber-200'
-                  }`}>
-                    {avatar && avatar !== DEFAULT_STAFF_AVATAR ? '✓ Photo Ready' : 'Photo Required'}
+ avatar && avatar !== DEFAULT_STAFF_AVATAR
+ ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+ : 'bg-amber-50 text-amber-700 border-amber-200'
+ }`}>
+                    {avatar && avatar !== DEFAULT_STAFF_AVATAR ? 'Photo Ready' : 'Photo Required'}
                   </span>
                 </div>
 
@@ -1239,7 +1418,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
 
                   <div className="flex-1 space-y-2 w-full">
                     <div className="grid grid-cols-2 gap-2">
-                      <label className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition shadow-xs text-center">
+                      <label className="btn-glass-green px-3 py-2 rounded-xl text-white font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition shadow-xs text-center">
                         <Camera className="w-3.5 h-3.5" />
                         <span>Take Camera Photo</span>
                         <input
@@ -1264,9 +1443,9 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                     </div>
 
                     <div className="text-[10px] text-slate-500 flex items-center justify-between">
-                      <span>📸 Auto-compressed square JPEG ~40 KB</span>
+                      <span>Auto-compressed square JPEG ~40 KB</span>
                       {avatar && avatar !== DEFAULT_STAFF_AVATAR && (
-                        <span className="text-emerald-600 font-bold">✓ Attached</span>
+                        <span className="text-emerald-600 font-bold">Attached</span>
                       )}
                     </div>
                   </div>
@@ -1288,16 +1467,20 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                         onChange={(e) => setAssignedSection(e.target.value)}
                         className="w-full p-2 rounded-lg border border-slate-300 bg-white text-slate-900 text-xs"
                       >
-                        <option value="Indoor AC Hall">Indoor AC Hall</option>
-                        <option value="Community Lounge">Community Lounge</option>
-                        <option value="Rooftop Terrace">Rooftop Terrace</option>
-                        <option value="Family Garden">Family Garden</option>
+                        {tableSections.length > 0 ? (
+                          tableSections.map((section) => (
+                            <option key={section} value={section}>
+                              {humanizeSection(section)}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">No dining table sections configured</option>
+                        )}
                       </select>
                     </div>
                     <div>
                       <label className="text-[10px] font-semibold text-slate-600 block mb-1">Start Table No.</label>
-                      <input
-                        type="number"
+                      <NumericInput
                         min="1"
                         max="50"
                         value={tableStart}
@@ -1307,8 +1490,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                     </div>
                     <div>
                       <label className="text-[10px] font-semibold text-slate-600 block mb-1">End Table No.</label>
-                      <input
-                        type="number"
+                      <NumericInput
                         min="1"
                         max="50"
                         value={tableEnd}
@@ -1365,8 +1547,8 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
               )}
 
               {selectedRole === 'RECEPTIONIST' && (
-                <div className="p-3.5 rounded-xl border border-purple-200 bg-purple-50/70 space-y-2">
-                  <div className="text-xs font-bold text-purple-700 flex items-center gap-1.5">
+                <div className="p-3.5 rounded-xl border border-sky-200 bg-sky-50/70 space-y-2">
+                  <div className="text-xs font-bold text-sky-700 flex items-center gap-1.5">
                     <Building2 className="w-4 h-4" />
                     <span>Frontdesk Reception Terminal</span>
                   </div>
@@ -1399,10 +1581,10 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                   type="submit"
                   disabled={pin.length !== 4}
                   className={`px-5 py-2.5 rounded-xl font-bold text-xs shadow-sm transition ${
-                    pin.length !== 4
-                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-98 cursor-pointer'
-                  }`}
+ pin.length !== 4
+ ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+ : 'btn-glass-green text-white active:scale-98 cursor-pointer'
+ }`}
                   title={pin.length !== 4 ? 'Save is blocked: PIN must be exactly 4 digits' : 'Create Staff Member'}
                 >
                   Create & Issue Login Access
@@ -1458,7 +1640,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
             {/* Direct Camera & Gallery Upload */}
             <div className="space-y-2.5">
               <div className="grid grid-cols-2 gap-2">
-                <label className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex flex-col items-center justify-center gap-1.5 cursor-pointer transition shadow-xs text-center">
+                <label className="btn-glass-green py-2.5 px-3 rounded-xl text-white font-semibold text-xs flex flex-col items-center justify-center gap-1.5 cursor-pointer transition shadow-xs text-center">
                   <Camera className="w-4 h-4" />
                   <span>Take Live Photo (Camera)</span>
                   <input
@@ -1495,7 +1677,7 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
               <button
                 type="button"
                 onClick={handleSaveStaffPhoto}
-                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition"
+                className="btn-glass-green px-5 py-2 rounded-xl text-white font-semibold text-xs shadow-xs transition"
               >
                 Save Photo
               </button>
@@ -1527,14 +1709,8 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
             </div>
 
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500 font-semibold">Current Active PIN:</span>
-                <span className="font-mono font-bold text-slate-800 px-2 py-0.5 bg-white border border-slate-200 rounded">
-                  {editingStaffPin.pin || '••••'}
-                </span>
-              </div>
               <div className="text-[11px] text-slate-400">
-                If the staff forgot their PIN, tell them the current PIN or assign a new 4-digit PIN below.
+                Existing PINs cannot be viewed. Set a new 4-digit PIN if the staff member needs a replacement.
               </div>
             </div>
 
@@ -1551,10 +1727,10 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                 onChange={(e) => setNewStaffPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
                 placeholder="1234"
                 className={`w-full p-3 rounded-xl border bg-white text-slate-900 text-base font-mono tracking-widest font-bold text-center focus:outline-none focus:ring-2 ${
-                  newStaffPin.length !== 4
-                    ? 'border-red-400 focus:ring-red-500 bg-red-50/20'
-                    : 'border-slate-300 focus:ring-blue-500'
-                }`}
+ newStaffPin.length !== 4
+ ? 'border-red-400 focus:ring-red-500 bg-red-50/20'
+ : 'border-slate-300 focus:ring-blue-500'
+ }`}
               />
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-slate-500">Strictly 4 numeric digits</span>
@@ -1589,10 +1765,10 @@ export const StaffUserManagementApp: React.FC<StaffUserManagementAppProps> = ({
                 disabled={newStaffPin.length !== 4}
                 onClick={handleSaveStaffPin}
                 className={`px-5 py-2 rounded-xl font-bold text-xs shadow-sm transition ${
-                  newStaffPin.length !== 4
-                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-98 cursor-pointer'
-                }`}
+ newStaffPin.length !== 4
+ ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+ : 'btn-glass-green text-white active:scale-98 cursor-pointer'
+ }`}
               >
                 Update PIN & Replace Old
               </button>

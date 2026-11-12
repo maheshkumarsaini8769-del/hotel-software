@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { IBanquetBookingUI } from '@spicehub/ui';
+import { IBanquetBookingUI, NumericInput } from '@spicehub/ui';
 
 interface SettleBanquetFolioModalProps {
   booking: IBanquetBookingUI;
@@ -30,7 +30,7 @@ export const SettleBanquetFolioModal: React.FC<SettleBanquetFolioModalProps> = (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-md shadow-sm dark:shadow-none overflow-hidden text-xs text-zinc-300">
+      <div className="bg-slate-900 border border-amber-500/30 rounded-xl w-full max-w-md shadow-sm dark:shadow-none overflow-hidden text-xs text-zinc-300">
         <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-slate-950">
           <div>
             <h2 className="text-base font-bold text-white">Settle Banquet Event Account</h2>
@@ -42,7 +42,7 @@ export const SettleBanquetFolioModal: React.FC<SettleBanquetFolioModalProps> = (
             onClick={onClose}
             className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-lg"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -58,8 +58,7 @@ export const SettleBanquetFolioModal: React.FC<SettleBanquetFolioModalProps> = (
 
           <div>
             <label className="block text-zinc-400 font-medium mb-1">Settlement Amount (₹) *</label>
-            <input
-              type="number"
+            <NumericInput
               min="1"
               max={initialDue}
               required
@@ -94,7 +93,7 @@ export const SettleBanquetFolioModal: React.FC<SettleBanquetFolioModalProps> = (
             <button
               type="submit"
               disabled={loading || amount <= 0}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+              className="bg-emerald-600 hover:bg-emerald-700 px-6 py-2.5 rounded-xl text-white font-bold text-xs shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
             >
               {loading && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
               <span>Confirm Payment ₹{amount.toLocaleString('en-IN')}</span>

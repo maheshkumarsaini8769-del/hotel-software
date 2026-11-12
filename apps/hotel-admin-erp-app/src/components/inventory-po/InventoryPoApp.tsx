@@ -16,6 +16,7 @@ import { GrnHistoryTable } from './GrnHistoryTable';
 import { NewPurchaseOrderModal } from './NewPurchaseOrderModal';
 import { GrnReceivingModal } from './GrnReceivingModal';
 import { VendorDirectoryModal } from './VendorDirectoryModal';
+import { Building2, Plus, Phone, Mail, User, Star, CreditCard, ShieldCheck } from 'lucide-react';
 
 interface InventoryPoAppProps {
   apiBaseUrl?: string;
@@ -121,6 +122,11 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
     fetchGrns();
   }, [fetchOrders, fetchVendors, fetchGrns]);
 
+  const closeModal = useCallback(() => {
+    store.setActiveModal(null);
+    setActiveModal(null);
+  }, [store]);
+
   // Create PO
   const handleSavePo = async (payload: INewPoPayload) => {
     try {
@@ -132,7 +138,7 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
       });
 
       if (res.ok) {
-        store.setActiveModal(null);
+        closeModal();
         fetchOrders();
       } else {
         const err = await res.json().catch(() => ({}));
@@ -177,7 +183,7 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
       });
 
       if (res.ok) {
-        store.setActiveModal(null);
+        closeModal();
         fetchOrders();
         fetchGrns();
       } else {
@@ -202,11 +208,11 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
       });
 
       if (res.ok) {
-        store.setActiveModal(null);
+        closeModal();
         fetchVendors();
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.message || 'Failed to create vendor.');
+        alert(err.message || 'Failed to register vendor.');
       }
     } catch (err: any) {
       alert(err?.message || 'Network error while creating vendor.');
@@ -216,14 +222,23 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-zinc-100 flex flex-col font-sans select-none">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans select-none">
       {/* Header */}
       <InventoryPoHeader
         metrics={metrics}
         activeTab={activeTab}
-        onTabChange={(tab) => store.setActiveTab(tab)}
-        onNewPoClick={() => store.setActiveModal('NEW_PO')}
-        onNewVendorClick={() => store.setActiveModal('NEW_VENDOR')}
+        onTabChange={(tab) => {
+          store.setActiveTab(tab);
+          setActiveTab(tab);
+        }}
+        onNewPoClick={() => {
+          store.setActiveModal('NEW_PO');
+          setActiveModal('NEW_PO');
+        }}
+        onNewVendorClick={() => {
+          store.setActiveModal('NEW_VENDOR');
+          setActiveModal('NEW_VENDOR');
+        }}
         onRefreshClick={() => {
           fetchOrders();
           fetchVendors();
@@ -238,13 +253,21 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
           <PurchaseOrderList
             orders={orders}
             selectedFilter={filterStatus}
-            onFilterChange={(status) => store.setFilterStatus(status)}
+            onFilterChange={(status) => {
+              store.setFilterStatus(status);
+              setFilterStatus(status);
+            }}
             searchQuery={searchQuery}
-            onSearchChange={(q) => store.setSearchQuery(q)}
+            onSearchChange={(q) => {
+              store.setSearchQuery(q);
+              setSearchQuery(q);
+            }}
             onApprovePo={handleApprovePo}
             onReceiveGrn={(po) => {
               store.setSelectedOrder(po);
+              setSelectedOrder(po);
               store.setActiveModal('RECEIVE_GRN');
+              setActiveModal('RECEIVE_GRN');
             }}
             loading={loading}
           />
@@ -255,49 +278,97 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
         )}
 
         {activeTab === 'VENDORS' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
               <div>
-                <h2 className="text-base font-bold text-white">Registered Vendors & Suppliers</h2>
-                <p className="text-xs text-zinc-400">Approved procurement sources with payment terms and rating</p>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-emerald-600" />
+                  <span>Approved Suppliers & Procurement Directory</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Verified suppliers with agreed credit terms, GSTIN registration, and quality ratings.
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => store.setActiveModal('NEW_VENDOR')}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase"
+                onClick={() => {
+                  store.setActiveModal('NEW_VENDOR');
+                  setActiveModal('NEW_VENDOR');
+                }}
+                className="btn-glass-green text-white px-4 py-2.5 rounded-xl font-semibold text-xs tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
-                + Add Supplier
+                <Plus className="w-4 h-4" />
+                <span>Register Supplier</span>
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {vendors.length === 0 ? (
-                <div className="col-span-full py-16 text-center text-zinc-500 text-sm">
-                  No suppliers registered yet
+                <div className="col-span-full py-20 text-center text-slate-400 text-sm bg-white rounded-2xl border border-slate-200/80 shadow-xs flex flex-col items-center justify-center p-8">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 mb-3 shadow-xs">
+                    <Building2 className="w-6 h-6 text-slate-400" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-800">No Suppliers Registered</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                    Register vendor profiles to begin issuing formal purchase orders.
+                  </p>
                 </div>
               ) : (
                 vendors.map((v) => (
                   <div
                     key={v._id}
-                    className="p-5 rounded-2xl bg-slate-900 border border-zinc-800 hover:border-zinc-700 shadow-md flex flex-col justify-between"
+                    className="p-5 rounded-2xl bg-white border border-slate-200/80 hover:border-slate-300 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
                   >
                     <div>
-                      <div className="flex items-center justify-between gap-2 pb-2 border-b border-zinc-800/80">
-                        <span className="font-mono text-xs font-bold text-blue-400">{v.vendorCode}</span>
-                        <span className="text-xs text-amber-400">{'★'.repeat(v.rating || 5)}</span>
+                      <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                        <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          {v.vendorCode}
+                        </span>
+                        <div className="flex items-center gap-0.5">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`w-3.5 h-3.5 ${
+                                i < (v.rating || 5)
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'text-slate-200'
+                              }`}
+                            />
+                          ))}
+                        </div>
                       </div>
-                      <h3 className="text-base font-bold text-white mt-2">{v.name}</h3>
-                      <p className="text-xs text-zinc-400 mt-0.5">{v.contactPerson} • {v.phone}</p>
-                      <p className="text-xs text-zinc-500 truncate">{v.email}</p>
+
+                      <h3 className="text-base font-bold text-slate-900 mt-3">{v.name}</h3>
+
+                      <div className="mt-2 space-y-1.5 text-xs text-slate-500">
+                        <p className="flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="font-medium text-slate-700">{v.contactPerson}</span>
+                        </p>
+                        <p className="flex items-center gap-1.5">
+                          <Phone className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{v.phone}</span>
+                        </p>
+                        <p className="flex items-center gap-1.5">
+                          <Mail className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="truncate">{v.email}</span>
+                        </p>
+                      </div>
+
                       {v.gstin && (
-                        <div className="mt-2 text-[11px] font-mono text-zinc-400 bg-zinc-950 px-2 py-1 rounded inline-block">
-                          GSTIN: {v.gstin}
+                        <div className="mt-3 text-[11px] font-mono text-slate-700 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 inline-flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>GSTIN: {v.gstin}</span>
                         </div>
                       )}
                     </div>
-                    <div className="mt-4 pt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
-                      <span>Terms: <strong className="text-white">{v.paymentTerms}</strong></span>
-                      <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-300">
+
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <CreditCard className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Terms: <strong className="text-slate-800">{v.paymentTerms}</strong></span>
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-semibold text-slate-600">
                         {v.category}
                       </span>
                     </div>
@@ -313,7 +384,7 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
       <NewPurchaseOrderModal
         isOpen={activeModal === 'NEW_PO'}
         vendors={vendors}
-        onClose={() => store.setActiveModal(null)}
+        onClose={closeModal}
         onSave={handleSavePo}
         loading={loading}
       />
@@ -322,7 +393,7 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
       <GrnReceivingModal
         isOpen={activeModal === 'RECEIVE_GRN'}
         order={selectedOrder}
-        onClose={() => store.setActiveModal(null)}
+        onClose={closeModal}
         onSave={handleSaveGrn}
         loading={loading}
       />
@@ -330,7 +401,7 @@ export const InventoryPoApp: React.FC<InventoryPoAppProps> = ({
       {/* Register Vendor Modal */}
       <VendorDirectoryModal
         isOpen={activeModal === 'NEW_VENDOR'}
-        onClose={() => store.setActiveModal(null)}
+        onClose={closeModal}
         onSaveVendor={handleSaveVendor}
         loading={loading}
       />

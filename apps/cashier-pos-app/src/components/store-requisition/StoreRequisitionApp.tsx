@@ -243,30 +243,34 @@ export const StoreRequisitionApp: React.FC<StoreRequisitionAppProps> = ({
         )}
       </div>
 
-      {/* New Requisition Modal */}
-      <NewRequisitionModal
-        isOpen={activeModal === 'NEW_REQ'}
-        onClose={() => store.setActiveModal(null)}
-        onSave={handleSaveRequisition}
-        loading={loading}
-      />
+      {/* Exclusive Modal Stack: Only one modal can mount and render at a time */}
+      {activeModal === 'NEW_REQ' && (
+        <NewRequisitionModal
+          isOpen={true}
+          onClose={() => store.setActiveModal(null)}
+          onSave={handleSaveRequisition}
+          loading={loading}
+        />
+      )}
 
-      {/* Issue Stock Modal */}
-      <IssueRequisitionModal
-        isOpen={activeModal === 'ISSUE_REQ'}
-        requisition={selectedReq}
-        onClose={() => store.setActiveModal(null)}
-        onSave={handleIssueRequisition}
-        loading={loading}
-      />
+      {activeModal === 'ISSUE_REQ' && (
+        <IssueRequisitionModal
+          isOpen={true}
+          requisition={selectedReq}
+          onClose={() => store.setActiveModal(null)}
+          onSave={handleIssueRequisition}
+          loading={loading}
+        />
+      )}
 
-      {/* Inter-Kitchen Transfer Modal */}
-      <InterKitchenTransferModal
-        isOpen={activeModal === 'NEW_TRANSFER'}
-        onClose={() => store.setActiveModal(null)}
-        onSave={handleSaveTransfer}
-        loading={loading}
-      />
+      {activeModal === 'NEW_TRANSFER' && (
+        <InterKitchenTransferModal
+          isOpen={true}
+          onClose={() => store.setActiveModal(null)}
+          onSave={handleSaveTransfer}
+          loading={loading}
+        />
+      )}
     </div>
   );
 };

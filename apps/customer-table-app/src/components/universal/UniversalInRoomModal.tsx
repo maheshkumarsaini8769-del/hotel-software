@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BedDouble, X } from 'lucide-react';
 
 export interface UniversalInRoomModalProps {
   initialRoomNumber?: string;
@@ -62,15 +63,16 @@ export const UniversalInRoomModal: React.FC<UniversalInRoomModalProps> = ({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-            🛏️ Confirm Room Details
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <BedDouble size={20} className="text-emerald-800" />
+            <span>Confirm Room Details</span>
           </h3>
           <button
             onClick={onCancel}
             disabled={isSubmitting}
-            style={{ border: 'none', background: 'none', fontSize: '18px', cursor: 'pointer', color: '#9CA3AF' }}
+            style={{ border: 'none', background: 'none', padding: '4px', cursor: 'pointer', color: '#9CA3AF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
 

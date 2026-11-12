@@ -238,7 +238,7 @@ export const PmsReservationDetailModal: React.FC<PmsReservationDetailModalProps>
               <button
                 onClick={handleCheckIn}
                 disabled={isProcessing || !booking.allocatedRoomId}
-                className="py-2.5 px-5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-950/40 transition active:scale-95 disabled:opacity-50 flex items-center space-x-1.5"
+                className="bg-emerald-600 hover:bg-emerald-700 py-2.5 px-5 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-950/40 transition active:scale-95 disabled:opacity-50 flex items-center space-x-1.5"
               >
                 <span>🔑</span>
                 <span>{isProcessing ? 'Checking In...' : 'Check-In Guest'}</span>

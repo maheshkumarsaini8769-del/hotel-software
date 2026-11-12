@@ -31,7 +31,7 @@ import { TenderLineDTO } from '@spicehub/ui';
 export type { BillItem };
 
 export interface TableBillingViewProps {
-  isDark: boolean;
+  isDark?: boolean;
   assignedTables?: TableStatusItem[];
   allTables?: TableStatusItem[];
   waiterSession?: WaiterStaffProfile | null;
@@ -45,7 +45,6 @@ export interface TableBillingViewProps {
 }
 
 export const TableBillingView: React.FC<TableBillingViewProps> = ({
-  isDark,
   assignedTables,
   allTables,
   waiterSession,
@@ -83,7 +82,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
     };
   }, [assignedTables, allTables, initialSelectedTable]);
 
-  const defaultFirstTable = initialSelectedTable || availableAssignedOptions.myTables[0]?.id || 'Table 4';
+  const defaultFirstTable = initialSelectedTable || availableAssignedOptions.myTables[0]?.id || availableAssignedOptions.otherTables[0]?.id || 'Table T-01';
   const [selectedTable, setSelectedTable] = useState(defaultFirstTable);
   const [serviceChargePercent, setServiceChargePercent] = useState<number>(5);
   const [discountPercent, setDiscountPercent] = useState<number>(0);
@@ -104,8 +103,8 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
   const [cashTendered, setCashTendered] = useState<number>(0);
 
   // Room Folio State
-  const [guestRoomNumber, setGuestRoomNumber] = useState('Room 304');
-  const [guestRoomName, setGuestRoomName] = useState('Rahul Sharma');
+  const [guestRoomNumber, setGuestRoomNumber] = useState('');
+  const [guestRoomName, setGuestRoomName] = useState('');
 
   // Dynamic table items state
   const [items, setItems] = useState<BillItem[]>([]);
@@ -171,15 +170,15 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
       {/* Header */}
       <div
         className={`p-4 rounded-2xl border flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4 transition-colors ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}
+ 'bg-white border-slate-200'
+ }`}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-[#123C2B]/10 text-[#2E6B4C] flex items-center justify-center font-bold">
             <CreditCard className="w-5 h-5" />
           </div>
           <div>
-            <h2 className={`font-black text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            <h2 className={`font-black text-base ${'text-slate-900'}`}>
               Table Checkout & Bill Settlement
             </h2>
             <p className="text-xs text-slate-400">
@@ -190,17 +189,17 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
 
         {/* Table Selector */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Billing Table:</span>
+          <span className={`text-xs font-bold ${'text-slate-600'}`}>Billing Table:</span>
           <select
             data-testid="select-billing-table"
             value={selectedTable}
             onChange={(e) => setSelectedTable(e.target.value)}
             className={`p-2 rounded-xl border text-xs font-bold focus:outline-none ${
-              isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-900'
-            }`}
+ 'bg-slate-50 border-slate-300 text-slate-900'
+ }`}
           >
             {availableAssignedOptions.myTables.length > 0 && (
-              <optgroup label="⭐ My Assigned Tables">
+              <optgroup label="My Assigned Tables">
                 {availableAssignedOptions.myTables.map((opt) => (
                   <option key={opt.id} value={opt.id}>
                     {opt.label}
@@ -209,7 +208,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
               </optgroup>
             )}
             {availableAssignedOptions.otherTables.length > 0 && (
-              <optgroup label="🤝 Selected from Other Tables Page">
+              <optgroup label="Other Floor Tables">
                 {availableAssignedOptions.otherTables.map((opt) => (
                   <option key={opt.id} value={opt.id}>
                     {opt.label}
@@ -223,7 +222,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
             <button
               type="button"
               onClick={onOpenOtherTablesPage}
-              className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-400 font-bold text-xs flex items-center gap-1.5 transition shrink-0"
+              className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-700 font-bold text-xs flex items-center gap-1.5 transition shrink-0"
             >
               <span>Other Tables Page</span>
             </button>
@@ -233,14 +232,14 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
 
       {/* Emergency / Courtesy Cross-Table Billing Banner */}
       {!isTableMine && (
-        <div className="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs flex items-center justify-between shrink-0 animate-fadeIn">
+        <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center justify-between shrink-0 animate-fadeIn">
           <div className="flex items-center gap-2.5">
-            <Sparkles className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+            <Sparkles className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
             <div>
-              <strong>🤝 Emergency / Courtesy Cross-Table Billing:</strong> {selectedTable} is assigned to a colleague waiter. Since they are absent or busy, you can collect payment (Dynamic UPI QR, Cash, Card) directly without customer delay!
+              <strong>Courtesy Cross-Table Billing:</strong> {selectedTable} is assigned to another waiter. As floor assist, you can collect payment (Dynamic UPI QR, Cash, Card) directly without customer delay!
             </div>
           </div>
-          <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 shrink-0 ml-2 shadow-xs">
+          <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-lg bg-emerald-600 text-white shrink-0 ml-2 shadow-xs">
             Courtesy Assist Active
           </span>
         </div>
@@ -251,24 +250,26 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
         <button
           data-testid="btn-billing-tab-invoice"
           onClick={() => setMobileBillingTab('invoice')}
-          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
+          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
             mobileBillingTab === 'invoice'
-              ? 'bg-white dark:bg-slate-900 text-orange-600 shadow-xs'
-              : isDark ? 'text-slate-400' : 'text-slate-600'
+              ? 'bg-white dark:bg-slate-900 text-emerald-800 shadow-xs'
+              : 'text-slate-600'
           }`}
         >
-          📄 Invoice Items
+          <Receipt className="w-3.5 h-3.5" />
+          <span>Invoice Items</span>
         </button>
         <button
           data-testid="btn-billing-tab-payment"
           onClick={() => setMobileBillingTab('payment')}
           className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
             mobileBillingTab === 'payment'
-              ? 'bg-white dark:bg-slate-900 text-orange-600 shadow-xs'
-              : isDark ? 'text-slate-400' : 'text-slate-600'
+              ? 'bg-white dark:bg-slate-900 text-emerald-800 shadow-xs'
+              : 'text-slate-600'
           }`}
         >
-          <span>💳 Pay & Settle</span>
+          <CreditCard className="w-3.5 h-3.5" />
+          <span>Pay & Settle</span>
           <span className="font-mono text-emerald-600 font-black">• ₹{grandTotal.toFixed(0)}</span>
         </button>
       </div>
@@ -278,25 +279,27 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
         {/* Left Column: Invoice Sheet (7 cols) */}
         <div
           className={`md:col-span-6 lg:col-span-7 p-4 sm:p-6 rounded-2xl border space-y-4 ${
-            mobileBillingTab === 'invoice' ? 'block' : 'hidden md:block'
-          } ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-          }`}
+ mobileBillingTab === 'invoice' ? 'block' : 'hidden md:block'
+ } ${
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}
         >
           <div
             className={`flex items-center justify-between pb-3 border-b ${
-              isDark ? 'border-slate-700/40' : 'border-slate-200'
-            }`}
+ 'border-slate-200'
+ }`}
           >
             <div>
-              <div className="font-black text-base text-orange-500">SpiceHub Luxury Hotel & Dine</div>
-              <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                GSTIN: 07AAAAA0000A1Z5 • Server: {waiterSession?.name || 'Ravi Kumar (Captain)'}
+              <div className="font-black text-base text-[#2E6B4C]">
+                {localStorage.getItem('spicehub_hotel_name') || 'Mahesh Hotel'}
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Floor Server: {waiterSession?.name || 'Floor Staff'}
               </div>
             </div>
             <div className="text-right">
-              <span className={`font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{selectedTable}</span>
-              <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              <span className={`font-bold text-sm ${'text-slate-900'}`}>{selectedTable}</span>
+              <div className={`text-[11px] ${'text-slate-600'}`}>
                 Invoice #INV-{selectedTable.replace(/[^0-9]/g, '')}0921
               </div>
             </div>
@@ -308,8 +311,8 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
               <thead>
                 <tr
                   className={`font-bold border-b text-left ${
-                    isDark ? 'text-slate-400 border-slate-700/40' : 'text-slate-600 border-slate-200'
-                  }`}
+ 'text-slate-600 border-slate-200'
+ }`}
                 >
                   <th className="pb-2">Item</th>
                   <th className="pb-2 text-center">Qty</th>
@@ -317,13 +320,13 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                   <th className="pb-2 text-right">Amount</th>
                 </tr>
               </thead>
-              <tbody className={`divide-y ${isDark ? 'divide-slate-700/20' : 'divide-slate-200'}`}>
+              <tbody className={`divide-y ${'divide-slate-200'}`}>
                 {items.map((it, idx) => (
-                  <tr key={idx} className={isDark ? 'text-slate-300' : 'text-slate-800'}>
+                  <tr key={idx} className={'text-slate-800'}>
                     <td className="py-2.5 font-medium">{it.name}</td>
                     <td className="py-2.5 text-center font-bold">{it.qty}</td>
                     <td className="py-2.5 text-right text-slate-400">₹{it.rate}</td>
-                    <td className={`py-2.5 text-right font-black ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                    <td className={`py-2.5 text-right font-black ${'text-slate-900'}`}>
                       ₹{it.total}
                     </td>
                   </tr>
@@ -335,37 +338,35 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
           {/* Bill calculations */}
           <div
             className={`p-4 rounded-xl border space-y-2.5 text-xs ${
-              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-            }`}
+ 'bg-slate-50 border-slate-200'
+ }`}
           >
             <div className="flex items-center justify-between">
-              <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Subtotal:</span>
-              <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>₹{subtotal.toFixed(2)}</span>
+              <span className={'text-slate-600'}>Subtotal:</span>
+              <span className={`font-semibold ${'text-slate-900'}`}>₹{subtotal.toFixed(2)}</span>
             </div>
 
             {/* Discount selector */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Discount:</span>
+                <span className={'text-slate-600'}>Discount:</span>
                 <div className="flex gap-1">
                   {[0, 5, 10, 15].map((d) => (
                     <button
                       key={d}
                       onClick={() => setDiscountPercent(d)}
                       className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
-                        discountPercent === d
-                          ? 'bg-blue-600 text-white'
-                          : isDark
-                          ? 'bg-slate-800 text-slate-400 hover:text-white'
-                          : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                      }`}
+ discountPercent === d
+ ? 'bg-[#123C2B] text-white'
+ : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+ }`}
                     >
                       {d}%
                     </button>
                   ))}
                 </div>
               </div>
-              <span className={`font-semibold ${isDark ? 'text-red-400' : 'text-red-700'}`}>
+              <span className={`font-semibold ${'text-red-700'}`}>
                 -₹{discountAmount.toFixed(2)}
               </span>
             </div>
@@ -373,46 +374,44 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
             {/* Service charge selector */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Service Charge:</span>
+                <span className={'text-slate-600'}>Service Charge:</span>
                 <div className="flex gap-1">
                   {[0, 5, 10].map((sc) => (
                     <button
                       key={sc}
                       onClick={() => setServiceChargePercent(sc)}
                       className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
-                        serviceChargePercent === sc
-                          ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white'
-                          : isDark
-                          ? 'bg-slate-800 text-slate-400 hover:text-white'
-                          : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                      }`}
+ serviceChargePercent === sc
+ ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white'
+ : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+ }`}
                     >
                       {sc}%
                     </button>
                   ))}
                 </div>
               </div>
-              <span className={`font-semibold ${isDark ? 'text-slate-300' : 'text-slate-900'}`}>
+              <span className={`font-semibold ${'text-slate-900'}`}>
                 ₹{serviceChargeAmount.toFixed(2)}
               </span>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>CGST (2.5%):</span>
-              <span className={isDark ? 'text-slate-300' : 'text-slate-800 font-semibold'}>₹{cgst.toFixed(2)}</span>
+              <span className={'text-slate-600'}>CGST (2.5%):</span>
+              <span className={'text-slate-800 font-semibold'}>₹{cgst.toFixed(2)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>SGST (2.5%):</span>
-              <span className={isDark ? 'text-slate-300' : 'text-slate-800 font-semibold'}>₹{sgst.toFixed(2)}</span>
+              <span className={'text-slate-600'}>SGST (2.5%):</span>
+              <span className={'text-slate-800 font-semibold'}>₹{sgst.toFixed(2)}</span>
             </div>
 
             <div
               className={`flex items-center justify-between border-t pt-2.5 text-sm font-black ${
-                isDark ? 'border-slate-700/40' : 'border-slate-200'
-              }`}
+ 'border-slate-200'
+ }`}
             >
-              <span className={isDark ? 'text-slate-200' : 'text-slate-900'}>Total Payable:</span>
-              <span className={`text-xl font-black ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+              <span className={'text-slate-900'}>Total Payable:</span>
+              <span className={`text-xl font-black ${'text-emerald-700'}`}>
                 ₹{grandTotal.toFixed(2)}
               </span>
             </div>
@@ -432,8 +431,8 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
 
         {/* Right Column: Payment Tender & Settlement (5 cols) */}
         <div className={`md:col-span-6 lg:col-span-5 space-y-4 ${
-          mobileBillingTab === 'payment' ? 'block' : 'hidden md:block'
-        }`}>
+ mobileBillingTab === 'payment' ? 'block' : 'hidden md:block'
+ }`}>
           {/* Mobile Back to Invoice link */}
           <div className="md:hidden pb-1">
             <button
@@ -445,10 +444,10 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
           </div>
           <div
             className={`p-4 sm:p-5 rounded-2xl border space-y-4 ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-            }`}
+ 'bg-white border-slate-200 shadow-2xs'
+ }`}
           >
-            <h3 className={`font-black text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            <h3 className={`font-black text-sm ${'text-slate-900'}`}>
               Select Payment Mode
             </h3>
 
@@ -458,8 +457,8 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                 { id: 'UPI', label: 'Dynamic UPI QR', icon: QrCode, color: 'text-slate-700 dark:text-slate-300' },
                 { id: 'CASH', label: 'Cash Tender', icon: Banknote, color: 'text-emerald-600' },
                 { id: 'SPLIT', label: 'Split (Cash + UPI)', icon: Scissors, color: 'text-slate-700 dark:text-slate-300' },
-                { id: 'CARD', label: 'Card POS Swipe', icon: CreditCard, color: 'text-blue-600' },
-                { id: 'ROOM', label: 'Charge Room Folio', icon: Hotel, color: 'text-amber-600' },
+                { id: 'CARD', label: 'Card POS Swipe', icon: CreditCard, color: 'text-[#123C2B]' },
+                { id: 'ROOM', label: 'Charge Room Folio', icon: Hotel, color: 'text-blue-600' },
               ].map((m) => {
                 const Icon = m.icon;
                 const isSel = selectedPaymentMode === m.id;
@@ -473,15 +472,13 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                       if (m.id === 'SPLIT') setIsSplitModalOpen(true);
                     }}
                     className={`p-3 rounded-xl border text-left flex flex-col justify-between gap-2 transition ${
-                      isSel
-                        ? 'bg-orange-500/20 border-orange-500 shadow-sm ring-1 ring-orange-500'
-                        : isDark
-                        ? 'bg-slate-800/60 border-slate-700/60 hover:bg-slate-800'
-                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                    }`}
+ isSel
+ ? 'bg-emerald-600/20 border-emerald-600 shadow-sm ring-1 ring-emerald-600'
+ : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+ }`}
                   >
                     <Icon className={`w-5 h-5 ${m.color}`} />
-                    <span className={`text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{m.label}</span>
+                    <span className={`text-xs font-bold ${'text-slate-900'}`}>{m.label}</span>
                   </button>
                 );
               })}
@@ -490,33 +487,34 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
             {/* Payment Method Details Panel */}
             {selectedPaymentMode === 'SPLIT' && (
               <div className={`p-3.5 rounded-xl border space-y-2.5 text-xs ${
-                isDark ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300' : 'bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-              }`}>
+ 'bg-slate-50 border-slate-200 text-slate-800'
+ }`}>
                 <div className="font-bold flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 font-black">
-                    <span>⚖️</span> Dual-Tender Split Billing (Anti-Fraud Protected)
+                  <span className="flex items-center gap-1.5 font-black text-slate-900">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" /> Dual-Tender Split Billing (Anti-Fraud Protected)
                   </span>
-                  <span className="font-mono font-black text-sm">₹{grandTotal.toFixed(2)}</span>
+                  <span className="font-mono font-black text-sm text-slate-900">₹{grandTotal.toFixed(2)}</span>
                 </div>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
+                <p className="text-[11px] text-slate-600 leading-relaxed">
                   Split bill across Cash and Online UPI (e.g. ₹1000 Cash + ₹500 UPI). Waiter handheld generates exact dynamic UPI QR and verifies via soundbox webhook before releasing table.
                 </p>
                 <button
                   type="button"
                   onClick={() => setIsSplitModalOpen(true)}
-                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm"
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm"
                 >
-                  <span>⚡ Open Split Cash + Dynamic UPI Terminal</span>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Open Split Cash + Dynamic UPI Terminal</span>
                 </button>
               </div>
             )}
             {selectedPaymentMode === 'CASH' && (
               <div className={`p-3 rounded-xl border space-y-2 text-xs ${
-                isDark ? 'bg-slate-900/80 border-emerald-900/50' : 'bg-emerald-50/50 border-emerald-200'
-              }`}>
+ 'bg-emerald-50/50 border-emerald-200'
+ }`}>
                 <div className="flex items-center justify-between font-bold">
-                  <span className={isDark ? 'text-emerald-400' : 'text-emerald-800'}>Cash Tendered by Guest:</span>
-                  <span className="font-mono text-sm text-emerald-500">₹{cashTendered}</span>
+                  <span className={'text-emerald-800'}>Cash Tendered by Guest:</span>
+                  <span className="font-mono text-sm text-emerald-700">₹{cashTendered}</span>
                 </div>
 
                 <div className="flex gap-1.5 pt-1">
@@ -525,21 +523,19 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                       key={amt}
                       onClick={() => setCashTendered(amt)}
                       className={`flex-1 py-1 rounded text-[10px] font-black border transition ${
-                        cashTendered === amt
-                          ? 'bg-emerald-600 text-white border-emerald-500'
-                          : isDark
-                          ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                      }`}
+ cashTendered === amt
+ ? 'bg-emerald-600 text-white border-emerald-500'
+ : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+ }`}
                     >
                       ₹{amt}
                     </button>
                   ))}
                 </div>
 
-                <div className="flex items-center justify-between pt-1 border-t border-emerald-900/30 font-bold">
-                  <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>Change to Return:</span>
-                  <span className={`text-sm font-black font-mono ${cashChangeToReturn > 0 ? 'text-amber-400' : 'text-emerald-500'}`}>
+                <div className="flex items-center justify-between pt-1 border-t border-emerald-200 font-bold">
+                  <span className={'text-slate-700'}>Change to Return:</span>
+                  <span className={`text-sm font-black font-mono ${cashChangeToReturn > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
                     ₹{cashChangeToReturn.toFixed(2)}
                   </span>
                 </div>
@@ -548,18 +544,18 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
 
             {selectedPaymentMode === 'UPI' && (
               <div className={`p-3 rounded-xl border flex items-center justify-between gap-2 text-xs ${
-                isDark ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300' : 'bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-              }`}>
+ 'bg-slate-50 border-slate-200 text-slate-800'
+ }`}>
                 <div className="flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-slate-700 dark:text-slate-300" />
+                  <QrCode className="w-5 h-5 text-slate-700" />
                   <div>
-                    <div className="font-bold">Dynamic NPCI QR Generated</div>
-                    <div className="text-[10px] opacity-80">GPay • PhonePe • Paytm Soundbox Sync</div>
+                    <div className="font-bold text-slate-900">Dynamic NPCI QR Generated</div>
+                    <div className="text-[10px] text-slate-600">GPay • PhonePe • Paytm Soundbox Sync</div>
                   </div>
                 </div>
                 <button
                   onClick={() => onOpenUpiModal(selectedTable, grandTotal)}
-                  className="px-2.5 py-1 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-white font-bold text-[11px] hover:bg-slate-800 dark:bg-slate-200 transition shadow-xs"
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 text-white font-bold text-[11px] hover:bg-slate-800 transition shadow-xs"
                 >
                   Show QR
                 </button>
@@ -568,8 +564,8 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
 
             {selectedPaymentMode === 'CARD' && (
               <div className={`p-3 rounded-xl border text-xs space-y-1 ${
-                isDark ? 'bg-blue-950/30 border-blue-900/50 text-blue-300' : 'bg-blue-50 border-blue-200 text-blue-700'
-              }`}>
+ 'bg-[#EDF4EC] border-[#CFE0D2] text-[#123C2B]'
+ }`}>
                 <div className="font-bold flex items-center gap-1.5">
                   <CreditCard className="w-4 h-4" />
                   <span>Handheld EDC POS Terminal</span>
@@ -582,8 +578,8 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
 
             {selectedPaymentMode === 'ROOM' && (
               <div className={`p-3 rounded-xl border text-xs space-y-2 ${
-                isDark ? 'bg-amber-950/30 border-amber-900/50 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-800'
-              }`}>
+ 'bg-amber-50 border-amber-200 text-amber-800'
+ }`}>
                 <div className="font-bold flex items-center justify-between">
                   <span>Charge to Room Folio:</span>
                   <span className="font-bold">{guestRoomNumber}</span>
@@ -595,8 +591,8 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                     onChange={(e) => setGuestRoomNumber(e.target.value)}
                     placeholder="Enter Room Number"
                     className={`flex-1 px-2.5 py-1 rounded-lg border text-xs font-bold ${
-                      isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                    }`}
+ 'bg-white border-slate-300 text-slate-900'
+ }`}
                   />
                   <input
                     type="text"
@@ -604,25 +600,23 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                     onChange={(e) => setGuestRoomName(e.target.value)}
                     placeholder="Guest Name"
                     className={`flex-1 px-2.5 py-1 rounded-lg border text-xs font-bold ${
-                      isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                    }`}
+ 'bg-white border-slate-300 text-slate-900'
+ }`}
                   />
                 </div>
               </div>
             )}
 
             {/* Quick Actions */}
-            <div className={`space-y-2.5 pt-2 border-t ${isDark ? 'border-slate-700/20' : 'border-slate-200'}`}>
+            <div className={`space-y-2.5 pt-2 border-t ${'border-slate-200'}`}>
               {onSplitBill && (
                 <button
                   onClick={onSplitBill}
                   className={`w-full py-2.5 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition ${
-                    isDark
-                      ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800'
-                      : 'bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-800'
-                  }`}
+ 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+ }`}
                 >
-                  <Scissors className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                  <Scissors className="w-4 h-4 text-slate-700" />
                   <span>Split Bill Between Guests (Equal / By Item)</span>
                 </button>
               )}
@@ -630,12 +624,10 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
               <button
                 onClick={() => setIsReceiptModalOpen(true)}
                 className={`w-full py-2.5 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition ${
-                  isDark
-                    ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                }`}
+ 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+ }`}
               >
-                <Printer className="w-4 h-4 text-blue-500" />
+                <Printer className="w-4 h-4 text-[#2E6B4C]" />
                 <span>Print Guest Check Thermal Slip</span>
               </button>
 
@@ -751,7 +743,7 @@ export const TableBillingView: React.FC<TableBillingViewProps> = ({
                 onClick={() => {
                   if (typeof window !== 'undefined') window.print();
                 }}
-                className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm"
+                className="flex-1 py-2 rounded-xl bg-[#123C2B] hover:bg-[#1B5138] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Slip</span>

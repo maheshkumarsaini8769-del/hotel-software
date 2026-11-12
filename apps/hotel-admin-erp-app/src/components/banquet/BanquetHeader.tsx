@@ -1,5 +1,6 @@
 import React from 'react';
 import { IBanquetMetricsUI, BanquetBookingStatus, BanquetTimeSlot } from '@spicehub/ui';
+import { PartyPopper, RefreshCw, Plus, Search, X } from 'lucide-react';
 
 interface BanquetHeaderProps {
   metrics: IBanquetMetricsUI;
@@ -42,119 +43,117 @@ export const BanquetHeader: React.FC<BanquetHeaderProps> = ({
   ];
 
   return (
-    <div className="bg-slate-950 border-b border-amber-500/20 px-6 py-6 text-zinc-100">
+    <div className="bg-white border-b border-slate-200 px-6 py-6 text-slate-900 shadow-xs">
       {/* Top Title & CTA */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <span className="h-3 w-3 rounded-full bg-amber-400 animate-pulse shadow-sm dark:shadow-none" />
-            <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-              Banquet & Event Operations Manager
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-              Shift 22
-            </span>
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shadow-xs">
+              <PartyPopper className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                  Banquet & Event Operations Manager
+                </h1>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  BEO Operations Active
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Luxury ballroom bookings, Function Prospectus (BEO) coordination, catering packages, and event folios.
+              </p>
+            </div>
           </div>
-          <p className="text-sm text-zinc-400 mt-1">
-            Luxury ballroom bookings, Function Prospectus (BEO) coordination, catering packages, and event folios.
-          </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={onRefreshClick}
             disabled={loading}
-            className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/60 text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-50"
+            className="btn-glass-green-subtle px-3.5 py-2 rounded-xl text-emerald-800 text-sm font-semibold transition-all flex items-center gap-2 disabled:opacity-50"
+            title="Refresh banquets"
           >
-            <svg
-              className={`w-4 h-4 ${loading ? 'animate-spin text-amber-400' : 'text-zinc-400'}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
           </button>
 
           <button
             onClick={onNewBookingClick}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold text-sm shadow-sm dark:shadow-none transition-all flex items-center gap-2"
+            className="btn-glass-green text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center gap-2"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span>+ Book Event / Banquet</span>
+            <Plus className="w-4 h-4" />
+            <span>Book Event / Banquet</span>
           </button>
         </div>
       </div>
 
       {/* KPI Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5 mb-6">
-        <div className="bg-slate-900 p-4 rounded-xl border border-zinc-800/80 shadow-inner">
-          <div className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-1">
+        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
+          <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-1">
             Total Events
           </div>
-          <div className="text-2xl font-black text-amber-400">
+          <div className="text-2xl font-bold text-slate-900">
             {metrics.totalEvents}
           </div>
-          <div className="text-xs text-zinc-500 mt-1">Booked contracts</div>
+          <div className="text-xs text-slate-400 mt-1">Booked contracts</div>
         </div>
 
-        <div className="bg-slate-900 p-4 rounded-xl border border-zinc-800/80 shadow-inner">
-          <div className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-1">
+        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
+          <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-1">
             Upcoming Functions
           </div>
-          <div className="text-2xl font-black text-sky-400">
+          <div className="text-2xl font-bold text-sky-600">
             {metrics.upcomingEventsCount}
           </div>
-          <div className="text-xs text-zinc-500 mt-1">Next 30 days</div>
+          <div className="text-xs text-slate-400 mt-1">Next 30 days</div>
         </div>
 
-        <div className="bg-slate-900 p-4 rounded-xl border border-zinc-800/80 shadow-inner">
-          <div className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-1">
+        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
+          <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-1">
             Guaranteed Pax
           </div>
-          <div className="text-2xl font-black text-emerald-400">
+          <div className="text-2xl font-bold text-emerald-600">
             {metrics.totalPaxExpected.toLocaleString('en-IN')}
           </div>
-          <div className="text-xs text-zinc-500 mt-1">Catering headcount</div>
+          <div className="text-xs text-slate-400 mt-1">Catering headcount</div>
         </div>
 
-        <div className="bg-slate-900 p-4 rounded-xl border border-zinc-800/80 shadow-inner">
-          <div className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-1">
+        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
+          <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-1">
             Contracted Revenue
           </div>
-          <div className="text-2xl font-black text-zinc-200">
+          <div className="text-2xl font-bold text-slate-900">
             ₹{metrics.totalRevenueContracted.toLocaleString('en-IN')}
           </div>
-          <div className="text-xs text-zinc-500 mt-1">Hall + Catering + GST</div>
+          <div className="text-xs text-slate-400 mt-1">Hall + Catering + GST</div>
         </div>
 
-        <div className="bg-slate-900 p-4 rounded-xl border border-zinc-800/80 shadow-inner">
-          <div className="text-xs uppercase tracking-wider text-zinc-400 font-semibold mb-1">
+        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
+          <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-1">
             Banquet Due Balance
           </div>
-          <div className="text-2xl font-black text-amber-300">
+          <div className="text-2xl font-bold text-amber-600">
             ₹{metrics.totalBalanceDue.toLocaleString('en-IN')}
           </div>
-          <div className="text-xs text-amber-500/80 mt-1">Pending settlement</div>
+          <div className="text-xs text-slate-400 mt-1">Pending settlement</div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2 border-t border-zinc-800/60">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-4 border-t border-slate-100">
         <div className="flex flex-wrap items-center gap-2">
           {/* Status Tabs */}
-          <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-zinc-800">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             {statusTabs.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => onFilterChange(tab.key)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                   filterStatus === tab.key
-                    ? 'bg-amber-500 text-zinc-950 shadow-md'
-                    : 'text-zinc-400 hover:text-white'
+                    ? 'btn-glass-green text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {tab.label}
@@ -163,15 +162,15 @@ export const BanquetHeader: React.FC<BanquetHeaderProps> = ({
           </div>
 
           {/* Time Slot Filter */}
-          <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-zinc-800">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             {slotTabs.map((slot) => (
               <button
                 key={slot.key}
                 onClick={() => onSlotChange(slot.key)}
                 className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-all ${
                   filterSlot === slot.key
-                    ? 'bg-zinc-700 text-white'
-                    : 'text-zinc-400 hover:text-white'
+                    ? 'bg-white text-slate-900 font-bold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {slot.label}
@@ -187,22 +186,15 @@ export const BanquetHeader: React.FC<BanquetHeaderProps> = ({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search code, event, organizer, venue..."
-            className="w-full bg-slate-900 border border-zinc-700/60 rounded-xl px-3.5 py-1.5 pl-9 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500/60"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-1.5 pl-9 pr-7 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
           />
-          <svg
-            className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2" />
           {searchQuery && (
             <button
               onClick={() => onSearchChange('')}
-              className="absolute right-2.5 top-2 text-zinc-500 hover:text-zinc-300 text-xs"
+              className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs"
             >
-              ✕
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

@@ -102,10 +102,10 @@ export const RoomArrivalCard: React.FC<RoomArrivalCardProps> = ({
             onClick={() => onCheckIn(booking)}
             disabled={isLoading || !isAssigned}
             className={`w-full py-2 px-3 rounded-xl font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer text-center ${
-              isAssigned
-                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 hover:brightness-110 shadow-amber-950/40'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
-            }`}
+ isAssigned
+ ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-slate-900/40'
+ : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+ }`}
           >
             {isAssigned ? '✓ Express Check-In & Issue Keycard' : 'Assign Room First'}
           </button>

@@ -20,7 +20,7 @@ export const GuestDietaryCardModal: React.FC<GuestDietaryCardModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="bg-slate-900 border border-red-500/30 w-full max-w-lg rounded-2xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
+      <div className="bg-slate-900 border border-red-500/30 w-full max-w-lg rounded-xl p-6 shadow-sm dark:shadow-none text-zinc-100 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-start justify-between pb-4 border-b border-zinc-800">
           <div>
@@ -44,7 +44,7 @@ export const GuestDietaryCardModal: React.FC<GuestDietaryCardModalProps> = ({
             onClick={onClose}
             className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 text-sm"
           >
-            ✕
+            
           </button>
         </div>
 
@@ -68,7 +68,7 @@ export const GuestDietaryCardModal: React.FC<GuestDietaryCardModalProps> = ({
           {guestProfile.allergies && guestProfile.allergies.length > 0 && (
             <div className="bg-red-950/20 border border-red-500/40 p-3.5 rounded-xl space-y-2">
               <span className="text-xs font-bold text-red-300 uppercase tracking-wider block">
-                🚨 Registered Medical Allergens:
+                 Registered Medical Allergens:
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {guestProfile.allergies.map((a: string, idx: number) => {

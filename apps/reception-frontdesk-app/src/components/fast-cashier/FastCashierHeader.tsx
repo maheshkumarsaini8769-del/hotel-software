@@ -29,7 +29,7 @@ export const FastCashierHeader: React.FC<FastCashierHeaderProps> = ({
         {/* Title and Badges */}
         <div className="flex items-center gap-4">
           <div className="flex items-center justify-center h-11 w-11 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 font-black text-xl shadow-sm dark:shadow-none">
-            ⚡
+            
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -38,7 +38,7 @@ export const FastCashierHeader: React.FC<FastCashierHeaderProps> = ({
                 Express Fast-Cashier POS
               </h1>
               <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                Shift 23 • QSR Counter
+                QSR Express Counter
               </span>
             </div>
             <p className="text-xs text-zinc-400 mt-0.5">
@@ -77,7 +77,7 @@ export const FastCashierHeader: React.FC<FastCashierHeaderProps> = ({
             onClick={onOpenCallingBoard}
             className="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-300 text-xs font-semibold border border-amber-500/30 transition-all flex items-center gap-1.5 hover:shadow-sm dark:shadow-none"
           >
-            <span>📺</span>
+            <span></span>
             <span>Calling Board</span>
           </button>
 
@@ -89,7 +89,7 @@ export const FastCashierHeader: React.FC<FastCashierHeaderProps> = ({
             className="p-2 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-xs border border-zinc-700 transition-all disabled:opacity-50"
             title="Refresh Queue"
           >
-            🔄
+            
           </button>
 
           {/* Clear Cart Button */}
@@ -107,9 +107,9 @@ export const FastCashierHeader: React.FC<FastCashierHeaderProps> = ({
               data-testid="blind-shift-close-btn"
               type="button"
               onClick={onBlindShiftClose}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-1.5"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-sm dark:shadow-none flex items-center gap-1.5"
             >
-              <span>🔒</span>
+              <span></span>
               <span>Blind Shift Close</span>
             </button>
           )}

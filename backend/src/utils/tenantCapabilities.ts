@@ -29,7 +29,7 @@ export const resolveTenantCapabilities = (tenant: {
     roomBooking:
       (typeof flags?.roomBookingEnabled === 'boolean'
         ? flags.roomBookingEnabled
-        : hasPortal('guest')) && hasPortal('guest'),
+        : hasPortal('guest', 'reception')) && hasPortal('guest', 'reception'),
     reception:
       (typeof flags?.frontDeskEnabled === 'boolean'
         ? flags.frontDeskEnabled

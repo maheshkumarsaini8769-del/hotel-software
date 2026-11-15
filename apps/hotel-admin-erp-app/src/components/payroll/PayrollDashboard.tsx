@@ -17,6 +17,7 @@ import {
   RefreshCw,
   X,
   Edit2,
+  Trash2,
   ChevronRight,
   User,
   ShieldCheck,
@@ -198,6 +199,26 @@ export const PayrollDashboard: React.FC<PayrollDashboardProps> = ({ hotelId: pro
   } | null>(null);
   const [salarySaving, setSalarySaving] = useState(false);
 
+  // Edit Transaction Modal State
+  const [editingTxn, setEditingTxn] = useState<SalaryTxn | null>(null);
+  const [showEditTxnModal, setShowEditTxnModal] = useState(false);
+  const [editTxnSaving, setEditTxnSaving] = useState(false);
+  const [editTxnForm, setEditTxnForm] = useState<{
+    amount: string;
+    type: 'SALARY' | 'ADVANCE' | 'BONUS' | 'DEDUCTION';
+    paymentMethod: string;
+    status: 'PAID' | 'PENDING';
+    date: string;
+    notes: string;
+  }>({
+    amount: '',
+    type: 'ADVANCE',
+    paymentMethod: 'CASH',
+    status: 'PAID',
+    date: '',
+    notes: '',
+  });
+
   const showNotification = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => {
@@ -349,6 +370,117 @@ export const PayrollDashboard: React.FC<PayrollDashboardProps> = ({ hotelId: pro
       showNotification(err.message || 'Failed to record transaction.', 'error');
     } finally {
       setTransactionSubmitting(false);
+    }
+  };
+
+  // Helper to format date for datetime-local
+  const formatDateTimeForInput = (dateInput?: string | Date) => {
+    if (!dateInput) return new Date().toISOString().slice(0, 16);
+    try {
+      const d = new Date(dateInput);
+      if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 16);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const YYYY = d.getFullYear();
+      const MM = pad(d.getMonth() + 1);
+      const DD = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const mm = pad(d.getMinutes());
+      return `${YYYY}-${MM}-${DD}T${hh}:${mm}`;
+    } catch {
+      return new Date().toISOString().slice(0, 16);
+    }
+  };
+
+  // Open Edit Transaction Modal
+  const openEditTxnModal = (txn: SalaryTxn) => {
+    setEditingTxn(txn);
+    setEditTxnForm({
+      amount: String(txn.amount || ''),
+      type: txn.type,
+      paymentMethod: txn.paymentMethod || 'BANK_TRANSFER',
+      status: txn.status || 'PAID',
+      date: formatDateTimeForInput(txn.date || txn.createdAt),
+      notes: txn.notes || '',
+    });
+    setShowEditTxnModal(true);
+  };
+
+  // Submit Updated Transaction
+  const handleUpdateTransaction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTxn) return;
+
+    const numAmount = parseFloat(editTxnForm.amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      showNotification('Please enter a valid amount greater than ₹0.', 'error');
+      return;
+    }
+
+    setEditTxnSaving(true);
+    try {
+      const res = await apiFetch(`/payroll/transaction/${editingTxn.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: numAmount,
+          type: editTxnForm.type,
+          paymentMethod: editTxnForm.paymentMethod,
+          status: editTxnForm.status,
+          date: editTxnForm.date,
+          notes: editTxnForm.notes,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update transaction.');
+      }
+
+      showNotification(`Successfully updated ${editTxnForm.type} of ₹${numAmount.toLocaleString('en-IN')}`);
+      setShowEditTxnModal(false);
+      setEditingTxn(null);
+
+      // Refresh directory
+      await fetchPayrollDirectory();
+
+      // Refresh ledger if open
+      if (selectedStaffForLedger) {
+        const updatedStaff = staffList.find((s) => s.id === selectedStaffForLedger.id) || selectedStaffForLedger;
+        fetchStaffLedger(updatedStaff);
+      }
+    } catch (err: any) {
+      console.error('Transaction update error:', err);
+      showNotification(err.message || 'Failed to update transaction.', 'error');
+    } finally {
+      setEditTxnSaving(false);
+    }
+  };
+
+  // Delete Mistaken Transaction
+  const handleDeleteTransaction = async (txn: SalaryTxn) => {
+    const confirmMsg = `Are you sure you want to delete this ${txn.type} of ₹${Number(txn.amount || 0).toLocaleString('en-IN')}?\n\nThis will immediately recalculate the staff ledger, total advances, and pending balance.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const res = await apiFetch(`/payroll/transaction/${txn.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to delete transaction.');
+      }
+
+      showNotification(`Successfully deleted ${txn.type} of ₹${Number(txn.amount || 0).toLocaleString('en-IN')}`);
+
+      // Refresh directory and staff ledger
+      await fetchPayrollDirectory();
+      if (selectedStaffForLedger) {
+        const updatedStaff = staffList.find((s) => s.id === selectedStaffForLedger.id) || selectedStaffForLedger;
+        fetchStaffLedger(updatedStaff);
+      }
+    } catch (err: any) {
+      console.error('Transaction delete error:', err);
+      showNotification(err.message || 'Failed to delete transaction.', 'error');
     }
   };
 
@@ -1174,13 +1306,14 @@ export const PayrollDashboard: React.FC<PayrollDashboardProps> = ({ hotelId: pro
                           <table className="w-full text-left text-xs">
                             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold sticky top-0">
                               <tr>
-                                <th className="py-2.5 px-3">Date</th>
+                                <th className="py-2.5 px-3">Date & Time</th>
                                 <th className="py-2.5 px-3">Type</th>
                                 <th className="py-2.5 px-3 text-right">Amount</th>
                                 <th className="py-2.5 px-3">Method</th>
                                 <th className="py-2.5 px-3">Status</th>
                                 <th className="py-2.5 px-3">Notes</th>
                                 <th className="py-2.5 px-3">Recorded By</th>
+                                <th className="py-2.5 px-3 text-right">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
@@ -1192,16 +1325,23 @@ export const PayrollDashboard: React.FC<PayrollDashboardProps> = ({ hotelId: pro
                                   DEDUCTION: 'bg-rose-50 text-rose-700 border-rose-200',
                                 }[t.type] || 'bg-slate-100 text-slate-700 border-slate-200';
 
-                                const formattedDate = new Date(t.date || t.createdAt).toLocaleDateString('en-GB', {
+                                const txnDate = new Date(t.date || t.createdAt);
+                                const formattedDate = txnDate.toLocaleDateString('en-GB', {
                                   day: '2-digit',
                                   month: 'short',
                                   year: 'numeric',
+                                });
+                                const formattedTime = txnDate.toLocaleTimeString('en-GB', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true,
                                 });
 
                                 return (
                                   <tr key={t.id} className="hover:bg-slate-50/60 transition">
                                     <td className="py-2.5 px-3 whitespace-nowrap text-slate-600 font-medium">
-                                      {formattedDate}
+                                      <div className="font-semibold text-slate-800">{formattedDate}</div>
+                                      <div className="text-[10px] text-slate-400 font-normal">{formattedTime}</div>
                                     </td>
                                     <td className="py-2.5 px-3">
                                       <div className="flex items-center gap-1 flex-wrap">
@@ -1237,6 +1377,26 @@ export const PayrollDashboard: React.FC<PayrollDashboardProps> = ({ hotelId: pro
                                     </td>
                                     <td className="py-2.5 px-3 text-slate-500 text-[11px] whitespace-nowrap">
                                       {t.recordedBy || 'System Admin'}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => openEditTxnModal(t)}
+                                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                          title="Edit Entry (Fix Time, Date, Amount, Notes)"
+                                        >
+                                          <Edit2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteTransaction(t)}
+                                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                          title="Delete Mistaken Entry"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 );
@@ -1564,6 +1724,184 @@ export const PayrollDashboard: React.FC<PayrollDashboardProps> = ({ hotelId: pro
                     </>
                   ) : (
                     <span>Save Changes</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: EDIT TRANSACTION (FIX ADVANCE, SALARY, BONUS, DEDUCTION)          */}
+      {/* ========================================================================= */}
+      {showEditTxnModal && editingTxn && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 overflow-y-auto"
+        >
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-600 text-white rounded-lg">
+                  <Edit2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Edit {editTxnForm.type} Entry
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {selectedStaffForLedger ? `${selectedStaffForLedger.name} (${selectedStaffForLedger.role})` : 'Modify payroll record'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditTxnModal(false);
+                  setEditingTxn(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleUpdateTransaction} className="p-6 space-y-4">
+              {/* Transaction Type */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Transaction Type *
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {(['SALARY', 'ADVANCE', 'BONUS', 'DEDUCTION'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setEditTxnForm((prev) => ({ ...prev, type: t }))}
+                      className={`py-2 px-1 text-center rounded-lg text-xs font-bold transition border ${
+                        editTxnForm.type === t
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Amount & Date/Time */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Amount (₹) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">₹</span>
+                    <NumericInput
+                      step="any"
+                      min="1"
+                      value={editTxnForm.amount}
+                      onChange={(e) => setEditTxnForm((prev) => ({ ...prev, amount: e.target.value }))}
+                      placeholder="e.g. 5000"
+                      required
+                      className="w-full pl-8 pr-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Disbursement Date & Time *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={editTxnForm.date}
+                    onChange={(e) => setEditTxnForm((prev) => ({ ...prev, date: e.target.value }))}
+                    required
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Payment Mode & Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Payment Method
+                  </label>
+                  <select
+                    value={editTxnForm.paymentMethod}
+                    onChange={(e) => setEditTxnForm((prev) => ({ ...prev, paymentMethod: e.target.value }))}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="BANK_TRANSFER">Bank Transfer (NEFT/RTGS)</option>
+                    <option value="UPI">UPI / Digital QR</option>
+                    <option value="CASH">Cash in Hand</option>
+                    <option value="CHEQUE">Cheque</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Status
+                  </label>
+                  <select
+                    value={editTxnForm.status}
+                    onChange={(e) => setEditTxnForm((prev) => ({ ...prev, status: e.target.value as any }))}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="PAID">PAID (Disbursed)</option>
+                    <option value="PENDING">PENDING (Scheduled)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Notes / Reason for Edit
+                </label>
+                <textarea
+                  rows={2}
+                  value={editTxnForm.notes}
+                  onChange={(e) => setEditTxnForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  placeholder="e.g. Corrected date/time, adjusted advance disbursement..."
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Footer */}
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditTxnModal(false);
+                    setEditingTxn(null);
+                  }}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editTxnSaving}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+                >
+                  {editTxnSaving ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Save Changes</span>
+                    </>
                   )}
                 </button>
               </div>

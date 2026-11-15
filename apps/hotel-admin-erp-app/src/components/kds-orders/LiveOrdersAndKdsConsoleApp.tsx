@@ -138,19 +138,8 @@ export const LiveOrdersAndKdsConsoleApp: React.FC<LiveOrdersAndKdsConsoleAppProp
       if (res.ok) {
         await fetchOrders();
       } else {
-        // Mock fallback if table not currently mapped
-        const sampleMock: LiveOrderTicket = {
-          _id: `test-${Date.now()}`,
-          orderNumber: `KOT-${Math.floor(100 + Math.random() * 900)}`,
-          orderType: 'DINE_IN',
-          orderStatus: 'PREPARING',
-          tableNumber: 'T-01',
-          guestName: 'Dining Table T-01',
-          items: testOrderPayload.items,
-          cookingInstructions: testOrderPayload.cookingInstructions,
-          createdAt: new Date().toISOString(),
-        };
-        setOrders((prev) => [sampleMock, ...prev]);
+        const errJson = await res.json().catch(() => null);
+        alert(errJson?.message || 'Could not place test order. Please verify table or menu availability.');
       }
     } catch (err: any) {
       console.error('Error creating sample order:', err);

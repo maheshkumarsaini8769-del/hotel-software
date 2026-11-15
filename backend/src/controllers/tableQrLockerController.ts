@@ -13,6 +13,16 @@ import {
 import { MenuItem } from '../models/MenuItem';
 import { generateReferenceNumber } from '../utils/referenceNumber';
 
+interface PricedQrOrderItem {
+  menuItemId: Types.ObjectId;
+  kitchenStationId?: Types.ObjectId;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  subtotal: number;
+  specialInstructions?: string;
+}
+
 export class TableQrLockerController {
   /**
    * 1. Initialize or Get Permanent Table QR
@@ -178,20 +188,42 @@ export class TableQrLockerController {
         tableNumber: locker.tableNumber,
       });
 
-      // Prepare order items
+      // Recompute all prices from the tenant menu. Client-supplied prices are
+      // never trusted; otherwise a diner could order any dish for ₹0.
+      const requestedItemIds = items
+        .map((it: any) => String(it?.menuItemId || ''))
+        .filter((id: string) => Types.ObjectId.isValid(id))
+        .map((id: string) => new Types.ObjectId(id));
+
+      const menuDocs = await MenuItem.find({
+        _id: { $in: requestedItemIds },
+        hotelId: new Types.ObjectId(hotelId),
+        isAvailable: { $ne: false },
+      }).select('_id name basePrice kitchenStationId');
+
+      const menuById = new Map<string, any>(menuDocs.map((doc: any) => [String(doc._id), doc]));
+
       let subTotal = 0;
-      const orderItems = items.map((it: any) => {
-        const lineTotal = Number(it.unitPrice) * Number(it.quantity);
+      const orderItems: PricedQrOrderItem[] = items.map((it: any) => {
+        const menuItemId = String(it?.menuItemId || '');
+        const menuDoc = menuById.get(menuItemId);
+        if (!menuDoc) {
+          throw new Error(`MENU_ITEM_UNAVAILABLE:${menuItemId || 'unknown'}`);
+        }
+
+        const quantity = Math.max(1, Math.trunc(Number(it?.quantity) || 0));
+        const unitPrice = Number(menuDoc.basePrice) || 0;
+        const lineTotal = unitPrice * quantity;
         subTotal += lineTotal;
+
         return {
-          menuItemId: new Types.ObjectId(it.menuItemId),
-          kitchenStationId: it.kitchenStationId ? new Types.ObjectId(it.kitchenStationId) : new Types.ObjectId(),
-          name: it.name,
-          unitPrice: Number(it.unitPrice),
-          quantity: Number(it.quantity),
+          menuItemId: menuDoc._id,
+          kitchenStationId: menuDoc.kitchenStationId || new Types.ObjectId(),
+          name: menuDoc.name,
+          unitPrice,
+          quantity,
           subtotal: lineTotal,
-          specialInstructions: it.specialInstructions,
-          itemStatus: ItemProductionStatus.PENDING,
+          specialInstructions: it?.specialInstructions,
         };
       });
 
@@ -227,6 +259,14 @@ export class TableQrLockerController {
         subTotal,
       });
     } catch (error: any) {
+      if (String(error?.message || '').startsWith('MENU_ITEM_UNAVAILABLE')) {
+        res.status(400).json({
+          success: false,
+          errorCode: 'MENU_ITEM_UNAVAILABLE',
+          message: 'One or more items are unavailable or do not belong to this hotel.',
+        });
+        return;
+      }
       res.status(500).json({ success: false, message: error.message });
     }
   }
@@ -340,7 +380,7 @@ export class TableQrLockerController {
   static async releaseQrSession(req: Request, res: Response): Promise<void> {
     try {
       const hotelId = req.headers['x-hotel-id'] as string;
-      const { tableNumber } = req.body;
+      const { tableNumber, qrSessionToken } = req.body;
 
       if (!tableNumber) {
         res.status(400).json({ success: false, message: 'tableNumber is required' });
@@ -354,6 +394,15 @@ export class TableQrLockerController {
 
       if (!locker) {
         res.status(404).json({ success: false, message: 'Table QR locker not found' });
+        return;
+      }
+
+      if (!qrSessionToken || locker.activeSessionToken !== String(qrSessionToken)) {
+        res.status(403).json({
+          success: false,
+          errorCode: 'INVALID_QR_TOKEN',
+          message: 'A valid active QR session token is required to release this table.',
+        });
         return;
       }
 

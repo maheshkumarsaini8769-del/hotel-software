@@ -1490,19 +1490,30 @@ export const CashierStandaloneApp: React.FC<CashierStandaloneAppProps> = ({ onNa
                                   setOrderTable(b.table);
                                   if (b.orderItems && b.orderItems.length > 0) {
                                     setOrderItems(b.orderItems);
-                                  } else if (b.table.includes('01') || b.table.includes('T-01')) {
-                                    setOrderItems([
-                                      { id: '6ae06d00ddbafddfbb0a8032', name: 'Club Sandwich', qty: 1, price: 220 },
-                                      { id: '6ae06d00ddbafddfbb0a8031', name: 'Paneer Tikka', qty: 1, price: 200 },
-                                    ]);
-                                  } else if (b.table.includes('02') || b.table.includes('T-02')) {
-                                    setOrderItems([
-                                      { id: 'item-chicken-biryani', name: 'Chicken Biryani', qty: 2, price: 500 },
-                                    ]);
-                                  } else if (b.table.includes('12') || b.table.includes('T-12')) {
-                                    setOrderItems([
-                                      { id: 'item-1012', name: 'Paneer Tikka Test', qty: 2, price: 320 },
-                                    ]);
+                                  } else {
+                                    getApiClient().request<{ success: boolean; data: any[] }>(
+                                      'GET',
+                                      `/api/v1/pos/table/orders?tableNumber=${encodeURIComponent(b.table)}`
+                                    ).then((res) => {
+                                      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+                                        const fetched: OrderItem[] = [];
+                                        res.data.forEach((ord: any) => {
+                                          (ord.items || []).forEach((it: any) => {
+                                            if (it.itemStatus !== 'CANCELLED') {
+                                              fetched.push({
+                                                id: it._id || it.itemId || `it-${Date.now()}`,
+                                                name: it.name || 'Dish Item',
+                                                qty: Number(it.quantity || 1),
+                                                price: Number(it.unitPrice || it.price || 0),
+                                              });
+                                            }
+                                          });
+                                        });
+                                        setOrderItems(fetched);
+                                      } else {
+                                        setOrderItems([]);
+                                      }
+                                    }).catch(() => setOrderItems([]));
                                   }
                                   setGeneratedBill(null);
                                 }}

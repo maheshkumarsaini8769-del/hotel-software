@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import crypto from 'crypto';
 import { Types } from 'mongoose';
+import { isWebhookAuthorized } from '../utils/webhookSecurity';
 import { Tenant } from '../models/Tenant';
 import { RoomType } from '../models/RoomType';
 import { Room, RoomStatus } from '../models/Room';
@@ -15,41 +15,12 @@ const router = Router();
  */
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/**
- * Shared-secret and HMAC signature guard for the OTA webhook.
- *
- * Implements mock / production HMAC-SHA256 signature verification. Callers must send
- * either `x-webhook-secret: <secret>` or `x-ota-signature: <hmac-sha256 of body>`.
- */
-const isWebhookAuthorized = (req: Request): boolean => {
-  const secret = process.env.OTA_WEBHOOK_SECRET || 'spicehub_mock_ota_secret_key_2026';
-
-  const providedSecret = String(req.headers['x-webhook-secret'] || '').trim();
-  const rawSignature = String(req.headers['x-ota-signature'] || req.headers['x-hub-signature-256'] || '').trim();
-  const providedSignature = rawSignature.replace(/^sha256=/, '');
-
-  const safeEqual = (a: string, b: string): boolean => {
-    if (a.length !== b.length) return false;
-    const bufA = Buffer.from(a);
-    const bufB = Buffer.from(b);
-    return crypto.timingSafeEqual(bufA, bufB);
-  };
-
-  if (providedSecret && safeEqual(providedSecret, secret)) return true;
-
-  if (providedSignature) {
-    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
-    const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-    if (safeEqual(providedSignature, expected)) return true;
-  }
-
-  // Mock test bypass header strictly permitted only outside production
-  if (process.env.NODE_ENV !== 'production' && req.headers['x-mock-ota-authorized'] === 'true') {
-    return true;
-  }
-
-  return false;
-};
+const authorizeOtaWebhook = (req: Request): boolean =>
+  isWebhookAuthorized(req, {
+    envKey: 'OTA_WEBHOOK_SECRET',
+    devFallback: 'spicehub_mock_ota_secret_key_2026',
+    mockHeader: 'x-mock-ota-authorized',
+  });
 
 /**
  * POST /api/v1/webhooks/ota
@@ -60,7 +31,7 @@ router.post('/ota', async (req: Request, res: Response): Promise<void> => {
   try {
     // SECURITY: this endpoint creates confirmed, paid bookings and reserves
     // physical inventory, so it must never be callable by anonymous clients.
-    if (!isWebhookAuthorized(req)) {
+    if (!authorizeOtaWebhook(req)) {
       res.status(401).json({
         success: false,
         error: 'UNAUTHORIZED_WEBHOOK',

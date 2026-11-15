@@ -59,9 +59,10 @@ import guestComplianceRoutes from './routes/guestComplianceRoutes';
 import reportRoutes from './routes/reportRoutes';
 import { startSocketKeepAliveWorker, pingSocketServer, getKeepAliveStats } from './services/socketKeepAliveService';
 import { broadcastToRenderSocket } from './services/socketEmitter';
-import { authenticateJWT, requireTenant } from './middlewares/auth';
+import { authenticateJWT, requireTenant, requireRole } from './middlewares/auth';
 import { requirePortal, requireAnyPortal } from './middlewares/portalGate';
-import { TenantRequest } from './types';
+import { TenantRequest, UserRole } from './types';
+import { isWebhookAuthorized } from './utils/webhookSecurity';
 import { assertProductionSecurityConfig, getJwtSecret, isDevAuthBypassEnabled } from './config/security';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerDocument } from './docs/swaggerSpec';
@@ -190,7 +191,8 @@ io.on('connection', (socket) => {
       hotelId.startsWith('waiter_') ||
       hotelId.startsWith('attendant_') ||
       hotelId.startsWith('technician_') ||
-      hotelId.startsWith('user_')
+      hotelId.startsWith('user_') ||
+      hotelId.startsWith('session_')
     ) {
       roomName = hotelId; // direct private channel
     }
@@ -198,6 +200,11 @@ io.on('connection', (socket) => {
     if (userId) {
       socket.join(`waiter_${userId}`);
       socket.join(`${hotelId}_waiter_${userId}`);
+    }
+
+    if (payload?.tableSessionId) {
+      socket.join(`session_${payload.tableSessionId}`);
+      socket.join(`${hotelId}_session_${payload.tableSessionId}`);
     }
 
     socket.join(roomName);
@@ -647,13 +654,20 @@ const getSystemHealth = () => {
   const mem = process.memoryUsage();
   const formatMb = (bytes: number) => `${Math.round(bytes / 1024 / 1024)}MB`;
 
+  const databaseStatus = isDbConnected
+    ? 'CONNECTED'
+    : (isVercelStandby ? 'STANDBY_AWAITING_CLOUD_URI' : 'DISCONNECTED');
+
   return {
-    status: (isDbConnected || isVercelStandby) ? 'UP' : 'DOWN',
+    status: (isDbConnected || isVercelStandby) ? 'HEALTHY' : 'DOWN',
+    multiTenancy: 'ENFORCED',
     uptime: `${Math.floor(process.uptime())}s`,
     uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
-    database: {
-      status: isDbConnected ? 'CONNECTED' : (isVercelStandby ? 'STANDBY_AWAITING_CLOUD_URI' : 'DISCONNECTED'),
+    // Legacy consumers (health probes / deep-test scripts) expect a string here.
+    database: databaseStatus,
+    databaseDetails: {
+      status: databaseStatus,
       readyState: mongoose.connection.readyState,
       host: mongoose.connection.host || (process.env.VERCEL ? 'cloud-serverless' : 'localhost'),
       name: mongoose.connection.name || 'spicehub_dev',
@@ -673,12 +687,12 @@ const getSystemHealth = () => {
 // Deep Health Endpoints: /health & /api/v1/health
 app.get('/health', (_req: Request, res: Response) => {
   const health = getSystemHealth();
-  res.status(health.status === 'UP' ? 200 : 503).json(health);
+  res.status(health.status === 'HEALTHY' ? 200 : 503).json(health);
 });
 
 app.get('/api/v1/health', (_req: Request, res: Response) => {
   const health = getSystemHealth();
-  res.status(health.status === 'UP' ? 200 : 503).json(health);
+  res.status(health.status === 'HEALTHY' ? 200 : 503).json(health);
 });
 
 // System Network & Local IP Diagnostic Endpoint (Used by Admin ERP for Real QR Generation & Phone Links)
@@ -828,14 +842,23 @@ app.use('/api/v1/crm', crmRoutes);
 app.use('/api/v1/customer-portal', requirePortal('customer'), customerPortalRoutes);
 app.use('/api/v1/co-dining', requirePortal('customer'), coDiningRoutes);
 app.use('/api/v1/seat-billing', requirePortal('cashier'), seatBillingRoutes);
-app.use('/api/v1/qr-locker', requirePortal('customer'), tableQrLockerRoutes);
+app.use('/api/v1/qr-locker', requireAnyPortal(['customer', 'waiter', 'admin']), tableQrLockerRoutes);
 app.use('/api/v1/waiter-zones', requirePortal('waiter'), waiterZoneRoutes);
 app.use('/api/v1/floor-matrix', floorDutyMatrixRoutes);
 app.use('/api/v1/load-balancer', staffLoadBalancerRoutes);
 app.use('/api/v1/food-pickup-sla', requirePortal('kds'), foodPickupSlaRoutes);
 app.use('/api/v1/multi-tender', requirePortal('cashier'), multiTenderRoutes);
-app.use('/api/v1/dynamic-upi', requirePortal('cashier'), dynamicUpiRoutes);
-app.use('/api/v1/waiter-cash-float', requirePortal('waiter'), waiterCashFloatRoutes);
+app.use(
+  '/api/v1/dynamic-upi',
+  (req, res, next) => {
+    // Payment-gateway callbacks must remain reachable from the public internet;
+    // they are authenticated by the HMAC webhook secret in the controller.
+    if (req.path === '/soundbox-webhook') return next();
+    return requireAnyPortal(['cashier', 'waiter'])(req, res, next);
+  },
+  dynamicUpiRoutes
+);
+app.use('/api/v1/waiter-cash-float', requireAnyPortal(['waiter', 'cashier']), waiterCashFloatRoutes);
 app.use('/api/v1/admin-control', adminControlRoutes);
 app.use('/api/v1/user-preferences', userPreferenceRoutes);
 app.use('/api/v1/guest-reviews', guestReviewRoutes);
@@ -850,7 +873,7 @@ app.use('/api/v1/table-management', tableManagementRoutes);
 app.use('/api/v1/restaurant-operations', restaurantOperationsRoutes);
 app.use('/api/v1/cron', cronRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
-app.use('/api/v1/guest', guestComplianceRoutes);
+app.use('/api/v1/guest', requireAnyPortal(['guest', 'reception', 'admin']), guestComplianceRoutes);
 app.use('/api/v1/reports', reportRoutes);
 
 // Tenant-Isolation Verification Endpoint (Used in Gate #1 testing)
@@ -877,6 +900,20 @@ app.get('/api-docs.json', (_req: Request, res: Response) => {
 // 2. OTA / Channel Manager Inbound Webhook (MakeMyTrip / Agoda / Booking.com)
 app.post('/api/v1/webhooks/ota/mmt', async (req: Request, res: Response) => {
   try {
+    const authorized = isWebhookAuthorized(req, {
+      envKey: 'OTA_WEBHOOK_SECRET',
+      devFallback: 'spicehub_mock_ota_secret_key_2026',
+      mockHeader: 'x-mock-ota-authorized',
+    });
+    if (!authorized) {
+      res.status(401).json({
+        success: false,
+        errorCode: 'UNAUTHORIZED_WEBHOOK',
+        message: 'Missing or invalid OTA webhook credentials.',
+      });
+      return;
+    }
+
     const { hotelId, hotelSlug, ...bookingData } = req.body;
     let targetHotelId = hotelId;
     if (!targetHotelId && hotelSlug) {
@@ -936,26 +973,22 @@ const handleRevParAnalytics = async (req: TenantRequest, res: Response) => {
 app.get('/api/v1/revpar-analytics', authenticateJWT, requireTenant, handleRevParAnalytics);
 app.get('/api/v1/revenue-manager/revpar-analytics', authenticateJWT, requireTenant, handleRevParAnalytics);
 
-app.get('/api/v1/analytics/revenue', async (req: Request, res: Response) => {
+app.get('/api/v1/analytics/revenue', authenticateJWT, requireTenant, async (req: TenantRequest, res: Response) => {
   try {
     const range = String(req.query.range || '30d');
-    const hotelId = typeof req.query.hotelId === 'string' ? req.query.hotelId : undefined;
     const normalizedRange = range.endsWith('d') ? Number(range.replace(/d$/, '')) || 30 : 30;
     const startDate = new Date(Date.now() - normalizedRange * 24 * 60 * 60 * 1000);
     const endDate = new Date();
 
-    let targetHotelId = hotelId;
-    if (!targetHotelId) {
-      const firstTenant = await Tenant.findOne({ status: 'ACTIVE' }).lean();
-      targetHotelId = firstTenant?._id?.toString();
-    }
-
-    if (!targetHotelId || !mongoose.Types.ObjectId.isValid(String(targetHotelId))) {
-      res.status(400).json({ success: false, error: 'INVALID_HOTEL_ID', message: 'Valid hotelId is required.' });
+    // Tenant isolation: always use the hotel from the verified JWT. A
+    // caller-supplied hotelId query parameter is never trusted.
+    const targetHotelId = req.hotelId ? String(req.hotelId) : '';
+    if (!targetHotelId || !mongoose.Types.ObjectId.isValid(targetHotelId)) {
+      res.status(403).json({ success: false, error: 'TENANT_REQUIRED', message: 'Tenant context is required.' });
       return;
     }
 
-    const metrics = await RevParAnalyticsService.calculateRevPar(new mongoose.Types.ObjectId(String(targetHotelId)), startDate, endDate);
+    const metrics = await RevParAnalyticsService.calculateRevPar(new mongoose.Types.ObjectId(targetHotelId), startDate, endDate);
     res.status(200).json({
       success: true,
       hotelId: String(targetHotelId),
@@ -1004,11 +1037,21 @@ app.post('/api/v1/crm/promo/validate', async (req: Request, res: Response) => {
 });
 
 // 7b. Promo Code Management Endpoints (Hotel Admin)
-app.get('/api/v1/crm/promos', async (req: Request, res: Response) => {
+const promoAdminGuards = [
+  authenticateJWT,
+  requireTenant,
+  requireRole([UserRole.HOTEL_ADMIN, UserRole.MANAGER, UserRole.GROUP_ADMIN, UserRole.SUPERADMIN]),
+];
+
+app.get('/api/v1/crm/promos', ...promoAdminGuards, async (req: TenantRequest, res: Response) => {
   try {
-    const rawHotelId = (req.headers['x-hotel-id'] as string) || req.query.hotelId || (req as any).hotelId;
+    // Tenant isolation: the authenticated tenant always wins. Only a
+    // SuperAdmin may target another hotel explicitly.
+    const rawHotelId = req.hotelId
+      ? String(req.hotelId)
+      : (req.query.hotelId || req.body?.hotelId);
     if (!rawHotelId || !mongoose.Types.ObjectId.isValid(String(rawHotelId))) {
-      res.status(400).json({ success: false, message: 'Valid Hotel ID required' });
+      res.status(403).json({ success: false, errorCode: 'TENANT_REQUIRED', message: 'Valid Hotel ID required' });
       return;
     }
     const hotelId = new mongoose.Types.ObjectId(String(rawHotelId));
@@ -1019,11 +1062,13 @@ app.get('/api/v1/crm/promos', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/v1/crm/promos', async (req: Request, res: Response) => {
+app.post('/api/v1/crm/promos', ...promoAdminGuards, async (req: TenantRequest, res: Response) => {
   try {
-    const rawHotelId = (req.headers['x-hotel-id'] as string) || req.body.hotelId || (req as any).hotelId;
+    const rawHotelId = req.hotelId
+      ? String(req.hotelId)
+      : (req.body?.hotelId || req.query.hotelId);
     if (!rawHotelId || !mongoose.Types.ObjectId.isValid(String(rawHotelId))) {
-      res.status(400).json({ success: false, message: 'Valid Hotel ID required' });
+      res.status(403).json({ success: false, errorCode: 'TENANT_REQUIRED', message: 'Valid Hotel ID required' });
       return;
     }
     const hotelId = new mongoose.Types.ObjectId(String(rawHotelId));
@@ -1061,15 +1106,28 @@ app.post('/api/v1/crm/promos', async (req: Request, res: Response) => {
   }
 });
 
-app.delete('/api/v1/crm/promos/:id', async (req: Request, res: Response) => {
+app.delete('/api/v1/crm/promos/:id', ...promoAdminGuards, async (req: TenantRequest, res: Response) => {
   try {
-    const rawHotelId = (req.headers['x-hotel-id'] as string) || req.query.hotelId || (req as any).hotelId;
+    const rawHotelId = req.hotelId
+      ? String(req.hotelId)
+      : (req.query.hotelId || req.body?.hotelId);
+    if (!rawHotelId || !mongoose.Types.ObjectId.isValid(String(rawHotelId))) {
+      res.status(403).json({ success: false, errorCode: 'TENANT_REQUIRED', message: 'Valid Hotel ID required' });
+      return;
+    }
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     if (!id || !mongoose.Types.ObjectId.isValid(String(id))) {
       res.status(400).json({ success: false, message: 'Invalid promo id' });
       return;
     }
-    const deleted = await PromoCode.findByIdAndDelete(id);
+    const deleted = await PromoCode.findOneAndDelete({
+      _id: new mongoose.Types.ObjectId(String(id)),
+      hotelId: new mongoose.Types.ObjectId(String(rawHotelId)),
+    });
+    if (!deleted) {
+      res.status(404).json({ success: false, message: 'Promo code not found for this hotel' });
+      return;
+    }
     res.status(200).json({ success: true, message: 'Promo code deleted successfully', deletedId: id });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -1138,20 +1196,42 @@ app.get('/api/v1/tenant/branding', async (req: Request, res: Response) => {
   }
 });
 
-app.put('/api/v1/superadmin/tenants/:tenantId/branding', async (req: Request, res: Response) => {
-  try {
-    const { tenantId } = req.params;
-    const { logoUrl, primaryColor, name, tagline, gstin, fssai, wifiSsid, wifiPassword } = req.body;
-    const updated = await Tenant.findByIdAndUpdate(
-      tenantId,
-      { $set: { logoUrl, primaryColor, 'branding.primaryColor': primaryColor, name, tagline, gstin, fssai, wifiSsid, wifiPassword } },
-      { new: true }
-    );
-    res.status(200).json({ success: true, data: updated });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+app.put(
+  '/api/v1/superadmin/tenants/:tenantId/branding',
+  authenticateJWT,
+  requireRole([UserRole.SUPERADMIN]),
+  async (req: Request, res: Response) => {
+    try {
+      const { tenantId } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(String(tenantId))) {
+        res.status(400).json({ success: false, errorCode: 'INVALID_TENANT_ID', message: 'Valid tenantId is required.' });
+        return;
+      }
+      const { logoUrl, primaryColor, name, tagline, gstin, fssai, wifiSsid, wifiPassword } = req.body;
+      const update: Record<string, unknown> = {};
+      if (logoUrl !== undefined) update.logoUrl = logoUrl;
+      if (primaryColor !== undefined) {
+        update.primaryColor = primaryColor;
+        update['branding.primaryColor'] = primaryColor;
+      }
+      if (name !== undefined) update.name = name;
+      if (tagline !== undefined) update.tagline = tagline;
+      if (gstin !== undefined) update.gstin = gstin;
+      if (fssai !== undefined) update.fssai = fssai;
+      if (wifiSsid !== undefined) update.wifiSsid = wifiSsid;
+      if (wifiPassword !== undefined) update.wifiPassword = wifiPassword;
+
+      const updated = await Tenant.findByIdAndUpdate(tenantId, { $set: update }, { new: true });
+      if (!updated) {
+        res.status(404).json({ success: false, errorCode: 'TENANT_NOT_FOUND', message: 'Hotel tenant not found.' });
+        return;
+      }
+      res.status(200).json({ success: true, data: updated });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
   }
-});
+);
 
 // Sentry Error Handler & Global Unhandled Exception Catcher
 Sentry.setupExpressErrorHandler(app);

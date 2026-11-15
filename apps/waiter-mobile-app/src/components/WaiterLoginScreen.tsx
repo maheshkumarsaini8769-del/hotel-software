@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config/api';
+import { getPortalUrl } from '../config/env';
 import {
   normalizeHotelAccessCode,
   isValidHotelAccessCode,
   readHotelAccessHotelId,
   readHotelAccessToken,
   verifyHotelAccessCode,
+  selectHotelDirect,
   clearHotelAccessToken, NumericInput,
 } from '@spicehub/ui';
 import {
@@ -143,10 +145,54 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
   const [pinError, setPinError] = useState<string | null>(null);
   const [failedPinAttempts, setFailedPinAttempts] = useState(0);
   const [pinLockedUntil, setPinLockedUntil] = useState(0);
+  const [activeHotels, setActiveHotels] = useState<any[]>([]);
+  const [loadingHotels, setLoadingHotels] = useState(false);
+  const [enabledPortals, setEnabledPortals] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingHotels(true);
+    fetch(`${API_BASE_URL}/auth/active-hotels`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (active && res.success && Array.isArray(res.data)) {
+          setActiveHotels(res.data);
+          if (selectedHotelId) {
+            const current = res.data.find((h: any) => h.id === selectedHotelId);
+            if (current) {
+              setVerifiedHotelName(current.name);
+              setEnabledPortals(current.enabledPortals || []);
+            }
+          }
+        }
+      })
+      .catch((err) => console.warn('Could not load active hotels:', err))
+      .finally(() => { if (active) setLoadingHotels(false); });
+    return () => { active = false; };
+  }, [selectedHotelId]);
 
   useEffect(() => {
     if (selectedHotelId) localStorage.setItem('spicehub_hotel_id', selectedHotelId);
   }, [selectedHotelId]);
+
+  const handleSelectHotelCard = async (hotel: any) => {
+    setSelectedHotelId(hotel.id);
+    setVerifiedHotelName(hotel.name);
+    setHotelCodeStatus('verifying');
+    setHotelCodeError('');
+    setEnabledPortals(hotel.enabledPortals || []);
+    try {
+      const verified = await selectHotelDirect(API_BASE_URL, hotel.id);
+      setSelectedHotelId(verified.hotel.id);
+      setHotelAccessToken(verified.accessToken);
+      setHotelCodeStatus('verified');
+      setVerifiedHotelName(verified.hotel.name || hotel.name);
+      setEnabledPortals(verified.hotel.enabledPortals || hotel.enabledPortals || []);
+    } catch (error) {
+      setHotelCodeStatus('idle');
+      setHotelCodeError(error instanceof Error ? error.message : 'Could not verify property access.');
+    }
+  };
 
   const handleVerifyHotelCode = async () => {
     const normalized = normalizeHotelAccessCode(hotelCode);
@@ -608,129 +654,251 @@ export const WaiterLoginScreen: React.FC<WaiterLoginScreenProps> = ({
 
           <div style={{ marginTop: 18 }}>
             {hotelCodeStatus === 'verified' ? (
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p
-                    className="truncate"
-                    style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#0F172A' }}
-                  >
-                    {verifiedHotelName || hotelName}
-                  </p>
-                  <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748B' }}>
-                    Hotel code verified
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleChangeHotelCode}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Verified Hotel Header */}
+                <div
                   style={{
-                    flexShrink: 0,
-                    border: 0,
-                    background: 'none',
-                    padding: 0,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: '#2563EB',
-                    textDecoration: 'underline',
-                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px',
+                    borderRadius: 12,
+                    background: '#F1F5F9',
+                    border: '1px solid #E2E8F0',
                   }}
                 >
-                  Change
-                </button>
+                  <div className="min-w-0">
+                    <p className="truncate" style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#0F172A' }}>
+                      {verifiedHotelName || hotelName}
+                    </p>
+                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#16A34A', fontWeight: 600 }}>
+                      ● Active Property Verified
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleChangeHotelCode}
+                    style={{
+                      border: 0,
+                      background: 'none',
+                      padding: '4px 8px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: '#2563EB',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Change Property
+                  </button>
+                </div>
+
+                {/* Visible Subscribed Portals Selection Strip */}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: '#64748B', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+                    Subscribed Portals
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        border: '2px solid #16A34A',
+                        background: '#F0FDF4',
+                        cursor: 'default',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      <span style={{ fontSize: 18 }}>🍽️</span>
+                      <div className="min-w-0">
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#15803D' }}>Waiter App</div>
+                        <div style={{ fontSize: 10, color: '#16A34A' }}>Active Terminal</div>
+                      </div>
+                    </div>
+
+                    {(enabledPortals.length === 0 || enabledPortals.includes('cashier')) && (
+                      <div
+                        data-testid="switch-to-cashier-btn"
+                        onClick={() => { window.location.href = getPortalUrl('cashier'); }}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          border: '1px solid #E2E8F0',
+                          background: '#FFFFFF',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span style={{ fontSize: 18 }}>💼</span>
+                        <div className="min-w-0">
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>Cashier POS</div>
+                          <div style={{ fontSize: 10, color: '#64748B' }}>Settlement →</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {(enabledPortals.length === 0 || enabledPortals.includes('kds')) && (
+                      <div
+                        data-testid="switch-to-kds-btn"
+                        onClick={() => { window.location.href = getPortalUrl('kds'); }}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          border: '1px solid #E2E8F0',
+                          background: '#FFFFFF',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <span style={{ fontSize: 18 }}>🍳</span>
+                        <div className="min-w-0">
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>Kitchen KDS</div>
+                          <div style={{ fontSize: 10, color: '#64748B' }}>Live KOT →</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {(enabledPortals.length === 0 || enabledPortals.includes('reception')) && (
+                      <div
+                        data-testid="switch-to-reception-btn"
+                        onClick={() => { window.location.href = getPortalUrl('reception'); }}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          border: '1px solid #E2E8F0',
+                          background: '#FFFFFF',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <span style={{ fontSize: 18 }}>🏨</span>
+                        <div className="min-w-0">
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>Reception</div>
+                          <div style={{ fontSize: 10, color: '#64748B' }}>Front Desk →</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             ) : (
-              <div>
-                <label
-                  htmlFor="waiter-hotel-code"
-                  style={{
-                    display: 'block',
-                    marginBottom: 7,
-                    fontSize: 10,
-                    fontWeight: 800,
-                    letterSpacing: '0.16em',
-                    textTransform: 'uppercase',
-                    color: '#64748B',
-                  }}
-                >
-                  Hotel Code
-                </label>
-                <input
-                  id="waiter-hotel-code"
-                  type="text"
-                  inputMode="text"
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                  spellCheck={false}
-                  maxLength={10}
-                  data-testid="waiter-hotel-code-input"
-                  value={hotelCode}
-                  onChange={(event) => {
-                    setHotelCode(event.target.value.toUpperCase());
-                    setHotelCodeError('');
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      void handleVerifyHotelCode();
-                    }
-                  }}
-                  placeholder="Write hotel code"
-                  aria-invalid={Boolean(hotelCodeError)}
-                  style={{
-                    width: '100%',
-                    minHeight: 46,
-                    padding: '0 12px',
-                    border: `1px solid ${hotelCodeError ? '#DC2626' : '#E2E8F0'}`,
-                    borderRadius: 4,
-                    background: '#FFFFFF',
-                    color: '#0F172A',
-                    fontSize: 15,
-                    fontWeight: 600,
-                    letterSpacing: '0.12em',
-                  }}
-                />
-                {hotelCodeError && (
-                  <div role="alert" style={{ marginTop: 8, color: '#B91C1C', fontSize: 12 }}>
-                    {hotelCodeError}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: '#16A34A', letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 6 }}>
+                    Staff Hotel Access
                   </div>
-                )}
-                <button
-                  type="button"
-                  data-testid="waiter-verify-hotel-code"
-                  onClick={() => void handleVerifyHotelCode()}
-                  disabled={
-                    hotelCodeStatus === 'verifying' ||
-                    !isValidHotelAccessCode(hotelCode)
-                  }
-                  style={{
-                    marginTop: 10,
-                    width: '100%',
-                    minHeight: 46,
-                    border: 0,
-                    borderRadius: 4,
-                    background:
-                      hotelCodeStatus === 'verifying' ||
-                      !isValidHotelAccessCode(hotelCode)
-                        ? '#E2E8F0'
-                        : '#0F172A',
-                    color:
-                      hotelCodeStatus === 'verifying' ||
-                      !isValidHotelAccessCode(hotelCode)
-                        ? '#64748B'
-                        : '#FFFFFF',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    letterSpacing: '0.04em',
-                    cursor:
-                      hotelCodeStatus === 'verifying' ||
-                      !isValidHotelAccessCode(hotelCode)
-                        ? 'not-allowed'
-                        : 'pointer',
-                  }}
-                >
-                  {hotelCodeStatus === 'verifying' ? 'Verifying code…' : 'Verify hotel code'}
-                </button>
-              </div>
+                  <h3 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: '#0F172A' }}>
+                    Enter Hotel Code
+                  </h3>
+                  <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748B', lineHeight: 1.5 }}>
+                    Enter your property code to view subscribed portals and access your staff terminal.
+                  </p>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <label
+                        htmlFor="waiter-hotel-code"
+                        style={{
+                          display: 'block',
+                          marginBottom: 6,
+                          fontSize: 10,
+                          fontWeight: 800,
+                          letterSpacing: '0.12em',
+                          textTransform: 'uppercase',
+                          color: '#475569',
+                        }}
+                      >
+                        Property Hotel Code
+                      </label>
+                      <input
+                        id="waiter-hotel-code"
+                        type="text"
+                        inputMode="text"
+                        autoCapitalize="characters"
+                        autoComplete="off"
+                        spellCheck={false}
+                        maxLength={30}
+                        data-testid="waiter-hotel-code-input"
+                        value={hotelCode}
+                        onChange={(event) => {
+                          setHotelCode(event.target.value.toUpperCase());
+                          setHotelCodeError('');
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            void handleVerifyHotelCode();
+                          }
+                        }}
+                        placeholder="e.g. BH101, SG6084"
+                        aria-invalid={Boolean(hotelCodeError)}
+                        style={{
+                          width: '100%',
+                          minHeight: 48,
+                          boxSizing: 'border-box',
+                          padding: '0 14px',
+                          border: `1.5px solid ${hotelCodeError ? '#DC2626' : '#CBD5E1'}`,
+                          borderRadius: 10,
+                          background: '#FFFFFF',
+                          color: '#0F172A',
+                          fontSize: 15,
+                          fontWeight: 700,
+                          letterSpacing: '0.06em',
+                          outlineColor: '#16A34A',
+                        }}
+                      />
+                      {hotelCodeError && (
+                        <p
+                          id="waiter-hotel-code-error"
+                          role="alert"
+                          style={{ margin: '6px 0 0', color: '#DC2626', fontSize: 12, fontWeight: 600 }}
+                        >
+                          {hotelCodeError}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      data-testid="waiter-verify-hotel-code"
+                      onClick={() => void handleVerifyHotelCode()}
+                      disabled={
+                        hotelCodeStatus === 'verifying' ||
+                        !isValidHotelAccessCode(hotelCode)
+                      }
+                      style={{
+                        width: '100%',
+                        minHeight: 46,
+                        border: 0,
+                        borderRadius: 10,
+                        background:
+                          hotelCodeStatus === 'verifying' ||
+                          !isValidHotelAccessCode(hotelCode)
+                            ? '#94A3B8'
+                            : '#16A34A',
+                        color: '#FFFFFF',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor:
+                          hotelCodeStatus === 'verifying' ||
+                          !isValidHotelAccessCode(hotelCode)
+                            ? 'not-allowed'
+                            : 'pointer',
+                        transition: 'background 0.15s ease',
+                      }}
+                    >
+                      {hotelCodeStatus === 'verifying' ? 'Verifying Hotel Code…' : 'Verify Hotel Code →'}
+                    </button>
+                  </div>
+                </div>
             )}
           </div>
 

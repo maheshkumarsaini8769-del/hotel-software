@@ -8,6 +8,7 @@ import { RestaurantBill, BillStatus } from '../models/RestaurantBill';
 import { MasterFolio } from '../models/MasterFolio';
 import { MultiTenderSettlement, TenderMethod, SettlementStatus } from '../models/MultiTenderSettlement';
 import { CashierShiftFloat, CashierShiftStatus } from '../models/CashierShiftFloat';
+import { DynamicUpiQr, UpiQrStatus } from '../models/DynamicUpiQr';
 
 describe('--- SHIFT 41 / GATE 41: MULTI-TENDER SPLIT PAYMENT & CASHIER SHIFT FLOAT ---', () => {
   let tenantAId: string;
@@ -115,6 +116,7 @@ describe('--- SHIFT 41 / GATE 41: MULTI-TENDER SPLIT PAYMENT & CASHIER SHIFT FLO
     await MasterFolio.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await MultiTenderSettlement.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await CashierShiftFloat.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
+    await DynamicUpiQr.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
   });
 
   it('1. POST /api/v1/multi-tender/shift/open - Cashier opens shift with ₹2,000 cash float', async () => {
@@ -149,7 +151,7 @@ describe('--- SHIFT 41 / GATE 41: MULTI-TENDER SPLIT PAYMENT & CASHIER SHIFT FLO
         cashierName: 'Ravi Cashier',
         tenders: [
           { method: TenderMethod.CASH, amount: 2500 },
-          { method: TenderMethod.UPI, amount: 1500 }, // Total 4000 vs 5000 required
+          { method: TenderMethod.CARD, amount: 1500 }, // Total 4000 vs 5000 required
         ],
       });
 
@@ -159,6 +161,25 @@ describe('--- SHIFT 41 / GATE 41: MULTI-TENDER SPLIT PAYMENT & CASHIER SHIFT FLO
 
   it('3. POST /api/v1/multi-tender/settle - Settle ₹5,000 bill with 3-Way Split (Cash + UPI + Card) with change returned', async () => {
     const idempotencyKey = `IDEMP-SUCCESS-5K-${Date.now()}`;
+    // Anti-fraud lock only accepts an online UPI portion already confirmed by
+    // the Dynamic UPI QR gateway/soundbox. Simulate that verified payment.
+    const upiQr = await DynamicUpiQr.create({
+      hotelId: new Types.ObjectId(tenantAId),
+      billId: billAId,
+      tableNumber: 'T-10',
+      tableId,
+      waiterUserId: new Types.ObjectId(cashierId),
+      waiterName: 'Ravi Cashier',
+      amount: 1500,
+      merchantVpa: 'spicehub@upi',
+      merchantName: 'SpiceHub Grand Dining Lounge',
+      transactionRef: `UPI-UTR-99887766-${Date.now()}`,
+      upiUri: 'upi://pay?pa=spicehub@upi&am=1500',
+      status: UpiQrStatus.PAID,
+      paidAt: new Date(),
+      expiresAt: new Date(Date.now() + 600000),
+    });
+
     const res = await request(app)
       .post('/api/v1/multi-tender/settle')
       .set('x-hotel-id', tenantAId)
@@ -176,7 +197,7 @@ describe('--- SHIFT 41 / GATE 41: MULTI-TENDER SPLIT PAYMENT & CASHIER SHIFT FLO
           {
             method: TenderMethod.UPI,
             amount: 1500,
-            referenceNumber: 'UPI-UTR-99887766',
+            referenceNumber: upiQr.transactionRef,
           },
           {
             method: TenderMethod.CARD,
@@ -186,7 +207,7 @@ describe('--- SHIFT 41 / GATE 41: MULTI-TENDER SPLIT PAYMENT & CASHIER SHIFT FLO
         ],
       });
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.settlement).toBeDefined();
     expect(res.body.settlement.totalSettledAmount).toBe(5000);
@@ -251,7 +272,7 @@ describe('--- SHIFT 41 / GATE 41: MULTI-TENDER SPLIT PAYMENT & CASHIER SHIFT FLO
         ],
       });
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
 
     // Verify Room Folio debited

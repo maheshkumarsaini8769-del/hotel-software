@@ -53,7 +53,8 @@ export const publicStaffRosterLimiter = rateLimit({
 
 export const staffHotelCodeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: process.env.NODE_ENV === 'production' ? 20 : 200,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   validate: { keyGeneratorIpFallback: false },

@@ -463,7 +463,19 @@ function App() {
 
         <footer className="help-footer">
           <span>SpiceHub staff workstation access</span>
-          <span>For access, contact your hotel administrator.</span>
+          {selectedHotel?.supportPhone || selectedHotel?.contactPhone ? (
+            <span>
+              Support Helpline:{' '}
+              <a
+                href={`tel:${selectedHotel.supportPhone || selectedHotel.contactPhone}`}
+                style={{ color: '#ea580c', fontWeight: 'bold', textDecoration: 'underline' }}
+              >
+                {selectedHotel.supportPhone || selectedHotel.contactPhone}
+              </a>
+            </span>
+          ) : (
+            <span>For access, contact your hotel administrator.</span>
+          )}
         </footer>
       </main>
     </div>

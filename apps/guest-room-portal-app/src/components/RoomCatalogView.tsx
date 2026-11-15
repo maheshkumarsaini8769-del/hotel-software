@@ -231,7 +231,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
   const [bookingLocationMode, setBookingLocationMode] = useState<'HOTEL' | 'HOME'>('HOTEL');
   const [estimatedArrivalTime, setEstimatedArrivalTime] = useState('14:00');
   const [guestName, setGuestName] = useState('');
-  const [guestPhone, setGuestPhone] = useState('9820011223');
+  const [guestPhone, setGuestPhone] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   const [isCouple, setIsCouple] = useState(true);
 
@@ -669,7 +669,7 @@ export const RoomCatalogView: React.FC<RoomCatalogViewProps> = ({
 
     // Aadhaar KYC validation
     if (!aadhaarFront || !aadhaarBack) {
-      setBookingError('Both Front and Back photos of Aadhaar card are required. Please upload or tap "Use Sample ID".');
+      setBookingError('Both Front and Back photos of Aadhaar card are required. Please upload clear document photos.');
       return;
     }
 

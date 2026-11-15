@@ -291,14 +291,14 @@ router.get('/gstr1', authenticateJWT, requireTenant, async (req: TenantRequest, 
  * Computes live, real-time sales summary, RevPAR, ADR, occupancy, and 7-day trend
  * from actual database collections for the active hotel.
  */
-router.get('/analytics-summary', async (req: any, res: Response): Promise<void> => {
+router.get('/analytics-summary', authenticateJWT, requireTenant, async (req: TenantRequest, res: Response): Promise<void> => {
   try {
-    const rawHotelId = req.query.hotelId || req.headers['x-hotel-id'] || req.hotelId;
-    if (!rawHotelId || !Types.ObjectId.isValid(String(rawHotelId))) {
-      res.status(400).json({ success: false, message: 'Valid hotelId is required' });
+    // Tenant isolation: always scope to the hotel from the verified JWT.
+    if (!req.hotelId || !Types.ObjectId.isValid(String(req.hotelId))) {
+      res.status(403).json({ success: false, errorCode: 'TENANT_REQUIRED', message: 'Tenant context is required.' });
       return;
     }
-    const hotelId = new Types.ObjectId(String(rawHotelId));
+    const hotelId = new Types.ObjectId(String(req.hotelId));
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);

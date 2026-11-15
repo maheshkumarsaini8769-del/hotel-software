@@ -1,24 +1,47 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { Types } from 'mongoose';
 import { GuestProfile } from '../models/GuestProfile';
 import { Stay } from '../models/Stay';
 import { Booking } from '../models/Booking';
 import { Tenant } from '../models/Tenant';
+import { TenantRequest, UserRole } from '../types';
 
 const router = Router();
+
+const resolveHotelId = (req: TenantRequest): string | null => {
+  const hotelId = req.hotelId ? String(req.hotelId) : '';
+  return hotelId && Types.ObjectId.isValid(hotelId) ? hotelId : null;
+};
+
+const ERASURE_STAFF_ROLES = new Set<UserRole>([
+  UserRole.HOTEL_ADMIN,
+  UserRole.MANAGER,
+  UserRole.GROUP_ADMIN,
+  UserRole.SUPERADMIN,
+]);
 
 /**
  * POST /api/v1/guest/consent
  * Captures explicit digital consent under India's Digital Personal Data Protection (DPDP) Act 2023.
  */
-router.post('/consent', async (req: Request, res: Response): Promise<void> => {
+router.post('/consent', async (req: TenantRequest, res: Response): Promise<void> => {
   try {
+    const hotelId = resolveHotelId(req);
+    const hasVerifiedIdentity = Boolean(req.user?.role) || Boolean((req as any).guestSession);
+    if (!hotelId || !hasVerifiedIdentity) {
+      res.status(401).json({
+        success: false,
+        errorCode: 'UNAUTHORIZED',
+        message: 'A guest or staff session is required to record consent.',
+      });
+      return;
+    }
+
     const {
       guestId,
       stayId,
       bookingId,
       phone,
-      hotelId: requestedHotelId,
       accepted = true,
       purpose = 'KYC, Identity Verification & Hotel Guest Registration under DPDP Act 2023',
     } = req.body;
@@ -37,16 +60,16 @@ router.post('/consent', async (req: Request, res: Response): Promise<void> => {
     let updatedProfile = null;
 
     if (stayId && Types.ObjectId.isValid(stayId)) {
-      updatedStay = await Stay.findByIdAndUpdate(
-        stayId,
+      updatedStay = await Stay.findOneAndUpdate(
+        { _id: new Types.ObjectId(String(stayId)), hotelId: new Types.ObjectId(hotelId) },
         { $set: { dpdpConsent: consentRecord } },
         { new: true }
       );
     }
 
     if (bookingId && Types.ObjectId.isValid(bookingId)) {
-      updatedBooking = await Booking.findByIdAndUpdate(
-        bookingId,
+      updatedBooking = await Booking.findOneAndUpdate(
+        { _id: new Types.ObjectId(String(bookingId)), hotelId: new Types.ObjectId(hotelId) },
         { $set: { dpdpConsent: consentRecord } },
         { new: true }
       );
@@ -54,13 +77,13 @@ router.post('/consent', async (req: Request, res: Response): Promise<void> => {
 
     if (phone) {
       updatedProfile = await GuestProfile.findOneAndUpdate(
-        { phone: phone.trim() },
+        { hotelId: new Types.ObjectId(hotelId), phone: phone.trim() },
         { $set: { dpdpConsent: consentRecord } },
         { new: true }
       );
     } else if (guestId && Types.ObjectId.isValid(guestId)) {
-      updatedProfile = await GuestProfile.findByIdAndUpdate(
-        guestId,
+      updatedProfile = await GuestProfile.findOneAndUpdate(
+        { _id: new Types.ObjectId(String(guestId)), hotelId: new Types.ObjectId(hotelId) },
         { $set: { dpdpConsent: consentRecord } },
         { new: true }
       );
@@ -90,8 +113,38 @@ router.post('/consent', async (req: Request, res: Response): Promise<void> => {
  * Executes Right to Erasure / Right to be Forgotten under DPDP Act 2023.
  * Irreversibly anonymizes Personally Identifiable Information (PII) including Name, Phone, and Aadhaar documents.
  */
-router.delete('/erasure', async (req: Request, res: Response): Promise<void> => {
+router.delete('/erasure', async (req: TenantRequest, res: Response): Promise<void> => {
   try {
+    const hotelId = resolveHotelId(req);
+    if (!hotelId) {
+      res.status(401).json({
+        success: false,
+        errorCode: 'UNAUTHORIZED',
+        message: 'A valid staff session is required to execute a DPDP erasure request.',
+      });
+      return;
+    }
+
+    // Destructive PII erasure is an administrative action. It cannot be
+    // triggered anonymously or by a guest session, even with a phone number.
+    if (!req.user?.role) {
+      res.status(401).json({
+        success: false,
+        errorCode: 'UNAUTHORIZED',
+        message: 'A valid staff session is required to execute a DPDP erasure request.',
+      });
+      return;
+    }
+
+    if (!ERASURE_STAFF_ROLES.has(req.user.role)) {
+      res.status(403).json({
+        success: false,
+        errorCode: 'FORBIDDEN',
+        message: 'Only a hotel administrator or manager can execute a DPDP erasure request.',
+      });
+      return;
+    }
+
     const { guestId, phone, stayId, bookingId } = req.body;
 
     if (!guestId && !phone && !stayId && !bookingId) {
@@ -112,12 +165,14 @@ router.delete('/erasure', async (req: Request, res: Response): Promise<void> => 
     let anonymizedStaysCount = 0;
     let anonymizedBookingsCount = 0;
 
+    const scopedHotelId = new Types.ObjectId(hotelId);
+
     // 1. Anonymize Guest Profiles
-    const profileFilter: any = {};
-    if (guestId && Types.ObjectId.isValid(guestId)) profileFilter._id = guestId;
+    const profileFilter: any = { hotelId: scopedHotelId };
+    if (guestId && Types.ObjectId.isValid(guestId)) profileFilter._id = new Types.ObjectId(String(guestId));
     if (phone) profileFilter.phone = phone.trim();
 
-    if (Object.keys(profileFilter).length > 0) {
+    if (Object.keys(profileFilter).length > 1) {
       const resProfile = await GuestProfile.updateMany(profileFilter, {
         $set: {
           name: anonymizedName,
@@ -135,11 +190,11 @@ router.delete('/erasure', async (req: Request, res: Response): Promise<void> => 
     }
 
     // 2. Anonymize Stays (Name, Phone, KYC front & back photos, document URLs)
-    const stayFilter: any = {};
-    if (stayId && Types.ObjectId.isValid(stayId)) stayFilter._id = stayId;
+    const stayFilter: any = { hotelId: scopedHotelId };
+    if (stayId && Types.ObjectId.isValid(stayId)) stayFilter._id = new Types.ObjectId(String(stayId));
     if (phone) stayFilter.guestPhone = phone.trim();
 
-    if (Object.keys(stayFilter).length > 0) {
+    if (Object.keys(stayFilter).length > 1) {
       const resStay = await Stay.updateMany(stayFilter, {
         $set: {
           guestName: anonymizedName,
@@ -158,11 +213,11 @@ router.delete('/erasure', async (req: Request, res: Response): Promise<void> => 
     }
 
     // 3. Anonymize Bookings
-    const bookingFilter: any = {};
-    if (bookingId && Types.ObjectId.isValid(bookingId)) bookingFilter._id = bookingId;
+    const bookingFilter: any = { hotelId: scopedHotelId };
+    if (bookingId && Types.ObjectId.isValid(bookingId)) bookingFilter._id = new Types.ObjectId(String(bookingId));
     if (phone) bookingFilter.guestPhone = phone.trim();
 
-    if (Object.keys(bookingFilter).length > 0) {
+    if (Object.keys(bookingFilter).length > 1) {
       const resBooking = await Booking.updateMany(bookingFilter, {
         $set: {
           guestName: anonymizedName,

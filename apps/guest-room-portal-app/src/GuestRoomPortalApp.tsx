@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   UtensilsCrossed,
   Utensils,
@@ -480,6 +480,97 @@ export const GuestRoomPortalApp: React.FC<GuestRoomPortalAppProps> = ({
     roomNumber: string;
     instructions?: string;
   } | null>(null);
+
+  // Step-by-Step Back Navigation & Shell Bridge
+  const handleRoomBackNavigation = useCallback((): boolean => {
+    // 1. Modals & Drawers
+    if (isCustomizeOpen) {
+      setIsCustomizeOpen(false);
+      return true;
+    }
+    if (isMobileCartOpen) {
+      setIsMobileCartOpen(false);
+      return true;
+    }
+    if (isCallModalOpen) {
+      setIsCallModalOpen(false);
+      return true;
+    }
+    if (isPaymentModalOpen) {
+      setIsPaymentModalOpen(false);
+      return true;
+    }
+    if (isExtendModalOpen) {
+      setIsExtendModalOpen(false);
+      return true;
+    }
+    if (isCheckoutModalOpen) {
+      setIsCheckoutModalOpen(false);
+      return true;
+    }
+    if (isFeedbackModalOpen) {
+      setIsFeedbackModalOpen(false);
+      return true;
+    }
+    if (isOffersModalOpen) {
+      setIsOffersModalOpen(false);
+      return true;
+    }
+    if (placedOrderConfirmation) {
+      setPlacedOrderConfirmation(null);
+      return true;
+    }
+
+    // 2. Tabs
+    if (activeTab !== 'HOME' && activeTab !== 'ROOMS') {
+      setActiveTab('HOME');
+      return true;
+    }
+
+    return false;
+  }, [
+    isCustomizeOpen,
+    isMobileCartOpen,
+    isCallModalOpen,
+    isPaymentModalOpen,
+    isExtendModalOpen,
+    isCheckoutModalOpen,
+    isFeedbackModalOpen,
+    isOffersModalOpen,
+    placedOrderConfirmation,
+    activeTab,
+  ]);
+
+  useEffect(() => {
+    const handleRoomMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'spicehub:hardware-back-pressed') {
+        const handled = handleRoomBackNavigation();
+        if (handled) {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'spicehub:back-handled' }, '*');
+          }
+        } else {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'spicehub:exit-portal-requested' }, '*');
+          }
+        }
+      }
+    };
+    window.addEventListener('message', handleRoomMessage);
+    return () => window.removeEventListener('message', handleRoomMessage);
+  }, [handleRoomBackNavigation]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handlePopState = () => {
+      const handled = handleRoomBackNavigation();
+      if (!handled && window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'spicehub:exit-portal-requested' }, '*');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [handleRoomBackNavigation]);
 
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);

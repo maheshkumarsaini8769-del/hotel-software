@@ -44,8 +44,8 @@ export const CashierTableManagementView: React.FC<CashierTableManagementViewProp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadTables = useCallback(async () => {
-    setLoading(true);
+  const loadTables = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const response = await getApiClient().request<{
@@ -66,15 +66,21 @@ export const CashierTableManagementView: React.FC<CashierTableManagementViewProp
         return 'ALL';
       });
     } catch (err: any) {
-      setTables([]);
-      setError(err?.message || 'Dining tables could not be loaded.');
+      if (!silent) {
+        setTables([]);
+        setError(err?.message || 'Dining tables could not be loaded.');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void loadTables();
+    const timer = window.setInterval(() => {
+      void loadTables(true);
+    }, 3000);
+    return () => window.clearInterval(timer);
   }, [loadTables]);
 
   const floors = Array.from(new Set(tables.map((table) => table.section).filter(Boolean)));

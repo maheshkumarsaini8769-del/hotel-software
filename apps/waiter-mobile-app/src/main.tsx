@@ -395,13 +395,7 @@ export const WaiterAppRoot: React.FC = () => {
       hotelId: session?.user?.hotelId || hotelId,
       shiftStatus: 'ON_DUTY' as any,
     });
-    setNotification({
-      message: staff.assignedTableStart > 0 && staff.assignedTableEnd >= staff.assignedTableStart
-        ? `Logged in as ${staff.name} (${staff.role}). Assigned Zone: Tables T-${String(staff.assignedTableStart).padStart(2, '0')} to T-${String(staff.assignedTableEnd).padStart(2, '0')}.`
-        : `Logged in as ${staff.name} (${staff.role}). No table assignment is configured.`,
-      type: 'success',
-    });
-    setTimeout(() => setNotification(null), 5000);
+    // Login successful - proceed directly to workspace without obstructive banner
   };
 
   const handleLogout = () => {
@@ -1075,6 +1069,37 @@ export const WaiterAppRoot: React.FC = () => {
     const unbindOrderCreated = socket.on('order:created', handleIncomingOrder);
     const unbindWaiterKot = socket.on('waiter:new_kot', handleIncomingOrder);
 
+    const handleOrderCancelled = (data: any) => {
+      console.log('Order cancelled event in waiter app:', data);
+      fetchTables(hotelId);
+      const targetT = data.tableNumber || data.table || 'Table';
+      const isMine = isTableInWaiterZone(
+        targetT,
+        waiterSession?.assignedTableStart,
+        waiterSession?.assignedTableEnd
+      );
+      if (isMine) {
+        const newNotif: AppNotificationItem = {
+          id: `notif-ord-cancel-${Date.now()}`,
+          title: `Order Cancelled: ${targetT}`,
+          message: `Order #${data.orderNumber || ''} on ${targetT} was cancelled.`,
+          type: 'stock_alert',
+          severity: 'warning',
+          timestamp: new Date().toISOString(),
+          timeAgo: 'Just now',
+          tableNumber: targetT,
+          isRead: false,
+        };
+        setNotifications((prev) => [newNotif, ...prev]);
+        setNotification({
+          message: `🚫 Order ${data.orderNumber || ''} for ${targetT} was cancelled by guest.`,
+          type: 'urgent',
+        });
+        setTimeout(() => setNotification(null), 6000);
+      }
+    };
+    const unbindOrderCancelled = socket.on('order:cancelled', handleOrderCancelled);
+
     const unbindStockLow = socket.on('stock:low_alert', (data: any) => {
       playAlertChime('ready');
       const newNotif: AppNotificationItem = {
@@ -1184,6 +1209,7 @@ export const WaiterAppRoot: React.FC = () => {
       unbindOrderServed();
       unbindOrderCreated();
       unbindWaiterKot();
+      unbindOrderCancelled();
       unbindStockLow();
       unbindKitchenBuzzer();
       unbindKitchenBuzzerAck();

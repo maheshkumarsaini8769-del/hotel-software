@@ -45,12 +45,12 @@ export class KdsHelper {
     switch (urgency) {
       case 'CRITICAL':
         return {
-          border: 'border-red-500 shadow-sm',
-          bg: 'bg-red-950/20',
-          badge: 'text-red-400 border-red-500/40 bg-red-500/10 animate-pulse',
-          badgeBg: 'bg-red-500',
-          text: 'text-red-400',
-          timerText: 'text-red-500 font-bold',
+          border: 'border-rose-500 shadow-sm',
+          bg: 'bg-rose-950/20',
+          badge: 'text-rose-400 border-rose-500/40 bg-rose-500/10 animate-pulse',
+          badgeBg: 'bg-rose-500',
+          text: 'text-rose-400',
+          timerText: 'text-rose-500 font-bold',
         };
       case 'WARNING':
         return {
@@ -136,7 +136,7 @@ export class KdsHelper {
     if (dietary === 'NO_ONION_GARLIC') {
       badges.push({
         label: 'NO ONION / NO GARLIC',
-        badgeStyle: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-2 border-slate-200 dark:border-slate-800 shadow-sm font-semibold tracking-wide',
+        badgeStyle: 'bg-indigo-950/80 text-indigo-200 border-2 border-indigo-500 shadow-indigo-900/40 font-semibold tracking-wide',
         icon: '🚫🧅',
         severity: 'DIETARY',
         category: 'NO_ONION_GARLIC',
@@ -160,7 +160,7 @@ export class KdsHelper {
       if (a === 'NUTS' || a === 'PEANUT' || a === 'TREE_NUTS' || a === 'NUT_ALLERGY') {
         badges.push({
           label: 'CRITICAL: NUT ALLERGY',
-          badgeStyle: 'bg-red-950 text-red-100 border-2 border-red-500 shadow-lg shadow-sm animate-pulse font-extrabold tracking-wider',
+          badgeStyle: 'bg-rose-950 text-rose-100 border-2 border-rose-500 shadow-lg shadow-sm animate-pulse font-extrabold tracking-wider',
           icon: '⚠️🥜',
           severity: 'HIGH',
           category: 'NUTS',
@@ -168,7 +168,7 @@ export class KdsHelper {
       } else if (a === 'GLUTEN' || a === 'GLUTEN_FREE') {
         badges.push({
           label: 'GLUTEN FREE',
-          badgeStyle: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 font-medium',
+          badgeStyle: 'bg-cyan-950/80 text-cyan-200 border border-cyan-500 font-medium',
           icon: '🌾',
           severity: 'MEDIUM',
           category: 'GLUTEN',
@@ -200,7 +200,7 @@ export class KdsHelper {
       } else if (a === 'SOY') {
         badges.push({
           label: 'SOY ALLERGY',
-          badgeStyle: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 font-medium',
+          badgeStyle: 'bg-cyan-950/80 text-cyan-200 border border-cyan-500 font-medium',
           icon: '🫘',
           severity: 'MEDIUM',
           category: 'SOY',

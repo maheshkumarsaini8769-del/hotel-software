@@ -18,6 +18,7 @@ import { Payment, PaymentStatus } from '../models/Payment';
 import { KitchenStation } from '../models/KitchenStation';
 import { MenuCategory } from '../models/MenuCategory';
 import { MenuItem, FoodType } from '../models/MenuItem';
+import { PlatformBranding, DEFAULT_STAFF_APP_BRANDING } from '../models/PlatformBranding';
 import { TenantRequest, UserRole, ShiftStatus } from '../types';
 import { resolveTenantCapabilities } from '../utils/tenantCapabilities';
 import {
@@ -136,6 +137,7 @@ export const listAllTenants = async (req: TenantRequest, res: Response): Promise
           code: t.slug.toUpperCase(),
           contactEmail: t.contactEmail,
           contactPhone: t.contactPhone,
+          supportPhone: t.supportPhone || t.contactPhone,
           adminEmail: (adminUser as any)?.email || t.contactEmail,
           adminName: (adminUser as any)?.name || `${t.name} Admin`,
           adminPhone: (adminUser as any)?.phone || t.contactPhone,
@@ -1159,6 +1161,7 @@ export const updateTenantBranding = async (req: TenantRequest, res: Response): P
     const updateFields: any = {};
     if (name !== undefined && String(name).trim()) updateFields.name = String(name).trim();
     if (contactPhone !== undefined) updateFields.contactPhone = String(contactPhone).trim();
+    if (req.body.supportPhone !== undefined) updateFields.supportPhone = String(req.body.supportPhone).trim();
     if (contactEmail !== undefined && String(contactEmail).trim()) updateFields.contactEmail = String(contactEmail).trim().toLowerCase();
     if (city !== undefined) updateFields['address.city'] = String(city).trim();
     if (state !== undefined) updateFields['address.state'] = String(state).trim();
@@ -1990,6 +1993,7 @@ export const updateTenantDetails = async (req: TenantRequest, res: Response): Pr
     if (name !== undefined && String(name).trim()) updateFields.name = String(name).trim();
     if (contactEmail !== undefined && String(contactEmail).trim()) updateFields.contactEmail = String(contactEmail).trim().toLowerCase();
     if (contactPhone !== undefined) updateFields.contactPhone = String(contactPhone).trim();
+    if (req.body.supportPhone !== undefined) updateFields.supportPhone = String(req.body.supportPhone).trim();
     if (tagline !== undefined) updateFields.tagline = String(tagline).trim();
     if (logoUrl !== undefined) updateFields.logoUrl = String(logoUrl).trim();
     if (coverImageUrl !== undefined) updateFields.coverImageUrl = String(coverImageUrl).trim();
@@ -2065,6 +2069,111 @@ export const listFleetRooms = async (req: TenantRequest, res: Response): Promise
     }));
     res.status(200).json({ success: true, count: formatted.length, rooms: formatted });
   } catch (err: any) {
+    res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: err.message });
+  }
+};
+
+// 22. Get Staff App (Hotel Code Screen) Branding
+export const getStaffAppBranding = async (req: any, res: Response): Promise<void> => {
+  try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    let brandingDoc = await PlatformBranding.findOne({ key: 'platform_branding_config' }).lean();
+    if (!brandingDoc || !brandingDoc.staffAppBranding) {
+      res.status(200).json({
+        success: true,
+        data: DEFAULT_STAFF_APP_BRANDING,
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...DEFAULT_STAFF_APP_BRANDING,
+        ...brandingDoc.staffAppBranding,
+      },
+    });
+  } catch (err: any) {
+    console.error('❌ [getStaffAppBranding] Error:', err);
+    res.status(200).json({
+      success: true,
+      data: DEFAULT_STAFF_APP_BRANDING,
+    });
+  }
+};
+
+// 23. Update Staff App (Hotel Code Screen) Branding (Super Admin)
+export const updateStaffAppBranding = async (req: any, res: Response): Promise<void> => {
+  try {
+    const {
+      backgroundImageUrl,
+      heroImageUrl,
+      welcomeTitle,
+      welcomeSubtitle,
+      badgeText,
+      cardTheme,
+      overlayOpacity,
+      accentColor,
+    } = req.body;
+
+    const updateData: any = {
+      updatedAt: new Date(),
+      updatedBy: req.user?.email || 'SuperAdmin',
+    };
+
+    if (typeof backgroundImageUrl === 'string' && backgroundImageUrl.trim()) {
+      updateData.backgroundImageUrl = backgroundImageUrl.trim();
+    }
+    if (typeof heroImageUrl === 'string' && heroImageUrl.trim()) {
+      updateData.heroImageUrl = heroImageUrl.trim();
+    }
+    if (typeof welcomeTitle === 'string' && welcomeTitle.trim()) {
+      updateData.welcomeTitle = welcomeTitle.trim();
+    }
+    if (typeof welcomeSubtitle === 'string') {
+      updateData.welcomeSubtitle = welcomeSubtitle.trim();
+    }
+    if (typeof badgeText === 'string') {
+      updateData.badgeText = badgeText.trim();
+    }
+    if (cardTheme && ['luxury-dark', 'glass-emerald', 'royal-palace', 'clean-light'].includes(cardTheme)) {
+      updateData.cardTheme = cardTheme;
+    }
+    if (typeof overlayOpacity === 'number') {
+      updateData.overlayOpacity = Math.max(0.1, Math.min(0.98, overlayOpacity));
+    }
+    if (typeof accentColor === 'string' && accentColor.trim()) {
+      updateData.accentColor = accentColor.trim();
+    }
+
+    const doc = await PlatformBranding.findOneAndUpdate(
+      { key: 'platform_branding_config' },
+      {
+        $set: {
+          staffAppBranding: {
+            ...DEFAULT_STAFF_APP_BRANDING,
+            ...updateData,
+          },
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    const socketIO = getSocketIO();
+    if (socketIO) {
+      socketIO.emit('staff_app:branding_updated', doc.staffAppBranding);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Staff APK branding updated and published successfully!',
+      data: doc.staffAppBranding,
+    });
+  } catch (err: any) {
+    console.error('❌ [updateStaffAppBranding] Error:', err);
     res.status(500).json({ success: false, errorCode: 'INTERNAL_ERROR', message: err.message });
   }
 };

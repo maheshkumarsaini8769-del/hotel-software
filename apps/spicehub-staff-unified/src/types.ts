@@ -6,6 +6,8 @@ export interface ActiveHotel {
   name: string;
   city: string;
   enabledPortals: string[];
+  contactPhone?: string;
+  supportPhone?: string;
 }
 
 export interface StaffProfile {

@@ -30,14 +30,15 @@ export async function seedDatabase() {
   }
 
   // 1. Clean existing seed data for idempotent fresh run
-  await Tenant.deleteMany({ slug: 'taj-gateway' });
+  await Tenant.deleteMany({ slug: { $in: ['taj-gateway', 'royal-palace'] } });
   await User.deleteMany({ email: { $in: [
     'superadmin@spicehub.com',
     'admin@tajgateway.com',
     'ramesh@tajgateway.com',
     'suresh@tajgateway.com',
     'vikram@tajgateway.com',
-    'priya@tajgateway.com'
+    'priya@tajgateway.com',
+    'admin@royalpalace.com',
   ] } });
 
   const defaultPasswordHash = await argon2.hash('SpiceHub@123');
@@ -56,9 +57,9 @@ export async function seedDatabase() {
   });
   console.log(`✅ [1/9] Super Admin created: ${superAdmin.email}`);
 
-  // 3. Create Tenant Hotel
+  // 3. Create Tenant Hotel (Hotel Mahesh)
   const hotel = await Tenant.create({
-    name: 'Hotel Taj Gateway & Luxury Dining',
+    name: 'Hotel Mahesh Gateway & Luxury Dining',
     slug: 'taj-gateway',
     contactEmail: 'contact@tajgateway.com',
     contactPhone: '+91 98765 43210',
@@ -756,7 +757,107 @@ export async function seedDatabase() {
     status: WaiterFloatStatus.OPEN,
     dropRequests: [],
   });
-  console.log('✅ [9/9] Active Table 4 Session & Waiter Ramesh Cash Float (₹2,400) seeded');
+  // 10. Create Second Tenant: Hotel Royal Palace (Hotel B for multi-tenant isolation testing)
+  const hotelB = await Tenant.create({
+    name: 'Hotel Royal Palace Jaipur',
+    slug: 'royal-palace',
+    contactEmail: 'contact@royalpalace.com',
+    contactPhone: '+91 98222 11111',
+    currency: 'INR',
+    status: 'ACTIVE',
+    address: {
+      street: '88 Heritage Boulevard, C-Scheme',
+      city: 'Jaipur',
+      state: 'Rajasthan',
+      country: 'India',
+      pincode: '302001',
+    },
+    featureFlags: {
+      pmsEnabled: true,
+      kdsEnabled: true,
+      qrDineInEnabled: true,
+      roomServiceEnabled: true,
+      banquetEnabled: true,
+      loyaltyEnabled: true,
+      aiInsightsEnabled: true,
+      tallyExportEnabled: true,
+    },
+  });
+  const hotelBId = hotelB._id as Types.ObjectId;
+
+  await User.create({
+    hotelId: hotelBId,
+    name: 'Siddharth Rathore (Manager)',
+    email: 'admin@royalpalace.com',
+    phone: '+91 98222 22222',
+    passwordHash: defaultPasswordHash,
+    pinCodeHash: await argon2.hash('4444'),
+    role: UserRole.HOTEL_ADMIN,
+    permissions: ['ALL_HOTEL'],
+    shiftStatus: ShiftStatus.ON_DUTY,
+    isActive: true,
+  });
+
+  const royalKitchen = await KitchenStation.create({
+    hotelId: hotelBId,
+    stationName: 'ROYAL_KITCHEN',
+    screenToken: 'kds_token_royal_kitchen',
+    assignedChefIds: [],
+    printerIp: '192.168.1.109',
+    printerPort: 9100,
+    isOnline: true,
+  });
+
+  const catRoyal = await MenuCategory.create({
+    hotelId: hotelBId,
+    name: 'Royal Heritage Specialties',
+    slug: 'royal-heritage-specialties',
+    displayOrder: 1,
+    isActive: true,
+  });
+
+  await MenuItem.insertMany([
+    {
+      hotelId: hotelBId,
+      categoryId: catRoyal._id,
+      kitchenStationId: royalKitchen._id,
+      name: 'Royal Rajasthani Thali',
+      description: 'Traditional 12-item royal thali with Dal Baati Churma, Gatta Curry, and Ker Sangri',
+      foodType: FoodType.VEG,
+      basePrice: 550,
+      hasVariants: false,
+      isAvailable: true,
+      prepTimeMinutes: 15,
+      hsnCode: '2106',
+      itemCode: 'ROYAL-01',
+    },
+    {
+      hotelId: hotelBId,
+      categoryId: catRoyal._id,
+      kitchenStationId: royalKitchen._id,
+      name: 'Laal Maas Heritage',
+      description: 'Fiery slow-cooked mutton curry with Mathania red chillies and smoked cloves',
+      foodType: FoodType.NON_VEG,
+      basePrice: 650,
+      hasVariants: false,
+      isAvailable: true,
+      prepTimeMinutes: 20,
+      hsnCode: '2106',
+      itemCode: 'ROYAL-02',
+    },
+  ]);
+
+  for (let i = 1; i <= 6; i++) {
+    await DiningTable.create({
+      hotelId: hotelBId,
+      tableNumber: `T-${i < 10 ? '0' + i : i}`,
+      capacity: 4,
+      section: 'Royal Courtyard',
+      currentStatus: TableStatus.AVAILABLE,
+      qrTokenHash: `qr_hash_token_royal_${i}`,
+    });
+  }
+  console.log(`✅ [10/10] Multi-Tenant Hotel B (Hotel Royal Palace) seeded: ID ${hotelBId}`);
 
   console.log('========================================================');
   console.log('🎉 [SpiceHub Engine] Database Seeding Completed Successfully!');

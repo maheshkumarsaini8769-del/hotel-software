@@ -5,6 +5,7 @@ import {
   getDemoContext,
   getActiveTableSession,
   placeRestaurantOrder,
+  cancelCustomerOrder,
   updateKDSOrderStatus,
   getDiningTables,
   updateTableStatus,
@@ -85,6 +86,8 @@ export const authenticatePosTerminal = async (
 router.get('/demo-context', getDemoContext);
 router.get('/table/qr-entry', requireTenantCapability('tableOrdering'), accessTableByQR);
 router.post('/orders/place', requireTenantCapability('tableOrdering'), placeRestaurantOrder);
+router.post('/orders/:orderId/cancel-customer', requireTenantCapability('tableOrdering'), cancelCustomerOrder);
+router.post('/orders/cancel', requireTenantCapability('tableOrdering'), cancelCustomerOrder);
 router.patch('/table-session/pax', requireTenantCapability('tableOrdering'), updateTableSessionPax);
 router.get('/table-session/:tableSessionId/orders', requireTenantCapability('tableOrdering'), getTableSessionOrders);
 router.get('/table-session/orders', requireTenantCapability('tableOrdering'), getTableSessionOrders);

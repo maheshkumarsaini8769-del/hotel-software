@@ -294,7 +294,12 @@ describe('--- SHIFT 32 / GATE 32: HOTEL REVENUE MANAGER & DYNAMIC PRICING YIELD 
       .set('x-hotel-id', tenantBId);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.length).toBe(0); // Tenant B sees zero strategies
+    // A new tenant is auto-provisioned its own starter strategies, but must
+    // never see any strategy (or room type) belonging to Tenant A.
+    expect(res.body.data.length).toBeGreaterThan(0);
+    expect(res.body.data.every((strategy: any) => String(strategy.hotelId) === tenantBId)).toBe(true);
+    expect(res.body.data.some((strategy: any) => String(strategy.hotelId) === tenantAId)).toBe(false);
+    expect(res.body.data.some((strategy: any) => String(strategy.roomTypeId?._id || strategy.roomTypeId) === roomTypeAId)).toBe(false);
 
     // Competitor attempts to update Tenant A's room type strategy
     const hackRes = await request(app)

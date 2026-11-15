@@ -278,6 +278,11 @@ export const StaffRosterApp: React.FC<StaffRosterAppProps> = ({
         onClose={() => setIsTipModalOpen(false)}
         onSubmit={handleCreateTipSession}
         loading={state.isLoading}
+        staffList={(state.attendanceLogs || []).map((l) => ({
+          staffName: l.staffName,
+          department: l.department,
+          hoursWorked: Number(l.totalHoursWorked || 8),
+        }))}
       />
     </div>
   );

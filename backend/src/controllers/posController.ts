@@ -34,6 +34,14 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
   try {
     let { hotelId, tableId, token, table: queryTable, tableNumber } = req.query;
 
+    // Defensively handle cases where client passed sessionToken JWT as token
+    if (token && typeof token === 'string' && token.startsWith('eyJ')) {
+      if (!req.query.sessionToken) {
+        req.query.sessionToken = token;
+      }
+      token = undefined;
+    }
+
     const tableTarget = (tableId || queryTable || tableNumber) as string;
     if (!tableTarget) {
       res.status(400).json({ success: false, errorCode: 'INVALID_QUERY', message: 'Missing tableId or table identifier' });
@@ -77,8 +85,34 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
     }
 
     if (!table) {
-      res.status(404).json({ success: false, errorCode: 'TABLE_NOT_FOUND', message: 'Dining table does not exist' });
-      return;
+      if (Types.ObjectId.isValid(tableTarget)) {
+        const foreignTable = await DiningTable.findById(tableTarget);
+        if (foreignTable && foreignTable.hotelId.toString() !== hotelId.toString()) {
+          const foreignHotel = await Tenant.findById(foreignTable.hotelId);
+          if (foreignHotel && foreignHotel.status !== 'SUSPENDED') {
+            console.log(`[posController] Cross-hotel QR detected: Table ${foreignTable.tableNumber} belongs to "${foreignHotel.name}" (${foreignHotel._id}). Automatically transferring customer session.`);
+            hotelId = foreignTable.hotelId.toString();
+            table = foreignTable;
+          }
+        }
+      }
+      if (!table && token) {
+        const foreignTableByToken = await DiningTable.findOne({
+          $or: [{ qrTokenHash: String(token) }, { tableNumber: tableTarget, qrTokenHash: { $exists: true } }],
+        });
+        if (foreignTableByToken && foreignTableByToken.hotelId.toString() !== hotelId.toString()) {
+          const foreignHotel = await Tenant.findById(foreignTableByToken.hotelId);
+          if (foreignHotel && foreignHotel.status !== 'SUSPENDED') {
+            console.log(`[posController] Cross-hotel QR token detected: Table ${foreignTableByToken.tableNumber} belongs to "${foreignHotel.name}" (${foreignHotel._id}). Automatically transferring customer session.`);
+            hotelId = foreignTableByToken.hotelId.toString();
+            table = foreignTableByToken;
+          }
+        }
+      }
+      if (!table) {
+        res.status(404).json({ success: false, errorCode: 'TABLE_NOT_FOUND', message: 'Dining table does not exist' });
+        return;
+      }
     }
 
     const hotel = await Tenant.findById(hotelId);
@@ -273,6 +307,8 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
           sessionId: session._id,
           status: session.status,
           guestCount: session.guestCount,
+          hasActiveSession: false,
+          isExistingSession: false,
           waiterEnabled,
           canOrder: true,
         },
@@ -349,6 +385,8 @@ export const accessTableByQR = async (req: Request, res: Response): Promise<void
         sessionId: session._id,
         status: session.status,
         guestCount: session.guestCount,
+        hasActiveSession: true,
+        isExistingSession: true,
         waiterEnabled,
         canOrder: true,
       },
@@ -900,6 +938,33 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
       return;
     }
 
+    // Double-tap KOT protection: Detect duplicate submission within 4-second window
+    const recentDuplicate = await RestaurantOrder.findOne({
+      hotelId: new Types.ObjectId(hotelId),
+      tableSessionId: session._id,
+      createdAt: { $gte: new Date(Date.now() - 4000) },
+    }).sort({ createdAt: -1 });
+
+    if (recentDuplicate && recentDuplicate.items && recentDuplicate.items.length === items.length) {
+      const isMatch = items.every((incoming: any) =>
+        recentDuplicate.items.some(
+          (existing: any) =>
+            (existing.name === incoming.name || String(existing.menuItemId) === String(incoming.menuItemId || incoming.id)) &&
+            Number(existing.quantity) === Number(incoming.quantity)
+        )
+      );
+      if (isMatch) {
+        console.log(`🛡️ [Double-Tap Protection] Suppressed duplicate order submission for Table ${session.tableId} (Order #${recentDuplicate.orderNumber})`);
+        res.status(200).json({
+          success: true,
+          message: 'Order already received (double-tap protection)',
+          data: recentDuplicate,
+          order: recentDuplicate,
+        });
+        return;
+      }
+    }
+
     // QR session validation: in production, a DINE_IN order must either come from
     // an authenticated staff JWT or present the raw QR session token issued at scan time.
     const authHeader = req.headers.authorization;
@@ -1097,6 +1162,7 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
                 : undefined,
       tableSessionId: session._id,
       tableId: session.tableId,
+      guestCount: session.guestCount || 2,
       items: validatedItems,
       cookingInstructions,
       orderStatus: OverallOrderStatus.PLACED,
@@ -1119,6 +1185,8 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
       tableId: session.tableId,
       tableNumber: tableNumberDisplay,
       table: tableNumberDisplay,
+      guestCount: order.guestCount || session.guestCount || 2,
+      pax: order.guestCount || session.guestCount || 2,
       items: order.items.map((it: any) => ({
         itemId: it._id ? it._id.toString() : (it.menuItemId ? it.menuItemId.toString() : `item-${Date.now()}`),
         menuItemId: it.menuItemId ? it.menuItemId.toString() : undefined,
@@ -1143,6 +1211,25 @@ export const placeRestaurantOrder = async (req: Request, res: Response): Promise
     io.to(`${hotelId}_kds`).emit('order:created', kdsPayload);
     io.to(`${hotelId}_kds`).emit('new_order', kdsPayload);
     io.to(`${hotelId}_waiters`).to(`${hotelId}_global`).emit('order:created', kdsPayload);
+    // Multi-guest collaborative ordering: Broadcast to all companions at the same table
+    io.to(`session_${session._id}`)
+      .to(`${hotelId}_session_${session._id}`)
+      .to(`${hotelId}_global`)
+      .emit('table:order_placed', {
+        order: kdsPayload,
+        placedOrder: {
+          id: order._id.toString(),
+          orderNumber: order.orderNumber,
+          orderStatus: order.orderStatus,
+          placedAt: order.placedAt,
+          cookingInstructions: order.cookingInstructions,
+          items: kdsPayload.items,
+          totalAmount: orderSubtotal,
+        },
+        tableSessionId: session._id.toString(),
+        tableNumber: tableNumberDisplay,
+        sessionTotal: session.totalAmount,
+      });
     // Shift 53: Deduct raw materials according to Recipe BOM and check low stock alerts
     let bomDeductions: any[] = [];
     try {
@@ -1353,6 +1440,110 @@ export const updateKDSOrderStatus = async (req: TenantRequest, res: Response): P
     res.status(200).json({ success: true, message: 'Order status updated', data: order });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Customer Order Cancellation within Grace Period (before Food is Prepared)
+export const cancelCustomerOrder = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { orderId } = req.params;
+    const targetOrderId = orderId || req.body.orderId || req.body.orderNumber;
+    const { reason = 'Customer cancelled within grace period' } = req.body;
+
+    if (!targetOrderId) {
+      res.status(400).json({ success: false, errorCode: 'MISSING_ORDER_ID', message: 'Order ID is required' });
+      return;
+    }
+
+    let filter: any = {};
+    if (Types.ObjectId.isValid(String(targetOrderId))) {
+      filter._id = new Types.ObjectId(String(targetOrderId));
+    } else {
+      filter = { orderNumber: targetOrderId };
+    }
+
+    const order = await RestaurantOrder.findOne(filter);
+    if (!order) {
+      res.status(404).json({ success: false, errorCode: 'ORDER_NOT_FOUND', message: 'Order not found' });
+      return;
+    }
+
+    if (order.orderStatus === OverallOrderStatus.CANCELLED) {
+      res.status(200).json({ success: true, message: 'Order is already cancelled', data: order });
+      return;
+    }
+
+    // Guard 1: Cannot cancel if kitchen has already started cooking or food is ready/served
+    if (
+      order.orderStatus === OverallOrderStatus.PREPARING ||
+      order.orderStatus === OverallOrderStatus.READY ||
+      order.orderStatus === OverallOrderStatus.SERVED
+    ) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'FOOD_ALREADY_IN_PRODUCTION',
+        message: 'Food preparation has already started in the kitchen! Please speak directly to your waiter for assistance.',
+      });
+      return;
+    }
+
+    // Guard 2: Grace period window (e.g. 120 seconds / 2 minutes)
+    const placedTime = new Date(order.placedAt || (order as any).createdAt || Date.now()).getTime();
+    const elapsedSeconds = Math.floor((Date.now() - placedTime) / 1000);
+    const GRACE_PERIOD_SECONDS = 120;
+
+    if (elapsedSeconds > GRACE_PERIOD_SECONDS && !isDevAuthBypassEnabled()) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'CANCELLATION_WINDOW_EXPIRED',
+        message: `Cancellation window (${GRACE_PERIOD_SECONDS} seconds) has passed. Order has been sent to the kitchen.`,
+      });
+      return;
+    }
+
+    // Atomic cancellation
+    order.orderStatus = OverallOrderStatus.CANCELLED;
+    order.items.forEach((item) => {
+      item.itemStatus = ItemProductionStatus.CANCELLED;
+    });
+    await order.save();
+
+    let tableNumberDisplay = 'Table';
+    if (order.tableId) {
+      const tableDoc = await DiningTable.findById(order.tableId);
+      if (tableDoc) tableNumberDisplay = tableDoc.tableNumber;
+    }
+
+    const cancelPayload = {
+      id: order._id.toString(),
+      orderId: order._id.toString(),
+      orderNumber: order.orderNumber,
+      orderStatus: OverallOrderStatus.CANCELLED,
+      tableNumber: tableNumberDisplay,
+      table: tableNumberDisplay,
+      cancelledAt: new Date(),
+      reason,
+    };
+
+    // Broadcast Real-time cancellation to KDS, Waiters, and Table Session
+    io.to(`${order.hotelId}_kds`).emit('order:cancelled', cancelPayload);
+    io.to(`${order.hotelId}_waiters`).to(`${order.hotelId}_global`).emit('order:cancelled', cancelPayload);
+    io.to(`${order.hotelId}_kds`).emit('order:status_updated', cancelPayload);
+    io.to(`${order.hotelId}_waiters`).to(`${order.hotelId}_global`).emit('order:status_updated', cancelPayload);
+
+    if (order.tableSessionId) {
+      io.to(`session_${order.tableSessionId}`).emit('order:cancelled', cancelPayload);
+      io.to(`session_${order.tableSessionId}`).emit('order:status_updated', cancelPayload);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Order #${order.orderNumber} cancelled successfully.`,
+      data: order,
+    });
+  } catch (error: any) {
+    console.error('Error cancelling customer order:', error);
+    res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: error.message });
   }
 };
 
@@ -1800,6 +1991,9 @@ export const toggleItem86 = async (req: TenantRequest, res: Response): Promise<v
     }
 
     await item.save();
+    // The customer/waiter menu is cached for a few seconds; drop it so the
+    // 86 change is visible on the very next menu fetch.
+    invalidateMenuCache();
 
     const payload = {
       menuItemId: item._id.toString(),
@@ -1915,6 +2109,7 @@ export const batchToggleItem86 = async (req: TenantRequest, res: Response): Prom
       { _id: { $in: itemIds }, hotelId },
       { $set: updateDoc }
     );
+    invalidateMenuCache();
 
     const updatedItems = await MenuItem.find({ _id: { $in: itemIds }, hotelId });
 
@@ -2009,14 +2204,21 @@ export const getKdsOrders = async (req: TenantRequest, res: Response): Promise<v
     const orders = await RestaurantOrder.find(filter)
       .populate('tableId', 'tableNumber section floor')
       .populate('roomId', 'roomNumber')
+      .populate('tableSessionId', 'guestCount')
       .sort({ placedAt: 1 })
       .limit(50)
       .lean();
 
+    const formattedOrders = orders.map((ord: any) => ({
+      ...ord,
+      guestCount: Number(ord.guestCount || ord.tableSessionId?.guestCount || 2),
+      pax: Number(ord.guestCount || ord.tableSessionId?.guestCount || 2),
+    }));
+
     res.status(200).json({
       success: true,
-      count: orders.length,
-      data: orders,
+      count: formattedOrders.length,
+      data: formattedOrders,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, errorCode: 'SERVER_ERROR', message: error.message });

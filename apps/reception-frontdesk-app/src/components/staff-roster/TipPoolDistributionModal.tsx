@@ -1,11 +1,18 @@
 import React, { useState } from 'react';
 import { StaffRosterHelper, NumericInput } from '@spicehub/ui';
 
+export interface TipStaffAllocationItem {
+  staffName: string;
+  department: string;
+  hoursWorked: number;
+}
+
 interface TipPoolDistributionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (payload: any) => Promise<void>;
   loading: boolean;
+  staffList?: TipStaffAllocationItem[];
 }
 
 export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> = ({
@@ -13,8 +20,9 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
   onClose,
   onSubmit,
   loading,
+  staffList = [],
 }) => {
-  const [totalTips, setTotalTips] = useState<number>(12000);
+  const [totalTips, setTotalTips] = useState<number>(0);
   const [fohPercentage, setFohPercentage] = useState<number>(60);
   const [notes, setNotes] = useState('');
 
@@ -24,13 +32,11 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
   const fohPool = Math.round(totalTips * (fohPercentage / 100));
   const bohPool = Math.round(totalTips * (bohPercentage / 100));
 
-  const sampleStaffList = [
-    { staffName: 'Rahul Verma (Head Captain)', department: 'FRONT_OF_HOUSE_SERVICE', hoursWorked: 8.5 },
-    { staffName: 'Pooja Sharma (Senior Steward)', department: 'FRONT_OF_HOUSE_SERVICE', hoursWorked: 8.0 },
-    { staffName: 'Karan Mehra (Bartender)', department: 'BAR_BEVERAGE', hoursWorked: 9.0 },
-    { staffName: 'Chef Sanjeev (Sous Chef)', department: 'KITCHEN_CULINARY', hoursWorked: 9.0 },
-    { staffName: 'Sunil Kumar (Commis I)', department: 'KITCHEN_CULINARY', hoursWorked: 8.5 },
-  ];
+  const activeStaffList = Array.isArray(staffList) ? staffList : [];
+  const fohStaff = activeStaffList.filter(s => s.department.includes('FRONT') || s.department.includes('BAR'));
+  const bohStaff = activeStaffList.filter(s => !s.department.includes('FRONT') && !s.department.includes('BAR'));
+  const totalFohHours = fohStaff.reduce((acc, s) => acc + (s.hoursWorked || 0), 0) || 1;
+  const totalBohHours = bohStaff.reduce((acc, s) => acc + (s.hoursWorked || 0), 0) || 1;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +45,7 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
       fohPercentage,
       bohPercentage,
       notes: notes.trim() || undefined,
-      customStaffHours: sampleStaffList,
+      customStaffHours: activeStaffList,
     });
     onClose();
   };
@@ -123,32 +129,38 @@ export const TipPoolDistributionModal: React.FC<TipPoolDistributionModalProps> =
           {/* Staff Hours Table Preview */}
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 block mb-2">
-              Hours-Weighted Allocation Preview ({sampleStaffList.length} Staff)
+              Hours-Weighted Allocation Preview ({activeStaffList.length} Staff)
             </span>
-            <div className="space-y-2">
-              {sampleStaffList.map((s, idx) => {
-                const isFoh = s.department.includes('FRONT') || s.department.includes('BAR');
-                const totalDeptHours = isFoh ? (8.5 + 8.0 + 9.0) : (9.0 + 8.5);
-                const deptPool = isFoh ? fohPool : bohPool;
-                const estShare = Math.round((deptPool / totalDeptHours) * s.hoursWorked);
+            {activeStaffList.length === 0 ? (
+              <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800 text-center text-xs text-zinc-400">
+                No active attendance clock-in logs recorded for today's shift. Tip pool will distribute automatically when staff clock out.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {activeStaffList.map((s, idx) => {
+                  const isFoh = s.department.includes('FRONT') || s.department.includes('BAR');
+                  const deptPool = isFoh ? fohPool : bohPool;
+                  const totalDeptHours = isFoh ? totalFohHours : totalBohHours;
+                  const estShare = Math.round((deptPool / totalDeptHours) * s.hoursWorked);
 
-                return (
-                  <div
-                    key={idx}
-                    className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <span className="font-bold text-white">{s.staffName}</span>
-                      <span className="text-[10px] text-zinc-500 ml-2">({isFoh ? 'FOH' : 'BOH'})</span>
+                  return (
+                    <div
+                      key={idx}
+                      className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <span className="font-bold text-white">{s.staffName}</span>
+                        <span className="text-[10px] text-zinc-500 ml-2">({isFoh ? 'FOH' : 'BOH'})</span>
+                      </div>
+                      <div className="flex items-center gap-4 font-mono">
+                        <span className="text-zinc-400">{s.hoursWorked}h</span>
+                        <strong className="text-emerald-400">{StaffRosterHelper.formatCurrency(estShare)}</strong>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4 font-mono">
-                      <span className="text-zinc-400">{s.hoursWorked}h</span>
-                      <strong className="text-emerald-400">{StaffRosterHelper.formatCurrency(estShare)}</strong>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div>

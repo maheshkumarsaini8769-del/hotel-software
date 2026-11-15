@@ -167,7 +167,7 @@ export const generateStaffAccessCode = async (req: TenantRequest, res: Response)
       res.status(400).json({
         success: false,
         errorCode: 'INVALID_HOTEL_CODE_FORMAT',
-        message: 'A custom staff hotel code must be six digits or use the existing two-letter code format.',
+        message: 'A custom staff hotel code must be exactly six digits, or a 4-10 character alphanumeric code containing a letter.',
       });
       return;
     }

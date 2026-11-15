@@ -6,6 +6,7 @@ import { DiningTable, TableStatus } from '../models/DiningTable';
 import { RestaurantBill, BillStatus } from '../models/RestaurantBill';
 import { MultiTenderSettlement, TenderMethod, SettlementStatus } from '../models/MultiTenderSettlement';
 import { CashierShiftFloat, CashierShiftStatus } from '../models/CashierShiftFloat';
+import { DynamicUpiQr, UpiQrStatus } from '../models/DynamicUpiQr';
 
 describe('--- SHIFT 41 / GATE 41 TIER 2: ULTRA-DEEP CONCURRENCY & MULTI-TENDER DRILL ---', () => {
   let tenantAId: string;
@@ -86,9 +87,30 @@ describe('--- SHIFT 41 / GATE 41 TIER 2: ULTRA-DEEP CONCURRENCY & MULTI-TENDER D
     await RestaurantBill.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await MultiTenderSettlement.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
     await CashierShiftFloat.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
+    await DynamicUpiQr.deleteMany({ hotelId: { $in: [tenantAId, tenantBId] } });
   });
 
   it('1. Concurrency Storm: 10 Cashier Terminals simultaneously settle 10 different bills with split tenders', async () => {
+    // Each online UPI slice must be backed by a gateway-verified Dynamic UPI QR.
+    const upiQrs = await DynamicUpiQr.insertMany(
+      bills.map((bill, idx) => ({
+        hotelId: new Types.ObjectId(tenantAId),
+        billId: bill._id,
+        tableNumber: `T-TENDER-${idx + 1}`,
+        tableId: bill.tableId,
+        waiterUserId: new Types.ObjectId(cashierId),
+        waiterName: 'Super Cashier',
+        amount: 400,
+        merchantVpa: 'megaplex@upi',
+        merchantName: 'SpiceHub Megaplex Cashiering',
+        transactionRef: `UPI-REF-${idx}-${Date.now()}`,
+        upiUri: 'upi://pay?pa=megaplex@upi&am=400',
+        status: UpiQrStatus.PAID,
+        paidAt: new Date(),
+        expiresAt: new Date(Date.now() + 600000),
+      }))
+    );
+
     const promises = bills.map((bill, idx) =>
       request(app)
         .post('/api/v1/multi-tender/settle')
@@ -100,14 +122,14 @@ describe('--- SHIFT 41 / GATE 41 TIER 2: ULTRA-DEEP CONCURRENCY & MULTI-TENDER D
           cashierName: 'Super Cashier',
           tenders: [
             { method: TenderMethod.CASH, amount: 600, cashReceived: 1000 }, // Change: ₹400
-            { method: TenderMethod.UPI, amount: 400, referenceNumber: `UPI-REF-${idx}` },
+            { method: TenderMethod.UPI, amount: 400, referenceNumber: upiQrs[idx].transactionRef },
           ],
         })
     );
 
     const responses = await Promise.all(promises);
     responses.forEach((res) => {
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.settlement.totalSettledAmount).toBe(1000);
       expect(res.body.totalChangeReturned).toBe(400);

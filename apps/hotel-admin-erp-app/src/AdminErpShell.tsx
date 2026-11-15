@@ -55,6 +55,7 @@ import {
   Navigation,
   Activity,
   Award,
+  Phone,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -422,6 +423,7 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
     coverImageUrl?: string;
     tagline?: string;
     contactPhone?: string;
+    supportPhone?: string;
     wifiSsid?: string;
     wifiPassword?: string;
     street?: string;
@@ -441,6 +443,7 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
     coverImageUrl: '',
     tagline: '',
     contactPhone: '',
+    supportPhone: '',
     wifiSsid: '',
     wifiPassword: '',
     street: '',
@@ -460,6 +463,7 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
     name: '',
     tagline: '',
     contactPhone: '',
+    supportPhone: '',
     wifiSsid: '',
     wifiPassword: '',
     coverImageUrl: '',
@@ -630,6 +634,7 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
       name: propertyProfile.name || '',
       tagline: propertyProfile.tagline || '',
       contactPhone: propertyProfile.contactPhone || '',
+      supportPhone: propertyProfile.supportPhone || propertyProfile.contactPhone || '',
       wifiSsid: propertyProfile.wifiSsid || '',
       wifiPassword: propertyProfile.wifiPassword || '',
       coverImageUrl: propertyProfile.coverImageUrl || '',
@@ -808,6 +813,7 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
             coverImageUrl: json.data.coverImageUrl || '',
             tagline: json.data.tagline || '',
             contactPhone: json.data.contactPhone || '+91 98765 43210',
+            supportPhone: json.data.supportPhone || json.data.contactPhone || '+91 98765 43210',
             wifiSsid: json.data.wifiSsid || 'TajGateway_HighSpeed',
             wifiPassword: json.data.wifiPassword || 'SpiceGuest@2026',
             street,
@@ -1071,18 +1077,6 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
     ];
 
     const rawTrend = dashboard?.revenueTrend || [];
-    const isAllZeroRevenue = rawTrend.length === 0 || rawTrend.every((pt) => Number(pt.revenue || 0) === 0);
-
-    const sampleFigures = [
-      { revenue: 38500, orders: 19 },
-      { revenue: 54200, orders: 28 },
-      { revenue: 49800, orders: 24 },
-      { revenue: 27400, orders: 14 },
-      { revenue: 31200, orders: 16 },
-      { revenue: 42600, orders: 21 },
-      { revenue: 36900, orders: 18 },
-    ];
-
     const trendData = (rawTrend.length > 0 ? rawTrend : [
       { date: 'Day-1', label: 'Fri', revenue: 0, orders: 0 },
       { date: 'Day-2', label: 'Sat', revenue: 0, orders: 0 },
@@ -1091,23 +1085,12 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
       { date: 'Day-5', label: 'Tue', revenue: 0, orders: 0 },
       { date: 'Day-6', label: 'Wed', revenue: 0, orders: 0 },
       { date: 'Day-7', label: 'Thu', revenue: 0, orders: 0 },
-    ]).map((pt, i) => {
-      if (showSimulatedPreview && isAllZeroRevenue) {
-        const sample = sampleFigures[i % sampleFigures.length];
-        return {
-          ...pt,
-          revenue: sample.revenue,
-          orders: sample.orders,
-          isSimulated: true,
-        };
-      }
-      return {
-        ...pt,
-        revenue: Number(pt.revenue || 0),
-        orders: Number(pt.orders || 0),
-        isSimulated: false,
-      };
-    });
+    ]).map((pt) => ({
+      ...pt,
+      revenue: Number(pt.revenue || 0),
+      orders: Number(pt.orders || 0),
+      isSimulated: false,
+    }));
 
     const sum7DayRevenue = trendData.reduce((acc, pt) => acc + Number(pt.revenue || 0), 0);
     const sum7DayOrders = trendData.reduce((acc, pt) => acc + Number(pt.orders || 0), 0);
@@ -3159,6 +3142,36 @@ export const AdminErpShell: React.FC<AdminErpShellProps> = ({ onNavigatePortal }
                       value={propertyEditForm.contactPhone}
                       onChange={(e) => setPropertyEditForm({ ...propertyEditForm, contactPhone: e.target.value })}
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-blue-500 text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Mobile App Support & Emergency Helpline Phone */}
+                <div data-testid="app-support-phone-card" className="p-3.5 rounded-xl border border-orange-200 bg-orange-50/70 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center">
+                        <Phone className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-xs uppercase tracking-wider text-orange-950 block">
+                          App Support & Emergency Helpline Number *
+                        </span>
+                        <p className="text-[11px] text-orange-800">
+                          Live control: Displayed in Waiter Mobile App, Staff APK, Customer QR ordering, & Guest Room Service for 1-tap call support.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      required
+                      data-testid="input-app-support-phone"
+                      value={propertyEditForm.supportPhone}
+                      onChange={(e) => setPropertyEditForm({ ...propertyEditForm, supportPhone: e.target.value })}
+                      placeholder="e.g. +91 98290 12345 (App Support / Helpline Number)"
+                      className="w-full px-3 py-2 rounded-lg border border-orange-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-bold font-mono text-sm"
                     />
                   </div>
                 </div>

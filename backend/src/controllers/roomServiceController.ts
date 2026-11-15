@@ -864,14 +864,14 @@ export const getGuestPortalPreferences = async (req: Request, res: Response): Pr
       return;
     }
 
-    const tenant = await Tenant.findById(resolved.session.hotelId).select('contactPhone').lean();
+    const tenant = await Tenant.findById(resolved.session.hotelId).select('contactPhone supportPhone').lean();
     res.status(200).json({
       success: true,
       data: {
         language: resolved.session.language || 'en',
         theme: resolved.session.theme || 'light',
         fontSize: resolved.session.fontSize || 'medium',
-        hotelContactPhone: tenant?.contactPhone || '',
+        hotelContactPhone: (tenant as any)?.supportPhone || tenant?.contactPhone || '',
       },
     });
   } catch (error: any) {
@@ -903,7 +903,7 @@ export const updateGuestPortalPreferences = async (req: Request, res: Response):
     if (fontSize !== undefined) resolved.session.fontSize = fontSize;
     await resolved.session.save();
 
-    const tenant = await Tenant.findById(resolved.session.hotelId).select('contactPhone').lean();
+    const tenant = await Tenant.findById(resolved.session.hotelId).select('contactPhone supportPhone').lean();
     res.status(200).json({
       success: true,
       message: 'Settings saved',
@@ -911,7 +911,7 @@ export const updateGuestPortalPreferences = async (req: Request, res: Response):
         language: resolved.session.language,
         theme: resolved.session.theme,
         fontSize: resolved.session.fontSize,
-        hotelContactPhone: tenant?.contactPhone || '',
+        hotelContactPhone: (tenant as any)?.supportPhone || tenant?.contactPhone || '',
       },
     });
   } catch (error: any) {
@@ -1593,7 +1593,13 @@ export function combineDateTime(
   defaultHour = 11,
   defaultMinute = 0
 ): Date {
-  const d = dateInput ? new Date(dateInput) : new Date();
+  let d: Date;
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.trim())) {
+    const [y, m, day] = dateInput.trim().split('-').map(Number);
+    d = new Date(y, m - 1, day);
+  } else {
+    d = dateInput ? new Date(dateInput) : new Date();
+  }
   if (isNaN(d.getTime())) return new Date();
 
   if (timeInput && typeof timeInput === 'string' && timeInput.trim()) {
@@ -1606,6 +1612,15 @@ export function combineDateTime(
       if (mer === 'PM' && hours < 12) hours += 12;
       if (mer === 'AM' && hours === 12) hours = 0;
       d.setHours(hours, minutes, 0, 0);
+      return d;
+    }
+    const matchSimple = raw.match(/^(\d{1,2})\s*(AM|PM)?$/i);
+    if (matchSimple) {
+      let hours = parseInt(matchSimple[1], 10);
+      const mer = (matchSimple[2] || '').toUpperCase();
+      if (mer === 'PM' && hours < 12) hours += 12;
+      if (mer === 'AM' && hours === 12) hours = 0;
+      d.setHours(hours, 0, 0, 0);
       return d;
     }
   }
@@ -1648,47 +1663,62 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
       filterStart = combineDateTime(reqCheckInDate, reqCheckInTime, 12, 0);
       filterEnd = reqCheckOutDate
         ? combineDateTime(reqCheckOutDate, reqCheckOutTime, 11, 0)
-        : new Date(filterStart.getTime() + 86400000);
+        : (reqCheckOutTime ? combineDateTime(reqCheckInDate, reqCheckOutTime, 11, 0) : new Date(filterStart.getTime() + 86400000));
       if (filterEnd <= filterStart) {
         filterEnd = new Date(filterStart.getTime() + 86400000);
       }
     }
 
     const conflictingRoomIds = new Map<string, string>();
-    if (filterStart && filterEnd) {
-      const activeBookings = await Booking.find({
-        hotelId: new Types.ObjectId(hotelId),
-        bookingStatus: {
-          $in: [
-            BookingStatus.CONFIRMED,
-            BookingStatus.PENDING_APPROVAL,
-            BookingStatus.CHECKED_IN,
-          ],
-        },
-        checkInDate: { $lt: filterEnd },
-        checkOutDate: { $gt: filterStart },
-      }).select('allocatedRoomId checkInDate checkOutDate guestName');
+    const now = new Date();
+    const effectiveFilterStart = filterStart || now;
+    const effectiveFilterEnd = filterEnd || new Date(now.getTime() + 12 * 60 * 60 * 1000);
 
-      for (const b of activeBookings) {
-        if (b.allocatedRoomId) {
+    const bufferMinutes = Number(
+      tenant?.operationalPolicies?.bookingBufferHours !== undefined
+        ? tenant.operationalPolicies.bookingBufferHours * 60
+        : (tenant?.operationalPolicies?.housekeepingTurnaroundSlaMinutes || 0)
+    );
+    const bufferMs = Math.max(0, bufferMinutes) * 60 * 1000;
+
+    const activeBookings = await Booking.find({
+      hotelId: new Types.ObjectId(hotelId),
+      bookingStatus: {
+        $in: [
+          BookingStatus.CONFIRMED,
+          BookingStatus.PENDING_APPROVAL,
+          BookingStatus.CHECKED_IN,
+        ],
+      },
+      checkInDate: { $lt: effectiveFilterEnd },
+    }).select('allocatedRoomId checkInDate checkOutDate guestName');
+
+    for (const b of activeBookings) {
+      if (b.allocatedRoomId) {
+        const effectiveEnd = new Date(new Date(b.checkOutDate).getTime() + bufferMs);
+        if (effectiveFilterStart < effectiveEnd && effectiveFilterEnd > b.checkInDate) {
           const sTime = new Date(b.checkInDate).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
-          const eTime = new Date(b.checkOutDate).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
-          conflictingRoomIds.set(String(b.allocatedRoomId), `${sTime} - ${eTime}`);
+          const eTime = effectiveEnd.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+          const bufferNote = bufferMinutes > 0 ? ` (+${bufferMinutes >= 60 ? (bufferMinutes / 60) + 'h' : bufferMinutes + 'm'} buffer)` : '';
+          conflictingRoomIds.set(String(b.allocatedRoomId), `${sTime} - ${eTime}${bufferNote}`);
         }
       }
+    }
 
-      const activeStays = await Stay.find({
-        hotelId: new Types.ObjectId(hotelId),
-        stayStatus: { $in: [StayStatus.ACTIVE, StayStatus.EXTENDED] },
-        checkInTimestamp: { $lt: filterEnd },
-        expectedCheckOutTimestamp: { $gt: filterStart },
-      }).select('roomId checkInTimestamp expectedCheckOutTimestamp');
+    const activeStays = await Stay.find({
+      hotelId: new Types.ObjectId(hotelId),
+      stayStatus: { $in: [StayStatus.ACTIVE, StayStatus.EXTENDED] },
+      checkInTimestamp: { $lt: effectiveFilterEnd },
+    }).select('roomId checkInTimestamp expectedCheckOutTimestamp');
 
-      for (const s of activeStays) {
-        if (s.roomId) {
+    for (const s of activeStays) {
+      if (s.roomId) {
+        const effectiveStayEnd = new Date(new Date(s.expectedCheckOutTimestamp).getTime() + bufferMs);
+        if (effectiveFilterStart < effectiveStayEnd && effectiveFilterEnd > s.checkInTimestamp) {
           const sTime = new Date(s.checkInTimestamp).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
-          const eTime = new Date(s.expectedCheckOutTimestamp).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
-          conflictingRoomIds.set(String(s.roomId), `${sTime} - ${eTime}`);
+          const eTime = effectiveStayEnd.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+          const bufferNote = bufferMinutes > 0 ? ` (+${bufferMinutes >= 60 ? (bufferMinutes / 60) + 'h' : bufferMinutes + 'm'} buffer)` : '';
+          conflictingRoomIds.set(String(s.roomId), `${sTime} - ${eTime}${bufferNote}`);
         }
       }
     }
@@ -1720,6 +1750,16 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
         displayStatus = 'RESERVED';
         statusBadge = `Already booked for slot (${conflictSlot})`;
         occupiedCount += 1;
+      } else if (filterStart && filterEnd) {
+        if (rawStatus === RoomStatus.OUT_OF_SERVICE) {
+          displayStatus = 'MAINTENANCE';
+          statusBadge = 'Not available at this time (Maintenance)';
+          maintenanceCount += 1;
+        } else {
+          displayStatus = 'AVAILABLE';
+          statusBadge = 'Ready for Booking';
+          availableCount += 1;
+        }
       } else if (rawStatus === RoomStatus.AVAILABLE) {
         displayStatus = 'AVAILABLE';
         statusBadge = 'Ready for Booking';
@@ -1762,7 +1802,9 @@ export const getGuestRoomCatalog = async (req: Request, res: Response): Promise<
         rawStatus,
         displayStatus,
         statusBadge,
-        isBookable: rawStatus === RoomStatus.AVAILABLE && !conflictSlot,
+        conflictSlot: conflictSlot || null,
+        allowAdvanceBooking: rawStatus !== RoomStatus.OUT_OF_SERVICE,
+        isBookable: filterStart && filterEnd ? (!conflictSlot && rawStatus !== RoomStatus.OUT_OF_SERVICE) : (rawStatus === RoomStatus.AVAILABLE && !conflictSlot),
         photos: roomPhotos,
         isAc,
         roomType: {
@@ -1919,12 +1961,30 @@ export const verifyGuestPhoneOtp = async (req: Request, res: Response): Promise<
 export const getBookingStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const { bookingNumber } = req.params;
+    const requestedHotelId = String(
+      (req as any).hotelId ||
+        req.headers['x-hotel-id'] ||
+        req.query.hotelId ||
+        req.body?.hotelId ||
+        ''
+    );
+
     if (!bookingNumber) {
       res.status(400).json({ success: false, errorCode: 'BOOKING_NUMBER_REQUIRED', message: 'Booking number is required' });
       return;
     }
 
-    const booking = await Booking.findOne({ bookingNumber: String(bookingNumber).trim() })
+    // Public booking-status lookups are keyed by the booking number (which is
+    // treated as a capability). When a hotel context is supplied, it must
+    // match so one tenant can never read another tenant's booking.
+    const bookingFilter: Record<string, unknown> = {
+      bookingNumber: String(bookingNumber).trim(),
+    };
+    if (Types.ObjectId.isValid(requestedHotelId)) {
+      bookingFilter.hotelId = new Types.ObjectId(requestedHotelId);
+    }
+
+    const booking = await Booking.findOne(bookingFilter)
       .populate('roomTypeId')
       .populate('allocatedRoomId');
 
@@ -2076,8 +2136,16 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       targetCheckOut.setHours(11, 0, 0, 0);
     }
 
-    // Date & Time Collision Detection against Bookings
-    const conflictingBooking = await Booking.findOne({
+    const tenant = await Tenant.findById(hotelId).select('coordinates latitude longitude city name address googleMapUrl locationNotes operationalPolicies');
+    const bufferMinutes = Number(
+      tenant?.operationalPolicies?.bookingBufferHours !== undefined
+        ? tenant.operationalPolicies.bookingBufferHours * 60
+        : (tenant?.operationalPolicies?.housekeepingTurnaroundSlaMinutes || 0)
+    );
+    const bufferMs = Math.max(0, bufferMinutes) * 60 * 1000;
+
+    // Date & Time Collision Detection against Bookings (including Admin buffer)
+    const activeBookings = await Booking.find({
       hotelId: room.hotelId,
       allocatedRoomId: room._id,
       bookingStatus: {
@@ -2088,7 +2156,11 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
         ],
       },
       checkInDate: { $lt: targetCheckOut },
-      checkOutDate: { $gt: targetCheckIn },
+    });
+
+    const conflictingBooking = activeBookings.find((b) => {
+      const effectiveEnd = new Date(new Date(b.checkOutDate).getTime() + bufferMs);
+      return targetCheckIn < effectiveEnd && targetCheckOut > b.checkInDate;
     });
 
     if (conflictingBooking) {
@@ -2099,34 +2171,42 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
         minute: '2-digit',
         hour12: true,
       });
-      const confEnd = new Date(conflictingBooking.checkOutDate).toLocaleString('en-IN', {
+      const effectiveConfEnd = new Date(new Date(conflictingBooking.checkOutDate).getTime() + bufferMs);
+      const confEnd = effectiveConfEnd.toLocaleString('en-IN', {
         day: 'numeric',
         month: 'short',
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
       });
+      const bufferText = bufferMinutes > 0 ? ` (including ${bufferMinutes >= 60 ? (bufferMinutes / 60) + ' hr' : bufferMinutes + ' min'} turnaround buffer)` : '';
       res.status(409).json({
         success: false,
         errorCode: 'ROOM_ALREADY_BOOKED',
-        message: `Room ${room.roomNumber} is already booked for this time slot (${confStart} ➔ ${confEnd}). Please select a different time or choose another available room.`,
+        message: `Room ${room.roomNumber} is already booked for this time slot (${confStart} ➔ ${confEnd}${bufferText}). Please select a different time or choose another available room.`,
         conflictingBooking: {
           bookingNumber: conflictingBooking.bookingNumber,
           guestName: conflictingBooking.guestName,
           checkInDate: conflictingBooking.checkInDate,
           checkOutDate: conflictingBooking.checkOutDate,
+          effectiveAvailableAfter: effectiveConfEnd,
+          bufferMinutes,
         },
       });
       return;
     }
 
-    // Date & Time Collision Detection against active Stays
-    const conflictingStay = await Stay.findOne({
+    // Date & Time Collision Detection against active Stays (including Admin buffer)
+    const activeStays = await Stay.find({
       hotelId: room.hotelId,
       roomId: room._id,
       stayStatus: { $in: [StayStatus.ACTIVE, StayStatus.EXTENDED] },
       checkInTimestamp: { $lt: targetCheckOut },
-      expectedCheckOutTimestamp: { $gt: targetCheckIn },
+    });
+
+    const conflictingStay = activeStays.find((s) => {
+      const effectiveStayEnd = new Date(new Date(s.expectedCheckOutTimestamp).getTime() + bufferMs);
+      return targetCheckIn < effectiveStayEnd && targetCheckOut > s.checkInTimestamp;
     });
 
     if (conflictingStay) {
@@ -2137,17 +2217,19 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
         minute: '2-digit',
         hour12: true,
       });
-      const stayEnd = new Date(conflictingStay.expectedCheckOutTimestamp).toLocaleString('en-IN', {
+      const effectiveStayEnd = new Date(new Date(conflictingStay.expectedCheckOutTimestamp).getTime() + bufferMs);
+      const stayEnd = effectiveStayEnd.toLocaleString('en-IN', {
         day: 'numeric',
         month: 'short',
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
       });
+      const bufferText = bufferMinutes > 0 ? ` (including ${bufferMinutes >= 60 ? (bufferMinutes / 60) + ' hr' : bufferMinutes + ' min'} turnaround buffer)` : '';
       res.status(409).json({
         success: false,
         errorCode: 'ROOM_ALREADY_OCCUPIED',
-        message: `Room ${room.roomNumber} is currently occupied by an active guest stay (${stayStart} ➔ ${stayEnd}). Please select another time or room.`,
+        message: `Room ${room.roomNumber} is currently occupied by an active guest stay (${stayStart} ➔ ${stayEnd}${bufferText}). Please select another time or room.`,
       });
       return;
     }
@@ -2161,7 +2243,7 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const isImmediateCheckIn = targetCheckIn.getTime() <= Date.now() + 6 * 3600 * 1000;
+    const isImmediateCheckIn = targetCheckIn.getTime() <= Date.now() + 30 * 60 * 1000;
     if (isImmediateCheckIn && room.status !== RoomStatus.AVAILABLE) {
       res.status(409).json({
         success: false,
@@ -2206,8 +2288,6 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
     // Location & Geofence Verification (Hotel vs Remote Home)
     const isHotelClaimed = bookingLocation === 'IN_HOTEL' || bookingLocation === 'HOTEL_RADIUS';
     let computedDistanceKm: number | undefined = typeof distanceFromHotelKm === 'number' ? distanceFromHotelKm : undefined;
-
-    const tenant = await Tenant.findById(hotelId).select('coordinates latitude longitude city name address googleMapUrl locationNotes');
     const hotelCoordinates = resolveHotelCoordinates(tenant);
     const uLat = typeof req.body.userLat === 'number' ? req.body.userLat : deviceLocation?.latitude;
     const uLng = typeof req.body.userLng === 'number' ? req.body.userLng : deviceLocation?.longitude;
@@ -2343,25 +2423,29 @@ export const bookAndCheckInGuest = async (req: Request, res: Response): Promise<
       bookingStatus: BookingStatus.PENDING_APPROVAL,
     });
 
-    // Mark room as RESERVED in DB, return pending status and broadcast to reception
-    room.status = RoomStatus.RESERVED;
-    await room.save();
+    // Mark room as RESERVED in DB if this is immediate check-in and room is currently AVAILABLE
+    if (isImmediateCheckIn && room.status === RoomStatus.AVAILABLE) {
+      room.status = RoomStatus.RESERVED;
+      await room.save();
+    }
 
     const isFromHotel = bookingLocation === 'IN_HOTEL' || bookingLocation === 'HOTEL_RADIUS';
     const originLabel = isFromHotel ? 'HOTEL_PREMISES' : 'REMOTE_HOME';
     const originText = isFromHotel ? 'Booked from Hotel Premises (होटल से)' : 'Booked from Home / Remote (घर से)';
 
-    io.to(`${room.hotelId}_admin`)
-      .to(`${room.hotelId}_pms`)
-      .to(`${room.hotelId}_frontdesk`)
-      .to(`${room.hotelId}_global`)
-      .emit('pms:room_status_changed', {
-        roomId: room._id,
-        roomNumber: room.roomNumber,
-        status: RoomStatus.RESERVED,
-        guestName: effectiveName,
-        bookingNumber: booking.bookingNumber,
-      });
+    if (isImmediateCheckIn) {
+      io.to(`${room.hotelId}_admin`)
+        .to(`${room.hotelId}_pms`)
+        .to(`${room.hotelId}_frontdesk`)
+        .to(`${room.hotelId}_global`)
+        .emit('pms:room_status_changed', {
+          roomId: room._id,
+          roomNumber: room.roomNumber,
+          status: RoomStatus.RESERVED,
+          guestName: effectiveName,
+          bookingNumber: booking.bookingNumber,
+        });
+    }
 
     io.to(`${room.hotelId}_admin`).to(`${room.hotelId}_pms`).to(`${room.hotelId}_frontdesk`).emit('reception:new_checkin_request', {
       bookingId: booking._id,
@@ -2776,14 +2860,14 @@ export const cancelGuestBooking = async (req: Request, res: Response): Promise<v
 
     // STRICT CANCELLATION GATE: If already approved or checked in, self-cancellation is forbidden
     if (booking.bookingStatus === BookingStatus.CHECKED_IN || (booking as any).receptionApprovedAt) {
-      const tenant = await Tenant.findById(booking.hotelId).select('name contactPhone');
+      const tenant = await Tenant.findById(booking.hotelId).select('name contactPhone supportPhone');
       res.status(403).json({
         success: false,
         errorCode: 'CANCELLATION_LOCKED_APPROVED',
         receptionContactRequired: true,
         message: 'This reservation has already been verified and approved by Reception. Self-cancellation is not permitted. Please contact the Front Desk directly for stay modifications or departure assistance.',
         hotelName: tenant?.name || 'Hotel Front Desk',
-        helplinePhone: tenant?.contactPhone || '+91 141 2345678',
+        helplinePhone: (tenant as any)?.supportPhone || tenant?.contactPhone || '+91 141 2345678',
       });
       return;
     }

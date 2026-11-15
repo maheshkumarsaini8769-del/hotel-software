@@ -228,7 +228,9 @@ describe('--- DEEP RIGOROUS TESTING DRILL: CONCURRENCY, NETWORK DROPS, INJECTION
       .get(`/api/v1/pos/table/qr-entry?hotelId=${tenantId}&tableId=admin' OR 1=1--`)
       .send();
 
-    expect([400, 500]).toContain(maliciousQR.status);
+    // A malicious/injection QR hash must never resolve a session. The route
+    // legitimately answers 404 when the hash does not exist.
+    expect([400, 404, 500]).toContain(maliciousQR.status);
     expect(maliciousQR.body.data?.sessionToken).toBeUndefined();
   }, 15000);
 

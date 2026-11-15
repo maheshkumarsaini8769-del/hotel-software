@@ -22,6 +22,9 @@ export enum ServiceRequestType {
   REQUEST_BILL = 'REQUEST_BILL',
   ROOM_CLEANING = 'ROOM_CLEANING',
   CUSTOM = 'CUSTOM',
+  FOOD_ISSUE = 'FOOD_ISSUE',
+  TABLE_ISSUE = 'TABLE_ISSUE',
+  TABLE_VACATED = 'TABLE_VACATED',
 }
 
 export enum ServiceRequestStatus {

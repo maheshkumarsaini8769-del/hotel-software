@@ -7,6 +7,7 @@ import {
   readHotelAccessHotelId,
   readHotelAccessToken,
   verifyHotelAccessCode,
+  selectHotelDirect,
 } from './staffHotelAccess';
 import { installGlobalNumericInputGuard } from './components/NumericInput';
 
@@ -305,7 +306,31 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
   );
   const [hotelCodeError, setHotelCodeError] = useState('');
   const [adminLoginBranding, setAdminLoginBranding] = useState<AdminLoginBrandingConfig>(readCachedAdminLoginBranding);
+  const [activeHotels, setActiveHotels] = useState<any[]>([]);
+  const [loadingHotels, setLoadingHotels] = useState(false);
   const mountedRef = useRef(true);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingHotels(true);
+    fetch(`${base}/auth/active-hotels`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (active && res.success && Array.isArray(res.data)) {
+          setActiveHotels(res.data);
+          if (staffHotelId) {
+            const current = res.data.find((h: any) => h.id === staffHotelId);
+            if (current) {
+              setSubscribedHotelName(current.name);
+              if (Array.isArray(current.enabledPortals)) setAvailablePortals(current.enabledPortals);
+            }
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setLoadingHotels(false); });
+    return () => { active = false; };
+  }, [base, staffHotelId]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -499,6 +524,37 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
     }
   };
 
+  const handleSelectHotelDirectly = async (hotel: any) => {
+    setHotelCodeStatus('verifying');
+    setHotelCodeError('');
+    setStaffRosterError('');
+    try {
+      const verified = await selectHotelDirect(base, hotel.id);
+      if (!mountedRef.current) return;
+      setStaffHotelId(verified.hotel.id);
+      setHotelAccessToken(verified.accessToken);
+      setHotelCodeStatus('verified');
+      setSubscribedHotelName(verified.hotel.name);
+      if (Array.isArray(verified.hotel.enabledPortals)) {
+        setAvailablePortals(verified.hotel.enabledPortals);
+      }
+      if (
+        portalId &&
+        Array.isArray(verified.hotel.enabledPortals) &&
+        verified.hotel.enabledPortals.length > 0 &&
+        !verified.hotel.enabledPortals.includes(portalId)
+      ) {
+        setStaffRosterError(
+          `The ${appName} portal is not enabled for ${verified.hotel.name || 'this hotel'}.`
+        );
+      }
+    } catch (err: any) {
+      if (!mountedRef.current) return;
+      setHotelCodeStatus('idle');
+      setHotelCodeError(err.message || 'Could not connect to property.');
+    }
+  };
+
   const handleChangeHotelCode = () => {
     clearHotelAccessToken();
     setHotelAccessToken('');
@@ -572,6 +628,10 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
         if (requireHotel && (!nextUser || !isStaffRoleAllowed(portalId, nextUser.role))) {
           expireSession('This staff account is not authorized for this portal.');
           return false;
+        }
+        if (json?.data?.token && mountedRef.current) {
+          setToken(json.data.token);
+          for (const key of TOKEN_KEYS) window.localStorage.setItem(key, json.data.token);
         }
         if (nextUser && mountedRef.current) {
           setUser(nextUser);
@@ -796,54 +856,56 @@ export const StaffLoginGate: React.FC<StaffLoginGateProps> = ({
       ) : (
         <div className="space-y-2">
           <label className="block">
-            <span className="mb-1.5 block text-[12px] font-medium text-slate-600 dark:text-slate-400">
-              Hotel code
+            <span className="mb-1 block text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+              Property Hotel Code
             </span>
-            <input
-              type="text"
-              inputMode="text"
-              autoCapitalize="characters"
-              autoComplete="off"
-              spellCheck={false}
-              maxLength={10}
-              data-testid="staff-login-hotel-slug"
-              value={hotelSlug}
-              onChange={(event) => {
-                setHotelSlug(event.target.value.toUpperCase());
-                setHotelCodeError('');
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  void handleVerifyHotelCode();
+            <div className="flex gap-2">
+              <input
+                type="text"
+                inputMode="text"
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={30}
+                data-testid="staff-login-hotel-slug"
+                value={hotelSlug}
+                onChange={(event) => {
+                  setHotelSlug(event.target.value.toUpperCase());
+                  setHotelCodeError('');
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    void handleVerifyHotelCode();
+                  }
+                }}
+                placeholder="e.g. BH101, SG6084"
+                aria-invalid={Boolean(hotelCodeError)}
+                aria-describedby={hotelCodeError ? 'staff-hotel-code-error' : undefined}
+                className="h-10 flex-1 rounded-lg border border-slate-300 bg-white px-3 text-[13.5px] font-semibold tracking-[0.08em] text-slate-900 outline-none transition placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+              <button
+                type="button"
+                data-testid="verify-staff-hotel-code"
+                onClick={() => void handleVerifyHotelCode()}
+                disabled={
+                  hotelCodeStatus === 'verifying' || !isValidHotelAccessCode(hotelSlug)
                 }
-              }}
-              placeholder="Write hotel code"
-              aria-invalid={Boolean(hotelCodeError)}
-              aria-describedby={hotelCodeError ? 'staff-hotel-code-error' : undefined}
-              className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-[14px] font-semibold tracking-[0.12em] text-slate-900 outline-none transition placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-            />
+                className="h-10 shrink-0 rounded-lg bg-emerald-600 px-4 text-[12.5px] font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+              >
+                {hotelCodeStatus === 'verifying' ? 'Verifying…' : 'Verify'}
+              </button>
+            </div>
           </label>
           {hotelCodeError && (
             <p
               id="staff-hotel-code-error"
               role="alert"
-              className="text-[12px] font-medium text-red-600 dark:text-red-400"
+              className="mt-1 text-[11px] font-medium text-red-600 dark:text-red-400"
             >
               {hotelCodeError}
             </p>
           )}
-          <button
-            type="button"
-            data-testid="verify-staff-hotel-code"
-            onClick={() => void handleVerifyHotelCode()}
-            disabled={
-              hotelCodeStatus === 'verifying' || !isValidHotelAccessCode(hotelSlug)
-            }
-            className="h-11 w-full rounded-lg bg-slate-900 text-[13.5px] font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
-          >
-            {hotelCodeStatus === 'verifying' ? 'Verifying code…' : 'Verify hotel code'}
-          </button>
         </div>
       )}
     </div>

@@ -93,6 +93,7 @@ export interface IRestaurantOrder extends Document {
   tokenDayKey?: string;
   customerName?: string;
   customerPhone?: string;
+  guestCount?: number;
   idempotencyKey: string;
   isBilled?: boolean;
   isSweptToFolio?: boolean;
@@ -181,6 +182,7 @@ const RestaurantOrderSchema = new Schema<IRestaurantOrder>(
     tokenDayKey: { type: String },
     customerName: { type: String, trim: true },
     customerPhone: { type: String, trim: true },
+    guestCount: { type: Number, default: 2, min: 1 },
     idempotencyKey: { type: String, required: true, index: true },
     isBilled: { type: Boolean, default: false, index: true },
     isSweptToFolio: { type: Boolean, default: false, index: true },

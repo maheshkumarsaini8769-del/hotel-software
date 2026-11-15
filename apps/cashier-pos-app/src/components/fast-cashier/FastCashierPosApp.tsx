@@ -88,15 +88,8 @@ export const FastCashierPosApp: React.FC<FastCashierPosAppProps> = ({
         setPopularItems(items);
       }
     } catch {
-      // Default sample items if offline / dev
-      setPopularItems([
-        { _id: 'item-101', name: 'Masala Chai', itemCode: '101', barcode: '8901001', basePrice: 40, isAvailable: true },
-        { _id: 'item-102', name: 'Filter Coffee', itemCode: '102', barcode: '8901002', basePrice: 60, isAvailable: true },
-        { _id: 'item-201', name: 'Veg Samosa (2 pcs)', itemCode: '201', barcode: '8902001', basePrice: 50, isAvailable: true },
-        { _id: 'item-301', name: 'Chicken Biryani Takeaway', itemCode: '301', barcode: '8903001', basePrice: 280, isAvailable: true },
-        { _id: 'item-302', name: 'Paneer Butter Masala', itemCode: '302', barcode: '8903002', basePrice: 240, isAvailable: true },
-        { _id: 'item-401', name: 'Mineral Water 1L', itemCode: '401', barcode: '8904001', basePrice: 30, isAvailable: true },
-      ]);
+      // Empty catalog when offline or error
+      setPopularItems([]);
     }
   }, [apiBaseUrl, authHeaders]);
 
@@ -184,7 +177,7 @@ export const FastCashierPosApp: React.FC<FastCashierPosAppProps> = ({
       });
       fetchCallingQueue();
     } catch {
-      // Mock update
+      // Local optimistic state update fallback
       setCallingQueue((prev) => ({
         ...prev,
         readyQueue: prev.readyQueue.filter((q) => q._id !== orderId),

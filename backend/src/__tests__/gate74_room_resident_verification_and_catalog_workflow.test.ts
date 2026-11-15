@@ -1,7 +1,11 @@
 import request from 'supertest';
 import mongoose, { Types } from 'mongoose';
+import jwt from 'jsonwebtoken';
 import { app } from '../index';
 import { Tenant } from '../models/Tenant';
+import { User } from '../models/User';
+import { UserRole, ShiftStatus } from '../types';
+import { getJwtSecret } from '../config/security';
 import { Room, RoomStatus } from '../models/Room';
 import { RoomType } from '../models/RoomType';
 import { Stay, StayStatus } from '../models/Stay';
@@ -16,6 +20,7 @@ describe('--- SHIFT 74 / GATE 74: NON-DEMO REAL ROOM STAY PROCESS, RESIDENT VERI
   let vacantRoom: any;
   let activeStay: any;
   let guestProfile: any;
+  let receptionToken: string;
 
   beforeAll(async () => {
     const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/spicehub_dev';
@@ -38,9 +43,31 @@ describe('--- SHIFT 74 / GATE 74: NON-DEMO REAL ROOM STAY PROCESS, RESIDENT VERI
         state: 'Maharashtra',
         country: 'India',
       },
-      enabledPortals: ['admin', 'customer', 'guest', 'waiter', 'cashier', 'kds', 'pms'],
+      enabledPortals: ['admin', 'customer', 'guest', 'waiter', 'cashier', 'kds', 'reception', 'pms'],
     });
     hotelId = (tenant._id as Types.ObjectId).toString();
+
+    // Receptionist account used to approve guest-submitted KYC bookings.
+    const receptionist = await User.create({
+      hotelId: tenant._id,
+      name: 'Front Desk Receptionist',
+      email: `reception_${Date.now()}@tajpalace.com`,
+      phone: '9820011299',
+      passwordHash: 'dummy_hash',
+      role: UserRole.RECEPTIONIST,
+      shiftStatus: ShiftStatus.ON_DUTY,
+      isActive: true,
+    });
+    receptionToken = jwt.sign(
+      {
+        userId: receptionist._id.toString(),
+        hotelId,
+        role: UserRole.RECEPTIONIST,
+        email: receptionist.email,
+      },
+      getJwtSecret(),
+      { expiresIn: '2h' }
+    );
 
     // 2. Create Room Type
     deluxeRoomType = await RoomType.create({
@@ -149,6 +176,7 @@ describe('--- SHIFT 74 / GATE 74: NON-DEMO REAL ROOM STAY PROCESS, RESIDENT VERI
       await Booking.deleteMany({ hotelId });
       await GuestProfile.deleteMany({ hotelId });
       await MasterFolio.deleteMany({ hotelId });
+      await User.deleteMany({ hotelId });
     }
   });
 
@@ -173,7 +201,7 @@ describe('--- SHIFT 74 / GATE 74: NON-DEMO REAL ROOM STAY PROCESS, RESIDENT VERI
   });
 
   // TEST 2: Reject Resident Guest Verification if Phone Number Mismatches
-  it('2. Resident verification rejects with PHONE_MISMATCH if mobile does not match check-in record', async () => {
+  it('2. Resident verification rejects with CREDENTIAL_MISMATCH if mobile does not match check-in record', async () => {
     const res = await request(app)
       .post('/api/v1/guest-portal/stay/verify-resident')
       .send({
@@ -184,8 +212,8 @@ describe('--- SHIFT 74 / GATE 74: NON-DEMO REAL ROOM STAY PROCESS, RESIDENT VERI
 
     expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
-    expect(res.body.errorCode).toBe('PHONE_MISMATCH');
-    expect(res.body.message).toContain('mobile number entered does not match');
+    expect(res.body.errorCode).toBe('CREDENTIAL_MISMATCH');
+    expect(res.body.message).toContain('credentials entered do not match');
   });
 
   // TEST 3: Reject Resident Guest Verification if Room Has No Active Check-In
@@ -230,8 +258,8 @@ describe('--- SHIFT 74 / GATE 74: NON-DEMO REAL ROOM STAY PROCESS, RESIDENT VERI
     expect(res.body.data.counts.occupied).toBe(1);
   });
 
-  // TEST 5: Real Room Booking & Instant Aadhaar KYC Check-In Flow
-  it('5. Guests can book an available room with Aadhaar KYC and immediately receive stay token', async () => {
+  // TEST 5: Real Room Booking & Aadhaar KYC Approval Flow
+  it('5. Guests submit an Aadhaar KYC booking, then Reception approval unlocks the room and issues a stay token', async () => {
     const checkIn = new Date().toISOString().split('T')[0];
     const checkOut = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
@@ -262,7 +290,25 @@ describe('--- SHIFT 74 / GATE 74: NON-DEMO REAL ROOM STAY PROCESS, RESIDENT VERI
     expect(bookRes.body.success).toBe(true);
     expect(bookRes.body.data.roomNumber).toBe('202');
     expect(bookRes.body.data.guestName).toBe('Ananya Sharma');
-    expect(bookRes.body.data.sessionToken).toBeDefined();
+    // Public KYC bookings must wait for physical ID verification at Reception.
+    expect(bookRes.body.data.bookingStatus).toBe('PENDING_APPROVAL');
+    expect(bookRes.body.data.requiresReceptionApproval).toBe(true);
+    expect(bookRes.body.data.sessionToken).toBeUndefined();
+
+    // Room is held (RESERVED) but not yet occupied before approval.
+    const reservedRoom202 = await Room.findById(vacantRoom._id);
+    expect(reservedRoom202?.status).toBe(RoomStatus.RESERVED);
+
+    // Reception verifies the physical ID documents and approves the check-in.
+    const approveRes = await request(app)
+      .post('/api/v1/guest-portal/rooms/approve-checkin')
+      .set('Authorization', `Bearer ${receptionToken}`)
+      .send({ hotelId, bookingId: bookRes.body.data.bookingId });
+
+    expect(approveRes.status).toBe(200);
+    expect(approveRes.body.success).toBe(true);
+    expect(approveRes.body.data.bookingStatus).toBe('CHECKED_IN');
+    expect(approveRes.body.data.sessionToken).toBeDefined();
 
     // Verify room 202 is now OCCUPIED in database
     const updatedRoom202 = await Room.findById(vacantRoom._id);
@@ -285,7 +331,7 @@ describe('--- SHIFT 74 / GATE 74: NON-DEMO REAL ROOM STAY PROCESS, RESIDENT VERI
   });
 
   // TEST 6: Prevent Double Booking of Already Occupied Room
-  it('6. Attempting to book an already occupied room is strictly rejected with 409 ROOM_NOT_AVAILABLE', async () => {
+  it('6. Attempting to book an already occupied room is strictly rejected with 409 ROOM_ALREADY_BOOKED', async () => {
     const bookRes = await request(app)
       .post('/api/v1/guest-portal/rooms/book-and-checkin')
       .set('x-hotel-id', hotelId)
@@ -300,6 +346,6 @@ describe('--- SHIFT 74 / GATE 74: NON-DEMO REAL ROOM STAY PROCESS, RESIDENT VERI
 
     expect(bookRes.status).toBe(409);
     expect(bookRes.body.success).toBe(false);
-    expect(bookRes.body.errorCode).toBe('ROOM_NOT_AVAILABLE');
+    expect(bookRes.body.errorCode).toBe('ROOM_ALREADY_BOOKED');
   });
 });

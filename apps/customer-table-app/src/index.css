@@ -135,3 +135,74 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* Glassmorphism & 3D Emerald Luxury Styles */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 12px 32px 0 rgba(18, 60, 43, 0.08);
+}
+
+.glass-nav-pill {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 16px 40px -4px rgba(18, 60, 43, 0.18), 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.dark .glass-nav-pill {
+  background: rgba(12, 33, 24, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.5);
+}
+
+/* 3D Emerald Deep Lustre */
+.emerald-3d-card {
+  background: radial-gradient(ellipse at 25% 0%, rgba(52, 211, 153, 0.28) 0%, transparent 60%),
+              linear-gradient(145deg, #18523b 0%, #123C2B 48%, #092419 100%);
+  border: 1px solid rgba(74, 222, 128, 0.38);
+  box-shadow: 0 20px 42px -10px rgba(18, 60, 43, 0.48),
+              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.4),
+              inset 0 -2px 6px 0 rgba(0, 0, 0, 0.5);
+}
+
+.emerald-3d-button {
+  background: linear-gradient(180deg, #1ea568 0%, #12804e 60%, #0d633c 100%);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 14px 0 rgba(18, 128, 78, 0.4),
+              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.5),
+              inset 0 -2px 0 0 rgba(7, 60, 35, 0.45);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.emerald-3d-button:active {
+  transform: translateY(1.5px);
+  box-shadow: 0 2px 6px 0 rgba(18, 128, 78, 0.3),
+              inset 0 1px 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.emerald-3d-pill-active {
+  background: linear-gradient(180deg, #1e553e 0%, #123C2B 100%);
+  border: 1px solid rgba(247, 226, 180, 0.45);
+  box-shadow: 0 4px 14px 0 rgba(18, 60, 43, 0.35),
+              inset 0 1px 1px 0 rgba(255, 255, 255, 0.32),
+              inset 0 -1px 2px 0 rgba(0, 0, 0, 0.4);
+}
+
+.gold-3d-button {
+  background: linear-gradient(180deg, #fcedcb 0%, #e8c684 60%, #d4aa5c 100%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 14px 0 rgba(212, 170, 92, 0.4),
+              inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.9),
+              inset 0 -2px 0 0 rgba(160, 115, 35, 0.45);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.gold-3d-button:active {
+  transform: translateY(1.5px);
+  box-shadow: 0 2px 6px 0 rgba(212, 170, 92, 0.3),
+              inset 0 1px 1px 0 rgba(0, 0, 0, 0.2);
+}

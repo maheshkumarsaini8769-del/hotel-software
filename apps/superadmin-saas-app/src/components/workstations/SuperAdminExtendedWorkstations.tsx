@@ -186,7 +186,7 @@ export const SuperAdminExtendedWorkstations: React.FC<SuperAdminExtendedWorkstat
 
   const handleExportLocaleJson = (code: string) => {
     const lang = supportedLanguages.find((l) => l.code === code);
-    const mockDictionary = {
+    const localeDictionary = {
       locale: code,
       language: lang?.name,
       nativeName: lang?.native,
@@ -201,7 +201,7 @@ export const SuperAdminExtendedWorkstations: React.FC<SuperAdminExtendedWorkstat
         totalPayable: 'Total Payable',
       },
     };
-    const jsonStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(mockDictionary, null, 2));
+    const jsonStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(localeDictionary, null, 2));
     const dl = document.createElement('a');
     dl.setAttribute('href', jsonStr);
     dl.setAttribute('download', `locale-${code}.json`);

@@ -14,6 +14,7 @@ let restaurantInfo: any = {
   fssaiNumber: '10020051000892',
   gstin: '08AABCS1429B1ZS',
   contactPhone: '+91 98765 43210',
+  supportPhone: '+91 98765 43210',
   contactEmail: 'contact@spicehubresort.com',
   website: 'https://spicehubresort.com',
   address: 'Plot 42, Civil Lines, Near Heritage Circle, Jaipur, Rajasthan 302006',
@@ -416,6 +417,7 @@ export const getRestaurantInfo = async (req: Request, res: Response) => {
         locationNotes,
         photos: Array.isArray(tenant.photos) && tenant.photos.length > 0 ? tenant.photos : restaurantInfo.photos,
         contactPhone: tenant.contactPhone || restaurantInfo.contactPhone,
+        supportPhone: tenant.supportPhone || tenant.contactPhone || (restaurantInfo as any).supportPhone || restaurantInfo.contactPhone,
         contactEmail: tenant.contactEmail || restaurantInfo.contactEmail,
         gstin: tenant.gstin || restaurantInfo.gstin,
         fssaiNumber: tenant.fssai || restaurantInfo.fssaiNumber,
@@ -473,6 +475,7 @@ export const updateRestaurantInfo = async (req: Request, res: Response) => {
         updateData.photos = Array.isArray(req.body.photos) ? req.body.photos : [];
       }
       if (req.body.contactPhone !== undefined) updateData.contactPhone = String(req.body.contactPhone).trim();
+      if (req.body.supportPhone !== undefined) updateData.supportPhone = String(req.body.supportPhone).trim();
       if (req.body.contactEmail !== undefined) updateData.contactEmail = String(req.body.contactEmail).trim();
       if (req.body.city !== undefined) updateData['address.city'] = String(req.body.city).trim();
       if (req.body.state !== undefined) updateData['address.state'] = String(req.body.state).trim();
@@ -525,6 +528,8 @@ export const updateRestaurantInfo = async (req: Request, res: Response) => {
       if (updatedTenant) {
         restaurantInfo = {
           ...restaurantInfo,
+          contactPhone: updatedTenant.contactPhone,
+          supportPhone: updatedTenant.supportPhone || updatedTenant.contactPhone,
           adminLoginBranding: (updatedTenant as any).adminLoginBranding || restaurantInfo.adminLoginBranding || {},
         };
         if (io) {
@@ -599,6 +604,7 @@ const hotelPolicySchema = z.object({
   nonSmokingFineAmount: z.number().min(0).optional(),
   petSanitationFeePerNight: z.number().min(0).optional(),
   maxTablesPerWaiter: z.number().int().min(1).max(100).optional(),
+  bookingBufferHours: z.number().min(0).max(24).optional(),
 });
 
 async function getSettingsTenant(req: TenantRequest, res: Response): Promise<ITenant | null> {

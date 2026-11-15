@@ -16,6 +16,7 @@ import {
   resolveStaffDeductionPolicy,
   syncAttendanceDeductionForDate,
 } from '../utils/attendanceAutomation';
+import { escapeRegex } from '../utils/security';
 
 /**
  * Mapping of Staff Roles to required tenant portals.
@@ -149,7 +150,7 @@ export const getPayrollStaffList = async (req: TenantRequest, res: Response): Pr
         hotelId,
         userId: { $in: staffIds },
         $or: [
-          { dateKey: { $regex: `^${monthPrefix}` } },
+          { dateKey: { $regex: `^${escapeRegex(monthPrefix)}` } },
           { attendanceDate: { $gte: startOfMonth, $lte: endOfMonth } },
         ],
       })
@@ -429,6 +430,165 @@ export const recordSalaryTransaction = async (req: TenantRequest, res: Response)
 };
 
 /**
+ * 2.1 PUT /api/v1/payroll/transaction/:transactionId
+ * Update an existing salary disbursement, advance, bonus, or deduction (e.g. fix date/time, amount, notes).
+ */
+export const updateSalaryTransaction = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = resolveHotelId(req);
+    const { transactionId } = req.params;
+
+    if (!transactionId || !Types.ObjectId.isValid(String(transactionId))) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_TRANSACTION_ID',
+        message: 'A valid transactionId path parameter is required.',
+      });
+      return;
+    }
+
+    const transaction = await SalaryTransaction.findOne({
+      _id: transactionId,
+      ...(hotelId ? { hotelId } : {}),
+    });
+
+    if (!transaction) {
+      res.status(404).json({
+        success: false,
+        errorCode: 'TRANSACTION_NOT_FOUND',
+        message: 'Salary transaction not found for this property.',
+      });
+      return;
+    }
+
+    const { amount, type, date, status, paymentMethod, notes } = req.body;
+
+    if (amount !== undefined) {
+      const numAmount = Number(amount);
+      if (isNaN(numAmount) || numAmount <= 0) {
+        res.status(400).json({
+          success: false,
+          errorCode: 'INVALID_AMOUNT',
+          message: 'Transaction amount must be a positive number greater than 0.',
+        });
+        return;
+      }
+      transaction.amount = numAmount;
+    }
+
+    if (type !== undefined) {
+      const validTypes: SalaryTransactionType[] = ['SALARY', 'ADVANCE', 'BONUS', 'DEDUCTION'];
+      if (!validTypes.includes(type)) {
+        res.status(400).json({
+          success: false,
+          errorCode: 'INVALID_TYPE',
+          message: `Transaction type must be one of: ${validTypes.join(', ')}`,
+        });
+        return;
+      }
+      transaction.type = type;
+    }
+
+    if (date !== undefined) {
+      const parsedDate = new Date(date);
+      if (isNaN(parsedDate.getTime())) {
+        res.status(400).json({
+          success: false,
+          errorCode: 'INVALID_DATE',
+          message: 'Invalid transaction date/time format.',
+        });
+        return;
+      }
+      transaction.date = parsedDate;
+    }
+
+    if (status !== undefined) {
+      transaction.status = status === 'PENDING' ? 'PENDING' : 'PAID';
+    }
+
+    if (paymentMethod !== undefined) {
+      transaction.paymentMethod = String(paymentMethod || 'BANK_TRANSFER').toUpperCase();
+    }
+
+    if (notes !== undefined) {
+      transaction.notes = String(notes || '').trim();
+    }
+
+    await transaction.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully updated ${transaction.type} transaction.`,
+      transaction: {
+        id: String(transaction._id),
+        staffId: String(transaction.staffId),
+        amount: transaction.amount,
+        type: transaction.type,
+        date: transaction.date,
+        status: transaction.status,
+        paymentMethod: transaction.paymentMethod,
+        notes: transaction.notes,
+        source: transaction.source,
+        createdAt: transaction.createdAt,
+        updatedAt: transaction.updatedAt,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      errorCode: 'TRANSACTION_UPDATE_ERROR',
+      message: error.message || 'Failed to update payroll transaction.',
+    });
+  }
+};
+
+/**
+ * 2.2 DELETE /api/v1/payroll/transaction/:transactionId
+ * Delete an erroneously recorded salary disbursement, cash advance, bonus, or deduction.
+ */
+export const deleteSalaryTransaction = async (req: TenantRequest, res: Response): Promise<void> => {
+  try {
+    const hotelId = resolveHotelId(req);
+    const { transactionId } = req.params;
+
+    if (!transactionId || !Types.ObjectId.isValid(String(transactionId))) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_TRANSACTION_ID',
+        message: 'A valid transactionId path parameter is required.',
+      });
+      return;
+    }
+
+    const deleted = await SalaryTransaction.findOneAndDelete({
+      _id: transactionId,
+      ...(hotelId ? { hotelId } : {}),
+    });
+
+    if (!deleted) {
+      res.status(404).json({
+        success: false,
+        errorCode: 'TRANSACTION_NOT_FOUND',
+        message: 'Salary transaction not found for this property.',
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully deleted ${deleted.type} transaction of ₹${deleted.amount.toLocaleString('en-IN')}.`,
+      deletedTransactionId: String(deleted._id),
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      errorCode: 'TRANSACTION_DELETE_ERROR',
+      message: error.message || 'Failed to delete payroll transaction.',
+    });
+  }
+};
+
+/**
  * 3. GET /api/v1/payroll/ledger/:staffId
  * Returns the full transaction history, attendance summary, and deduction policy for a single staff member.
  */
@@ -471,7 +631,7 @@ export const getStaffLedger = async (req: TenantRequest, res: Response): Promise
       StaffAttendanceLog.find({
         userId: staff._id,
         ...(hotelId ? { hotelId } : {}),
-        dateKey: { $regex: `^${monthPrefix}` },
+        dateKey: { $regex: `^${escapeRegex(monthPrefix)}` },
       })
         .sort({ attendanceDate: -1 })
         .limit(31)
@@ -909,7 +1069,7 @@ export const getPayrollAttendanceBoard = async (req: TenantRequest, res: Respons
       StaffAttendanceLog.find({
         hotelId,
         userId: { $in: staffIds },
-        dateKey: { $regex: `^${monthPrefix}` },
+        dateKey: { $regex: `^${escapeRegex(monthPrefix)}` },
       }).lean(),
       SalaryTransaction.find({
         hotelId,

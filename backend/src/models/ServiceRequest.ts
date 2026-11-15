@@ -17,6 +17,9 @@ export enum ServiceRequestType {
   TOILETRIES = 'TOILETRIES',
   WAKEUP_CALL = 'WAKEUP_CALL',
   DND = 'DND',
+  FOOD_ISSUE = 'FOOD_ISSUE',
+  TABLE_ISSUE = 'TABLE_ISSUE',
+  TABLE_VACATED = 'TABLE_VACATED',
 }
 
 export enum ServiceRequestPriority {

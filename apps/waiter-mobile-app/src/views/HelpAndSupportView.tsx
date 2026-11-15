@@ -18,6 +18,36 @@ interface HelpAndSupportViewProps {
 export const HelpAndSupportView: React.FC<HelpAndSupportViewProps> = ({
   triggerToast,
 }) => {
+  const [supportPhone, setSupportPhone] = React.useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return (
+        localStorage.getItem('spicehub_hotel_support_phone') ||
+        localStorage.getItem('spicehub_hotel_contact_phone') ||
+        '+91 98290 12345'
+      );
+    }
+    return '+91 98290 12345';
+  });
+
+  React.useEffect(() => {
+    const hotelId = typeof window !== 'undefined' ? localStorage.getItem('spicehub_hotel_id') : null;
+    fetch('/api/v1/auth/active-hotels')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.success && Array.isArray(d.data)) {
+          const match = hotelId
+            ? d.data.find((h: any) => h.id === hotelId || h._id === hotelId)
+            : d.data[0];
+          if (match && (match.supportPhone || match.contactPhone)) {
+            const phone = match.supportPhone || match.contactPhone;
+            setSupportPhone(phone);
+            localStorage.setItem('spicehub_hotel_support_phone', phone);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden p-5 gap-4">
       {/* Header */}
@@ -50,6 +80,37 @@ export const HelpAndSupportView: React.FC<HelpAndSupportViewProps> = ({
 
       {/* Main Content Grid */}
       <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-4">
+        {/* Live Support Hotline Banner */}
+        <div data-testid="waiter-support-helpline-card" className="p-4 rounded-2xl border border-orange-200 bg-orange-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
+              <Phone className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-sm text-slate-900">Hotel & POS App Support Desk</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  Live Hotline
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Direct helpline configured by Hotel Administrator for mobile app assistance & POS emergencies.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 self-end sm:self-center">
+            <span className="font-mono font-black text-base text-orange-700">{supportPhone}</span>
+            <a
+              href={`tel:${supportPhone}`}
+              data-testid="call-app-support-btn"
+              className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span>Call Support</span>
+            </a>
+          </div>
+        </div>
+
         {/* SOP Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className={`p-5 rounded-2xl border space-y-2 ${
@@ -152,8 +213,17 @@ export const HelpAndSupportView: React.FC<HelpAndSupportViewProps> = ({
               <div className={`flex items-center justify-between p-2.5 rounded-xl border ${
  'border-slate-200 bg-slate-50'
  }`}>
-                <span className={`font-bold ${'text-slate-900'}`}>IT / Software POS Support</span>
-                <span className={`font-mono font-black ${'text-orange-700'}`}>Ext. #108</span>
+                <div>
+                  <span className={`font-bold block ${'text-slate-900'}`}>IT / Software POS Support</span>
+                  <span className="text-[10px] text-slate-500">Live Hotel Admin Helpline</span>
+                </div>
+                <a
+                  href={`tel:${supportPhone}`}
+                  className="font-mono font-black text-orange-700 hover:underline flex items-center gap-1"
+                >
+                  <Phone className="w-3 h-3 text-orange-600" />
+                  <span>{supportPhone}</span>
+                </a>
               </div>
             </div>
           </div>

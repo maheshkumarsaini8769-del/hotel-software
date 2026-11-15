@@ -44,6 +44,7 @@ export function serializePublicHotelSummary(h: any) {
     tagline: h?.tagline || '',
     status: h?.status || 'ACTIVE',
     contactPhone: h?.contactPhone || '',
+    supportPhone: h?.supportPhone || h?.contactPhone || '',
     contactEmail: h?.contactEmail || '',
     wifiSsid: h?.wifiSsid || '',
     wifiPassword: h?.wifiPassword || '',

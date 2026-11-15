@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { Types } from 'mongoose';
 import { ServiceRequest, ServiceRequestStatus } from '../models/ServiceRequest';
 import { TableSession } from '../models/TableSession';
-import { DiningTable } from '../models/DiningTable';
+import { DiningTable, TableStatus } from '../models/DiningTable';
 import { Room } from '../models/Room';
 import { Tenant } from '../models/Tenant';
 import { SmartRoutingService } from '../services/SmartRoutingService';
@@ -122,6 +122,53 @@ export const createServiceRequest = async (req: Request, res: Response): Promise
       }
     }
 
+    let reqPriority = priority || 'NORMAL';
+    if (requestType === 'FOOD_ISSUE' || requestType === 'TABLE_ISSUE') {
+      reqPriority = 'URGENT';
+    }
+
+    if (requestType === 'TABLE_VACATED' && validTableId) {
+      reqPriority = 'HIGH';
+      await DiningTable.findByIdAndUpdate(validTableId, { currentStatus: TableStatus.CLEANING });
+      const tblDoc = await DiningTable.findById(validTableId);
+      if (tblDoc) {
+        io.to(`${validHotelId}_waiters`).to(`${validHotelId}_cashier`).to(`${validHotelId}_global`).emit('table:status_changed', {
+          tableNumber: tblDoc.tableNumber,
+          status: TableStatus.CLEANING,
+          table: tblDoc,
+        });
+      }
+    }
+
+    // 45-Second Anti-Spam Rate Limiter for Waiter & Table Paging Calls
+    const COOLDOWN_WINDOW_MS = 45000;
+    const queryConditions: any[] = [];
+    if (validSessionId) queryConditions.push({ tableSessionId: validSessionId });
+    if (validTableId) queryConditions.push({ tableId: validTableId });
+
+    if (queryConditions.length > 0) {
+      const recentRequest = await ServiceRequest.findOne({
+        hotelId: validHotelId,
+        $or: queryConditions,
+        requestType,
+        createdAt: { $gte: new Date(Date.now() - COOLDOWN_WINDOW_MS) },
+      }).sort({ createdAt: -1 });
+
+      if (recentRequest) {
+        const elapsedMs = Date.now() - new Date(recentRequest.createdAt).getTime();
+        const remainingSeconds = Math.max(1, Math.round((COOLDOWN_WINDOW_MS - elapsedMs) / 1000));
+        console.log(`⏱️ [Waiter Cooldown] Suppressed duplicate service call for Table ${validTableId}: ${requestType} (${remainingSeconds}s remaining)`);
+        res.status(200).json({
+          success: true,
+          throttled: true,
+          remainingSeconds,
+          message: `Staff has already been alerted! Waiter is on the way (cooldown: ${remainingSeconds}s remaining).`,
+          data: recentRequest,
+        });
+        return;
+      }
+    }
+
     // Create raw request
     const request = new ServiceRequest({
       hotelId: validHotelId,
@@ -129,7 +176,7 @@ export const createServiceRequest = async (req: Request, res: Response): Promise
       tableId: validTableId,
       tableSessionId: validSessionId,
       requestType,
-      priority: priority || 'NORMAL',
+      priority: reqPriority,
       notes,
     });
 

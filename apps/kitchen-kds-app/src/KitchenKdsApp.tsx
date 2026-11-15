@@ -93,6 +93,7 @@ interface KdsItemDisplay {
   id: string;
   orderNumber: string;
   destination: string;
+  guestCount?: number;
   orderType: 'Dine-in' | 'Room Service' | 'Takeaway' | 'Online';
   items: { name: string; qty: number; image?: string; isDone?: boolean; stationName?: string }[];
   note?: string;
@@ -323,8 +324,8 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
   const [is86DrawerOpen, setIs86DrawerOpen] = useState(false);
   const [isManualOrderModalOpen, setIsManualOrderModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [manualTable, setManualTable] = useState('Table 9');
-  const [manualDish, setManualDish] = useState('Paneer Tikka');
+  const [manualTable, setManualTable] = useState('');
+  const [manualDish, setManualDish] = useState('');
   const [mobileKdsTab, setMobileKdsTab] = useState<'all' | 'new' | 'preparing' | 'ready'>('all');
 
   // Item completion strike-through toggle by chef
@@ -349,11 +350,18 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
       if (!incoming || incoming.length === 0) return;
 
       incoming.forEach((io) => {
+        const dest = io.roomNumber
+          ? `Room ${io.roomNumber}`
+          : io.tableNumber
+          ? (String(io.tableNumber).startsWith('Table') ? String(io.tableNumber) : `Table ${io.tableNumber}`)
+          : (io.orderType === 'TAKEAWAY' ? 'Takeaway Counter' : 'Dining Floor');
+
         const mapped: KdsItemDisplay = {
           id: io.id,
           orderNumber: io.orderNumber,
-          destination: io.roomNumber ? `Room ${io.roomNumber}` : io.tableNumber || 'Table 4',
-          orderType: io.orderType === 'ROOM_SERVICE' ? 'Room Service' : 'Dine-in',
+          destination: dest,
+          guestCount: io.guestCount || io.pax,
+          orderType: io.orderType === 'ROOM_SERVICE' ? 'Room Service' : io.orderType === 'TAKEAWAY' ? 'Takeaway' : 'Dine-in',
           timeAgo: 'Just now',
           status: io.orderStatus === 'PREPARING' ? 'PREPARING' : io.orderStatus === 'READY' ? 'READY' : io.orderStatus === 'SERVED' ? 'COMPLETED' : 'NEW',
           items: io.items.map((it) => ({
@@ -406,7 +414,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
         ...order,
         status: 'PREPARING',
         prepProgress: 20,
-        chef: 'Chef: Suresh',
+        chef: chefUser.name ? `Chef: ${chefUser.name}` : 'Kitchen Station',
         timerMinutes: 15,
       },
       ...prev.filter((o) => o.id !== order.id),
@@ -1191,7 +1199,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                   title="KDS Settings"
                   onClick={() => setActiveSidebarItem('Settings')}
                   className={`hidden lg:flex px-2.5 py-1.5 rounded-xl border text-xs font-semibold items-center justify-center transition shrink-0 ${
-                    activeSidebarItem === 'Settings'
+                    (activeSidebarItem as string) === 'Settings'
                       ? 'bg-[#0F172A] text-white border-[#0F172A]'
                       : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 shadow-xs'
                   }`}
@@ -1310,6 +1318,11 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                             <span className="text-lg font-bold text-slate-900 dark:text-white">
                               {ord.destination}
                             </span>
+                            {Boolean(ord.guestCount) && (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                                👥 {ord.guestCount} Guests
+                              </span>
+                            )}
                             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                               {ord.orderNumber}
                             </span>
@@ -1406,6 +1419,11 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                             <span className="text-lg font-bold text-slate-900 dark:text-white">
                               {ord.destination}
                             </span>
+                            {Boolean(ord.guestCount) && (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                                👥 {ord.guestCount} Guests
+                              </span>
+                            )}
                             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                               {ord.orderNumber}
                             </span>
@@ -1515,6 +1533,11 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                             <span className="text-lg font-bold text-slate-900 dark:text-white">
                               {ord.destination}
                             </span>
+                            {Boolean(ord.guestCount) && (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                                👥 {ord.guestCount} Guests
+                              </span>
+                            )}
                             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                               {ord.orderNumber}
                             </span>
@@ -1928,6 +1951,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                 <label className={`block font-bold mb-1 ${'text-slate-700'}`}>Table or Room</label>
                 <input
                   type="text"
+                  placeholder="e.g. Table 2 or Room 104"
                   value={manualTable}
                   onChange={(e) => setManualTable(e.target.value)}
                   className={`w-full px-3 py-2 rounded-xl border font-semibold ${
@@ -1940,6 +1964,7 @@ export const KitchenKdsApp: React.FC<KitchenKdsAppProps> = ({
                 <label className={`block font-bold mb-1 ${'text-slate-700'}`}>Dish Name</label>
                 <input
                   type="text"
+                  placeholder="e.g. Butter Naan or Dal Tadka"
                   value={manualDish}
                   onChange={(e) => setManualDish(e.target.value)}
                   className={`w-full px-3 py-2 rounded-xl border font-semibold ${

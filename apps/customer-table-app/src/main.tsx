@@ -1,9 +1,9 @@
 import './index.css';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { CustomerMenuApp, CustomerRequestType } from './CustomerMenuApp';
 import { ErrorBoundary, MenuCartStore, CustomerLocationSelectorModal, CustomerPortalSwitcherBar, I18nProvider, CustomerDownloadAppBanner, installGlobalNumericInputGuard } from '@spicehub/ui';
-import { Users, ArrowRight, AlertCircle, AlertTriangle, X } from 'lucide-react';
+import { Users, ArrowRight, AlertCircle, AlertTriangle, X, CheckCircle2 } from 'lucide-react';
 import { SpiceHubSocket, SpiceHubClient } from '@spicehub/api-client';
 import { API_ORIGIN, SOCKET_URL } from './config/api';
 import { getPortalUrl } from './config/env';
@@ -13,9 +13,9 @@ installGlobalNumericInputGuard();
 const store = MenuCartStore.getInstance();
 const socket = SpiceHubSocket.getInstance();
 const API_BASE = API_ORIGIN;
-const parentOrigin = new URLSearchParams(window.location.search).get('parentOrigin');
+const parentOrigin = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('parentOrigin') : null;
 const isCustomerApkEmbed =
-  window.parent !== window && parentOrigin === 'https://localhost';
+  typeof window !== 'undefined' && (window.parent !== window || Boolean(parentOrigin));
 const isNativeCustomerRuntime = Boolean((window as any)?.Capacitor?.isNativePlatform?.());
 
 export interface PlacedOrderItem {
@@ -68,7 +68,9 @@ export const CustomerAppRoot: React.FC = () => {
     return '';
   }, []);
 
-  const [showLocationModal, setShowLocationModal] = useState<boolean>(() => !hasExplicitTable && !crossRoomParam);
+  const [showLocationModal, setShowLocationModal] = useState<boolean>(
+    () => !hasExplicitTable && !crossRoomParam && !isCustomerApkEmbed
+  );
   const [hotelId, setHotelId] = useState<string>('');
   const [hotelName, setHotelName] = useState<string>('SpiceHub Hotel');
   const [hotelLocation, setHotelLocation] = useState<{
@@ -114,20 +116,14 @@ export const CustomerAppRoot: React.FC = () => {
     } catch {}
     return 2;
   });
-  const [showPaxModal, setShowPaxModal] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const sp = new URLSearchParams(window.location.search);
-    const tbl = sp.get('table') || sp.get('tableNumber') || sp.get('tableId');
-    if (tbl) {
-      const alreadyConfirmed = localStorage.getItem(`spicehub_table_pax_set_${tbl}`);
-      return !alreadyConfirmed;
-    }
-    return false;
-  });
+  const [showPaxModal, setShowPaxModal] = useState<boolean>(false);
   const [waiterEnabled, setWaiterEnabled] = useState<boolean>(true);
   const [bootstrapError, setBootstrapError] = useState<string>('');
   const [isReady, setIsReady] = useState<boolean>(false);
   const [liveToast, setLiveToast] = useState<{ message: string; type: 'success' | 'info' | 'warn' } | null>(null);
+  const isPlacingOrderRef = useRef<boolean>(false);
+  const [isBillSettledModalOpen, setIsBillSettledModalOpen] = useState<boolean>(false);
+  const [settledBillInfo, setSettledBillInfo] = useState<any>(null);
   const [activeOrders, setActiveOrders] = useState<PlacedOrder[]>(() => {
     try {
       const saved = localStorage.getItem('spicehub_customer_active_orders');
@@ -139,7 +135,12 @@ export const CustomerAppRoot: React.FC = () => {
 
   const fetchSessionOrders = useCallback(async (sId: string) => {
     try {
-      const ordersRes = await fetch(`${API_BASE}/api/v1/pos/table-session/${sId}/orders`);
+      const hId = hotelId || new URLSearchParams(window.location.search).get('hotelId') || localStorage.getItem('spicehub_customer_hotel_id') || '';
+      const url = new URL(`${API_BASE}/api/v1/pos/table-session/${sId}/orders`);
+      if (hId) url.searchParams.set('hotelId', hId);
+      const ordersRes = await fetch(url.toString(), {
+        headers: hId ? { 'x-hotel-id': hId } : {},
+      });
       if (ordersRes.ok) {
         const body = await ordersRes.json();
         if (body.success && Array.isArray(body.data)) {
@@ -154,12 +155,58 @@ export const CustomerAppRoot: React.FC = () => {
       console.warn('[CustomerApp] Could not fetch session orders:', err);
     }
     return null;
-  }, []);
+  }, [hotelId]);
+
+  useEffect(() => {
+    const handleMainBack = (e: MessageEvent) => {
+      if (e.data?.type === 'spicehub:hardware-back-pressed') {
+        if (showPaxModal) {
+          setShowPaxModal(false);
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'spicehub:back-handled' }, '*');
+          }
+          return;
+        }
+        if (showLocationModal) {
+          setShowLocationModal(false);
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'spicehub:back-handled' }, '*');
+          }
+          return;
+        }
+        if (occupiedTable && !occupiedTable.viewOnlyAccepted) {
+          setOccupiedTable(null);
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: 'spicehub:exit-portal-requested' }, '*');
+          }
+          return;
+        }
+      }
+    };
+    window.addEventListener('message', handleMainBack);
+    return () => window.removeEventListener('message', handleMainBack);
+  }, [showPaxModal, showLocationModal, occupiedTable]);
 
   const bootstrap = useCallback(async (overrideTableNumber?: string) => {
     try {
       const searchParams = new URLSearchParams(window.location.search);
-      const qHotelId = searchParams.get('hotelId') || localStorage.getItem('spicehub_customer_hotel_id') || '6ae06d00ddbafddfbb0a8013';
+      const urlHotelId = searchParams.get('hotelId');
+      const storedHotelId = localStorage.getItem('spicehub_customer_hotel_id');
+      const isCrossHotelSwitch = Boolean(urlHotelId && storedHotelId && urlHotelId !== storedHotelId);
+
+      if (isCrossHotelSwitch) {
+        console.warn(`[CustomerApp] Cross-hotel QR detected: switching from ${storedHotelId} to ${urlHotelId}. Purging previous hotel cart and active session.`);
+        store.clearCart();
+        setActiveOrders([]);
+        localStorage.removeItem('spicehub_customer_active_orders');
+        localStorage.removeItem('spicehub_customer_session_token');
+        localStorage.removeItem('spicehub_customer_hotel');
+        localStorage.removeItem('spicehub_customer_hotel_id');
+        localStorage.removeItem('spicehub_customer_table');
+        sessionStorage.removeItem('spicehub_customer_session_token');
+      }
+
+      const qHotelId = urlHotelId || storedHotelId || '6ae06d00ddbafddfbb0a8013';
       const qTableId = searchParams.get('tableId');
       const rawTable =
         overrideTableNumber ||
@@ -177,10 +224,11 @@ export const CustomerAppRoot: React.FC = () => {
         if (qTableId) qrUrl.searchParams.set('tableId', String(qTableId));
         if (rawTable) qrUrl.searchParams.set('table', String(rawTable));
         if (qrToken) qrUrl.searchParams.set('token', qrToken);
-        const existingClientToken =
-          searchParams.get('sessionToken') ||
-          localStorage.getItem('spicehub_customer_session_token') ||
-          sessionStorage.getItem('spicehub_customer_session_token');
+        const existingClientToken = isCrossHotelSwitch
+          ? null
+          : (searchParams.get('sessionToken') ||
+             localStorage.getItem('spicehub_customer_session_token') ||
+             sessionStorage.getItem('spicehub_customer_session_token'));
         if (existingClientToken) {
           qrUrl.searchParams.set('sessionToken', existingClientToken);
         }
@@ -244,6 +292,24 @@ export const CustomerAppRoot: React.FC = () => {
         const qrHotelNameStr = d.hotelName || 'SpiceHub Hotel';
         const qrTableNumberStr = d.tableNumber || '';
 
+        const previousHotelId = storedHotelId;
+        const isCrossHotel = Boolean(previousHotelId && previousHotelId !== qrHotelIdStr);
+
+        if (isCrossHotel) {
+          console.warn(`[CustomerApp] Cross-hotel transfer: switched from ${previousHotelId} to ${qrHotelIdStr} (${qrHotelNameStr}). Purging old hotel cart & session.`);
+          store.clearCart();
+          setActiveOrders([]);
+          try {
+            localStorage.removeItem('spicehub_customer_active_orders');
+            localStorage.removeItem('spicehub_customer_session_token');
+            sessionStorage.removeItem('spicehub_customer_session_token');
+          } catch {}
+          setLiveToast({
+            message: `Switched property to ${qrHotelNameStr} • Table ${qrTableNumberStr}`,
+            type: 'success',
+          });
+        }
+
         setHotelId(qrHotelIdStr);
         setHotelName(qrHotelNameStr);
         if (d?.hotelCity || d?.hotelAddress || d?.googleMapUrl) {
@@ -291,14 +357,27 @@ export const CustomerAppRoot: React.FC = () => {
               {
                 type: 'spicehub:table-session-ready',
                 hotelId: qrHotelIdStr,
+                hotelName: qrHotelNameStr,
                 tableNumber: qrTableNumberStr,
                 sessionToken: String(d.sessionToken),
+                isCrossHotelTransfer: isCrossHotel,
+                previousHotelId,
               },
               parentOrigin
             );
           }
-          if (qrTableNumberStr && !localStorage.getItem(`spicehub_table_pax_set_${qrTableNumberStr}`)) {
+          const isCompanionJoining = Boolean(d.hasActiveSession || d.isExistingSession);
+          if (qrTableNumberStr && !isCompanionJoining && !localStorage.getItem(`spicehub_table_pax_set_${qrTableNumberStr}`)) {
             setShowPaxModal(true);
+          } else if (isCompanionJoining) {
+            setShowPaxModal(false);
+            setLiveToast({
+              message: `Joined Table ${qrTableNumberStr} group tab! Companion orders synchronized.`,
+              type: 'info',
+            });
+            setTimeout(() => setLiveToast(null), 5000);
+          } else {
+            setShowPaxModal(false);
           }
         } catch {}
 
@@ -471,8 +550,9 @@ export const CustomerAppRoot: React.FC = () => {
       window.dispatchEvent(new CustomEvent('spicehub:menu_updated'));
     });
 
-    const unbindOrderStatus = socket.on('order:status_updated', (payload: any) => {
-      console.log('[CustomerApp] Order status updated:', payload);
+    const handleStatusPayload = (payload: any, forcedStatus?: string) => {
+      const targetStatus = forcedStatus || payload.orderStatus;
+      console.log('[CustomerApp] Realtime order status event:', { payload, targetStatus });
       setActiveOrders((prev) => {
         const updated = prev.map((o) => {
           if (
@@ -481,7 +561,7 @@ export const CustomerAppRoot: React.FC = () => {
             o.orderId === payload.orderId ||
             (payload.order && payload.order.orderNumber === o.orderNumber)
           ) {
-            return { ...o, orderStatus: payload.orderStatus };
+            return { ...o, orderStatus: targetStatus };
           }
           return o;
         });
@@ -491,15 +571,90 @@ export const CustomerAppRoot: React.FC = () => {
         return updated;
       });
 
-      if (payload.orderStatus === 'PREPARING') {
-        setLiveToast({ message: 'Kitchen started cooking your order!', type: 'info' });
-      } else if (payload.orderStatus === 'READY') {
-        setLiveToast({ message: 'Your order is ready! Waiter is bringing it to your table.', type: 'success' });
-      } else if (payload.orderStatus === 'SERVED') {
-        setLiveToast({ message: 'Your order has been served! Enjoy your meal.', type: 'success' });
+      if (targetStatus === 'PREPARING') {
+        setLiveToast({ message: '👨‍🍳 Kitchen started cooking your order fresh!', type: 'info' });
+      } else if (targetStatus === 'READY') {
+        setLiveToast({ message: '🔔 Your order is plated & ready! Waiter is bringing it to your table.', type: 'success' });
+      } else if (targetStatus === 'SERVED') {
+        setLiveToast({ message: '🍽️ Your order has been served! Enjoy your meal.', type: 'success' });
       }
       setTimeout(() => setLiveToast(null), 6000);
+
+      if (tableSessionId) {
+        fetchSessionOrders(tableSessionId);
+      }
+    };
+
+    const unbindOrderStatus = socket.on('order:status_updated', (payload: any) => handleStatusPayload(payload));
+    const unbindKdsPreparing = socket.on('kds:order_preparing', (payload: any) => handleStatusPayload(payload, 'PREPARING'));
+    const unbindKdsReady = socket.on('kds:order_ready', (payload: any) => handleStatusPayload(payload, 'READY'));
+    const unbindOrderDelivered = socket.on('order:delivered', (payload: any) => handleStatusPayload(payload, 'SERVED'));
+
+    // Multi-Guest Collaborative Ordering: Live orders from table companions
+    const unbindOrderPlaced = socket.on('table:order_placed', (payload: any) => {
+      console.log('🍽️ [CustomerApp] Multi-guest order received:', payload);
+      if (payload?.placedOrder) {
+        setActiveOrders((prev) => {
+          if (prev.some((o) => o.id === payload.placedOrder.id || o.orderNumber === payload.placedOrder.orderNumber)) {
+            return prev;
+          }
+          const updated = [...prev, payload.placedOrder];
+          try {
+            localStorage.setItem('spicehub_customer_active_orders', JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+        setLiveToast({
+          message: `Table companion added Order #${payload.placedOrder.orderNumber}! Sent to Kitchen KDS.`,
+          type: 'success',
+        });
+        setTimeout(() => setLiveToast(null), 6000);
+      }
+      if (tableSessionId) {
+        fetchSessionOrders(tableSessionId);
+      }
     });
+
+    // Realtime Cashier POS Settle Sync & Post-Payment Auto-Clear Session
+    const handleBillSettledEvent = (payload: any) => {
+      console.log('💳 [CustomerApp] Realtime Cashier POS Bill Settled:', payload);
+      const isTargetTable =
+        !payload?.tableSessionId ||
+        String(payload.tableSessionId) === String(tableSessionId) ||
+        (payload.tableNumber && String(payload.tableNumber) === String(tableNumber));
+
+      if (isTargetTable) {
+        setIsBillSettledModalOpen(true);
+        setSettledBillInfo(payload);
+        setActiveOrders([]);
+        store.clearCart();
+        window.dispatchEvent(new CustomEvent('spicehub:bill_settled', { detail: payload }));
+        try {
+          localStorage.removeItem('spicehub_customer_active_orders');
+          localStorage.removeItem('spicehub_customer_session_token');
+          localStorage.removeItem('spicehub_customer_table');
+        } catch {}
+
+        const parentOrigin = new URLSearchParams(window.location.search).get('parentOrigin');
+        if (window.parent !== window && parentOrigin) {
+          window.parent.postMessage(
+            {
+              type: 'spicehub:table-session-settled',
+              hotelId,
+              tableNumber,
+              tableSessionId,
+              billNumber: payload?.billNumber,
+              amount: payload?.amount || payload?.grandTotal,
+              paymentMode: payload?.paymentMode || 'POS',
+            },
+            parentOrigin
+          );
+        }
+      }
+    };
+
+    const unbindBillSettled = socket.on('table:bill_settled', handleBillSettledEvent);
+    const unbindSessionClosed = socket.on('table:session_closed', handleBillSettledEvent);
 
     return () => {
       unbind86();
@@ -510,11 +665,31 @@ export const CustomerAppRoot: React.FC = () => {
       unbindItemCreated();
       unbindItemDeleted();
       unbindOrderStatus();
+      unbindKdsPreparing();
+      unbindKdsReady();
+      unbindOrderDelivered();
+      unbindOrderPlaced();
+      unbindBillSettled();
+      unbindSessionClosed();
     };
-  }, [hotelId, tableSessionId, sessionToken]);
+  }, [hotelId, tableSessionId, tableNumber, sessionToken, fetchSessionOrders]);
 
-  const handleRequestService = async (type: CustomerRequestType) => {
-    console.log(`[Customer] Requesting service: ${type} for table ${tableNumber}`);
+  // Real-time polling fallback: while active orders are cooking or placed, keep in sync with KDS
+  useEffect(() => {
+    if (!tableSessionId) return;
+    const hasUnservedOrders = activeOrders.some((o) => o.orderStatus !== 'SERVED' && o.orderStatus !== 'CANCELLED');
+    if (!hasUnservedOrders) return;
+
+    const interval = setInterval(() => {
+      fetchSessionOrders(tableSessionId);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [tableSessionId, activeOrders, fetchSessionOrders]);
+
+  const handleRequestService = async (type: CustomerRequestType, notes?: string, priority?: string) => {
+    console.log(`[Customer] Requesting service: ${type} for table ${tableNumber}, notes: ${notes}`);
+    const reqPriority = priority || (type === 'FOOD_ISSUE' || type === 'TABLE_ISSUE' ? 'URGENT' : 'HIGH');
     
     // 1. Send HTTP request to central engine
     try {
@@ -526,7 +701,8 @@ export const CustomerAppRoot: React.FC = () => {
           tableId,
           tableSessionId,
           requestType: type,
-          priority: 'HIGH',
+          priority: reqPriority,
+          notes: notes || undefined,
         }),
       });
       const data = await res.json();
@@ -542,14 +718,60 @@ export const CustomerAppRoot: React.FC = () => {
       tableNumber,
       type,
       requestType: type,
-      priority: 'HIGH',
+      priority: reqPriority,
+      notes: notes || undefined,
     });
 
+    const displayMsg =
+      type === 'FOOD_ISSUE' || type === 'TABLE_ISSUE'
+        ? `Issue reported with URGENT priority! Waiter & floor supervisor alerted.`
+        : type === 'TABLE_VACATED'
+          ? `Thank you! Staff notified table is vacant for cleaning.`
+          : `${type.replace(/_/g, ' ')} call sent! Waiter notified.`;
+
     setLiveToast({
-      message: `${type.replace(/_/g, ' ')} call sent! Waiter notified.`,
+      message: displayMsg,
       type: 'success',
     });
     setTimeout(() => setLiveToast(null), 4000);
+  };
+
+  const handleCancelOrder = async (orderId: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/pos/orders/${orderId}/cancel-customer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-token': sessionToken,
+        },
+        body: JSON.stringify({ hotelId, orderId, reason: 'Customer cancelled order before kitchen preparation' }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        setLiveToast({
+          message: data?.message || 'Could not cancel order. Kitchen may have already started preparing food.',
+          type: 'warn',
+        });
+        setTimeout(() => setLiveToast(null), 5000);
+        return false;
+      }
+      setActiveOrders((prev) =>
+        prev.map((o) => (o.id === orderId || o.orderId === orderId ? { ...o, orderStatus: 'CANCELLED' as any } : o))
+      );
+      setLiveToast({
+        message: 'Order cancelled successfully!',
+        type: 'success',
+      });
+      setTimeout(() => setLiveToast(null), 4000);
+      return true;
+    } catch (err: any) {
+      setLiveToast({
+        message: err?.message || 'Could not cancel order.',
+        type: 'warn',
+      });
+      setTimeout(() => setLiveToast(null), 4000);
+      return false;
+    }
   };
 
   const handlePlaceOrder = async (idempotencyKey: string, instructions?: string, clientItems?: any[], requestedGuestCount?: number): Promise<boolean> => {
@@ -568,7 +790,14 @@ export const CustomerAppRoot: React.FC = () => {
       return false;
     }
 
-    if (!hotelId || !tableSessionId || !sessionToken) {
+    if (isPlacingOrderRef.current) {
+      console.warn('[handlePlaceOrder] Ignored duplicate rapid submission');
+      return false;
+    }
+    isPlacingOrderRef.current = true;
+
+    try {
+      if (!hotelId || !tableSessionId || !sessionToken) {
       console.warn('[handlePlaceOrder] session not ready:', { hotelId, tableSessionId, sessionToken: Boolean(sessionToken) });
       setLiveToast({ message: 'Dining session is not ready. Please rescan the table QR code.', type: 'warn' });
       setTimeout(() => setLiveToast(null), 5000);
@@ -689,6 +918,9 @@ export const CustomerAppRoot: React.FC = () => {
     });
     setTimeout(() => setLiveToast(null), 5000);
     return true;
+    } finally {
+      isPlacingOrderRef.current = false;
+    }
   };
 
   const handleSettleBill = async (paymentMode: 'UPI' | 'CARD' | 'CASH' | 'ROOM', amount: number, utr?: string) => {
@@ -762,34 +994,36 @@ export const CustomerAppRoot: React.FC = () => {
 
   if (crossRoomParam) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-sm font-bold text-amber-400">Redirecting to In-Room Guest Portal...</p>
+      <div className="min-h-screen bg-[#F2F7F2] flex flex-col items-center justify-center text-[#123C2B] p-4 font-sans">
+        <div className="w-12 h-12 border-4 border-[#123C2B] border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-sm font-bold text-[#123C2B]">Redirecting to In-Room Guest Portal...</p>
       </div>
     );
   }
 
   if (!isReady) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-sm font-semibold tracking-wide text-amber-400">Connecting to Dining Session...</p>
+      <div className="min-h-screen bg-[#F2F7F2] flex flex-col items-center justify-center text-[#123C2B] font-sans">
+        <div className="w-12 h-12 border-4 border-[#123C2B] border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-sm font-bold tracking-wide text-[#123C2B]">Connecting to Dining Session...</p>
       </div>
     );
   }
 
   if (bootstrapError) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-6 text-center text-white">
-        <AlertTriangle className="w-12 h-12 text-amber-400 mb-4" />
-        <h1 className="text-xl font-black text-amber-400">Dining session unavailable</h1>
-        <p className="mt-2 max-w-md text-sm text-slate-300">{bootstrapError}</p>
-        <p className="mt-1 text-xs text-slate-500">Please rescan the QR code on your table or ask a waiter for help.</p>
+      <div className="min-h-screen bg-[#F2F7F2] flex flex-col items-center justify-center px-6 text-center text-[#123C2B] font-sans">
+        <div className="w-14 h-14 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center mb-4 text-amber-700 shadow-sm">
+          <AlertTriangle className="w-8 h-8" />
+        </div>
+        <h1 className="text-xl font-black text-[#123C2B] tracking-tight">Dining session unavailable</h1>
+        <p className="mt-2 max-w-md text-sm text-[#5D675F] leading-relaxed">{bootstrapError}</p>
+        <p className="mt-1 text-xs text-[#5D675F]/80">Please rescan the QR code on your table or ask a waiter for assistance.</p>
         <button
           onClick={() => window.location.reload()}
-          className="mt-6 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-amber-400"
+          className="mt-6 rounded-2xl bg-[#123C2B] hover:bg-[#1B4D3E] px-6 py-3 text-sm font-bold text-white shadow-md active:scale-95 transition"
         >
-          Retry
+          Retry Connection
         </button>
       </div>
     );
@@ -797,24 +1031,21 @@ export const CustomerAppRoot: React.FC = () => {
 
   return (
     <>
-      <CustomerLocationSelectorModal
-        isOpen={showLocationModal}
-        currentApp="customer"
-        apiBaseUrl={API_BASE}
-        hotelId={hotelId}
-        tablePortalUrl={getPortalUrl('customer')}
-        roomPortalUrl={getPortalUrl('guest')}
-        onSelectTable={(selectedTable) => {
-          setShowLocationModal(false);
-          void bootstrap(selectedTable);
-        }}
-        onClose={() => setShowLocationModal(false)}
-      />
-      <CustomerPortalSwitcherBar
-        currentApp="customer"
-        currentLocationName={tableNumber ? `Table ${tableNumber}` : undefined}
-        destinationUrl={getPortalUrl('guest')}
-      />
+      {showLocationModal && !hasExplicitTable && !crossRoomParam && !isCustomerApkEmbed && (
+        <CustomerLocationSelectorModal
+          isOpen={showLocationModal}
+          currentApp="customer"
+          apiBaseUrl={API_BASE}
+          hotelId={hotelId}
+          tablePortalUrl={getPortalUrl('customer')}
+          roomPortalUrl={getPortalUrl('guest')}
+          onSelectTable={(selectedTable) => {
+            setShowLocationModal(false);
+            void bootstrap(selectedTable);
+          }}
+          onClose={() => setShowLocationModal(false)}
+        />
+      )}
 
       {/* Direct Camera / Chrome Scanner Pax Modal */}
       {showPaxModal && (
@@ -936,6 +1167,28 @@ export const CustomerAppRoot: React.FC = () => {
 
             {/* Action Buttons */}
             <div className="space-y-3 pt-2">
+              {/* Option 0: Resume My Table Session */}
+              {localStorage.getItem('spicehub_customer_table') === occupiedTable.tableNumber && (
+                <button
+                  type="button"
+                  data-testid="occupied-resume-session-btn"
+                  onClick={() => {
+                    setOccupiedTable(null);
+                    setCanOrder(true);
+                    setIsReadOnly(false);
+                    const savedOrders = localStorage.getItem('spicehub_customer_active_orders');
+                    if (savedOrders) {
+                      try {
+                        setActiveOrders(JSON.parse(savedOrders));
+                      } catch {}
+                    }
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-700 shadow-sm active:scale-98"
+                >
+                  <span>I am Dining at Table {occupiedTable.tableNumber} (Resume Order)</span>
+                </button>
+              )}
+
               {/* Option 1: Call Waiter */}
               <button
                 type="button"
@@ -981,6 +1234,72 @@ export const CustomerAppRoot: React.FC = () => {
         </div>
       )}
 
+      {/* Realtime Cashier POS Settle & Post-Payment Auto-Clear Modal */}
+      {isBillSettledModalOpen && (
+        <div
+          data-testid="cashier-bill-settled-modal"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in"
+        >
+          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-emerald-500/30 p-6 text-center shadow-2xl space-y-4">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center border-2 border-emerald-500/40 shadow-inner">
+              <CheckCircle2 className="w-10 h-10 animate-bounce" />
+            </div>
+            <div>
+              <span className="text-[11px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                Payment Received • Bill Settled
+              </span>
+              <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+                Thank You for Dining!
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Your dining tab for <strong className="text-emerald-700 dark:text-emerald-300">Table {tableNumber}</strong> has been successfully settled at Cashier POS.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs space-y-1.5">
+              <div className="flex justify-between text-slate-500 dark:text-slate-400">
+                <span>Bill Number</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                  #{settledBillInfo?.billNumber || 'SETTLED'}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-500 dark:text-slate-400">
+                <span>Settled Amount</span>
+                <span className="font-mono font-extrabold text-emerald-700 dark:text-emerald-400 text-sm">
+                  ₹{settledBillInfo?.amount || settledBillInfo?.grandTotal || '0'}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-500 dark:text-slate-400">
+                <span>Payment Mode</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  {settledBillInfo?.paymentMode || 'Cashier POS'}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 italic">
+              Your session has been cleared. To order again later, simply re-scan the table standee.
+            </p>
+
+            <button
+              type="button"
+              data-testid="settled-modal-done-btn"
+              onClick={() => {
+                setIsBillSettledModalOpen(false);
+                if (window.parent && window.parent !== window) {
+                  window.parent.postMessage({ type: 'spicehub:exit-portal-requested' }, '*');
+                } else {
+                  window.location.reload();
+                }
+              }}
+              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-extrabold text-xs uppercase tracking-wider shadow-lg active:scale-95 transition cursor-pointer"
+            >
+              Done / Return to Home
+            </button>
+          </div>
+        </div>
+      )}
+
       {liveToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-md animate-bounce">
           <div
@@ -1005,6 +1324,7 @@ export const CustomerAppRoot: React.FC = () => {
         section={section}
         onRequestService={handleRequestService}
         onPlaceOrder={handlePlaceOrder}
+        onCancelOrder={handleCancelOrder}
         onSettleBill={handleSettleBill}
         activeOrders={activeOrders}
         initialGuestCount={guestCount}

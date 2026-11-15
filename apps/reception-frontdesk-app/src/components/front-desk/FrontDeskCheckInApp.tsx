@@ -3875,8 +3875,6 @@ export const FrontDeskCheckInApp: React.FC<FrontDeskCheckInAppProps> = ({
                               ? '100% Complimentary Waiver'
                               : guest.activeRateOverride.newRate != null
                               ? `Override: ₹${guest.activeRateOverride.newRate}/nt`
-                              : guest.activeRateOverride.overrideRate != null
-                              ? `Override: ₹${guest.activeRateOverride.overrideRate}/nt`
                               : 'Special Rate Override'}
                           </span>
                         </div>

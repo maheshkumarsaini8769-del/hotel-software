@@ -1470,6 +1470,26 @@ export const SuperAdminDashboardApp: React.FC = () => {
   const [brandingStudioMsg, setBrandingStudioMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [, setGlobalAuditLogs] = useState<GlobalAuditLogRecord[]>([]);
 
+  // Staff APK Hotel Code Screen Branding Studio State
+  const [staffBgUrl, setStaffBgUrl] = useState<string>(
+    'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?q=80&w=2000&auto=format&fit=crop'
+  );
+  const [staffHeroUrl, setStaffHeroUrl] = useState<string>(
+    'https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=800&auto=format&fit=crop'
+  );
+  const [staffWelcomeTitle, setStaffWelcomeTitle] = useState<string>('SpiceHub Staff Workstation');
+  const [staffWelcomeSubtitle, setStaffWelcomeSubtitle] = useState<string>(
+    'Enter your hotel code provided by your administration to view visible portals and sign in with your staff PIN.'
+  );
+  const [staffBadgeText, setStaffBadgeText] = useState<string>(
+    'SPICEHUB ENTERPRISE • HOSPITALITY WORKSTATION'
+  );
+  const [staffCardTheme, setStaffCardTheme] = useState<'luxury-dark' | 'glass-emerald' | 'royal-palace' | 'clean-light'>('luxury-dark');
+  const [staffOverlayOpacity, setStaffOverlayOpacity] = useState<number>(0.75);
+  const [staffAccentColor, setStaffAccentColor] = useState<string>('#16A34A');
+  const [isSavingStaffBranding, setIsSavingStaffBranding] = useState<boolean>(false);
+  const [staffBrandingMsg, setStaffBrandingMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   // Rooms & PMS Fleet Management State
   const [selectedRoomHotelFilter, setSelectedRoomHotelFilter] = useState<string>('ALL');
   const [roomStatusFilter, setRoomStatusFilter] = useState<'ALL' | 'OCCUPIED' | 'VACANT_CLEAN' | 'VACANT_DIRTY' | 'MAINTENANCE'>('ALL');
@@ -2104,6 +2124,147 @@ export const SuperAdminDashboardApp: React.FC = () => {
       setBrandingStudioMsg({ type: 'error', text: 'Network error saving branding.' });
     } finally {
       setIsSavingBrandingStudio(false);
+    }
+  };
+
+  const STAFF_BRANDING_PRESETS = [
+    {
+      id: 'palace',
+      name: 'Palace Grandeur',
+      tagline: '5-Star Twilight Heritage Palace',
+      bg: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?q=80&w=2000&auto=format&fit=crop',
+      hero: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=800&auto=format&fit=crop',
+      title: 'SpiceHub Staff Workstation',
+      subtitle: 'Enter your hotel code provided by your administration to view visible portals and sign in with your staff PIN.',
+      badge: 'ROYAL HERITAGE • 5-STAR PALACE',
+      theme: 'luxury-dark' as const,
+      opacity: 0.75,
+      accent: '#16A34A',
+    },
+    {
+      id: 'metropolitan',
+      name: 'Modern Metropolitan',
+      tagline: 'Contemporary 5-Star City Resort',
+      bg: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?q=80&w=2000&auto=format&fit=crop',
+      hero: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80&w=800&auto=format&fit=crop',
+      title: 'Metropolitan Staff Terminal',
+      subtitle: 'High-speed operational terminal for captains, cashiers, chefs, and front desk.',
+      badge: 'METROPOLITAN LUXURY SUITES',
+      theme: 'luxury-dark' as const,
+      opacity: 0.80,
+      accent: '#2563EB',
+    },
+    {
+      id: 'haveli',
+      name: 'Royal Heritage Haveli',
+      tagline: 'Rajasthan Haveli & Chandelier Ambience',
+      bg: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=2000&auto=format&fit=crop',
+      hero: 'https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?q=80&w=800&auto=format&fit=crop',
+      title: 'Royal Heritage Staff Station',
+      subtitle: 'Heritage dining & palace hospitality staff command center.',
+      badge: 'RAJASTHAN HERITAGE • ROYAL HAVELI',
+      theme: 'royal-palace' as const,
+      opacity: 0.78,
+      accent: '#D97706',
+    },
+    {
+      id: 'coastal',
+      name: 'Coastal Boutique Retreat',
+      tagline: 'Tropical Oceanfront Villa & Lounge',
+      bg: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?q=80&w=2000&auto=format&fit=crop',
+      hero: 'https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?q=80&w=800&auto=format&fit=crop',
+      title: 'Coastal Retreat Staff Terminal',
+      subtitle: 'Beachfront hospitality, poolside dining and guest room services.',
+      badge: 'COASTAL BOUTIQUE & SPA RETREAT',
+      theme: 'glass-emerald' as const,
+      opacity: 0.72,
+      accent: '#059669',
+    },
+  ];
+
+  const loadStaffAppBranding = useCallback(async () => {
+    try {
+      const res = await fetch(`${env.apiBaseUrl}/superadmin/staff-app-branding`, {
+        headers: platformAuthHeaders(),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const d = json.data;
+          if (d.backgroundImageUrl) setStaffBgUrl(d.backgroundImageUrl);
+          if (d.heroImageUrl) setStaffHeroUrl(d.heroImageUrl);
+          if (d.welcomeTitle) setStaffWelcomeTitle(d.welcomeTitle);
+          if (d.welcomeSubtitle) setStaffWelcomeSubtitle(d.welcomeSubtitle);
+          if (d.badgeText) setStaffBadgeText(d.badgeText);
+          if (d.cardTheme) setStaffCardTheme(d.cardTheme);
+          if (typeof d.overlayOpacity === 'number') setStaffOverlayOpacity(d.overlayOpacity);
+          if (d.accentColor) setStaffAccentColor(d.accentColor);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load staff app branding:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeNav === 'BRANDING') {
+      void loadStaffAppBranding();
+    }
+  }, [activeNav, loadStaffAppBranding]);
+
+  const handleSaveStaffAppBranding = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingStaffBranding(true);
+    setStaffBrandingMsg(null);
+    try {
+      const res = await fetch(`${env.apiBaseUrl}/superadmin/staff-app-branding`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...platformAuthHeaders(),
+        },
+        body: JSON.stringify({
+          backgroundImageUrl: staffBgUrl.trim(),
+          heroImageUrl: staffHeroUrl.trim(),
+          welcomeTitle: staffWelcomeTitle.trim(),
+          welcomeSubtitle: staffWelcomeSubtitle.trim(),
+          badgeText: staffBadgeText.trim(),
+          cardTheme: staffCardTheme,
+          overlayOpacity: Number(staffOverlayOpacity),
+          accentColor: staffAccentColor.trim(),
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success) {
+        setStaffBrandingMsg({
+          type: 'success',
+          text: '✓ Staff APK Hotel Code Screen branding published successfully! Changes are live across all staff devices.',
+        });
+        setGlobalAuditLogs((prev) => [
+          {
+            id: `audit-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            level: 'INFO',
+            source: 'SUPERADMIN',
+            action: 'Updated Staff APK Hotel Code Screen Branding',
+            hotelName: 'Global Platform',
+            details: `Theme: ${staffCardTheme}, Title: ${staffWelcomeTitle}, BG: ${staffBgUrl.slice(0, 30)}...`,
+          },
+          ...prev,
+        ]);
+      } else {
+        setStaffBrandingMsg({
+          type: 'error',
+          text: json?.message || 'Failed to update Staff APK branding.',
+        });
+      }
+    } catch (err: any) {
+      setStaffBrandingMsg({
+        type: 'error',
+        text: err?.message || 'Network error saving Staff APK branding.',
+      });
+    } finally {
+      setIsSavingStaffBranding(false);
     }
   };
 
@@ -4123,77 +4284,84 @@ export const SuperAdminDashboardApp: React.FC = () => {
                 </div>
               </div>
 
-              {/* ROW 3: Branch Locations (7 cols) + System Status (5 cols) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5" id="branch-locations-map-canvas">
-                {/* LEFT: Branch Locations Interactive Map (7 cols) */}
-                <div className="lg:col-span-7 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs flex flex-col justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-emerald-600" />
-                        <h3 className="font-bold text-sm text-slate-900">
-                          Branch Locations
-                        </h3>
+              {/* ROW 3: Hotel Fleet Geolocation Map (Clean Full-Width Command Center) */}
+              <div className="w-full" id="branch-locations-map-canvas">
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-700">
+                        <MapPin className="w-4 h-4" />
                       </div>
-
-                      {/* Map Filter Pills matching reference screenshot */}
-                      <div className="flex items-center gap-1.5 text-xs">
-                        <button
-                          onClick={() => setMapFilter('ALL')}
-                          className={`px-3 py-1 rounded-md font-semibold transition ${
-                            mapFilter === 'ALL'
-                              ? 'bg-[#15803d] text-white shadow-2xs'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                          }`}
-                        >
-                          All (27)
-                        </button>
-                        <button
-                          onClick={() => setMapFilter('ONLINE')}
-                          className={`px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1.5 ${
-                            mapFilter === 'ONLINE'
-                              ? 'bg-emerald-600 text-white shadow-2xs'
-                              : 'text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100'
-                          }`}
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{' '}
-                          18 Online
-                        </button>
-                        <button
-                          onClick={() => setMapFilter('OFFLINE')}
-                          className={`px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1.5 ${
-                            mapFilter === 'OFFLINE'
-                              ? 'bg-red-600 text-white shadow-2xs'
-                              : 'text-red-700 bg-red-50 border border-red-200 hover:bg-red-100'
-                          }`}
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>{' '}
-                          9 Offline
-                        </button>
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 leading-tight">
+                          Hotel Properties Geolocation Map
+                        </h3>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {branchPins.length} hotels registered &bull; Live GPS coordinates & status
+                        </p>
                       </div>
                     </div>
 
-                    {/* Real Interactive Map Canvas */}
-                    <div className="rounded-xl overflow-hidden border border-slate-200/80">
-                      <SuperAdminRealMap
-                        branches={filteredPins as any}
-                        selectedBranch={selectedMapBranch as any}
-                        onSelectBranch={(b) => setSelectedMapBranch(b as any)}
-                        theme={theme as any}
-                        heightClass="h-[275px]"
-                        onEditLocation={(b) => {
-                          const matching = tenants.find((t) => t.id === b.id);
-                          if (matching) {
-                            handleOpenLocationModal(matching);
-                          }
-                        }}
-                      />
+                    {/* Live Dynamic Map Filter Pills */}
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <button
+                        onClick={() => setMapFilter('ALL')}
+                        className={`px-3 py-1 rounded-lg font-semibold transition ${
+                          mapFilter === 'ALL'
+                            ? 'bg-[#15803d] text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        All ({branchPins.length})
+                      </button>
+                      <button
+                        onClick={() => setMapFilter('ONLINE')}
+                        className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                          mapFilter === 'ONLINE'
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100'
+                        }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{' '}
+                        {branchPins.filter((p) => p.status === 'ONLINE').length} Online
+                      </button>
+                      <button
+                        onClick={() => setMapFilter('OFFLINE')}
+                        className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                          mapFilter === 'OFFLINE'
+                            ? 'bg-red-600 text-white shadow-2xs'
+                            : 'text-red-700 bg-red-50 border border-red-200 hover:bg-red-100'
+                        }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>{' '}
+                        {branchPins.filter((p) => p.status === 'OFFLINE').length} Offline
+                      </button>
                     </div>
                   </div>
-                </div>
 
-                {/* RIGHT: System Status Monitor (5 cols) */}
-                <div className="lg:col-span-5 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs flex flex-col justify-between">
+                  {/* Real Interactive Map Canvas with Clean Sizing */}
+                  <div className="rounded-xl overflow-hidden border border-slate-200/90">
+                    <SuperAdminRealMap
+                      branches={filteredPins as any}
+                      selectedBranch={selectedMapBranch as any}
+                      onSelectBranch={(b) => setSelectedMapBranch(b as any)}
+                      theme={theme as any}
+                      heightClass="h-[520px]"
+                      onEditLocation={(b) => {
+                        const matching = tenants.find((t) => t.id === b.id);
+                        if (matching) {
+                          handleOpenLocationModal(matching);
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ROW 4: Balanced 3-Column Metrics (System Status 4 cols, Revenue Channels 4 cols, Top Performing 4 cols) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* 1. System Status Monitor (4 cols) */}
+                <div className="lg:col-span-4 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
@@ -4202,9 +4370,12 @@ export const SuperAdminDashboardApp: React.FC = () => {
                           System Status
                         </h3>
                       </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Operational
+                      </span>
                     </div>
 
-                    {/* 4 Clean Status Rows matching reference */}
+                    {/* 4 Clean Status Rows */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between py-2 border-b border-slate-100 text-xs">
                         <div className="flex items-center gap-2.5">
@@ -4219,25 +4390,25 @@ export const SuperAdminDashboardApp: React.FC = () => {
                       <div className="flex items-center justify-between py-2 border-b border-slate-100 text-xs">
                         <div className="flex items-center gap-2.5">
                           <Layers className="w-4 h-4 text-emerald-600" />
-                          <span className="font-semibold text-slate-800">Tenant Data</span>
+                          <span className="font-semibold text-slate-800">Tenant Fleet</span>
                         </div>
                         <span className="text-emerald-600 font-bold flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Loaded
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {tenants.length} Hotels
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between py-2 border-b border-slate-100 text-xs">
                         <div className="flex items-center gap-2.5">
                           <CreditCard className="w-4 h-4 text-emerald-600" />
-                          <span className="font-semibold text-slate-800">Payment Gateways</span>
+                          <span className="font-semibold text-slate-800">Payment Engine</span>
                         </div>
-                        <span className="text-slate-600 font-semibold">Per Tenant</span>
+                        <span className="text-slate-600 font-semibold">Active</span>
                       </div>
 
                       <div className="flex items-center justify-between py-2 text-xs">
                         <div className="flex items-center gap-2.5">
                           <Link2 className="w-4 h-4 text-emerald-600" />
-                          <span className="font-semibold text-slate-800">Socket.IO (Realtime)</span>
+                          <span className="font-semibold text-slate-800">Socket.IO (Live)</span>
                         </div>
                         <span className="text-emerald-600 font-bold flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Connected
@@ -4264,12 +4435,9 @@ export const SuperAdminDashboardApp: React.FC = () => {
                     </span>
                   </div>
                 </div>
-              </div>
 
-              {/* ROW 4: Revenue Channel Distribution (5 cols) + Top Performing Properties (7 cols) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                {/* LEFT: Revenue Channel Distribution (5 cols) */}
-                <div className="lg:col-span-5 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs flex flex-col justify-between">
+                {/* 2. Revenue Channel Distribution (4 cols) */}
+                <div className="lg:col-span-4 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
@@ -4391,8 +4559,8 @@ export const SuperAdminDashboardApp: React.FC = () => {
                   </div>
                 </div>
 
-                {/* RIGHT: Top Performing Properties (7 cols) */}
-                <div className="lg:col-span-7 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs">
+                {/* 3. Top Performing Properties (4 cols) */}
+                <div className="lg:col-span-4 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs flex flex-col justify-between">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Trophy className="w-4 h-4 text-amber-500" />
@@ -8177,6 +8345,473 @@ export const SuperAdminDashboardApp: React.FC = () => {
 
                   <div className="text-[11px] text-slate-500 text-center mt-4">
                     Changes reflect immediately across all 8 micro-frontends and native Android terminals.
+                  </div>
+                </div>
+              </div>
+
+              {/* ======================================================== */}
+              {/* STAFF MOBILE APK BRANDING STUDIO (HOTEL CODE SCREEN)     */}
+              {/* ======================================================== */}
+              <div
+                id="staff-apk-branding-section"
+                data-testid="staff-apk-branding-section"
+                className="mt-8 pt-8 border-t border-slate-200/90 space-y-6"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-[10px] font-extrabold uppercase tracking-widest text-emerald-700">
+                      <Smartphone className="w-3 h-3 text-emerald-600" />
+                      <span>Staff Mobile APK & Terminal Controls</span>
+                    </div>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900 mt-1 flex items-center gap-2">
+                      <span>Staff APK • Hotel Code Screen Customizer</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+                      Centrally customize the hospitality background scenery, hero showcase artwork, card theme, and welcome copy displayed on the Staff Mobile APK when entering the Hotel Code.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-start sm:self-center">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Live Sync Engine Active</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* 1-Click Curated Luxury Presets */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-md">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <Crown className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                        1-Click Luxury Theme Presets
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400">
+                      Select a curated theme to auto-fill background, hero image, and color styling:
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {STAFF_BRANDING_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        data-testid={`preset-staff-theme-${preset.id}`}
+                        onClick={() => {
+                          setStaffBgUrl(preset.bg);
+                          setStaffHeroUrl(preset.hero);
+                          setStaffWelcomeTitle(preset.title);
+                          setStaffWelcomeSubtitle(preset.subtitle);
+                          setStaffBadgeText(preset.badge);
+                          setStaffCardTheme(preset.theme);
+                          setStaffOverlayOpacity(preset.opacity);
+                          setStaffAccentColor(preset.accent);
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden group ${
+                          staffBgUrl === preset.bg
+                            ? 'border-emerald-500 bg-slate-800/90 shadow-inner'
+                            : 'border-slate-700 bg-slate-800/40 hover:bg-slate-800 hover:border-slate-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white group-hover:text-emerald-400 transition-colors">
+                            {preset.name}
+                          </span>
+                          {staffBgUrl === preset.bg && (
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-1 line-clamp-1">
+                          {preset.tagline}
+                        </div>
+                        <div className="mt-2.5 h-12 rounded-lg overflow-hidden relative">
+                          <img
+                            src={preset.bg}
+                            alt={preset.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          <div className="absolute inset-0 bg-black/40" />
+                          <div className="absolute bottom-1 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[9px] font-mono text-white">
+                            {preset.theme}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {staffBrandingMsg && (
+                  <div
+                    data-testid="staff-branding-toast"
+                    className={`p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2 shadow-2xs animate-in fade-in ${
+                      staffBrandingMsg.type === 'success'
+                        ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                        : 'bg-rose-50 border border-rose-200 text-rose-800'
+                    }`}
+                  >
+                    {staffBrandingMsg.type === 'success' ? (
+                      <Check className="w-4 h-4 text-emerald-600 inline mr-1 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-600 inline mr-1 shrink-0" />
+                    )}
+                    <span>{staffBrandingMsg.text}</span>
+                  </div>
+                )}
+
+                {/* Configuration Studio Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Left 7 cols: Customizer Form */}
+                  <form
+                    onSubmit={handleSaveStaffAppBranding}
+                    className="lg:col-span-7 p-6 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-4"
+                  >
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                        <Sliders className="w-4 h-4 text-emerald-600" />
+                        <span>Staff APK Visual Properties</span>
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => void loadStaffAppBranding()}
+                        className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Reload Current</span>
+                      </button>
+                    </div>
+
+                    {/* Background Image URL */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold text-slate-600">
+                          Full-Screen Background Image URL (Wallpaper)
+                        </label>
+                        <span className="text-[10px] text-slate-400">High-res 1920x1080 recommended</span>
+                      </div>
+                      <input
+                        type="url"
+                        data-testid="input-staff-bg-url"
+                        value={staffBgUrl}
+                        onChange={(e) => setStaffBgUrl(e.target.value)}
+                        placeholder="https://images.unsplash.com/..."
+                        required
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 font-mono transition"
+                      />
+                    </div>
+
+                    {/* Hero Showcase Image URL */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold text-slate-600">
+                          Hero Showcase Image URL (Inside Hotel Code Card)
+                        </label>
+                        <span className="text-[10px] text-slate-400">Lobby / Dining / Suite showcase</span>
+                      </div>
+                      <input
+                        type="url"
+                        data-testid="input-staff-hero-url"
+                        value={staffHeroUrl}
+                        onChange={(e) => setStaffHeroUrl(e.target.value)}
+                        placeholder="https://images.unsplash.com/..."
+                        required
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 font-mono transition"
+                      />
+                    </div>
+
+                    {/* Title and Badge */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Welcome Heading Title
+                        </label>
+                        <input
+                          type="text"
+                          data-testid="input-staff-welcome-title"
+                          value={staffWelcomeTitle}
+                          onChange={(e) => setStaffWelcomeTitle(e.target.value)}
+                          placeholder="e.g. SpiceHub Staff Workstation"
+                          required
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Hero Badge Ribbon Text
+                        </label>
+                        <input
+                          type="text"
+                          data-testid="input-staff-badge-text"
+                          value={staffBadgeText}
+                          onChange={(e) => setStaffBadgeText(e.target.value)}
+                          placeholder="e.g. SPICEHUB ENTERPRISE"
+                          required
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Subtitle */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        Instructional Subtitle
+                      </label>
+                      <textarea
+                        data-testid="input-staff-welcome-subtitle"
+                        value={staffWelcomeSubtitle}
+                        onChange={(e) => setStaffWelcomeSubtitle(e.target.value)}
+                        rows={2}
+                        placeholder="Enter your hotel code provided by your administration..."
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 resize-none transition"
+                      />
+                    </div>
+
+                    {/* Card Theme, Accent Color, and Overlay Darkness */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Card Theme
+                        </label>
+                        <select
+                          data-testid="select-staff-card-theme"
+                          value={staffCardTheme}
+                          onChange={(e) => setStaffCardTheme(e.target.value as any)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-900 outline-none focus:border-emerald-600 cursor-pointer"
+                        >
+                          <option value="luxury-dark">Luxury Dark Glass</option>
+                          <option value="glass-emerald">Emerald Boutique Glass</option>
+                          <option value="royal-palace">Royal Palace Gold</option>
+                          <option value="clean-light">Clean Crisp Light</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Primary Accent Color
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={staffAccentColor}
+                            onChange={(e) => setStaffAccentColor(e.target.value)}
+                            className="w-9 h-9 rounded-xl border border-slate-200 cursor-pointer p-0.5 bg-white"
+                          />
+                          <input
+                            type="text"
+                            value={staffAccentColor}
+                            onChange={(e) => setStaffAccentColor(e.target.value)}
+                            className="flex-1 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs font-mono uppercase text-slate-800 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-bold text-slate-600">
+                            Overlay Darkness
+                          </label>
+                          <span className="text-[11px] font-mono font-bold text-emerald-700">
+                            {Math.round(staffOverlayOpacity * 100)}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.2"
+                          max="0.95"
+                          step="0.05"
+                          data-testid="input-staff-overlay-slider"
+                          value={staffOverlayOpacity}
+                          onChange={(e) => setStaffOverlayOpacity(parseFloat(e.target.value))}
+                          className="w-full accent-emerald-600 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400">
+                        Updates are instantly propagated to Staff Mobile APK and Staff Launcher PWA.
+                      </span>
+
+                      <button
+                        type="submit"
+                        data-testid="btn-save-staff-branding"
+                        disabled={isSavingStaffBranding}
+                        className="bg-[#15803d] hover:bg-[#166534] disabled:opacity-50 px-5 py-2.5 rounded-xl font-bold text-xs text-white flex items-center gap-2 shadow-xs transition cursor-pointer"
+                      >
+                        {isSavingStaffBranding ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        <span>Save & Publish to Staff APK</span>
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Right 5 cols: Live Smartphone Mockup Preview */}
+                  <div className="lg:col-span-5 p-6 rounded-2xl border border-slate-200/90 bg-white shadow-2xs flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                          <Smartphone className="w-4 h-4 text-emerald-600" />
+                          <span>Staff APK Live Preview</span>
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+                          {staffCardTheme}
+                        </span>
+                      </div>
+
+                      {/* Phone Frame */}
+                      <div
+                        data-testid="staff-apk-preview-phone"
+                        className="mt-4 mx-auto max-w-[280px] rounded-[32px] border-[6px] border-slate-900 bg-slate-950 p-2 shadow-2xl overflow-hidden relative"
+                        style={{
+                          backgroundImage: `url(${staffBgUrl})`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          minHeight: 460,
+                        }}
+                      >
+                        {/* Dark Vignette Overlay */}
+                        <div
+                          className="absolute inset-0 transition-opacity duration-200"
+                          style={{
+                            backgroundColor: `rgba(15, 23, 42, ${staffOverlayOpacity})`,
+                          }}
+                        />
+
+                        {/* Top Speaker notch */}
+                        <div className="relative z-10 w-24 h-3.5 bg-slate-900 rounded-b-xl mx-auto -mt-2 mb-2 flex items-center justify-center">
+                          <div className="w-8 h-1 bg-slate-700 rounded-full" />
+                        </div>
+
+                        {/* Mini Top Navbar */}
+                        <div className="relative z-10 px-2.5 py-1.5 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/10 flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-4 h-4 rounded bg-emerald-600 flex items-center justify-center text-[8px] font-bold text-white">
+                              S
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-serif font-bold text-white leading-tight">
+                                SpiceHub
+                              </div>
+                              <div className="text-[6.5px] font-bold text-emerald-400 uppercase tracking-widest leading-none">
+                                Staff Station
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-[7px] text-slate-400 font-mono">v1.0.0</span>
+                        </div>
+
+                        {/* Mini Card */}
+                        <div
+                          className="relative z-10 p-3 rounded-2xl transition-colors duration-200"
+                          style={{
+                            background:
+                              staffCardTheme === 'clean-light'
+                                ? 'rgba(255, 255, 255, 0.95)'
+                                : staffCardTheme === 'royal-palace'
+                                ? 'linear-gradient(160deg, rgba(24, 24, 27, 0.94), rgba(39, 39, 42, 0.92))'
+                                : staffCardTheme === 'glass-emerald'
+                                ? 'linear-gradient(160deg, rgba(6, 78, 59, 0.9), rgba(4, 47, 46, 0.95))'
+                                : 'linear-gradient(160deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.95))',
+                            border:
+                              staffCardTheme === 'clean-light'
+                                ? '1px solid #E2E8F0'
+                                : staffCardTheme === 'royal-palace'
+                                ? '1px solid rgba(217, 119, 6, 0.45)'
+                                : staffCardTheme === 'glass-emerald'
+                                ? '1px solid rgba(16, 185, 129, 0.35)'
+                                : '1px solid rgba(255, 255, 255, 0.15)',
+                            backdropFilter: 'blur(16px)',
+                            color: staffCardTheme === 'clean-light' ? '#0F172A' : '#F8FAFC',
+                          }}
+                        >
+                          {/* Mini Hero Banner */}
+                          {staffHeroUrl && (
+                            <div className="h-16 rounded-xl overflow-hidden relative mb-2 border border-white/10 shadow-sm">
+                              <img
+                                src={staffHeroUrl}
+                                alt="Hero"
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                              <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between">
+                                <span
+                                  className="text-[7px] font-bold text-white px-1.5 py-0.5 rounded uppercase tracking-wider truncate max-w-[190px]"
+                                  style={{ backgroundColor: staffAccentColor || '#16A34A' }}
+                                >
+                                  {staffBadgeText || 'SPICEHUB ENTERPRISE'}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          <div
+                            className="text-[7.5px] font-extrabold uppercase tracking-wider mb-0.5"
+                            style={{
+                              color: staffCardTheme === 'clean-light' ? '#16A34A' : '#4ADE80',
+                            }}
+                          >
+                            SpiceHub Staff Workstation
+                          </div>
+                          <div
+                            className="text-xs font-bold leading-tight mb-1 truncate"
+                            style={{
+                              color: staffCardTheme === 'clean-light' ? '#0F172A' : '#FFFFFF',
+                            }}
+                          >
+                            {staffWelcomeTitle || 'Enter Hotel Code'}
+                          </div>
+                          <div
+                            className="text-[8.5px] leading-tight line-clamp-2 mb-2.5"
+                            style={{
+                              color: staffCardTheme === 'clean-light' ? '#64748B' : '#94A3B8',
+                            }}
+                          >
+                            {staffWelcomeSubtitle || 'Enter your hotel code provided by your administration...'}
+                          </div>
+
+                          {/* Mini Form Inputs */}
+                          <div className="space-y-1.5">
+                            <div className="text-[7.5px] font-bold uppercase text-slate-400">
+                              Property Hotel Code
+                            </div>
+                            <div
+                              className="px-2 py-1.5 rounded-lg text-[9px] font-mono font-bold"
+                              style={{
+                                background:
+                                  staffCardTheme === 'clean-light'
+                                    ? '#F8FAFC'
+                                    : 'rgba(15, 23, 42, 0.75)',
+                                border:
+                                  staffCardTheme === 'clean-light'
+                                    ? '1px solid #CBD5E1'
+                                    : '1px solid rgba(255, 255, 255, 0.2)',
+                                color: staffCardTheme === 'clean-light' ? '#0F172A' : '#FFFFFF',
+                              }}
+                            >
+                              BH101
+                            </div>
+                            <div
+                              className="w-full py-1.5 rounded-lg text-center text-[9px] font-bold text-white shadow-xs"
+                              style={{ backgroundColor: staffAccentColor || '#16A34A' }}
+                            >
+                              Verify Hotel Code →
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Phone Home Bar */}
+                        <div className="relative z-10 w-20 h-1 bg-white/40 rounded-full mx-auto mt-3" />
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-500 text-center mt-3">
+                      Staff opening the Android APK or PWA will immediately experience this customized look.
+                    </div>
                   </div>
                 </div>
               </div>

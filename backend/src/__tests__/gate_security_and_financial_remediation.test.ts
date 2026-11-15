@@ -13,6 +13,7 @@ import { DynamicUpiQr, UpiQrStatus } from '../models/DynamicUpiQr';
 import { StockBatch, BatchFreshnessStatus } from '../models/StockBatch';
 import { StoreRequisition, RequisitionStatus, RequisitionDepartment, RequisitionUrgency } from '../models/StoreRequisition';
 import { NightAuditSession, NightAuditStatus } from '../models/NightAuditSession';
+import { StaffAttendanceLog } from '../models/StaffAttendanceLog';
 import { UserRole } from '../../../packages/shared-types/src/index';
 import { SpiceHubClient } from '../../../packages/api-client/src/index';
 
@@ -148,6 +149,7 @@ describe('--- REMEDIATION GATE: ADVERSARIAL FINANCIAL, SECURITY & STORE TESTS --
       await StockBatch.deleteMany({ hotelId: tenantId });
       await StoreRequisition.deleteMany({ hotelId: tenantId });
       await NightAuditSession.deleteMany({ hotelId: tenantId });
+      await StaffAttendanceLog.deleteMany({ hotelId: tenantId });
       await mongoose.disconnect();
     }
 
@@ -278,6 +280,11 @@ describe('--- REMEDIATION GATE: ADVERSARIAL FINANCIAL, SECURITY & STORE TESTS --
 
   // TEST 6: Staff Roster Clock-in PIN Authentication
   it('6. should reject clock-in with invalid PIN and succeed with valid Argon2 PIN', async () => {
+    // Portal login auto-marks the cashier PRESENT, which would make the manual
+    // clock-in below report ALREADY_CLOCKED_IN. Clear that auto log so this test
+    // exercises the PIN clock-in endpoint itself.
+    await StaffAttendanceLog.deleteMany({ hotelId: tenantId, userId: cashierUser._id });
+
     // Attempt invalid PIN
     await expect(
       client.request('POST', '/api/v1/staff-roster/attendance/clock-in', {

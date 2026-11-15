@@ -18,6 +18,7 @@ export {
   readHotelAccessToken,
   storeHotelAccessToken,
   verifyHotelAccessCode,
+  selectHotelDirect,
 } from './staffHotelAccess';
 export type { VerifiedHotelAccess } from './staffHotelAccess';
 

@@ -13,6 +13,7 @@ import { RestaurantBill, BillStatus } from '../models/RestaurantBill';
 import { Payment, PaymentMode, PaymentStatus } from '../models/Payment';
 import { ShiftReconciliation } from '../models/ShiftReconciliation';
 import { UserRole, ShiftStatus } from '../types';
+import { getJwtSecret } from '../config/security';
 
 describe('--- SHIFT 4 / GATE 4: RESTAURANT BILLING, SPLIT, CASH DRAWER & FINANCIAL AUDIT ---', () => {
   let tenantId: string;
@@ -51,7 +52,7 @@ describe('--- SHIFT 4 / GATE 4: RESTAURANT BILLING, SPLIT, CASH DRAWER & FINANCI
       isActive: true,
     });
 
-    const secret = process.env.JWT_SECRET || 'spicehub_super_secret_jwt_key_2026_production_ready_9921';
+    const secret = getJwtSecret();
     cashierToken = jwt.sign(
       {
         userId: cashierUser._id.toString(),
@@ -163,11 +164,15 @@ describe('--- SHIFT 4 / GATE 4: RESTAURANT BILLING, SPLIT, CASH DRAWER & FINANCI
 
   // TEST 2: Equal Split Bill Calculation
   test('2. Split Bill Engine Calculates Equal 3-Way Distribution Accurately', async () => {
-    const res = await request(app).post('/api/v1/billing/bill/split-calc').send({
-      billId,
-      splitType: 'EQUAL',
-      splitCount: 3,
-    });
+    const res = await request(app)
+      .post('/api/v1/billing/bill/split-calc')
+      .set('Authorization', `Bearer ${cashierToken}`)
+      .set('x-hotel-id', tenantId)
+      .send({
+        billId,
+        splitType: 'EQUAL',
+        splitCount: 3,
+      });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);

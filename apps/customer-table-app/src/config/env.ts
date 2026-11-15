@@ -62,19 +62,18 @@ function normalizeApiOrigin(value?: string): string {
 }
 
 const configuredApiOrigin = normalizeApiOrigin(readString('VITE_API_BASE_URL') || readString('VITE_API_URL'));
-// On Vercel cloud hosting, fallback to production backend domain. On LAN IP, fallback to port 5000.
+// On Vercel cloud hosting, fallback to production backend domain.
+// On LAN mobile and browser sessions, use browserOrigin to leverage Vite's local reverse proxy (/api and /socket.io).
 const fallbackApiOrigin = isVercelHost
   ? 'https://spicehub-backend.vercel.app'
-  : (isLoopbackHost(browserHost)
-      ? 'http://localhost:5000'
-      : (browserHost ? `http://${browserHost}:5000` : 'http://localhost:5000'));
+  : (browserOrigin || 'http://localhost:5000');
 
 const apiOrigin = normalizeApiOrigin(queryApiBase || '') || configuredApiOrigin || fallbackApiOrigin;
 
 const configuredSocketUrl = trimTrailingSlash(readString('VITE_SOCKET_URL') || readString('VITE_SOCKET_SERVER_URL'));
 const fallbackSocketUrl = isVercelHost
   ? 'https://spicehub-socket-server.onrender.com'
-  : fallbackApiOrigin;
+  : (browserOrigin || fallbackApiOrigin);
 
 const socketUrl = trimTrailingSlash(querySocketUrl || '') || configuredSocketUrl || fallbackSocketUrl;
 

@@ -90,9 +90,14 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
             </span>
             {getOrderStatusBadge()}
           </div>
-          <div className="text-sm font-semibold text-slate-200 mt-1 flex items-center space-x-1.5">
+          <div className="text-sm font-semibold text-slate-200 mt-1 flex items-center space-x-1.5 flex-wrap gap-1">
             <span>📍</span>
             <span>{getLocationLabel()}</span>
+            {Boolean(order.guestCount || order.pax) && (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                👥 {order.guestCount || order.pax} Guests
+              </span>
+            )}
           </div>
         </div>
 
@@ -265,6 +270,12 @@ export const KdsOrderCard: React.FC<KdsOrderCardProps> = ({
                 <span>Location:</span>
                 <span>{getLocationLabel()}</span>
               </div>
+              {Boolean(order.guestCount || order.pax) && (
+                <div className="flex justify-between font-bold text-slate-800">
+                  <span>Guests / Pax:</span>
+                  <span>{order.guestCount || order.pax} Guests</span>
+                </div>
+              )}
               <div className="flex justify-between text-slate-600">
                 <span>Server / Captain:</span>
                 <span>{(order as any).waiterName || 'Floor Captain'}</span>

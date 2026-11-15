@@ -27,7 +27,7 @@ echo $! > .logs/backend.pid
 # Wait for backend to be healthy
 echo "Waiting for Backend API to initialize..."
 for i in {1..30}; do
-  if curl -s http://localhost:5000/api/v1/health | grep -q "UP"; then
+  if curl -s http://localhost:5000/api/v1/health | grep -q "HEALTHY"; then
     echo "✅ Backend API is UP on http://localhost:5000"
     break
   fi

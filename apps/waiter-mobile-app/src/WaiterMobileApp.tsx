@@ -320,6 +320,44 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
     };
   }, [isProfileDropdownOpen]);
 
+  // Mobile Back Navigation & History protection
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = () => {
+      if (isProfileDropdownOpen) {
+        setIsProfileDropdownOpen(false);
+        return;
+      }
+      if (isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+        return;
+      }
+      if (isMobileSearchOpen) {
+        setIsMobileSearchOpen(false);
+        return;
+      }
+      if (isCrossTableAssistOpen) {
+        setIsCrossTableAssistOpen(false);
+        return;
+      }
+      if (activeSidebarItem !== 'Dashboard') {
+        setActiveSidebarItem('Dashboard');
+        return;
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isProfileDropdownOpen, isMobileMenuOpen, isMobileSearchOpen, isCrossTableAssistOpen, activeSidebarItem]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.history.pushState({ tab: activeSidebarItem }, '');
+    } catch {}
+  }, [activeSidebarItem]);
+
   // Network State & Offline KOT Queue (localStorage with auto-sync)
   const [isNetworkOnline, setIsNetworkOnline] = useState<boolean>(() =>
     typeof navigator !== 'undefined' ? navigator.onLine : true
@@ -1310,6 +1348,7 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
                 items: [
                   { label: 'My Profile', icon: User },
                   { label: 'Settings', icon: Settings },
+                  { label: 'Help & Support', icon: HelpCircle },
                 ]
               }
             ].map((section) => (
@@ -1842,633 +1881,729 @@ export const WaiterMobileApp: React.FC<WaiterMobileAppProps> = ({
           </div>
         )}
 
-        {/* Scrollable Main Workspace: 4 Columns (Responsive layout: stacks on mobile/tablet, 4 columns on desktop) */}
+        {/* Scrollable Main Workspace: Streamlined Mobile & Desktop Dashboard */}
         {activeSidebarItem === 'Dashboard' && (
           <div className="flex-1 flex flex-col overflow-y-auto min-h-0 px-3 sm:px-4 lg:px-5 pb-32 lg:pb-6 gap-3 custom-scrollbar">
-            {/* Mobile & Tablet KPI Cards (scrolls with content so it doesn't take 50% of screen height) */}
-            <div className="lg:hidden shrink-0">
-              {renderKpiCards(true)}
-            </div>
-
-            {/* 4 Dashboard Columns: 1-col on mobile (<md), 2-col on tablet (md), 4-col on desktop (lg) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:flex lg:flex-row gap-3 w-full lg:flex-1 lg:min-h-0">
-          {/* ======================================================== */}
-          {/* COLUMN 1: KITCHEN FOOD PICKUPS (HOT PASS) & MY TABLES    */}
-          {/* ======================================================== */}
-          <div className="w-full lg:flex-1 lg:basis-0 lg:min-w-0 flex flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1">
-            {/* Direct Routing Explanatory Notice */}
-            <div className={`p-2.5 rounded-xl border text-[10.5px] leading-relaxed space-y-1 transition-colors ${
- 'bg-emerald-50 border-emerald-200 text-emerald-900'
- }`}>
-              <div className="flex items-center gap-1.5 font-bold">
-                <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Direct Kitchen Dispatch</span>
-              </div>
-              <p className="text-[10px] opacity-90">
-                Customer QR orders go directly to Kitchen KDS. Food requests arrive here <strong>ONLY when Chef marks READY</strong> at Hot Pass.
-              </p>
-            </div>
-
-            {/* Box 1: Kitchen Food Pickups (Hot Pass) */}
-            <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-3 transition-colors ${
- 'bg-white border-slate-200 text-slate-900'
- }`}>
-              <div className="flex items-center justify-between">
-                <div className={`flex items-center gap-2 text-xs font-black ${'text-slate-900'}`}>
-                  <Bell className="w-4 h-4 text-emerald-500" />
-                  <span>Kitchen Pickups ({myKitchenPickups.length})</span>
-                </div>
-                <span className={`text-[9px] uppercase font-mono font-bold px-1.5 py-0.5 rounded ${
- 'bg-emerald-100 text-emerald-800 border border-emerald-300'
- }`}>
-                  Ready to Serve
-                </span>
-              </div>
-
-              <div className="space-y-2.5">
-                {myKitchenPickups.length === 0 ? (
-                  <div className={`text-center py-6 text-xs ${'text-slate-500'}`}>
-                    No pending food pickups for your tables.
-                  </div>
-                ) : (
-                  myKitchenPickups.map((kp) => (
-                    <div key={kp.id} className={`p-2.5 rounded-xl border space-y-2 transition-colors ${
- 'bg-emerald-50/70 border-emerald-300 shadow-2xs'
- }`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`font-mono font-black text-xs ${'text-slate-900'}`}>{kp.orderNumber}</span>
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
- 'bg-blue-100 text-orange-800 border border-blue-200'
- }`}>{kp.destination}</span>
-                        </div>
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-600 text-white shadow-2xs">
-                          HOT PASS
-                        </span>
-                      </div>
-
-                      <div className={`flex items-center justify-between text-[10px] ${'text-slate-600 font-medium'}`}>
-                        <span className="flex items-center gap-1">
-                          <Clock className={`w-3 h-3 ${'text-slate-500'}`} />
-                          <span>{kp.timeAgo}</span>
-                        </span>
-                        <span className={`font-bold flex items-center gap-1 ${'text-emerald-700'}`}>
-                          <Zap className="w-3 h-3" />
-                          <span>60s SLA Active</span>
-                        </span>
-                      </div>
-
-                      <div className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 ${
- 'bg-white text-slate-800 border border-emerald-200 shadow-2xs'
- }`}>
-                        <ChefHat className="w-3 h-3 text-orange-500 shrink-0" />
-                        <span className="truncate font-semibold">{kp.station}</span>
-                      </div>
-
-                      <div className={`space-y-0.5 text-xs font-medium border-t pt-1.5 ${
- 'text-slate-800 border-emerald-200/80'
- }`}>
-                        {kp.items.map((it, idx) => (
-                          <div key={idx} className="truncate flex items-center justify-between text-[11px]">
-                            <span>{it}</span>
-                            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="flex items-center gap-2 pt-1">
-                        <button
-                          onClick={() => handleOpenDelegateModal({
-                            type: 'PICKUP',
-                            id: kp.id,
-                            tableNumber: kp.destination,
-                            title: `${kp.orderNumber} for ${kp.destination}`,
-                            details: `${kp.items.join(', ')} ready at ${kp.station}`,
-                          })}
-                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition flex items-center gap-1 ${
- 'bg-blue-50 border-blue-300 text-blue-800 hover:bg-blue-100'
- }`}
-                          title="Delegate this food pickup to a colleague waiter"
-                        >
-                          <ArrowRightLeft className="w-3 h-3 text-amber-400" />
-                          <span>Delegate</span>
-                        </button>
-                        <button
-                          onClick={() => handleServePickup(kp.id, kp.orderNumber, kp.destination)}
-                          className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Pick Up & Serve</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Box 2: My Tables Quick Status */}
-            <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-2.5 transition-colors ${
- 'bg-white border-slate-200 text-slate-900'
- }`}>
-              <div className="flex items-center justify-between">
-                <div className={`flex items-center gap-2 text-xs font-black ${'text-slate-900'}`}>
-                  <Grid className="w-4 h-4 text-orange-500" />
-                  <span>My Tables ({myAssignedTables.length})</span>
-                </div>
-                <button
-                  onClick={() => setActiveSidebarItem('My Tables')}
-                  className="text-[10px] font-bold text-[#123C2B] hover:underline"
-                >
-                  View All →
-                </button>
-              </div>
-
-              {/* Status breakdown summary */}
-              <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                <span className={`px-2 py-0.5 rounded-md border ${
- 'bg-emerald-50 border-emerald-300 text-emerald-800'
- }`}>
-                  🟢 Available: {myAssignedTables.filter(t => t.status === 'Available').length}
-                </span>
-                <span className={`px-2 py-0.5 rounded-md border ${
- 'bg-[#EDF4EC] border-[#CFE0D2] text-[#123C2B]'
- }`}>
-                  🔴 Occupied: {myAssignedTables.filter(t => t.status === 'Occupied' || t.status === 'My Table').length}
-                </span>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                {myAssignedTables.map((tbl) => {
-                  const isBusy = tbl.status === 'Occupied' || tbl.status === 'My Table';
-                  const isClean = tbl.status === 'Cleaning';
-                  const isFree = tbl.status === 'Available';
-                  const bill = tableBills[`Table ${tbl.name}`];
-
-                  return (
-                    <div
-                      key={tbl.id}
-                      onClick={() => {
-                        setSelectedTableForOrder(`Table ${tbl.name}`);
-                        setIsPunchKotOpen(true);
-                      }}
-                      className={`p-2 rounded-xl border flex items-center justify-between text-[11px] cursor-pointer transition ${
- isFree
- ? 'bg-emerald-50/70 hover:bg-emerald-100/70 border-emerald-200'
- : isBusy
- ? 'bg-[#F8F3E8] hover:bg-[#EDF4EC] border-[#CFE0D2]'
- : isClean
- ? 'bg-blue-50/70 hover:bg-blue-100/70 border-blue-200'
- : 'bg-slate-50 hover:bg-slate-100 border-slate-200'
- }`}
-                    >
-                      <div className="min-w-0 flex-1 mr-2">
-                        <div className="flex items-center gap-2">
-                          <span className={`font-black text-xs ${'text-slate-900'}`}>
-                            Table {tbl.name}
-                          </span>
-                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wide ${
- isFree
- ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
- : isBusy
- ? 'bg-[#EDF4EC] text-[#123C2B] border border-[#CFE0D2]'
- : 'bg-blue-100 text-blue-800 border border-blue-300'
- }`}>
-                            {isFree ? '🟢 AVAILABLE' : isBusy ? '🔴 OCCUPIED' : '🟡 CLEANING'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 text-[10px]">
-                          <span className={`font-medium flex items-center gap-1 ${'text-slate-600'}`}>
-                            <Users className="w-3 h-3 text-orange-500" />
-                            <span>{isFree ? `0 Seated • ${tbl.guests || 4} Chairs` : `${tbl.actualGuests || tbl.guests || 2} Pax Seated`}</span>
-                          </span>
-                          <span>•</span>
-                          <span className={`font-bold ${isFree ? ('text-slate-500') : ('text-emerald-700')}`}>
-                            🧾{' '}
-                            {isFree
-                              ? '₹0'
-                              : `₹${bill?.grandTotal || 0} (${bill?.items.length || 0} items)`}
-                          </span>
-                        </div>
-                      </div>
-                      <span className={`px-2 py-1 rounded-lg text-[10px] font-black shrink-0 ${
- isFree
- ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xs'
- : isBusy
- ? 'bg-[#123C2B] hover:bg-[#1B5138] text-white shadow-2xs'
- : 'bg-emerald-600 text-white'
- }`}>
-                        {isFree ? '+ KOT' : 'Manage'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* ======================================================== */}
-          {/* COLUMN 2: KITCHEN COOKING STATUS (CHEF PROGRESS)         */}
-          {/* ======================================================== */}
-          <div className="w-full lg:flex-1 lg:basis-0 lg:min-w-0 flex flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1">
-            <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-3 h-full transition-colors ${
- 'bg-white border-slate-200 text-slate-900'
- }`}>
-              <div className="flex items-center justify-between">
-                <div className={`flex items-center gap-2 text-xs font-black ${'text-slate-900'}`}>
-                  <Flame className="w-4 h-4 text-amber-500 animate-pulse" />
-                  <span>Kitchen Cooking ({myKitchenCooking.length})</span>
-                </div>
-                <span className={`text-[10px] font-bold ${'text-slate-600'}`}>Live Chef KOTs</span>
-              </div>
-
-              {/* Tabs */}
-              <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px] font-bold">
-                {['All', 'My Tables', 'Dine-in'].map((tab) => {
-                  const isActive = activeOrdersFilter === tab || (activeOrdersFilter === 'All' && tab === 'All');
-                  return (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveOrdersFilter(tab)}
-                      className={`px-2 py-1 rounded-lg whitespace-nowrap transition ${
- isActive
- ? 'bg-emerald-600 text-white'
- : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
- }`}
-                    >
-                      {tab}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Cards List */}
-              <div className="space-y-3">
-                {myKitchenCooking.map((kc) => (
-                  <div key={kc.id} className={`p-3 rounded-xl border space-y-2 transition-colors ${
- 'bg-slate-50/80 border-slate-200 shadow-2xs'
- }`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`font-mono font-bold text-xs ${'text-slate-900'}`}>{kc.orderNumber}</span>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
- 'bg-blue-100 text-orange-800 border border-blue-200'
- }`}>{kc.destination}</span>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
- 'bg-blue-100 text-blue-800 border border-blue-200'
- }`}>
-                        <Flame className="w-3 h-3 text-amber-500" />
-                        <span>Preparing</span>
-                      </span>
-                    </div>
-
-                    <div className={`flex items-center justify-between text-[10px] ${'text-slate-600 font-medium'}`}>
-                      <div className="flex items-center gap-1">
-                        <Clock className={`w-3 h-3 ${'text-slate-500'}`} />
-                        <span>{kc.timeAgo}</span>
-                      </div>
-                      <span className="font-mono font-semibold">{kc.station}</span>
-                    </div>
-
-                    <div className={`space-y-0.5 text-xs font-medium ${'text-slate-800'}`}>
-                      {kc.items.map((it, idx) => (
-                        <div key={idx} className="truncate">{it}</div>
-                      ))}
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="space-y-1 pt-1">
-                      <div className={`flex items-center justify-between text-[9px] font-semibold ${'text-slate-600'}`}>
-                        <span>Chef Progress</span>
-                        <span className={`font-bold ${'text-emerald-700'}`}>{kc.progress}%</span>
-                      </div>
-                      <div className={`w-full h-1.5 rounded-full overflow-hidden ${'bg-slate-200'}`}>
-                        <div className="bg-amber-500 h-full rounded-full transition-all" style={{ width: `${kc.progress}%` }} />
-                      </div>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="flex gap-2 pt-1">
-                      <button
-                        onClick={() => triggerToast(`Kitchen alerted: Checking status for ${kc.orderNumber}`)}
-                        className={`flex-1 py-1 rounded-lg font-bold text-xs transition ${
- 'bg-blue-100 hover:bg-blue-200 text-blue-900 border border-blue-200'
- }`}
-                      >
-                        Nudge Kitchen
-                      </button>
-                      <button
-                        onClick={() => triggerToast(`Viewing KOT slip for ${kc.orderNumber}`)}
-                        className={`px-3 py-1 rounded-lg font-bold text-xs transition border ${
- 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
- }`}
-                      >
-                        View KOT
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* ======================================================== */}
-          {/* COLUMN 3: TABLE LAYOUT & REQUESTS                        */}
-          {/* ======================================================== */}
-          <div className="w-full lg:flex-[1.15] lg:basis-0 lg:min-w-0 flex flex-col gap-3 lg:overflow-y-auto pr-0 lg:pr-1">
-            {/* Box 1: Table Layout Map (Strictly Hotel Admin Assigned Tables) */}
-            <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-3 transition-colors ${
- 'bg-white border-slate-200 text-slate-900'
- }`}>
-              <div className="flex items-center justify-between">
-                <div className={`flex items-center gap-2 text-xs font-black ${'text-slate-900'}`}>
-                  <Grid className="w-4 h-4 text-emerald-500" />
-                  <span>My Assigned Tables ({myAssignedTables.length})</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
-                    T-{String(currentStaff.assignedTableStart).padStart(2, '0')} - T-{String(currentStaff.assignedTableEnd).padStart(2, '0')}
+            
+            {/* ======================================================== */}
+            {/* MOBILE & TABLET LAYOUT (<lg): 100% OPERATIONAL FLOOR     */}
+            {/* ======================================================== */}
+            <div className="lg:hidden flex flex-col gap-3">
+              {/* 1. Sleek Compact 1-Line Status Ribbon */}
+              <div className="p-2.5 rounded-xl border bg-white border-slate-200 shadow-2xs flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                  <Grid className="w-3.5 h-3.5 text-[#123C2B]" />
+                  <span>
+                    {currentStaff.assignedTableEnd > 0
+                      ? `T-${String(currentStaff.assignedTableStart).padStart(2, '0')}-T-${String(currentStaff.assignedTableEnd).padStart(2, '0')}`
+                      : 'All Tables'}
                   </span>
+                  <span className="text-[10px] text-slate-400 font-medium">({myAssignedTables.length} tables)</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    🟢 {myAssignedTables.filter(t => t.status === 'Available').length} Free
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-red-50 text-red-800 border border-red-200">
+                    🔴 {myAssignedTables.filter(t => t.status === 'Occupied' || t.status === 'My Table').length} Busy
+                  </span>
+                  {myKitchenPickups.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-black animate-pulse shadow-xs">
+                      🔔 {myKitchenPickups.length} Ready
+                    </span>
+                  )}
+                  {myGuestRequests.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white font-black animate-pulse shadow-xs">
+                      🙋 {myGuestRequests.length} Calls
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* 2. URGENT HOT PASS PICKUPS (ONLY WHEN READY > 0) */}
+              {myKitchenPickups.length > 0 && (
+                <div className="p-3 rounded-2xl border bg-emerald-50/90 border-emerald-300 shadow-sm space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-black text-emerald-950">
+                      <Bell className="w-4 h-4 text-emerald-600 animate-bounce" />
+                      <span>Ready at Hot Pass ({myKitchenPickups.length})</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-600 text-white">
+                      SERVE NOW
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {myKitchenPickups.map((kp) => (
+                      <div key={kp.id} className="p-2.5 rounded-xl bg-white border border-emerald-200 shadow-2xs space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-xs text-slate-900">{kp.orderNumber}</span>
+                            <span className="px-2 py-0.5 rounded text-[11px] font-black bg-blue-100 text-blue-900 border border-blue-200">
+                              {kp.destination}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            {kp.timeAgo}
+                          </span>
+                        </div>
+                        <div className="text-xs font-semibold text-slate-800">
+                          {kp.items.map((it, idx) => (
+                            <div key={idx} className="flex items-center justify-between py-0.5">
+                              <span>• {it}</span>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            onClick={() => handleOpenDelegateModal({
+                              type: 'PICKUP',
+                              id: kp.id,
+                              tableNumber: kp.destination,
+                              title: `${kp.orderNumber} for ${kp.destination}`,
+                              details: `${kp.items.join(', ')} ready at ${kp.station}`,
+                            })}
+                            className="px-2.5 py-1.5 rounded-lg text-xs font-bold border bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                          >
+                            <ArrowRightLeft className="w-3 h-3 inline mr-1 text-slate-500" />
+                            Delegate
+                          </button>
+                          <button
+                            onClick={() => handleServePickup(kp.id, kp.orderNumber, kp.destination)}
+                            className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>✓ Pick Up & Serve</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 3. URGENT GUEST CALLS (ONLY WHEN CALLS > 0) */}
+              {myGuestRequests.length > 0 && (
+                <div className="p-3 rounded-2xl border bg-amber-50 border-amber-300 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-black text-amber-950">
+                      <Users className="w-4 h-4 text-amber-600" />
+                      <span>Guest Assistance Calls ({myGuestRequests.length})</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    {myGuestRequests.map((gr) => (
+                      <div key={gr.id} className="p-2 rounded-xl bg-white border border-amber-200 flex items-center justify-between text-xs shadow-2xs">
+                        <div className="min-w-0 flex-1 mr-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-black text-slate-900">{gr.table}</span>
+                            <span className="text-[10px] text-slate-500">• {gr.timeAgo}</span>
+                          </div>
+                          <div className="text-[11px] font-semibold text-amber-900 truncate">{gr.request}</div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleCompleteRequest(gr.id, gr.table, gr.request)}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-2xs"
+                          >
+                            ✓ Done
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 4. PRIMARY WORKSPACE: MY ASSIGNED TABLES GRID */}
+              <div className="p-3 rounded-2xl border bg-white border-slate-200 shadow-2xs space-y-3">
+                {/* Filter pills & other tables button */}
+                <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+                    {[
+                      { id: 'All', label: `All (${myAssignedTables.length})` },
+                      { id: 'Available', label: `🟢 Free (${myAssignedTables.filter(t => t.status === 'Available').length})` },
+                      { id: 'Occupied', label: `🔴 Busy (${myAssignedTables.filter(t => t.status === 'Occupied' || t.status === 'My Table').length})` },
+                    ].map((f) => {
+                      const isActive = dashboardTableFilter === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => setDashboardTableFilter(f.id as any)}
+                          className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition whitespace-nowrap ${
+                            isActive
+                              ? 'bg-[#123C2B] text-white shadow-2xs'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                          }`}
+                        >
+                          {f.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <button
                     onClick={() => setActiveSidebarItem('Other Tables')}
-                    className={`text-[10px] font-black px-2 py-0.5 rounded border flex items-center gap-1 transition cursor-pointer ${
- 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
- }`}
+                    className="text-[10px] font-bold px-2 py-1 rounded-lg border bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300 shrink-0"
                   >
-                    <ArrowRightLeft className="w-2.5 h-2.5 text-slate-700" />
-                    <span>Other Tables</span>
+                    Other Tables →
                   </button>
                 </div>
-              </div>
 
-              {/* Table Vacancy Filter Tabs (🟢 Available vs 🔴 Occupied) */}
-              <div className="flex flex-wrap items-center gap-1.5 pb-0.5 text-[11px] font-bold">
-                {[
-                  { id: 'All', label: `All (${myAssignedTables.length})` },
-                  { id: 'Available', label: `🟢 Available (${myAssignedTables.filter(t => t.status === 'Available').length})` },
-                  { id: 'Occupied', label: `🔴 Occupied (${myAssignedTables.filter(t => t.status === 'Occupied' || t.status === 'My Table').length})` },
-                  { id: 'Cleaning', label: `🟡 Clean (${myAssignedTables.filter(t => t.status === 'Cleaning').length})` },
-                ].map((f) => {
-                  const isActive = dashboardTableFilter === f.id;
-                  return (
-                    <button
-                      key={f.id}
-                      onClick={() => setDashboardTableFilter(f.id as any)}
-                      className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition whitespace-nowrap ${
- isActive
- ? 'bg-emerald-600 text-white shadow-2xs'
- : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
- }`}
-                    >
-                      {f.label}
-                    </button>
-                  );
-                })}
-              </div>
+                {/* 2-Column Responsive Touch-Friendly Grid */}
+                <div
+                  data-testid="my-assigned-tables-grid"
+                  className="grid grid-cols-2 gap-2.5 sm:gap-3"
+                >
+                  {myAssignedTables
+                    .filter((t) => {
+                      if (dashboardTableFilter === 'Available') return t.status === 'Available';
+                      if (dashboardTableFilter === 'Occupied') return t.status === 'Occupied' || t.status === 'My Table';
+                      if (dashboardTableFilter === 'Cleaning') return t.status === 'Cleaning';
+                      return true;
+                    })
+                    .map((t) => {
+                      const isAvailable = t.status === 'Available';
+                      const isOccupied = t.status === 'Occupied' || t.status === 'My Table';
+                      const isCleaning = t.status === 'Cleaning';
+                      const bill = tableBills[`Table ${t.name}`];
 
-              {/* Strict Visual Grid: ONLY Waiter's Assigned Tables */}
-              <div
-                data-testid="my-assigned-tables-grid"
-                className={`grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 rounded-2xl border transition-colors ${
- 'bg-slate-50 border-slate-200'
- }`}
-              >
-                {myAssignedTables
-                  .filter((t) => {
-                    if (dashboardTableFilter === 'Available') return t.status === 'Available';
-                    if (dashboardTableFilter === 'Occupied') return t.status === 'Occupied' || t.status === 'My Table';
-                    if (dashboardTableFilter === 'Cleaning') return t.status === 'Cleaning';
-                    return true;
-                  })
-                  .map((t) => {
-                    const isAvailable = t.status === 'Available';
-                    const isOccupied = t.status === 'Occupied' || t.status === 'My Table';
-                    const isCleaning = t.status === 'Cleaning';
-                    const bill = tableBills[`Table ${t.name}`];
-
-                    return (
-                      <button
-                        key={t.id}
-                        data-testid={`card-waiter-table-${t.name}`}
-                        onClick={() => {
-                          setSelectedTableForOrder(`Table ${t.name}`);
-                          setIsPunchKotOpen(true);
-                        }}
-                        className={`p-3 rounded-xl border aspect-square text-left transition hover:scale-[1.02] flex flex-col justify-between gap-1 shadow-sm relative min-w-0 ${
- isAvailable
- ? 'bg-white dark:bg-slate-900 border-emerald-500/40 text-slate-900 dark:text-white'
- : isOccupied
- ? 'bg-white dark:bg-slate-900 border-red-500/40 text-slate-900 dark:text-white'
- : 'bg-white dark:bg-slate-900 border-emerald-600/40 text-slate-900 dark:text-white'
- }`}
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
- isAvailable
- ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
- : isOccupied
- ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
- : 'bg-amber-100 text-amber-800 dark:bg-slate-900 dark:text-amber-300'
- }`}>
-                            {isAvailable ? 'Available' : isOccupied ? 'Occupied' : 'Billing'}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-medium">
-                            {t.actualGuests || t.guests || 4} Pax
-                          </span>
-                        </div>
-
-                        <div className="text-center my-auto">
-                          <div className="text-lg md:text-2xl font-bold text-slate-900 dark:text-white whitespace-nowrap">
-                            T-{t.name}
+                      return (
+                        <div
+                          key={t.id}
+                          data-testid={`card-waiter-table-${t.name}`}
+                          className={`p-3 rounded-2xl border transition shadow-2xs flex flex-col justify-between gap-2.5 ${
+                            isAvailable
+                              ? 'bg-emerald-50/40 border-emerald-300 hover:border-emerald-400'
+                              : isOccupied
+                              ? 'bg-[#FDF9F2] border-[#CFE0D2] hover:border-[#123C2B]/40'
+                              : 'bg-blue-50/40 border-blue-200'
+                          }`}
+                        >
+                          {/* Card Header: Table Number & Pax */}
+                          <div className="flex items-center justify-between w-full">
+                            <div>
+                              <div className="text-base font-black text-slate-900 tracking-tight">
+                                Table {t.name}
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-medium">
+                                {isAvailable
+                                  ? `${t.guests || 4} Chairs`
+                                  : `${t.actualGuests || t.guests || 2} Pax Seated`}
+                              </div>
+                            </div>
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                              isAvailable
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : isOccupied
+                                ? 'bg-red-100 text-red-800 border-red-300'
+                                : 'bg-blue-100 text-blue-800 border-blue-300'
+                            }`}>
+                              {isAvailable ? '🟢 Free' : isOccupied ? '🔴 Busy' : '🟡 Clean'}
+                            </span>
                           </div>
-                          <div className="text-[10.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight break-words">
-                            {isAvailable ? 'Ready for Guests' : isOccupied ? (bill?.grandTotal ? `₹${bill.grandTotal}` : 'Active Order') : 'Cleaning'}
+
+                          {/* Card Body: Bill & Details */}
+                          <div className="py-1">
+                            {isAvailable ? (
+                              <div className="text-xs text-emerald-800 font-semibold flex items-center gap-1">
+                                <span>Ready for Walk-in Guests</span>
+                              </div>
+                            ) : isOccupied ? (
+                              <div className="space-y-0.5">
+                                <div className="text-sm font-black text-slate-900">
+                                  🧾 ₹{Number(bill?.grandTotal || 0).toLocaleString('en-IN')}
+                                </div>
+                                <div className="text-[10px] text-slate-600 font-medium flex items-center justify-between">
+                                  <span>{bill?.items.length || 0} items ordered</span>
+                                  <span className="text-emerald-700 font-bold">Active Order</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-blue-800 font-semibold">
+                                Table being sanitized
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Card Actions: Big Touch-Friendly Buttons */}
+                          <div className="pt-2 border-t border-slate-200/80">
+                            {isAvailable ? (
+                              <button
+                                onClick={() => {
+                                  setSelectedTableForOrder(`Table ${t.name}`);
+                                  setIsPunchKotOpen(true);
+                                }}
+                                className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition active:scale-98"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>+ Take Order</span>
+                              </button>
+                            ) : isOccupied ? (
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <button
+                                  onClick={() => {
+                                    setSelectedTableForOrder(`Table ${t.name}`);
+                                    setIsPunchKotOpen(true);
+                                  }}
+                                  className="py-1.5 px-2 rounded-xl bg-[#123C2B] hover:bg-[#1B5138] text-white font-black text-[11px] shadow-xs flex items-center justify-center gap-1 transition"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>+ Order</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedTableForBilling(`Table ${t.name}`);
+                                    setActiveSidebarItem('Table Billing');
+                                  }}
+                                  className="py-1.5 px-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 font-black text-[11px] shadow-2xs flex items-center justify-center gap-1 transition"
+                                >
+                                  <CreditCard className="w-3 h-3 text-[#123C2B]" />
+                                  <span>🧾 Settle</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setTablesList(prev => prev.map(tbl => tbl.id === t.id ? { ...tbl, status: 'Available' } : tbl));
+                                  triggerToast(`Table ${t.name} is now Available.`);
+                                }}
+                                className="w-full py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs"
+                              >
+                                Mark Ready
+                              </button>
+                            )}
                           </div>
                         </div>
-
-                        <div className={`pt-1.5 border-t text-[10.5px] font-medium flex items-center justify-between gap-1 w-full ${
- 'border-slate-200 text-slate-600'
- }`}>
-                          <span>{isAvailable ? 'Take Order' : 'View KOT'}</span>
-                          <span className="font-bold">→</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-
-            {/* Live Guest Assistance Calls */}
-            <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-2.5 transition-colors ${
- 'bg-white border-slate-200 text-slate-900'
- }`}>
-              <div className="flex items-center justify-between">
-                <div className={`flex items-center gap-1.5 text-xs font-black ${'text-slate-900'}`}>
-                  <Users className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
-                  <span>Guest Assistance Calls ({myGuestRequests.length})</span>
+                      );
+                    })}
                 </div>
-                <button
-                  onClick={() => setActiveSidebarItem('Guest Requests')}
-                  className="text-[10px] font-bold text-[#123C2B] hover:underline"
-                >
-                  View All
-                </button>
               </div>
 
-              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5 custom-scrollbar">
-                {myGuestRequests.length === 0 ? (
-                  <div className={`text-center py-4 text-xs ${'text-slate-500'}`}>
-                    No active calls for your tables.
-                  </div>
-                ) : (
-                  myGuestRequests.slice(0, 5).map((gr) => (
-                    <div key={gr.id} className={`p-2 rounded-xl flex items-center justify-between text-xs transition-colors ${
- 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-900'
- }`}>
-                      <div className="min-w-0 flex-1 mr-2">
-                        <div className="flex items-center gap-2">
-                          <span className={`font-bold ${'text-slate-900'}`}>{gr.table}</span>
-                          <span className={`text-[10px] ${'text-slate-500'}`}>{gr.timeAgo}</span>
-                        </div>
-                        <div className={`font-semibold text-[11px] truncate ${'text-slate-700 dark:text-slate-300'}`}>{gr.request}</div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          onClick={() => handleOpenDelegateModal({
-                            type: 'REQUEST',
-                            id: gr.id,
-                            tableNumber: gr.table,
-                            title: `${gr.request} at ${gr.table}`,
-                            details: `Guest at ${gr.table} requested ${gr.request}`,
-                          })}
-                          className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition flex items-center gap-1 ${
- 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
- }`}
-                          title="Transfer this request to colleague waiter"
-                        >
-                          <ArrowRightLeft className="w-2.5 h-2.5 text-amber-400" />
-                          <span>Transfer</span>
-                        </button>
-                        <button
-                          onClick={() => handleCompleteRequest(gr.id, gr.table, gr.request)}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-2xs"
-                        >
-                          Done
-                        </button>
-                      </div>
+              {/* 5. KITCHEN COOKING PROGRESS (ONLY WHEN COOKING > 0) */}
+              {myKitchenCooking.length > 0 && (
+                <div className="p-3 rounded-2xl border bg-white border-slate-200 shadow-2xs space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-black text-slate-900">
+                      <Flame className="w-4 h-4 text-amber-500 animate-pulse" />
+                      <span>Chefs Cooking ({myKitchenCooking.length})</span>
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ======================================================== */}
-          {/* COLUMN 4: QUICK ACTIONS & RECENT COMPLETED               */}
-          {/* ======================================================== */}
-          <div className="w-full lg:flex-1 lg:basis-0 lg:min-w-0 flex flex-col gap-3 lg:overflow-y-auto pl-0 lg:pl-1">
-            {/* Box 1: Quick Actions */}
-            <div className={`p-3.5 rounded-2xl border shadow-2xs space-y-2.5 transition-colors ${
- 'bg-white border-slate-200 text-slate-900'
- }`}>
-              <h3 className={`font-black text-xs ${'text-slate-900'}`}>Quick Actions</h3>
-
-              <div className="space-y-1.5">
-                <button
-                  onClick={() => {
-                    setCrossTableCourtesyNote(undefined);
-                    setIsPunchKotOpen(true);
-                  }}
-                  className="w-full py-2 px-3 rounded-xl bg-[#123C2B] hover:bg-[#1B5138] text-white font-bold text-xs shadow-md shadow-[#123C2B]/20 flex items-center justify-center gap-2 transition"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ New Order</span>
-                </button>
-
-                {/* Cross-Table Guest Assist for Non-Tech / Verbal Calls */}
-                <button
-                  onClick={() => setIsCrossTableAssistOpen(true)}
-                  className="w-full py-2 px-3 rounded-xl bg-[#123C2B] hover:bg-[#1B5138] text-white font-bold text-xs shadow-xs flex items-center justify-center gap-2 transition"
-                  title="Assist non-tech or walk-in guests at another table"
-                >
-                  <Users className="w-4 h-4 text-slate-200" />
-                  <span>🤝 Cross-Table Guest Assist</span>
-                </button>
-
-                {[
-                  { label: 'Live Orders & KOT', icon: Flame, action: () => setActiveSidebarItem('Live Orders & KOT') },
-                  { label: 'Table Billing & Settle', icon: CreditCard, action: () => setActiveSidebarItem('Table Billing') },
-                  { label: 'Call Kitchen Chef', icon: ChefHat, action: () => setActiveSidebarItem('Call Kitchen') },
-                  { label: 'Guest Requests', icon: Users, action: () => setActiveSidebarItem('Guest Requests') },
-                  { label: 'Menu & Stock 86', icon: BookOpen, action: () => setActiveSidebarItem('Menu & Stock') },
-                  { label: 'Table Transfer', icon: ArrowRightLeft, action: () => setActiveSidebarItem('Table Transfer') },
-                  { label: 'Split Bill', icon: Scissors, action: () => setActiveSidebarItem('Split Bill') },
-                ].map((act) => {
-                  const Icon = act.icon;
-                  return (
                     <button
-                      key={act.label}
-                      onClick={act.action}
-                      className={`w-full p-2 rounded-xl border font-bold text-xs flex items-center gap-2 transition text-left ${
- 'bg-white border-slate-200 hover:bg-slate-50 text-slate-800 shadow-2xs'
- }`}
+                      onClick={() => setActiveSidebarItem('Live Orders & KOT')}
+                      className="text-[10px] font-bold text-[#123C2B] hover:underline"
                     >
-                      <Icon className="w-3.5 h-3.5 text-[#2E6B4C]" />
-                      <span>{act.label}</span>
+                      View All KOTs →
                     </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Box 2: Recent Completed Orders */}
-            <div className={`p-3 rounded-2xl border shadow-2xs space-y-2 transition-colors ${
- 'bg-white border-slate-200 text-slate-900'
- }`}>
-              <div className="flex items-center justify-between">
-                <h3 className={`font-black text-xs ${'text-slate-900'}`}>Recent Completed</h3>
-                <button
-                  onClick={() => setActiveSidebarItem('Order History')}
-                  className="text-[10px] font-bold text-[#123C2B] hover:underline"
-                >
-                  View All
-                </button>
-              </div>
-
-              <div className="space-y-1.5 text-xs">
-                {recentOrders.length === 0 ? (
-                  <div className={`p-3 rounded-lg text-[10px] text-center ${
- 'bg-slate-50 border border-slate-200/60 text-slate-500'
- }`}>
-                    No served orders yet. Completed orders appear here as the kitchen serves them.
                   </div>
-                ) : (
-                  recentOrders.map((rc) => (
-                    <div key={rc.id} className={`p-1.5 rounded-lg flex items-center justify-between text-[11px] transition-colors ${
- 'bg-slate-50 border border-slate-200/60'
- }`}>
-                      <div>
-                        <span className={`font-bold ${'text-slate-900'}`}>{rc.orderNumber}</span>
-                        <span className={`${'text-slate-600'} text-[10px] ml-1 font-medium`}>{rc.location}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className={`font-bold ${'text-slate-900'}`}>
-                          ₹{Number(rc.total || 0).toLocaleString('en-IN')}
-                        </span>
-                        <div className={`text-[9px] ${'text-slate-500'}`}>
-                          {new Date(rc.updatedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  <div className="space-y-2">
+                    {myKitchenCooking.map((kc) => (
+                      <div key={kc.id} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-slate-900">{kc.orderNumber}</span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-900">
+                              {kc.destination}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-medium">{kc.timeAgo}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-700 font-medium truncate">
+                          {kc.items.join(', ')}
+                        </div>
+                        <div className="space-y-1 pt-0.5">
+                          <div className="flex items-center justify-between text-[9px] text-slate-500 font-semibold">
+                            <span>Chef Station: {kc.station}</span>
+                            <span className="text-amber-700 font-bold">{kc.progress}%</span>
+                          </div>
+                          <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                            <div className="bg-amber-500 h-full rounded-full transition-all" style={{ width: `${kc.progress}%` }} />
+                          </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ======================================================== */}
+            {/* DESKTOP LAYOUT (>=lg): STREAMLINED 3-COLUMN WORKSPACE    */}
+            {/* ======================================================== */}
+            <div className="hidden lg:flex lg:flex-row gap-3 w-full lg:flex-1 lg:min-h-0">
+              {/* DESKTOP COLUMN 1: KITCHEN PASS & COOKING */}
+              <div className="lg:flex-1 lg:basis-0 lg:min-w-0 flex flex-col gap-3 lg:overflow-y-auto pr-1">
+                {/* Hot Pass Ready */}
+                <div className="p-3.5 rounded-2xl border bg-white border-slate-200 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-black text-slate-900">
+                      <Bell className="w-4 h-4 text-emerald-500" />
+                      <span>Kitchen Hot Pass ({myKitchenPickups.length})</span>
                     </div>
-                  ))
-                )}
+                    <span className="text-[9px] uppercase font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      Ready to Serve
+                    </span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {myKitchenPickups.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-slate-500">
+                        No food ready at Hot Pass currently.
+                      </div>
+                    ) : (
+                      myKitchenPickups.map((kp) => (
+                        <div key={kp.id} className="p-2.5 rounded-xl border bg-emerald-50/70 border-emerald-300 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-black text-xs text-slate-900">{kp.orderNumber}</span>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-orange-800 border border-blue-200">{kp.destination}</span>
+                            </div>
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-600 text-white">HOT PASS</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] text-slate-600 font-medium">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-500" />
+                              <span>{kp.timeAgo}</span>
+                            </span>
+                            <span className="font-mono font-semibold text-slate-700">{kp.station}</span>
+                          </div>
+                          <div className="space-y-0.5 text-xs font-medium border-t pt-1.5 text-slate-800 border-emerald-200/80">
+                            {kp.items.map((it, idx) => (
+                              <div key={idx} className="truncate flex items-center justify-between text-[11px]">
+                                <span>{it}</span>
+                                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              onClick={() => handleOpenDelegateModal({
+                                type: 'PICKUP',
+                                id: kp.id,
+                                tableNumber: kp.destination,
+                                title: `${kp.orderNumber} for ${kp.destination}`,
+                                details: `${kp.items.join(', ')} ready at ${kp.station}`,
+                              })}
+                              className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border bg-blue-50 border-blue-300 text-blue-800 hover:bg-blue-100"
+                            >
+                              <ArrowRightLeft className="w-3 h-3 text-amber-400 inline mr-1" />
+                              Delegate
+                            </button>
+                            <button
+                              onClick={() => handleServePickup(kp.id, kp.orderNumber, kp.destination)}
+                              className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Pick Up & Serve</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Kitchen Cooking Status */}
+                <div className="p-3.5 rounded-2xl border bg-white border-slate-200 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-black text-slate-900">
+                      <Flame className="w-4 h-4 text-amber-500 animate-pulse" />
+                      <span>Chefs Cooking ({myKitchenCooking.length})</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-600">Live KOTs</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {myKitchenCooking.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-slate-500">
+                        No orders currently cooking.
+                      </div>
+                    ) : (
+                      myKitchenCooking.map((kc) => (
+                        <div key={kc.id} className="p-3 rounded-xl border bg-slate-50/80 border-slate-200 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-xs text-slate-900">{kc.orderNumber}</span>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-orange-800 border border-blue-200">{kc.destination}</span>
+                            </div>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 flex items-center gap-1">
+                              <Flame className="w-3 h-3 text-amber-500" />
+                              <span>Preparing</span>
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-800 font-medium">
+                            {kc.items.join(', ')}
+                          </div>
+                          <div className="space-y-1 pt-1">
+                            <div className="flex items-center justify-between text-[9px] font-semibold text-slate-600">
+                              <span>Chef Station: {kc.station}</span>
+                              <span className="font-bold text-emerald-700">{kc.progress}%</span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                              <div className="bg-amber-500 h-full rounded-full transition-all" style={{ width: `${kc.progress}%` }} />
+                            </div>
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              onClick={() => triggerToast(`Kitchen alerted: Checking status for ${kc.orderNumber}`)}
+                              className="flex-1 py-1 rounded-lg font-bold text-xs bg-blue-100 hover:bg-blue-200 text-blue-900 border border-blue-200"
+                            >
+                              Nudge Kitchen
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* DESKTOP COLUMN 2: PRIMARY TABLE LAYOUT GRID */}
+              <div className="lg:flex-[1.4] lg:basis-0 lg:min-w-0 flex flex-col gap-3 lg:overflow-y-auto pr-1">
+                <div className="p-3.5 rounded-2xl border bg-white border-slate-200 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-black text-slate-900">
+                      <Grid className="w-4 h-4 text-emerald-500" />
+                      <span>My Assigned Tables ({myAssignedTables.length})</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-700 font-bold border border-emerald-500/30">
+                        T-{String(currentStaff.assignedTableStart).padStart(2, '0')} - T-{String(currentStaff.assignedTableEnd).padStart(2, '0')}
+                      </span>
+                      <button
+                        onClick={() => setActiveSidebarItem('Other Tables')}
+                        className="text-[10px] font-black px-2 py-0.5 rounded border bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 flex items-center gap-1 transition"
+                      >
+                        <ArrowRightLeft className="w-2.5 h-2.5 text-slate-700" />
+                        <span>Other Tables</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Table Vacancy Filter Tabs */}
+                  <div className="flex flex-wrap items-center gap-1.5 pb-0.5 text-[11px] font-bold">
+                    {[
+                      { id: 'All', label: `All (${myAssignedTables.length})` },
+                      { id: 'Available', label: `🟢 Available (${myAssignedTables.filter(t => t.status === 'Available').length})` },
+                      { id: 'Occupied', label: `🔴 Occupied (${myAssignedTables.filter(t => t.status === 'Occupied' || t.status === 'My Table').length})` },
+                      { id: 'Cleaning', label: `🟡 Clean (${myAssignedTables.filter(t => t.status === 'Cleaning').length})` },
+                    ].map((f) => {
+                      const isActive = dashboardTableFilter === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => setDashboardTableFilter(f.id as any)}
+                          className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition whitespace-nowrap ${
+                            isActive
+                              ? 'bg-emerald-600 text-white shadow-2xs'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                          }`}
+                        >
+                          {f.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Visual Grid: Assigned Tables */}
+                  <div
+                    data-testid="my-assigned-tables-grid-desktop"
+                    className="grid grid-cols-2 md:grid-cols-3 gap-3 p-3 rounded-2xl border bg-slate-50 border-slate-200"
+                  >
+                    {myAssignedTables
+                      .filter((t) => {
+                        if (dashboardTableFilter === 'Available') return t.status === 'Available';
+                        if (dashboardTableFilter === 'Occupied') return t.status === 'Occupied' || t.status === 'My Table';
+                        if (dashboardTableFilter === 'Cleaning') return t.status === 'Cleaning';
+                        return true;
+                      })
+                      .map((t) => {
+                        const isAvailable = t.status === 'Available';
+                        const isOccupied = t.status === 'Occupied' || t.status === 'My Table';
+                        const isCleaning = t.status === 'Cleaning';
+                        const bill = tableBills[`Table ${t.name}`];
+
+                        return (
+                          <div
+                            key={t.id}
+                            data-testid={`card-waiter-table-desktop-${t.name}`}
+                            className={`p-3.5 rounded-xl border aspect-square text-left transition flex flex-col justify-between gap-1 shadow-sm ${
+                              isAvailable
+                                ? 'bg-white border-emerald-500/40 text-slate-900'
+                                : isOccupied
+                                ? 'bg-[#FDF9F2] border-red-500/40 text-slate-900'
+                                : 'bg-white border-blue-400/40 text-slate-900'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                isAvailable
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : isOccupied
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-blue-100 text-blue-800'
+                              }`}>
+                                {isAvailable ? 'Available' : isOccupied ? 'Occupied' : 'Cleaning'}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {t.actualGuests || t.guests || 4} Pax
+                              </span>
+                            </div>
+
+                            <div className="text-center my-auto">
+                              <div className="text-2xl font-bold text-slate-900 whitespace-nowrap">
+                                T-{t.name}
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                                {isAvailable ? 'Ready for Guests' : isOccupied ? (bill?.grandTotal ? `₹${bill.grandTotal}` : 'Active Order') : 'Cleaning'}
+                              </div>
+                            </div>
+
+                            <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between gap-1 w-full">
+                              {isAvailable ? (
+                                <button
+                                  onClick={() => {
+                                    setSelectedTableForOrder(`Table ${t.name}`);
+                                    setIsPunchKotOpen(true);
+                                  }}
+                                  className="w-full py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                                >
+                                  + Take Order
+                                </button>
+                              ) : isOccupied ? (
+                                <div className="grid grid-cols-2 gap-1 w-full">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedTableForOrder(`Table ${t.name}`);
+                                      setIsPunchKotOpen(true);
+                                    }}
+                                    className="py-1 rounded-lg bg-[#123C2B] text-white font-bold text-[10px]"
+                                  >
+                                    + KOT
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedTableForBilling(`Table ${t.name}`);
+                                      setActiveSidebarItem('Table Billing');
+                                    }}
+                                    className="py-1 rounded-lg bg-white border border-slate-300 text-slate-800 font-bold text-[10px]"
+                                  >
+                                    Settle
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 text-center w-full">Cleaning</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+
+              {/* DESKTOP COLUMN 3: GUEST CALLS & QUICK ACTIONS */}
+              <div className="lg:flex-1 lg:basis-0 lg:min-w-0 flex flex-col gap-3 lg:overflow-y-auto pl-1">
+                {/* Guest Assistance Calls */}
+                <div className="p-3.5 rounded-2xl border bg-white border-slate-200 shadow-2xs space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-black text-slate-900">
+                      <Users className="w-3.5 h-3.5 text-slate-700" />
+                      <span>Guest Calls ({myGuestRequests.length})</span>
+                    </div>
+                    <button
+                      onClick={() => setActiveSidebarItem('Guest Requests')}
+                      className="text-[10px] font-bold text-[#123C2B] hover:underline"
+                    >
+                      View All
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5 custom-scrollbar">
+                    {myGuestRequests.length === 0 ? (
+                      <div className="text-center py-4 text-xs text-slate-500">
+                        No active guest calls.
+                      </div>
+                    ) : (
+                      myGuestRequests.slice(0, 5).map((gr) => (
+                        <div key={gr.id} className="p-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 flex items-center justify-between text-xs">
+                          <div className="min-w-0 flex-1 mr-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900">{gr.table}</span>
+                              <span className="text-[10px] text-slate-500">{gr.timeAgo}</span>
+                            </div>
+                            <div className="font-semibold text-[11px] truncate text-slate-700">{gr.request}</div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => handleCompleteRequest(gr.id, gr.table, gr.request)}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
+                            >
+                              Done
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="p-3.5 rounded-2xl border bg-white border-slate-200 shadow-2xs space-y-2.5">
+                  <h3 className="font-black text-xs text-slate-900">Floor Actions</h3>
+                  <div className="space-y-1.5">
+                    <button
+                      onClick={() => {
+                        setCrossTableCourtesyNote(undefined);
+                        setIsPunchKotOpen(true);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-[#123C2B] hover:bg-[#1B5138] text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>+ New Order (KOT)</span>
+                    </button>
+                    <button
+                      onClick={() => setIsCrossTableAssistOpen(true)}
+                      className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-200 flex items-center justify-center gap-2 transition"
+                    >
+                      <Users className="w-4 h-4 text-slate-600" />
+                      <span>🤝 Cross-Table Guest Assist</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Recent Completed */}
+                <div className="p-3 rounded-2xl border bg-white border-slate-200 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-black text-xs text-slate-900">Recent Completed</h3>
+                    <button
+                      onClick={() => setActiveSidebarItem('Order History')}
+                      className="text-[10px] font-bold text-[#123C2B] hover:underline"
+                    >
+                      View All
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    {recentOrders.length === 0 ? (
+                      <div className="p-3 rounded-lg text-[10px] text-center bg-slate-50 border border-slate-200/60 text-slate-500">
+                        No served orders yet.
+                      </div>
+                    ) : (
+                      recentOrders.slice(0, 5).map((rc) => (
+                        <div key={rc.id} className="p-1.5 rounded-lg flex items-center justify-between text-[11px] bg-slate-50 border border-slate-200/60">
+                          <div>
+                            <span className="font-bold text-slate-900">{rc.orderNumber}</span>
+                            <span className="text-slate-600 text-[10px] ml-1 font-medium">{rc.location}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-bold text-slate-900">₹{Number(rc.total || 0).toLocaleString('en-IN')}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
+
           </div>
-        </div>
-      </div>
-      )}
+        )}
 
       {/* DEDICATED SIDE PAGES / VIEWS */}
       {activeSidebarItem === 'My Tables' && (

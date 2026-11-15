@@ -45,56 +45,25 @@ export const KotVoidAuditApp: React.FC<KotVoidAuditAppProps> = ({
       setLogs(effectiveStore.getAuditLogs());
     });
 
-    // Seed sample initial logs if empty
-    if (effectiveStore.getAuditLogs().length === 0) {
-      effectiveStore.setAuditLogs([
-        {
-          id: 'void-sample-1',
-          hotelId,
-          orderId: 'ord-101',
-          orderNumber: 'KOT #101',
-          tableNumber: 'Table 4',
-          itemId: 'itm-1',
-          menuItemId: 'mi-1',
-          itemName: 'Paneer Tikka Angara',
-          quantity: 1,
-          unitPrice: 320,
-          totalVoidAmount: 320,
-          voidReason: KotVoidReason.CUSTOMER_CANCELLED,
-          wasteDisposition: WasteDisposition.CANCELLED_BEFORE_COOKING,
-          authorizedByManagerUserId: 'mgr-1',
-          managerName: 'Vikram Singh (Manager)',
-          waiterName: 'Ramesh Kumar',
-          kitchenNotified: true,
-          notes: 'Guest ordered soup instead before chef started tandoor',
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: 'void-sample-2',
-          hotelId,
-          orderId: 'ord-102',
-          orderNumber: 'KOT #102',
-          tableNumber: 'Table 2',
-          itemId: 'itm-4',
-          menuItemId: 'mi-4',
-          itemName: 'Butter Chicken Aslam Style',
-          quantity: 1,
-          unitPrice: 420,
-          totalVoidAmount: 420,
-          voidReason: KotVoidReason.QUALITY_REJECTED,
-          wasteDisposition: WasteDisposition.WASTED_SCRAPPED,
-          authorizedByManagerUserId: 'mgr-1',
-          managerName: 'Vikram Singh (Manager)',
-          waiterName: 'Suresh Patil',
-          kitchenNotified: true,
-          notes: 'Guest found gravy too spicy, replaced with mild butter chicken',
-          createdAt: new Date(Date.now() - 3600000).toISOString(),
-        },
-      ]);
-    }
+    const fetchAuditLogs = async () => {
+      try {
+        const res = await client.request<{ success: boolean; data: KotVoidAuditDTO[] }>(
+          'GET',
+          `/api/v1/kot-void/audit-logs${hotelId ? `?hotelId=${encodeURIComponent(hotelId)}` : ''}`
+        );
+        if (res?.data && Array.isArray(res.data)) {
+          effectiveStore.setAuditLogs(res.data);
+          setLogs(res.data);
+        }
+      } catch (e) {
+        // Honest empty state when no void logs or connection offline
+      }
+    };
+
+    fetchAuditLogs();
 
     return () => unsub();
-  }, [effectiveStore, hotelId]);
+  }, [effectiveStore, hotelId, client]);
 
   const kpis = useMemo(() => {
     return KotVoidHelper.calculateVoidWasteCost(logs);

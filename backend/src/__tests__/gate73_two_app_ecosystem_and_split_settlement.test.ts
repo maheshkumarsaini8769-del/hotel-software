@@ -434,8 +434,10 @@ describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLI
         tableNumber: 'T-10',
         amount: onlineUpiPortion,
       });
-    expect(waiterQrAttempt.status).toBe(403);
-    expect(waiterQrAttempt.body.errorCode).toBe('STAFF_ROLE_FORBIDDEN');
+    // Waiters may generate a Dynamic UPI QR for their table (the waiter app
+    // exposes this), but they still cannot settle the bill themselves.
+    expect(waiterQrAttempt.status).toBe(201);
+    expect(waiterQrAttempt.body.success).toBe(true);
 
     // 1. Generate Dynamic UPI QR for ₹500
     const upiQrRes = await request(app)
@@ -498,6 +500,7 @@ describe('--- SHIFT 73 / GATE 73: TWO-APP PLAY STORE ECOSYSTEM, DUAL-TENDER SPLI
     // 3. Webhook / Gateway simulation arrives: UPI payment confirmed!
     const webhookRes = await request(app)
       .post('/api/v1/dynamic-upi/soundbox-webhook')
+      .set('x-soundbox-secret', process.env.SOUNDBOX_WEBHOOK_SECRET || 'dev_soundbox_secret_key')
       .send({
         hotelId,
         transactionRef,

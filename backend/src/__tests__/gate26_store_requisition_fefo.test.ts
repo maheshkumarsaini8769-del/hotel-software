@@ -331,6 +331,9 @@ describe('--- SHIFT 26 / GATE 26: DEPARTMENTAL STORE REQUISITIONS, TRANSFERS & F
       .set('x-hotel-id', tenantBId);
 
     expect(batchRes.status).toBe(200);
-    expect(batchRes.body.batches.length).toBe(0);
+    // A brand-new tenant gets its own isolated starter batches, so the exact
+    // count is not the assertion: no batch may belong to Tenant A.
+    expect(batchRes.body.batches.every((batch: any) => String(batch.hotelId) === tenantBId)).toBe(true);
+    expect(batchRes.body.batches.some((batch: any) => String(batch.hotelId) === tenantAId)).toBe(false);
   });
 });

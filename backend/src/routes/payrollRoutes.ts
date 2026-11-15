@@ -2,6 +2,8 @@ import { Router } from 'express';
 import {
   getPayrollStaffList,
   recordSalaryTransaction,
+  updateSalaryTransaction,
+  deleteSalaryTransaction,
   getStaffLedger,
   updateStaffSalary,
   getPayrollPolicy,
@@ -21,6 +23,8 @@ router.use(authenticateBackOffice);
 // Payroll APIs
 router.get('/staff-list', getPayrollStaffList);
 router.post('/transaction', recordSalaryTransaction);
+router.put('/transaction/:transactionId', updateSalaryTransaction);
+router.delete('/transaction/:transactionId', deleteSalaryTransaction);
 router.get('/ledger/:staffId', getStaffLedger);
 router.put('/staff/:staffId/salary', updateStaffSalary);
 router.put('/staff/:staffId/deduction-policy', updateStaffDeductionPolicy);

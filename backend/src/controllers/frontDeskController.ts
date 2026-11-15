@@ -4498,7 +4498,7 @@ export const createPmsRoom = async (req: TenantRequest, res: Response): Promise<
       res.status(403).json({
         success: false,
         errorCode: 'ROOM_LIMIT_EXCEEDED',
-        message: `Subscription limit reached: Your current tier (${tenant?.subscriptionPlanName || tenant?.subscriptionPlanCode || 'Base Tier'}) allows a maximum of ${maxAllowedRooms} rooms. You already have ${currentCount} rooms. Please upgrade your plan or contact support to expand capacity.`,
+        message: `Room limit reached: SuperAdmin has allocated a maximum of ${maxAllowedRooms} rooms for ${tenant?.name || 'this hotel'} on the ${tenant?.subscriptionPlanName || tenant?.subscriptionPlanCode || 'Base Tier'} tier. Current room count is ${currentCount}. Please upgrade your plan or contact support to expand capacity.`,
         maxAllowed: maxAllowedRooms,
         currentCount,
         requiresUpgrade: true,

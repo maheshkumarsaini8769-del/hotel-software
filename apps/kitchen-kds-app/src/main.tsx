@@ -254,22 +254,28 @@ export const KitchenKdsAppRoot: React.FC = () => {
           const ordersBody = await ordersRes.json();
           if (ordersBody.success && Array.isArray(ordersBody.data)) {
             ordersBody.data.forEach((ord: any) => {
-              const roomNumber = ord.roomId?.roomNumber || ord.roomNumber;
-              const tableNumber = ord.tableId?.tableNumber || ord.tableNumber || (roomNumber ? undefined : 'Table 4');
-              const orderType = ord.orderType || (roomNumber ? 'ROOM_SERVICE' : 'DINE_IN');
-              const items = (ord.items || []).map((it: any, idx: number) => ({
-                itemId: it._id?.toString() || `item-${idx}`,
-                menuItemId: it.menuItemId?.toString() || `mi-${idx}`,
-                name: it.name || 'Dish',
-                quantity: it.quantity || 1,
-                unitPrice: it.unitPrice || 200,
-                subtotal: it.subtotal || 200,
-                kitchenStationId: it.kitchenStationId?.toString() || 'st-curry',
-                itemStatus: it.itemStatus || 'PENDING',
-                specialInstructions: it.specialInstructions,
-                allergens: it.allergens || [],
-                hasAllergenAlert: it.hasAllergenAlert || false,
-              }));
+              const roomNumber = ord.roomNumber || ord.roomId?.roomNumber || undefined;
+              const isTakeaway = ord.orderType === 'TAKEAWAY' || ord.orderType === 'Takeaway';
+              const isRoom = Boolean(roomNumber) || ord.orderType === 'ROOM_SERVICE' || ord.orderType === 'Room Service';
+              const tableNumber = ord.tableId?.tableNumber || ord.tableNumber || (isRoom ? undefined : (isTakeaway ? 'Takeaway Counter' : 'Dining Floor'));
+              const orderType = ord.orderType || (isRoom ? 'ROOM_SERVICE' : isTakeaway ? 'TAKEAWAY' : 'DINE_IN');
+              const items = (ord.items || []).map((it: any, idx: number) => {
+                const price = Number(it.unitPrice ?? it.price ?? 0);
+                const qty = Number(it.quantity ?? 1);
+                return {
+                  itemId: it._id?.toString() || `item-${idx}`,
+                  menuItemId: it.menuItemId?.toString() || `mi-${idx}`,
+                  name: it.name || 'Dish Item',
+                  quantity: qty,
+                  unitPrice: price,
+                  subtotal: Number(it.subtotal ?? (price * qty)),
+                  kitchenStationId: it.kitchenStationId?.toString() || 'kitchen-pass',
+                  itemStatus: it.itemStatus || 'PENDING',
+                  specialInstructions: it.specialInstructions,
+                  allergens: it.allergens || [],
+                  hasAllergenAlert: it.hasAllergenAlert || false,
+                };
+              });
 
               const kdsOrder: KdsOrderCardModel = {
                 id: ord._id.toString(),
@@ -277,6 +283,8 @@ export const KitchenKdsAppRoot: React.FC = () => {
                 orderType,
                 tableNumber,
                 roomNumber,
+                guestCount: Number(ord.guestCount || ord.pax) > 0 ? Number(ord.guestCount || ord.pax) : undefined,
+                pax: Number(ord.guestCount || ord.pax) > 0 ? Number(ord.guestCount || ord.pax) : undefined,
                 roomId: ord.roomId?._id?.toString() || ord.roomId?.toString(),
                 orderStatus: ord.orderStatus || 'PLACED',
                 placedAt: ord.placedAt || ord.createdAt || new Date().toISOString(),
@@ -306,22 +314,28 @@ export const KitchenKdsAppRoot: React.FC = () => {
           const ordersBody = await ordersRes.json();
           if (ordersBody.success && Array.isArray(ordersBody.data)) {
             ordersBody.data.forEach((ord: any) => {
-              const roomNumber = ord.roomId?.roomNumber || ord.roomNumber;
-              const tableNumber = ord.tableId?.tableNumber || ord.tableNumber || (roomNumber ? undefined : 'Table 4');
-              const orderType = ord.orderType || (roomNumber ? 'ROOM_SERVICE' : 'DINE_IN');
-              const items = (ord.items || []).map((it: any, idx: number) => ({
-                itemId: it._id?.toString() || `item-${idx}`,
-                menuItemId: it.menuItemId?.toString() || `mi-${idx}`,
-                name: it.name || 'Dish',
-                quantity: it.quantity || 1,
-                unitPrice: it.unitPrice || 200,
-                subtotal: it.subtotal || 200,
-                kitchenStationId: it.kitchenStationId?.toString() || 'st-curry',
-                itemStatus: it.itemStatus || 'PENDING',
-                specialInstructions: it.specialInstructions,
-                allergens: it.allergens || [],
-                hasAllergenAlert: it.hasAllergenAlert || false,
-              }));
+              const roomNumber = ord.roomNumber || ord.roomId?.roomNumber || undefined;
+              const isTakeaway = ord.orderType === 'TAKEAWAY' || ord.orderType === 'Takeaway';
+              const isRoom = Boolean(roomNumber) || ord.orderType === 'ROOM_SERVICE' || ord.orderType === 'Room Service';
+              const tableNumber = ord.tableId?.tableNumber || ord.tableNumber || (isRoom ? undefined : (isTakeaway ? 'Takeaway Counter' : 'Dining Floor'));
+              const orderType = ord.orderType || (isRoom ? 'ROOM_SERVICE' : isTakeaway ? 'TAKEAWAY' : 'DINE_IN');
+              const items = (ord.items || []).map((it: any, idx: number) => {
+                const price = Number(it.unitPrice ?? it.price ?? 0);
+                const qty = Number(it.quantity ?? 1);
+                return {
+                  itemId: it._id?.toString() || `item-${idx}`,
+                  menuItemId: it.menuItemId?.toString() || `mi-${idx}`,
+                  name: it.name || 'Dish Item',
+                  quantity: qty,
+                  unitPrice: price,
+                  subtotal: Number(it.subtotal ?? (price * qty)),
+                  kitchenStationId: it.kitchenStationId?.toString() || 'kitchen-pass',
+                  itemStatus: it.itemStatus || 'PENDING',
+                  specialInstructions: it.specialInstructions,
+                  allergens: it.allergens || [],
+                  hasAllergenAlert: it.hasAllergenAlert || false,
+                };
+              });
 
               const kdsOrder: KdsOrderCardModel = {
                 id: ord._id.toString(),
@@ -377,23 +391,29 @@ export const KitchenKdsAppRoot: React.FC = () => {
 
       const orderId = data.id || data.orderId || `ord-${Date.now()}`;
       const orderNumber = data.orderNumber || `KOT #${Date.now().toString().slice(-4)}`;
-      const roomNumber = data.roomNumber || (data.room ? String(data.room) : undefined);
-      const tableNumber = data.tableNumber || data.table || (roomNumber ? undefined : 'Table 4');
-      const orderType = data.orderType || (roomNumber ? 'ROOM_SERVICE' : 'DINE_IN');
+      const roomNumber = data.roomNumber || data.roomId?.roomNumber || undefined;
+      const isTakeaway = data.orderType === 'TAKEAWAY' || data.orderType === 'Takeaway';
+      const isRoom = Boolean(roomNumber) || data.orderType === 'ROOM_SERVICE' || data.orderType === 'Room Service';
+      const tableNumber = data.tableNumber || data.table || (isRoom ? undefined : (isTakeaway ? 'Takeaway Counter' : 'Dining Floor'));
+      const orderType = data.orderType || (isRoom ? 'ROOM_SERVICE' : isTakeaway ? 'TAKEAWAY' : 'DINE_IN');
 
-      const items = (data.items || []).map((it: any, idx: number) => ({
-        itemId: it.itemId || it._id || `item-${Date.now()}-${idx}`,
-        menuItemId: it.menuItemId || `mi-${idx}`,
-        name: it.name || 'Delicious Dish',
-        quantity: it.quantity || 1,
-        unitPrice: it.unitPrice || it.price || 200,
-        subtotal: (it.unitPrice || it.price || 200) * (it.quantity || 1),
-        kitchenStationId: it.kitchenStationId || 'st-curry',
-        itemStatus: it.itemStatus || 'PENDING',
-        specialInstructions: it.specialInstructions,
-        allergens: it.allergens || [],
-        hasAllergenAlert: it.hasAllergenAlert || false,
-      }));
+      const items = (data.items || []).map((it: any, idx: number) => {
+        const price = Number(it.unitPrice ?? it.price ?? 0);
+        const qty = Number(it.quantity ?? 1);
+        return {
+          itemId: it.itemId || it._id || `item-${Date.now()}-${idx}`,
+          menuItemId: it.menuItemId || `mi-${idx}`,
+          name: it.name || 'Dish Item',
+          quantity: qty,
+          unitPrice: price,
+          subtotal: Number(it.subtotal ?? (price * qty)),
+          kitchenStationId: it.kitchenStationId || 'kitchen-pass',
+          itemStatus: it.itemStatus || 'PENDING',
+          specialInstructions: it.specialInstructions,
+          allergens: it.allergens || [],
+          hasAllergenAlert: it.hasAllergenAlert || false,
+        };
+      });
 
       const newKdsOrder: KdsOrderCardModel = {
         id: orderId,
@@ -401,6 +421,8 @@ export const KitchenKdsAppRoot: React.FC = () => {
         orderType,
         tableNumber,
         roomNumber,
+        guestCount: Number(data.guestCount || data.pax) > 0 ? Number(data.guestCount || data.pax) : undefined,
+        pax: Number(data.guestCount || data.pax) > 0 ? Number(data.guestCount || data.pax) : undefined,
         orderStatus: data.orderStatus || 'PLACED',
         placedAt: data.placedAt || new Date().toISOString(),
         elapsedMinutes: 0,
@@ -424,6 +446,16 @@ export const KitchenKdsAppRoot: React.FC = () => {
     const unbindStatus = socket.on('order:status_updated', (payload: any) => {
       console.log('🔄 [KDSApp] Order status updated:', payload);
       store.handleStatusUpdated(payload);
+    });
+
+    const unbindCancelled = socket.on('order:cancelled', (data: any) => {
+      console.log('🚫 [KDSApp] Order cancelled:', data);
+      store.handleStatusUpdated({
+        orderId: data.orderId || data.id,
+        orderStatus: 'CANCELLED' as any,
+      });
+      setToast(`🚫 CANCELLED: Order ${data.orderNumber || ''} for ${data.tableNumber || 'Table'} was cancelled!`);
+      setTimeout(() => setToast(null), 7000);
     });
 
     const unbindLowStock = socket.on('stock:low_alert', (data: any) => {
@@ -485,6 +517,7 @@ export const KitchenKdsAppRoot: React.FC = () => {
       unbindOrderPlaced();
       unbindInroomPlaced();
       unbindStatus();
+      unbindCancelled();
       unbindLowStock();
       unbindItem86();
       unbindWaiterSnooze();

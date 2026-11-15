@@ -8,6 +8,10 @@ export const normalizeStaffHotelCode = (code: unknown): string =>
 
 export const isValidStaffHotelCode = (code: unknown): boolean => {
   const normalized = normalizeStaffHotelCode(code);
+  if (!normalized) return false;
+  // Numeric-only codes must be exactly six digits; prefixed/alphanumeric
+  // codes keep the existing 4-10 character format (e.g. SH4277, ROYAL1).
+  if (/^\d+$/.test(normalized)) return /^\d{6}$/.test(normalized);
   return /^[A-Z0-9]{4,10}$/.test(normalized);
 };
 
@@ -44,7 +48,7 @@ export const issueStaffHotelAccessToken = (tenant: ITenant): string =>
       codeVersion: tenant.staffAccessCodeVersion,
     },
     getJwtSecret(),
-    { expiresIn: '20m' }
+    { expiresIn: '30d' }
   );
 
 export const verifyStaffHotelAccessToken = (

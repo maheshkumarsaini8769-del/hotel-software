@@ -439,7 +439,7 @@ describe('--- SHIFT 36 / GATE 36: PERMANENT TABLE QR LOCKER & 10-SECOND WAITER S
     const releaseRes = await request(app)
       .post('/api/v1/qr-locker/release-session')
       .set('x-hotel-id', tenantAId)
-      .send({ tableNumber: 'T-10' });
+      .send({ tableNumber: 'T-10', qrSessionToken: validSessionTokenA });
 
     expect(releaseRes.status).toBe(200);
     expect(releaseRes.body.success).toBe(true);

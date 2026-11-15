@@ -528,6 +528,27 @@ export const processBillPayment = async (req: Request, res: Response): Promise<v
       currentStatus: TableStatus.PAYMENT_SETTLED,
     });
 
+    // Realtime Cashier POS Settle Sync: Notify customer table portal devices immediately
+    if (bill.tableSessionId) {
+      const settledTable = bill.tableId ? await DiningTable.findById(bill.tableId) : null;
+      io.to(`session_${bill.tableSessionId}`)
+        .to(`${activeHotelId}_session_${bill.tableSessionId}`)
+        .to(`${activeHotelId}_global`)
+        .emit('table:bill_settled', {
+          hotelId: activeHotelId,
+          tableId: bill.tableId?.toString(),
+          tableNumber: settledTable?.tableNumber || '',
+          tableSessionId: bill.tableSessionId.toString(),
+          billId: bill._id.toString(),
+          billNumber: bill.billNumber,
+          amount: payAmount,
+          grandTotal: bill.grandTotal,
+          paymentMode,
+          billStatus: bill.billStatus,
+          settledAt: bill.settledAt || new Date(),
+        });
+    }
+
     res.status(201).json({
       success: true,
       message: 'Payment processed successfully',

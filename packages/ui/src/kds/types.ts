@@ -53,6 +53,8 @@ export interface KdsOrderCardModel {
   section?: string;
   roomId?: string;
   roomNumber?: string;
+  guestCount?: number;
+  pax?: number;
   items: KdsOrderItemModel[];
   cookingInstructions?: string;
   orderStatus: KdsOverallOrderStatus;

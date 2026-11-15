@@ -158,7 +158,7 @@ export const PortalsSwitcherModal: React.FC<PortalsSwitcherModalProps> = ({
                 </span>
               </h2>
               <p className="text-xs text-[#7C7566]">
-                Click any portal to open in a new tab without interrupting your waiter shift session
+                Click any portal to switch workstations seamlessly
               </p>
             </div>
           </div>
@@ -181,8 +181,6 @@ export const PortalsSwitcherModal: React.FC<PortalsSwitcherModalProps> = ({
               <a
                 key={portal.id}
                 href={portal.url}
-                target="_blank"
-                rel="noreferrer"
                 className={`p-4 rounded-2xl border transition-all hover:scale-[1.01] hover:shadow-xl flex flex-col justify-between gap-3 group ${
  isCurrent
  ? 'bg-[#F6F1E6] border-[#E9C98A]'

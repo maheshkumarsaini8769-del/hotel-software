@@ -214,7 +214,7 @@ Embedded **Reception** module also renders the real `FrontDeskCheckInApp`.
 |-------|---------|--------|
 | Monorepo build | `npm run build:all` | ✅ all 8 apps + 4 packages |
 | Backend types | `npx tsc --noEmit` (backend) | ✅ clean |
-| Backend unit/integration | `npx jest` (backend) | ✅ 89 suites / 669 tests |
+| Backend unit/integration | `npx jest --runInBand` (backend, serial batches) | ✅ 93 suites / 696 tests |
 | Frontend deep audit | `npx tsx scripts/deep_frontend_and_workflow_audit.ts` | ✅ 0 crashes / 0 console errors / 0 failed requests (6 frontends) |
 | 8-portal human E2E | `node scripts/human_life_real_browser_test_all_8_portals.cjs` | ✅ 0 console errors / 0 HTTP 4xx-5xx / 0 crashes (8 portals) |
 | Device emulation | `npm run verify:emulator` | ✅ 8/8 portals pass |

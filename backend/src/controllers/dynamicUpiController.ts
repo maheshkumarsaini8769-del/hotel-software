@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import { Types } from 'mongoose';
 import { DynamicUpiQr, UpiQrStatus } from '../models/DynamicUpiQr';
 import { TenantRequest } from '../types';
-import { isDevAuthBypassEnabled } from '../config/security';
+import { isWebhookAuthorized } from '../utils/webhookSecurity';
+import { isProduction } from '../config/security';
 
 /**
  * Generates an NPCI-compliant locked dynamic UPI URI.
@@ -173,11 +174,14 @@ export const getQrStatus = async (req: TenantRequest, res: Response): Promise<vo
  */
 export const soundboxWebhook = async (req: TenantRequest, res: Response): Promise<void> => {
   try {
-    const soundboxSecret = req.headers['x-soundbox-secret'] || req.headers['x-webhook-secret'];
-    const expectedSecret = process.env.SOUNDBOX_WEBHOOK_SECRET || 'dev_soundbox_secret_key';
+    const authorized = isWebhookAuthorized(req, {
+      envKey: 'SOUNDBOX_WEBHOOK_SECRET',
+      devFallback: 'dev_soundbox_secret_key',
+      secretHeaders: ['x-soundbox-secret', 'x-webhook-secret'],
+      signatureHeaders: ['x-soundbox-signature', 'x-hub-signature-256'],
+    });
 
-    const isTestEnv = process.env.NODE_ENV === 'test' || isDevAuthBypassEnabled();
-    if (!isTestEnv && soundboxSecret !== expectedSecret) {
+    if (!authorized) {
       res.status(401).json({
         success: false,
         errorCode: 'INVALID_WEBHOOK_SIGNATURE',
@@ -386,6 +390,17 @@ export const getActiveTableQr = async (req: TenantRequest, res: Response): Promi
  */
 export const simulateGatewayPaid = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Demo-only shortcut. It must never be reachable in production because it
+    // can mark a Dynamic UPI QR as paid without any payment-gateway callback.
+    if (isProduction()) {
+      res.status(404).json({
+        success: false,
+        errorCode: 'NOT_FOUND',
+        message: 'Endpoint not available.',
+      });
+      return;
+    }
+
     const { transactionRef } = req.params;
     const existingQr = await DynamicUpiQr.findOne({ transactionRef });
     if (!existingQr) {

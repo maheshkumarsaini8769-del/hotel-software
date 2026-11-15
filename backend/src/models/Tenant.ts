@@ -44,8 +44,10 @@ export interface ITenant extends Document {
   wifiPassword?: string;
   contactEmail: string;
   contactPhone: string;
+  supportPhone?: string;
   currency: string;
   status: 'ACTIVE' | 'SUSPENDED' | 'TRIAL';
+  staffAccessCodePlain?: string;
   staffAccessCodeHash?: string;
   staffAccessCodeVersion?: string;
   staffAccessCodeUpdatedAt?: Date;
@@ -137,6 +139,7 @@ export interface ITenant extends Document {
     nonSmokingFineAmount?: number;
     petSanitationFeePerNight?: number;
     maxTablesPerWaiter?: number;
+    bookingBufferHours?: number;
     updatedAt?: Date;
   };
   payrollPolicy?: {
@@ -227,6 +230,7 @@ const TenantSchema = new Schema<ITenant>(
     wifiPassword: { type: String, trim: true, default: 'SpiceGuest@2026' },
     contactEmail: { type: String, required: true, lowercase: true, trim: true },
     contactPhone: { type: String, required: true, trim: true },
+    supportPhone: { type: String, trim: true, default: '' },
     currency: { type: String, default: 'INR' },
     status: {
       type: String,
@@ -234,6 +238,7 @@ const TenantSchema = new Schema<ITenant>(
       default: 'TRIAL',
       index: true,
     },
+    staffAccessCodePlain: { type: String, select: true, index: true },
     staffAccessCodeHash: { type: String, select: false },
     staffAccessCodeVersion: { type: String, select: false },
     staffAccessCodeUpdatedAt: { type: Date },
@@ -336,6 +341,7 @@ const TenantSchema = new Schema<ITenant>(
       nonSmokingFineAmount: { type: Number, default: 5000, min: 0 },
       petSanitationFeePerNight: { type: Number, default: 1500, min: 0 },
       maxTablesPerWaiter: { type: Number, default: 6, min: 1, max: 100 },
+      bookingBufferHours: { type: Number, default: 1, min: 0, max: 24 },
       updatedAt: { type: Date },
     },
     payrollPolicy: {
